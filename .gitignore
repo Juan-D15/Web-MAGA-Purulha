@@ -20,7 +20,7 @@ dist/
 *.egg-info/
 
 # Base de datos local (por si creas sqlite para pruebas)
-#db.sqlite3
+db.sqlite3
 
 # Variables de entorno (¡no subir credenciales!)
 .env
