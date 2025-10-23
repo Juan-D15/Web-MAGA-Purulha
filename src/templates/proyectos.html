@@ -1,0 +1,1306 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Proyectos - MAGA Purulhá</title>
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ======= TOP / ENCABEZADO ======= -->
+  <header class="topbar" role="banner">
+    <div class="topbar__inner">
+      <!-- Logos para escritorio (MAGA a la izquierda) + un logo móvil adicional -->
+            <div class="brand" aria-label="Logotipos">
+                <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" loading="eager" class="brand__maga">
+                <!-- Este segundo logo solo se muestra en móvil para "juntar los dos logos" -->
+                <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo Purulhá (móvil)" class="brand__purulha-mobile" loading="eager">
+            </div>
+
+      <!-- Títulos (se ocultan en móvil) -->
+      <div class="headline">
+        <h1>MAGA — PURULHÁ</h1>
+        <p>Gestión de Eventos</p>
+      </div>
+
+      <div class="right-actions">
+        <!-- Logo de MAGA (solo escritorio/tablet) -->
+        <div class="right-logo" aria-label="Logo MAGA">
+          <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo MAGA" loading="eager">
+        </div>
+        <!-- Botón hamburguesa (móvil) -->
+        <button class="hamburger" id="btnHamburger" aria-label="Abrir menú" aria-controls="drawer" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ======= NAV ======= -->
+    <nav class="nav" role="navigation" aria-label="Menú principal">
+      <div class="nav__inner">
+        <!-- Ítems de la cinta (ocultos en móvil) -->
+        <div class="nav__group">
+          <a class="nav__link" href="{% url 'webmaga:index' %}">Inicio</a>
+          <a class="nav__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+          <!-- Proyectos Activos -->
+          <div class="dd">
+            <button class="dd__btn nav__link active" aria-haspopup="true" aria-expanded="false">
+              Proyectos Activos <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Proyectos Activos">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}" role="menuitem" tabindex="0">Ver Todos</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#capacitaciones" role="menuitem" tabindex="0">Capacitaciones</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#entregas" role="menuitem" tabindex="0">Entregas</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" role="menuitem" tabindex="0">Proyectos de Ayuda</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gestiones -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Gestiones <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Gestiones">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="{% url 'webmaga:gestioneseventos' %}#createEventView" role="menuitem" tabindex="0">Agregar Evento</a>
+                  <a class="dd__item" href="{% url 'webmaga:gestioneseventos' %}#manageEventView" role="menuitem" tabindex="0">Editar Evento</a>
+                  <a class="dd__item" href="{% url 'webmaga:generarreportes' %}" role="menuitem" tabindex="0">Crear Reporte</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Comunidades -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Comunidades <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Comunidades">
+              <div class="dd__search" role="search">
+                <span class="icon icon--white" aria-hidden="true"></span>
+                <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades" id="search-comunidades">
+              </div>
+              <div class="dd__section">
+                <div class="dd__grid" id="comunidades-list">
+                  <a class="dd__item" href="{% url 'webmaga:comunidades' %}" role="menuitem" tabindex="0" data-name="Ver Comunidades">Ver Comunidades</a>
+                  <a class="dd__item" href="{% url 'webmaga:regiones' %}" role="menuitem" tabindex="0" data-name="Ver Regiones">Ver Regiones</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buscador principal (permanece en móvil) -->
+        <div class="search" role="search">
+          <div class="search__wrap">
+            <input id="buscar-proyecto" type="search" placeholder="Buscar proyecto…" aria-label="Buscar proyecto">
+            <button class="mini mini--ghost" aria-label="Buscar">
+              <span class="icon icon--white" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </nav>
+  </header>
+
+  <!-- ======= DRAWER MÓVIL ======= -->
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer__panel" role="dialog" aria-label="Menú móvil">
+      <button class="drawer__close" id="btnCloseDrawer" aria-label="Cerrar menú">
+        <span></span><span></span>
+      </button>
+
+      <nav class="drawer__menu">
+        <a class="drawer__link" href="{% url 'webmaga:index' %}">Inicio</a>
+        <a class="drawer__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Proyectos Activos <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="{% url 'webmaga:proyectos' %}" class="ddm__item">Ver Todos</a>
+            <a href="{% url 'webmaga:proyectos' %}#capacitaciones" class="ddm__item">Capacitaciones</a>
+            <a href="{% url 'webmaga:proyectos' %}#entregas" class="ddm__item">Entregas</a>
+            <a href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" class="ddm__item">Proyectos de Ayuda</a>
+          </div>
+        </div>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Gestiones <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="{% url 'webmaga:gestioneseventos' %}#createEventView" class="ddm__item">Agregar Evento</a>
+            <a href="{% url 'webmaga:gestioneseventos' %}#manageEventView" class="ddm__item">Editar Evento</a>
+            <a href="{% url 'webmaga:generarreportes' %}" class="ddm__item">Crear Reporte</a>
+          </div>
+        </div>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Comunidades <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <div class="ddm__search">
+              <span class="icon icon--white" aria-hidden="true"></span>
+              <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades">
+            </div>
+            <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
+            <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- ======= SECCIÓN PRINCIPAL DE PROYECTOS ======= -->
+  <main class="projects-main">
+    <div class="projects-container">
+      <!-- Sección de Últimos Proyectos -->
+      <section class="latest-projects">
+        <h2 class="section-title">Últimos Proyectos</h2>
+        <div class="projects-grid featured">
+          <!-- Proyecto Destacado 1 -->
+          <div class="project-card featured-card">
+            <div class="project-image">
+              <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Capacitación agrícola">
+              <div class="project-date-overlay">
+                <div class="date__month">Dic</div>
+                <div class="date__day">15</div>
+                <div class="date__year">2024</div>
+              </div>
+              <div class="project-content-overlay">
+                <h3 class="project-title">Capacitación en Técnicas Agrícolas</h3>
+                <p class="project-location">
+                  <svg class="location-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  Centro Panchisivic, Región 8
+                </p>
+                <button class="project-btn" data-project-id="proyecto-1">Ver más ></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Proyecto Destacado 2 -->
+          <div class="project-card featured-card">
+            <div class="project-image">
+              <img src="https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Entrega de semillas">
+              <div class="project-date-overlay">
+                <div class="date__month">Dic</div>
+                <div class="date__day">12</div>
+                <div class="date__year">2024</div>
+              </div>
+              <div class="project-content-overlay">
+                <h3 class="project-title">Entrega de Semillas Mejoradas</h3>
+                <p class="project-location">
+                  <svg class="location-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  Aldea Mocohán, Región 2
+                </p>
+                <button class="project-btn" data-project-id="proyecto-2">Ver más ></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sección de Proyectos por Categoría -->
+      <section class="projects-by-category">
+        <div class="category-grid">
+          <!-- Capacitaciones -->
+          <div class="category-section" id="capacitaciones">
+            <h3 class="category-title">Capacitaciones</h3>
+            <div class="projects-grid">
+              <!-- Proyecto 1 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Capacitación técnica">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">28</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Capacitación Técnica Avanzada</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Los Pinos, Región 3
+                    </p>
+                    <button class="project-btn" data-project-id="1">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Proyecto 2 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1559027615-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Taller comunitario">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">25</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Taller de Desarrollo Comunitario</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Eben-Ezer, Región 4
+                    </p>
+                    <button class="project-btn" data-project-id="2">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Proyecto 3 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Capacitación agrícola">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">22</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Capacitación en Manejo de Cultivos</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Suquinay II, Región 5
+                    </p>
+                    <button class="project-btn" data-project-id="3">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="category-actions">
+              <button class="btn-ver-todos" data-category="capacitaciones">Ver todos</button>
+            </div>
+          </div>
+
+          <!-- Entregas -->
+          <div class="category-section" id="entregas">
+            <h3 class="category-title">Entregas</h3>
+            <div class="projects-grid">
+              <!-- Proyecto 1 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Entrega de insumos">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">20</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Entrega de Herramientas Agrícolas</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Aldea El Chol, Región 5
+                    </p>
+                    <button class="project-btn" data-project-id="4">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Proyecto 2 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Entrega de fertilizantes">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">18</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Entrega de Fertilizantes Orgánicos</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Aldea Los Ángeles, Región 7
+                    </p>
+                    <button class="project-btn" data-project-id="5">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Proyecto 3 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Entrega de semillas">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">15</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Entrega de Semillas de Maíz</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Aldea San Antonio, Región 9
+                    </p>
+                    <button class="project-btn" data-project-id="6">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="category-actions">
+              <button class="btn-ver-todos" data-category="entregas">Ver todos</button>
+            </div>
+          </div>
+
+          <!-- Proyectos de Ayuda -->
+          <div class="category-section" id="proyectos-ayuda">
+            <h3 class="category-title">Proyectos de Ayuda</h3>
+            <div class="projects-grid">
+              <!-- Proyecto 1 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Construcción de invernadero">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">12</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Construcción de Invernadero Comunitario</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Aldea Las Flores, Región 6
+                    </p>
+                    <button class="project-btn" data-project-id="7">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Proyecto 2 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1574943320219-553eb213f72d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Sistema de riego">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">10</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Instalación de Sistema de Riego</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Aldea El Progreso, Región 8
+                    </p>
+                    <button class="project-btn" data-project-id="8">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Proyecto 3 -->
+              <div class="project-card">
+                <div class="project-image">
+                  <img src="https://images.unsplash.com/photo-1574943320219-553eb213f72d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Proyecto comunitario">
+                  <div class="project-date-overlay">
+                    <div class="date__month">Nov</div>
+                    <div class="date__day">08</div>
+                    <div class="date__year">2024</div>
+                  </div>
+                  <div class="project-content-overlay">
+                    <h4 class="project-title">Mejoramiento de Caminos Rurales</h4>
+                    <p class="project-location">
+                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      Aldea San José, Región 10
+                    </p>
+                    <button class="project-btn" data-project-id="9">Ver más ></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="category-actions">
+              <button class="btn-ver-todos" data-category="proyectos-ayuda">Ver todos</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Botón central para ver todos los eventos -->
+        <div class="central-actions">
+          <button class="btn-ver-todos-eventos">Ver todos los eventos</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ======= VISTA DE LISTA (OCULTA INICIALMENTE) ======= -->
+  <main class="projects-list-view" id="projectsListView" style="display: none;">
+    <div class="projects-main">
+      <!-- Botón de regreso -->
+      <div class="back-actions">
+        <button class="btn-back" id="btnBack">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Volver
+        </button>
+      </div>
+
+          <!-- Título dinámico -->
+          <div class="list-header">
+            <div class="list-title-container">
+              <div class="list-title-content">
+                <h2 class="list-title" id="listTitle">Todos los Proyectos</h2>
+                <p class="list-subtitle" id="listSubtitle">Lista completa de proyectos y eventos</p>
+              </div>
+              <button class="btn-agregar-nuevo" id="btnAgregarNuevo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar nuevo
+              </button>
+            </div>
+          </div>
+
+      <!-- Lista de proyectos -->
+      <div class="projects-list-container">
+        <div class="projects-list" id="projectsList">
+          <!-- Los elementos de la lista se generarán dinámicamente con JavaScript -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ======= VISTA DETALLADA DEL PROYECTO (OCULTA INICIALMENTE) ======= -->
+  <main class="project-detail-view" id="projectDetailView" style="display: none;">
+    <div class="detail-container">
+      <!-- Header del Proyecto -->
+      <div class="detail-header">
+        <button class="btn-back" id="btnBackFromDetail">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Volver
+        </button>
+        <div class="detail-title-section">
+          <h1 class="detail-title" id="detailTitle">Título del Proyecto</h1>
+          <p class="detail-location" id="detailLocation">Ubicación del Proyecto</p>
+          <div class="detail-date" id="detailDate">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span id="detailDateText">Fecha del Proyecto</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-content">
+        <!-- Imagen Principal -->
+        <div class="detail-main-image">
+          <img id="detailMainImage" src="" alt="Imagen principal del proyecto">
+          <div class="image-status-badge" id="imageStatusBadge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12,6 12,12 16,14"></polyline>
+            </svg>
+            <span id="statusText">En ejecución</span>
+          </div>
+        </div>
+
+        <!-- Personal a Cargo -->
+        <div class="detail-personnel-section">
+          <div class="section-header">
+            <h3 class="personnel-title">Personal a Cargo</h3>
+            <button class="btn-edit-item" id="addPersonnelBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Agregar Personal
+            </button>
+          </div>
+          <div class="personnel-info" id="detailPersonnelInfo">
+            <!-- La información del personal se cargará dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Galería de Imágenes -->
+        <div class="detail-gallery">
+          <div class="section-header">
+            <h3 class="gallery-title">Galería de Imágenes</h3>
+            <button class="btn-edit-item" id="addImageBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Agregar Imagen
+            </button>
+          </div>
+          <div class="gallery-grid" id="detailGallery">
+            <!-- Las imágenes se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Datos del Proyecto -->
+        <div class="detail-data-section">
+          <div class="section-header">
+            <h3 class="data-title">Datos del Proyecto</h3>
+            <button class="btn-edit-item" id="editDataBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar Datos
+            </button>
+          </div>
+          <div class="data-grid" id="detailData">
+            <!-- Los datos se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Ubicación -->
+        <div class="detail-location-section">
+          <div class="section-header">
+            <h3 class="location-title">Comunidades Alcanzadas</h3>
+            <div class="section-actions">
+              <button class="btn-remove-section" id="removeCommunityBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                Quitar Comunidad
+              </button>
+              <button class="btn-edit-item" id="addCommunityBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar Comunidad
+              </button>
+            </div>
+          </div>
+          <div class="location-info" id="detailLocationInfo">
+            <!-- La información de ubicación se cargará dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Descripción -->
+        <div class="detail-description-section">
+          <div class="section-header">
+            <h3 class="description-title">Descripción del Proyecto</h3>
+            <button class="btn-edit-item" id="editDescriptionBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar Descripción
+            </button>
+          </div>
+          <div class="description-content" id="detailDescription">
+            <!-- La descripción se cargará dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Cambios Realizados -->
+        <div class="detail-changes-section">
+          <div class="section-header">
+            <h3 class="changes-title">Cambios Realizados</h3>
+            <div class="section-actions">
+              <button class="btn-remove-section" id="removeChangeBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                Quitar Cambio
+              </button>
+              <button class="btn-edit-item" id="addChangeBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar Cambio
+              </button>
+            </div>
+          </div>
+          <div class="changes-timeline" id="detailChanges">
+            <!-- Los cambios se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Archivos del Proyecto -->
+        <div class="detail-files-section">
+          <div class="section-header">
+            <h3 class="files-title">Archivos del Proyecto</h3>
+            <div class="section-actions">
+              <button class="btn-remove-section" id="removeFileBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                Eliminar Archivo
+              </button>
+              <button class="btn-edit-item" id="addFileBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar Archivo
+              </button>
+            </div>
+          </div>
+          <div class="files-list" id="detailFiles">
+            <!-- Los archivos se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Botones de Acción Principal -->
+        <div class="detail-actions-section">
+          <div class="action-buttons">
+            <button class="btn-primary btn-edit-event" id="editEventBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar Evento
+            </button>
+            <button class="btn-secondary btn-generate-report" id="generateReportBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10,9 9,9 8,9"></polyline>
+              </svg>
+              Generar Reporte
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+
+
+
+  <!-- ======= MODALES ======= -->
+  
+  <!-- Modal para Credenciales de Administrador -->
+  <div id="adminCredentialsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Credenciales de Administrador</h3>
+        <button class="modal-close" id="closeCredentialsModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="adminUsername" class="form-label">Usuario</label>
+          <input type="text" id="adminUsername" class="form-input" placeholder="Ingresa tu usuario">
+        </div>
+        <div class="form-group">
+          <label for="adminPassword" class="form-label">Contraseña</label>
+          <input type="password" id="adminPassword" class="form-input" placeholder="Ingresa tu contraseña">
+        </div>
+        <div id="credentialsError" class="error-message" style="display: none; color: #dc3545; margin-top: 10px; font-size: 14px;">
+          Credenciales incorrectas. Intenta nuevamente.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelCredentialsBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="verifyCredentialsBtn" class="btn-primary">Verificar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Imagen -->
+  <div id="addImageModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Imagen</h3>
+        <button class="modal-close" id="closeImageModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Seleccionar Imagen</label>
+          <div class="file-upload">
+            <input type="file" id="imageFileInput" accept="image/*" class="file-input">
+            <label for="imageFileInput" class="file-label">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21,15 16,10 5,21"></polyline>
+              </svg>
+              <span>Seleccionar imagen</span>
+            </label>
+          </div>
+          <div class="image-preview" id="imagePreview"></div>
+        </div>
+        <div class="form-group">
+          <label for="imageDescription" class="form-label">Descripción de la Imagen</label>
+          <textarea id="imageDescription" class="form-textarea" rows="3" placeholder="Describe la imagen..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelImageBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmImageBtn" class="btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Editar Descripción -->
+  <div id="editDescriptionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Descripción</h3>
+        <button class="modal-close" id="closeDescriptionModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="editDescriptionText" class="form-label">Descripción del Proyecto</label>
+          <textarea id="editDescriptionText" class="form-textarea" rows="6" placeholder="Describe el proyecto..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDescriptionBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDescriptionBtn" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Editar Datos Generales -->
+  <div id="editDataModal" class="modal">
+    <div class="modal-content edit-data-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Datos del Proyecto</h3>
+        <button class="modal-close" id="closeDataModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Pestañas -->
+        <div class="edit-data-tabs">
+          <button class="tab-btn active" data-tab="predefined">Tarjetas Predefinidas</button>
+          <button class="tab-btn" data-tab="custom">Crear Personalizada</button>
+        </div>
+
+        <!-- Pestaña de Tarjetas Predefinidas -->
+        <div class="tab-content active" id="predefined-tab">
+          <div class="search-container">
+            <input type="text" id="cardSearch" class="form-input" placeholder="Buscar tarjetas...">
+          </div>
+          
+          <div class="category-filter">
+            <label for="categoryFilter" class="form-label">Filtrar por categoría:</label>
+            <select id="categoryFilter" class="form-select">
+              <option value="">Todas las categorías</option>
+              <option value="General">General</option>
+              <option value="Financiero">Financiero</option>
+              <option value="Físico">Físico</option>
+              <option value="Institucional">Institucional</option>
+              <option value="Educativo">Educativo</option>
+              <option value="Social">Social</option>
+              <option value="Recursos">Recursos</option>
+              <option value="Temporal">Temporal</option>
+              <option value="Técnico">Técnico</option>
+              <option value="Evaluación">Evaluación</option>
+              <option value="Ambiental">Ambiental</option>
+            </select>
+          </div>
+
+          <div class="predefined-cards-grid" id="predefinedCardsGrid">
+            <!-- Las tarjetas predefinidas se cargarán aquí dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Pestaña de Crear Personalizada -->
+        <div class="tab-content" id="custom-tab">
+          <div class="form-group">
+            <label for="customIcon" class="form-label">Emoji/Icono</label>
+            <input type="text" id="customIcon" class="form-input" placeholder="Ej: 🌱" maxlength="2">
+          </div>
+          <div class="form-group">
+            <label for="customLabel" class="form-label">Título de la Tarjeta</label>
+            <input type="text" id="customLabel" class="form-input" placeholder="Ej: Sostenibilidad">
+          </div>
+          <div class="form-group">
+            <label for="customValue" class="form-label">Valor/Dato</label>
+            <input type="text" id="customValue" class="form-input" placeholder="Ej: 5 años">
+          </div>
+          <button type="button" id="addCustomCardBtn" class="btn-primary">Agregar Tarjeta Personalizada</button>
+        </div>
+
+        <!-- Tarjetas Seleccionadas -->
+        <div class="selected-cards-section">
+          <h4 class="section-title">Tarjetas Seleccionadas</h4>
+          <div class="selected-cards-container" id="selectedCardsContainer">
+            <!-- Las tarjetas seleccionadas se mostrarán aquí -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDataBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDataBtn" class="btn-primary">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Comunidad -->
+  <div id="addCommunityModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar Comunidad</h3>
+        <button class="modal-close" id="closeCommunityModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Comunidades Disponibles</label>
+          <div class="search-container">
+            <input type="text" id="communitySearch" class="form-input" placeholder="Buscar comunidad...">
+          </div>
+          <div class="communities-list" id="communitiesList">
+            <!-- Las comunidades se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelCommunityBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmCommunityBtn" class="btn-primary">Agregar Seleccionadas</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Personal -->
+  <div id="addPersonnelModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar Personal</h3>
+        <button class="modal-close" id="closePersonnelModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Colaboradores Disponibles</label>
+          <div class="search-container">
+            <input type="text" id="personnelSearch" class="search-input" placeholder="Buscar personal...">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+          </div>
+          <div class="personnel-list" id="personnelList">
+            <!-- Los colaboradores se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelPersonnelBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmPersonnelBtn" class="btn-primary">Agregar Seleccionados</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Cambio -->
+  <div id="addChangeModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Cambio</h3>
+        <button class="modal-close" id="closeChangeModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="changeDescription" class="form-label">Descripción del Cambio</label>
+          <textarea id="changeDescription" class="form-textarea" rows="4" placeholder="Describe el cambio realizado..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Personal Responsable</label>
+          <div class="search-container">
+            <input type="text" id="changePersonnelSearch" class="form-input" placeholder="Buscar colaborador...">
+          </div>
+          <div class="personnel-list" id="changePersonnelList">
+            <!-- Los colaboradores se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelChangeBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmChangeBtn" class="btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Archivo -->
+  <div id="addFileModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Archivo</h3>
+        <button class="modal-close" id="closeFileModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Seleccionar Archivo</label>
+          <div class="file-upload">
+            <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="file-input">
+            <label for="fileInput" class="file-label">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <span>Seleccionar archivo</span>
+            </label>
+          </div>
+          <div class="file-preview" id="filePreview"></div>
+        </div>
+        <div class="form-group">
+          <label for="fileName" class="form-label">Nombre del Archivo</label>
+          <input type="text" id="fileName" class="form-input" placeholder="Ingresa un nombre descriptivo para el archivo">
+        </div>
+        <div class="form-group">
+          <label for="fileDescription" class="form-label">Descripción del Archivo</label>
+          <textarea id="fileDescription" class="form-textarea" rows="3" placeholder="Describe el contenido del archivo..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelFileBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmFileBtn" class="btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación de Eliminación -->
+  <div id="confirmDeleteModal" class="modal">
+    <div class="modal-content confirm-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ Confirmar Eliminación</h3>
+        <button class="modal-close" id="closeConfirmModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-message">
+          <p id="confirmMessage">¿Estás seguro de que deseas eliminar este elemento?</p>
+          <p class="confirm-warning">Esta acción no se puede deshacer.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDeleteBtn" class="btn-danger">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Selección de Comunidades -->
+  <div id="communitySelectionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar Comunidades a Eliminar</h3>
+        <button class="modal-close" id="closeCommunitySelectionModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Comunidades del Proyecto</label>
+          <div class="selection-list" id="communitySelectionList">
+            <!-- Las comunidades se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelCommunitySelectionBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmCommunitySelectionBtn" class="btn-danger">Eliminar Seleccionadas</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Selección de Cambios -->
+  <div id="changeSelectionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar Cambios a Eliminar</h3>
+        <button class="modal-close" id="closeChangeSelectionModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Cambios del Proyecto</label>
+          <div class="selection-list" id="changeSelectionList">
+            <!-- Los cambios se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelChangeSelectionBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmChangeSelectionBtn" class="btn-danger">Eliminar Seleccionados</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Selección de Archivos -->
+  <div id="fileSelectionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar Archivos a Eliminar</h3>
+        <button class="modal-close" id="closeFileSelectionModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Archivos del Proyecto</label>
+          <div class="selection-list" id="fileSelectionList">
+            <!-- Los archivos se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelFileSelectionBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmFileSelectionBtn" class="btn-danger">Eliminar Seleccionados</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Detalles de Cambio y Evidencias -->
+  <div id="changeDetailsModal" class="modal">
+    <div class="modal-content large-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Detalles del Cambio</h3>
+        <button class="modal-close" id="closeChangeDetailsModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="change-details">
+          <div class="change-info">
+            <h4 id="changeDetailsDate"></h4>
+            <p id="changeDetailsDescription"></p>
+            <p class="change-personnel-info">Por: <span id="changeDetailsPersonnel"></span></p>
+          </div>
+          
+          <div class="evidences-section">
+            <div class="evidences-header">
+              <h4>Evidencias</h4>
+              <button class="btn-add-evidence" id="addEvidenceBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar Evidencia
+              </button>
+            </div>
+            <div class="evidences-grid" id="evidencesGrid">
+              <!-- Las evidencias se cargarán dinámicamente -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="closeChangeDetailsBtn" class="btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Evidencia -->
+  <div id="addEvidenceModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Evidencia</h3>
+        <button class="modal-close" id="closeAddEvidenceModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Seleccionar Archivo o Imagen</label>
+          <div class="file-upload">
+            <input type="file" id="evidenceInput" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="file-input">
+            <label for="evidenceInput" class="file-label">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <span>Seleccionar archivo</span>
+            </label>
+          </div>
+          <div class="file-preview" id="evidencePreview"></div>
+        </div>
+        <div class="form-group">
+          <label for="evidenceDescription" class="form-label">Descripción de la Evidencia</label>
+          <textarea id="evidenceDescription" class="form-textarea" rows="3" placeholder="Describe esta evidencia..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelEvidenceBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmEvidenceBtn" class="btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= SECCIÓN DE CONTACTO ======= -->
+  <footer class="contact-section">
+    <div class="contact-container">
+      <!-- Columna izquierda - Información de contacto -->
+      <div class="contact-info">
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          <div class="contact-text">
+            <p><strong>Oficina Regional</strong></p>
+            <p>Kilómetro 164 CA-14</p>
+            <p>Purulhá, B.V.</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          <div class="contact-text">
+            <p>(502) 3015-6925</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <div class="contact-text">
+            <p>magaepurulha@gob.gt</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna central - Logo -->
+      <div class="contact-logo">
+        <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" class="maga-logo">
+      </div>
+
+      <!-- Columna derecha - Redes sociales y enlaces -->
+      <div class="contact-links">
+        <h4>Únete a nuestra comunidad</h4>
+        <div class="social-links">
+          <a href="#" class="social-link facebook" aria-label="Facebook">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+            </svg>
+          </a>
+          <a href="#" class="social-link instagram" aria-label="Instagram">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+            </svg>
+          </a>
+        </div>
+        <div class="footer-links">
+          <a href="#" class="footer-link">Preguntas Frecuentes</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="{% static 'js/proyectos.js' %}"></script>
+
+</body>
+</html>

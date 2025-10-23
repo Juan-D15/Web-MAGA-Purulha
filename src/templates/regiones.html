@@ -1,0 +1,919 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Regiones - MAGA Purulhá</title>
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/regiones.css' %}">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ======= TOP / ENCABEZADO ======= -->
+  <header class="topbar" role="banner">
+    <div class="topbar__inner">
+      <!-- Logos para escritorio (MAGA a la izquierda) + un logo móvil adicional -->
+            <div class="brand" aria-label="Logotipos">
+                <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" loading="eager" class="brand__maga">
+                <!-- Este segundo logo solo se muestra en móvil para "juntar los dos logos" -->
+                <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo Purulhá (móvil)" class="brand__purulha-mobile" loading="eager">
+            </div>
+
+      <!-- Títulos (se ocultan en móvil) -->
+      <div class="headline">
+        <h1>MAGA — PURULHÁ</h1>
+        <p>Gestión de Regiones</p>
+      </div>
+
+      <div class="right-actions">
+        <!-- Logo de MAGA (solo escritorio/tablet) -->
+        <div class="right-logo" aria-label="Logo MAGA">
+          <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo MAGA" loading="eager">
+        </div>
+        <!-- Botón hamburguesa (móvil) -->
+        <button class="hamburger" id="btnHamburger" aria-label="Abrir menú" aria-controls="drawer" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ======= NAV ======= -->
+    <nav class="nav" role="navigation" aria-label="Menú principal">
+      <div class="nav__inner">
+        <!-- Ítems de la cinta (ocultos en móvil) -->
+        <div class="nav__group">
+          <a class="nav__link" href="{% url 'webmaga:index' %}">Inicio</a>
+          <a class="nav__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+          <!-- Proyectos Activos -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Proyectos Activos <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Proyectos Activos">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}" role="menuitem" tabindex="0">Ver Todos</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#capacitaciones" role="menuitem" tabindex="0">Capacitaciones</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#entregas" role="menuitem" tabindex="0">Entregas</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" role="menuitem" tabindex="0">Proyectos de Ayuda</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gestiones -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Gestiones <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Gestiones">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="{% url 'webmaga:gestioneseventos' %}#createEventView" role="menuitem" tabindex="0">Agregar Evento</a>
+                  <a class="dd__item" href="{% url 'webmaga:gestioneseventos' %}#manageEventView" role="menuitem" tabindex="0">Editar Evento</a>
+                  <a class="dd__item" href="{% url 'webmaga:generarreportes' %}" role="menuitem" tabindex="0">Crear Reporte</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Comunidades -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Comunidades <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Comunidades">
+              <div class="dd__search" role="search">
+                <span class="icon icon--white" aria-hidden="true"></span>
+                <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades" id="search-comunidades">
+              </div>
+              <div class="dd__section">
+                <div class="dd__grid" id="comunidades-list">
+                  <a class="dd__item" href="{% url 'webmaga:comunidades' %}" role="menuitem" tabindex="0" data-name="Ver Comunidades">Ver Comunidades</a>
+                  <a class="dd__item" href="{% url 'webmaga:regiones' %}" role="menuitem" tabindex="0" data-name="Ver Regiones">Ver Regiones</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buscador principal (permanece en móvil) -->
+        <div class="search" role="search">
+          <div class="search__wrap">
+            <input id="buscar-region" type="search" placeholder="Buscar región…" aria-label="Buscar región">
+            <button class="mini mini--ghost" aria-label="Buscar">
+              <span class="icon icon--white" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </nav>
+  </header>
+
+  <!-- ======= DRAWER MÓVIL ======= -->
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer__panel" role="dialog" aria-label="Menú móvil">
+      <button class="drawer__close" id="btnCloseDrawer" aria-label="Cerrar menú">
+        <span></span><span></span>
+      </button>
+
+      <nav class="drawer__menu">
+        <a class="drawer__link" href="{% url 'webmaga:index' %}">Inicio</a>
+        <a class="drawer__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Proyectos Activos <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="{% url 'webmaga:proyectos' %}" class="ddm__item">Ver Todos</a>
+            <a href="{% url 'webmaga:proyectos' %}#capacitaciones" class="ddm__item">Capacitaciones</a>
+            <a href="{% url 'webmaga:proyectos' %}#entregas" class="ddm__item">Entregas</a>
+            <a href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" class="ddm__item">Proyectos de Ayuda</a>
+          </div>
+        </div>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Gestiones <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="{% url 'webmaga:gestioneseventos' %}#createEventView" class="ddm__item">Agregar Evento</a>
+            <a href="{% url 'webmaga:gestioneseventos' %}#manageEventView" class="ddm__item">Editar Evento</a>
+            <a href="{% url 'webmaga:generarreportes' %}" class="ddm__item">Crear Reporte</a>
+          </div>
+        </div>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Comunidades <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <div class="ddm__search">
+              <span class="icon icon--white" aria-hidden="true"></span>
+              <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades">
+            </div>
+            <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
+            <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- ======= VISTA PRINCIPAL DE REGIONES ======= -->
+  <main class="regions-main">
+    <div class="regions-container">
+      <!-- Últimas Regiones -->
+      <section class="featured-regions">
+        <h2 class="section-title">Últimas Regiones</h2>
+
+        <div class="featured-regions__container">
+          <!-- Región 1 -->
+          <div class="region-card featured-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Región Norte" loading="eager">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Norte</h3>
+                  <p class="region-card__code">Región 1</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-norte">Ver más</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Región 2 -->
+          <div class="region-card featured-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Región Sur" loading="eager">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Sur</h3>
+                  <p class="region-card__code">Región 2</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-sur">Ver más</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Más Regiones -->
+      <section class="regions-section">
+        <h2 class="section-title">Más Regiones</h2>
+
+        <div class="regions-section__grid">
+          <!-- Región 3 -->
+          <div class="region-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Este" loading="lazy">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Este</h3>
+                  <p class="region-card__code">Región 3</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-este">Ver más</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Región 4 -->
+          <div class="region-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Oeste" loading="lazy">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Oeste</h3>
+                  <p class="region-card__code">Región 4</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-oeste">Ver más</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Región 5 -->
+          <div class="region-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Central" loading="lazy">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Central</h3>
+                  <p class="region-card__code">Región 5</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-central">Ver más</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Región 6 -->
+          <div class="region-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Noroeste" loading="lazy">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Noroeste</h3>
+                  <p class="region-card__code">Región 6</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-noroeste">Ver más</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Región 7 -->
+          <div class="region-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Noreste" loading="lazy">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Noreste</h3>
+                  <p class="region-card__code">Región 7</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-noreste">Ver más</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Región 8 -->
+          <div class="region-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Suroeste" loading="lazy">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Suroeste</h3>
+                  <p class="region-card__code">Región 8</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-suroeste">Ver más</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Región 9 -->
+          <div class="region-card">
+            <div class="region-card__image">
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Sureste" loading="lazy">
+              <div class="region-card__overlay">
+                <div class="region-card__info">
+                  <h3 class="region-card__title">Región Sureste</h3>
+                  <p class="region-card__code">Región 9</p>
+                </div>
+                <button class="region-card__btn" data-region-id="region-sureste">Ver más</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botón Ver Todas las Regiones -->
+        <div class="regions-actions">
+          <button class="btn-ver-todas" id="btnVerTodas">Ver todas las regiones</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ======= VISTA DE LISTA DE REGIONES (OCULTA INICIALMENTE) ======= -->
+  <main class="regions-list-view" id="regionsListView" style="display: none;">
+    <div class="list-container">
+      <div class="list-header">
+        <button class="btn-back" id="btnBackFromList">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Volver
+        </button>
+        <div class="list-title-container">
+          <div class="list-title-content">
+            <h2 class="list-title" id="listTitle">Todas las Regiones</h2>
+            <p class="list-subtitle" id="listSubtitle">Lista completa de regiones en Purulhá</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controles de Lista -->
+      <div class="list-controls">
+        <div class="search-controls">
+          <div class="search-box">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <input type="text" id="searchRegions" placeholder="Buscar regiones...">
+          </div>
+        </div>
+        <div class="filter-controls">
+          <select id="sortRegions" class="filter-select">
+            <option value="name-asc">Alfabético A-Z</option>
+            <option value="name-desc">Alfabético Z-A</option>
+            <option value="recent">Más recientes</option>
+            <option value="communities">Por número de comunidades</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Lista de Regiones -->
+      <div class="regions-list-container">
+        <div class="regions-list" id="regionsList">
+          <!-- Los elementos de la lista se generarán dinámicamente con JavaScript -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ======= VISTA DETALLADA DE REGIÓN (OCULTA INICIALMENTE) ======= -->
+  <main class="region-detail-view" id="regionDetailView" style="display: none;">
+    <div class="detail-container">
+      <!-- Header de la Región -->
+      <div class="detail-header">
+        <button class="btn-back" id="btnBackFromDetail">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Volver
+        </button>
+        <div class="detail-title-section">
+          <h1 class="detail-title" id="detailTitle">Nombre de la Región</h1>
+          <p class="detail-code" id="detailCode">Código de la Región</p>
+        </div>
+      </div>
+
+      <div class="detail-content">
+        <!-- Galería de Imágenes -->
+        <div class="detail-gallery">
+          <div class="section-header">
+            <h3 class="gallery-title">Fotos de la Región</h3>
+            <button class="btn-edit-item" id="addImageBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Agregar Imagen
+            </button>
+          </div>
+          <div class="gallery-grid" id="detailGallery">
+            <!-- Las imágenes se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Ubicación -->
+        <div class="detail-location-section">
+          <div class="section-header">
+            <h3 class="location-title">Ubicación</h3>
+          </div>
+          <div class="location-info" id="detailLocationInfo">
+            <!-- La información de ubicación se cargará dinámicamente -->
+          </div>
+          <div class="region-map-container">
+            <div class="region-map-wrapper">
+              <img id="regionMapImage" class="region-map-image" alt="Mapa de la región" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Datos Generales -->
+        <div class="detail-data-section">
+          <div class="section-header">
+            <h3 class="data-title">Datos Generales</h3>
+            <button class="btn-edit-item" id="editDataBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar Datos
+            </button>
+          </div>
+          <div class="data-grid" id="detailData">
+            <!-- Los datos se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Descripción -->
+        <div class="detail-description-section">
+          <div class="section-header">
+            <h3 class="description-title">Descripción de la Región</h3>
+            <button class="btn-edit-item" id="editDescriptionBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar Descripción
+            </button>
+          </div>
+          <div class="description-content" id="detailDescription">
+            <!-- La descripción se cargará dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Proyectos Activos -->
+        <div class="detail-projects-section">
+          <div class="section-header">
+            <h3 class="projects-title">Proyectos Activos</h3>
+          </div>
+          <div class="projects-list" id="detailProjects">
+            <!-- Los proyectos se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Comunidades de la Región -->
+        <div class="detail-communities-section">
+          <div class="section-header">
+            <h3 class="communities-title">Comunidades de la Región</h3>
+          </div>
+          <div class="communities-list" id="detailCommunities">
+            <!-- Las comunidades se cargarán dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Archivos de la Región -->
+        <div class="detail-files-section">
+          <div class="section-header">
+            <h3 class="files-title">Archivos de la Región</h3>
+            <div class="section-actions">
+              <button class="btn-remove-section" id="removeFileBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                Eliminar Archivo
+              </button>
+              <button class="btn-edit-item" id="addFileBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar Archivo
+              </button>
+            </div>
+          </div>
+          <div class="files-list" id="detailFiles">
+            <!-- Los archivos se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ======= MODALES ======= -->
+  
+  <!-- Modal para Agregar Imagen -->
+  <div id="addImageModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Imagen</h3>
+        <button class="modal-close" id="closeImageModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Seleccionar Imagen</label>
+          <div class="file-upload">
+            <input type="file" id="imageFileInput" accept="image/*" class="file-input">
+            <label for="imageFileInput" class="file-label">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21,15 16,10 5,21"></polyline>
+              </svg>
+              <span>Seleccionar imagen</span>
+            </label>
+          </div>
+          <div class="image-preview" id="imagePreview"></div>
+        </div>
+        <div class="form-group">
+          <label for="imageDescription" class="form-label">Descripción de la Imagen</label>
+          <textarea id="imageDescription" class="form-textarea" rows="3" placeholder="Describe la imagen..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelImageBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmImageBtn" class="btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Editar Descripción -->
+  <div id="editDescriptionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Descripción</h3>
+        <button class="modal-close" id="closeDescriptionModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="editDescriptionText" class="form-label">Descripción de la Región</label>
+          <textarea id="editDescriptionText" class="form-textarea" rows="6" placeholder="Describe la región..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDescriptionBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDescriptionBtn" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Editar Datos Generales -->
+  <div id="editDataModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Datos Generales</h3>
+        <button class="modal-close" id="closeDataModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="editCommunitiesCount" class="form-label">Número de Comunidades</label>
+          <input type="number" id="editCommunitiesCount" class="form-input" placeholder="Ingresa el número de comunidades" min="0">
+        </div>
+        <div class="form-group">
+          <label for="editPopulation" class="form-label">Población Aproximada</label>
+          <input type="text" id="editPopulation" class="form-input" placeholder="Ingresa la población aproximada">
+        </div>
+        <div class="form-group">
+          <label for="editSedeCommunity" class="form-label">Comunidad Sede</label>
+          <input type="text" id="editSedeCommunity" class="form-input" placeholder="Ingresa el nombre de la comunidad sede">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDataBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDataBtn" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Credenciales de Administrador -->
+  <div id="adminCredentialsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Credenciales de Administrador</h3>
+        <button class="modal-close" id="closeCredentialsModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="adminUsername" class="form-label">Usuario</label>
+          <input type="text" id="adminUsername" class="form-input" placeholder="Ingresa tu usuario">
+        </div>
+        <div class="form-group">
+          <label for="adminPassword" class="form-label">Contraseña</label>
+          <input type="password" id="adminPassword" class="form-input" placeholder="Ingresa tu contraseña">
+        </div>
+        <div id="credentialsError" class="error-message" style="display: none; color: #dc3545; margin-top: 10px; font-size: 14px;">
+          Credenciales incorrectas. Intenta nuevamente.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelCredentialsBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="verifyCredentialsBtn" class="btn-primary">Verificar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Archivo -->
+  <div id="addFileModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Archivo</h3>
+        <button class="modal-close" id="closeFileModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Seleccionar Archivo</label>
+          <div class="file-upload">
+            <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="file-input">
+            <label for="fileInput" class="file-label">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <span>Seleccionar archivo</span>
+            </label>
+          </div>
+          <div class="file-preview" id="filePreview"></div>
+        </div>
+        <div class="form-group">
+          <label for="fileName" class="form-label">Nombre del Archivo</label>
+          <input type="text" id="fileName" class="form-input" placeholder="Ingresa un nombre descriptivo para el archivo">
+        </div>
+        <div class="form-group">
+          <label for="fileDescription" class="form-label">Descripción del Archivo</label>
+          <textarea id="fileDescription" class="form-textarea" rows="3" placeholder="Describe el contenido del archivo..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelFileBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmFileBtn" class="btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación de Eliminación -->
+  <div id="confirmDeleteModal" class="modal">
+    <div class="modal-content confirm-modal">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ Confirmar Eliminación</h3>
+        <button class="modal-close" id="closeConfirmModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-message">
+          <p id="confirmMessage">¿Estás seguro de que deseas eliminar este elemento?</p>
+          <p class="confirm-warning">Esta acción no se puede deshacer.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDeleteBtn" class="btn-danger">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Selección de Archivos -->
+  <div id="fileSelectionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar Archivos a Eliminar</h3>
+        <button class="modal-close" id="closeFileSelectionModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Archivos de la Región</label>
+          <div class="selection-list" id="fileSelectionList">
+            <!-- Los archivos se cargarán dinámicamente -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelFileSelectionBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmFileSelectionBtn" class="btn-danger">Eliminar Seleccionados</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= SECCIÓN DE CONTACTO ======= -->
+  <footer class="contact-section">
+    <div class="contact-container">
+      <!-- Columna izquierda - Información de contacto -->
+      <div class="contact-info">
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          <div class="contact-text">
+            <p><strong>Oficina Regional</strong></p>
+            <p>Kilómetro 164 CA-14</p>
+            <p>Purulhá, B.V.</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          <div class="contact-text">
+            <p>(502) 3015-6925</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <div class="contact-text">
+            <p>magaepurulha@gob.gt</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna central - Logo -->
+      <div class="contact-logo">
+        <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" class="maga-logo">
+      </div>
+
+      <!-- Columna derecha - Redes sociales y enlaces -->
+      <div class="contact-links">
+        <h4>Únete a nuestra comunidad</h4>
+        <div class="social-links">
+          <a href="#" class="social-link facebook" aria-label="Facebook">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+            </svg>
+          </a>
+          <a href="#" class="social-link instagram" aria-label="Instagram">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+            </svg>
+          </a>
+        </div>
+        <div class="footer-links">
+          <a href="#" class="footer-link">Preguntas Frecuentes</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ---------- Dropdowns escritorio ---------- */
+    const dropdowns = document.querySelectorAll('.dd');
+    const closeAll = () => dropdowns.forEach(dd => {
+      dd.querySelector('.dd__btn').classList.remove('is-open');
+      dd.querySelector('.dd__btn').setAttribute('aria-expanded','false');
+      dd.querySelector('.dd__panel').classList.remove('show');
+    });
+    dropdowns.forEach(dd=>{
+      const btn   = dd.querySelector('.dd__btn');
+      const panel = dd.querySelector('.dd__panel');
+      btn.addEventListener('click', ()=>{
+        const isOpen = panel.classList.contains('show');
+        closeAll();
+        if(!isOpen){
+          btn.classList.add('is-open');
+          btn.setAttribute('aria-expanded','true');
+          panel.classList.add('show');
+        }
+      });
+    });
+    document.addEventListener('click', (e)=>{ if(!e.target.closest('.dd')) closeAll(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeAll(); });
+
+    /* ---------- Buscador principal (demo) ---------- */
+    document.querySelector('.search .mini').addEventListener('click', (e)=>{
+      e.preventDefault();
+      const q = document.getElementById('buscar-region').value.trim();
+      if(q) console.log('Buscar región:', q);
+    });
+
+    /* ---------- Drawer móvil ---------- */
+    const drawer = document.getElementById('drawer');
+    const btnHamburger = document.getElementById('btnHamburger');
+    const btnCloseDrawer = document.getElementById('btnCloseDrawer');
+    const openDrawer = () => {
+      drawer.classList.add('open');
+      drawer.setAttribute('aria-hidden','false');
+      btnHamburger.setAttribute('aria-expanded','true');
+      document.body.style.overflow='hidden';
+    };
+    const closeDrawer = () => {
+      drawer.classList.remove('open');
+      drawer.setAttribute('aria-hidden','true');
+      btnHamburger.setAttribute('aria-expanded','false');
+      document.body.style.overflow='';
+    };
+    btnHamburger.addEventListener('click', openDrawer);
+    btnCloseDrawer.addEventListener('click', closeDrawer);
+    drawer.addEventListener('click', (e)=>{ if(e.target === drawer) closeDrawer(); });
+    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDrawer(); });
+
+    // Acordeón dentro del drawer
+    document.querySelectorAll('.ddm').forEach(ddm=>{
+      const btn = ddm.querySelector('.ddm__btn');
+      const panel = ddm.querySelector('.ddm__panel');
+      btn.addEventListener('click', ()=>{
+        const open = ddm.classList.toggle('open');
+        btn.setAttribute('aria-expanded', String(open));
+        panel.style.maxHeight = open ? panel.scrollHeight+'px' : '0px';
+      });
+    });
+
+    // ======= FUNCIONALIDAD DE SCROLL AUTOMÁTICO =======
+    
+    // Función para hacer scroll suave a una sección
+    function scrollToSection(sectionId) {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        // Calcular la posición considerando el header fijo
+        const headerHeight = document.querySelector('.topbar').offsetHeight + 
+                            document.querySelector('.nav').offsetHeight;
+        const sectionTop = section.offsetTop - headerHeight - 20; // 20px de margen adicional
+        
+        window.scrollTo({
+          top: sectionTop,
+          behavior: 'smooth'
+        });
+
+        // Agregar efecto de resaltado temporal
+        section.classList.add('scroll-highlight');
+        
+        // Remover el efecto después de 3 segundos
+        setTimeout(() => {
+          section.classList.remove('scroll-highlight');
+        }, 3000);
+      }
+    }
+
+    // Función para manejar el scroll automático desde URL
+    function handleUrlAnchor() {
+      const hash = window.location.hash;
+      if (hash) {
+        // Remover el # del hash
+        const sectionId = hash.substring(1);
+        
+        // Esperar un poco para que la página se cargue completamente
+        setTimeout(() => {
+          scrollToSection(sectionId);
+        }, 300);
+      }
+    }
+
+    // Manejar anclas de URL al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+      handleUrlAnchor();
+    });
+
+    // Escuchar cambios en el hash de la URL
+    window.addEventListener('hashchange', function() {
+      handleUrlAnchor();
+    });
+
+    // También manejar el caso cuando la página se carga directamente con hash
+    window.addEventListener('load', function() {
+      handleUrlAnchor();
+    });
+  </script>
+
+  <script src="{% static 'js/regiones.js' %}"></script>
+
+</body>
+</html>
