@@ -1,0 +1,887 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de Eventos — MAGA Purulhá</title>
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
+</head>
+<body>
+
+  <!-- ======= TOP / ENCABEZADO ======= -->
+  <header class="topbar" role="banner">
+    <div class="topbar__inner">
+      <!-- Logos para escritorio (MAGA a la izquierda) + un logo móvil adicional -->
+        <div class="brand" aria-label="Logotipos">
+          <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" loading="eager" class="brand__maga">
+          <!-- Este segundo logo solo se muestra en móvil para "juntar los dos logos" -->
+          <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo Purulhá (móvil)" class="brand__purulha-mobile" loading="eager">
+        </div>
+
+      <!-- Títulos (se ocultan en móvil) -->
+      <div class="headline">
+        <h1>MAGA — PURULHÁ</h1>
+        <p>Gestión de Eventos</p>
+      </div>
+
+      <div class="right-actions">
+        <!-- Logo de MAGA (solo escritorio/tablet) -->
+        <div class="right-logo" aria-label="Logo MAGA">
+          <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo MAGA" loading="eager">
+        </div>
+        <!-- Botón hamburguesa (móvil) -->
+        <button class="hamburger" id="btnHamburger" aria-label="Abrir menú" aria-controls="drawer" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ======= NAV ======= -->
+    <nav class="nav" role="navigation" aria-label="Menú principal">
+      <div class="nav__inner">
+        <!-- Ítems de la cinta (ocultos en móvil) -->
+        <div class="nav__group">
+          <a class="nav__link" href="{% url 'webmaga:index' %}">Inicio</a>
+          <a class="nav__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+          <!-- Proyectos Activos -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Proyectos Activos <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Proyectos Activos">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}" role="menuitem" tabindex="0">Ver Todos</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#capacitaciones" role="menuitem" tabindex="0">Capacitaciones</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#entregas" role="menuitem" tabindex="0">Entregas</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" role="menuitem" tabindex="0">Proyectos de Ayuda</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gestiones -->
+          <div class="dd">
+            <button class="dd__btn nav__link active" aria-haspopup="true" aria-expanded="false">
+              Gestiones <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Gestiones">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="{% url 'webmaga:gestioneseventos' %}" role="menuitem" tabindex="0">Agregar Evento</a>
+                  <a class="dd__item" href="#" role="menuitem" tabindex="0">Editar Evento</a>
+                  <a class="dd__item" href="{% url 'webmaga:generarreportes' %}" role="menuitem" tabindex="0">Crear Reporte</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Comunidades -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Comunidades <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Comunidades">
+              <div class="dd__search" role="search">
+                <span class="icon icon--white" aria-hidden="true"></span>
+                <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades" id="search-comunidades">
+              </div>
+              <div class="dd__section">
+                <div class="dd__grid" id="comunidades-list">
+                  <a class="dd__item" href="{% url 'webmaga:comunidades' %}" role="menuitem" tabindex="0" data-name="Ver Comunidades">Ver Comunidades</a>
+                  <a class="dd__item" href="{% url 'webmaga:regiones' %}" role="menuitem" tabindex="0" data-name="Ver Regiones">Ver Regiones</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buscador principal (permanece en móvil) -->
+        <div class="search" role="search">
+          <div class="search__wrap">
+            <input id="buscar-proyecto" type="search" placeholder="Buscar proyecto…" aria-label="Buscar proyecto">
+            <button class="mini mini--ghost" aria-label="Buscar">
+              <span class="icon icon--white" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </nav>
+  </header>
+
+  <!-- ======= DRAWER MÓVIL ======= -->
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer__panel" role="dialog" aria-label="Menú móvil">
+      <button class="drawer__close" id="btnCloseDrawer" aria-label="Cerrar menú">
+        <span></span><span></span>
+      </button>
+
+      <nav class="drawer__menu">
+        <a class="drawer__link" href="{% url 'webmaga:index' %}">Inicio</a>
+        <a class="drawer__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Proyectos Activos <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="{% url 'webmaga:proyectos' %}" class="ddm__item">Ver Todos</a>
+            <a href="{% url 'webmaga:proyectos' %}#capacitaciones" class="ddm__item">Capacitaciones</a>
+            <a href="{% url 'webmaga:proyectos' %}#entregas" class="ddm__item">Entregas</a>
+            <a href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" class="ddm__item">Proyectos de Ayuda</a>
+          </div>
+        </div>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Gestiones <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="{% url 'webmaga:gestioneseventos' %}" class="ddm__item">Agregar Evento</a>
+            <a href="#" class="ddm__item">Editar Evento</a>
+            <a href="{% url 'webmaga:generarreportes' %}" class="ddm__item">Crear Reporte</a>
+          </div>
+        </div>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Comunidades <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <div class="ddm__search">
+              <span class="icon icon--white" aria-hidden="true"></span>
+              <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades">
+            </div>
+            <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
+            <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- ======= MAIN CONTENT ======= -->
+  <main class="gestiones-main">
+    <div class="gestiones-container">
+      <!-- Vista Principal con Tarjetas -->
+      <div id="mainView" class="main-view">
+        <!-- Tarjetas Principales -->
+        <div class="main-cards">
+          <div class="main-card" id="createEventCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+            <h3 class="card-title">Crear Evento</h3>
+            <p class="card-description">Crear un nuevo evento de capacitación, entrega o proyecto de ayuda</p>
+            <button class="card-button" id="openCreateEventBtn">
+              <span>Crear Nuevo</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="main-card" id="manageEventCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </div>
+            <h3 class="card-title">Editar y Eliminar Evento</h3>
+            <p class="card-description">Gestionar eventos existentes, editar información o eliminar eventos</p>
+            <button class="card-button" id="openManageEventBtn">
+              <span>Gestionar</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sección de Cambios Recientes -->
+        <section class="recent-changes-section">
+          <div class="changes-container">
+            <h2 class="changes-title">Cambios Recientes</h2>
+            <div class="changes-log" id="changesLog">
+              <div class="change-item">
+                <div class="change-time">2024-01-15 14:30</div>
+                <div class="change-description">Evento "Capacitación Agrícola" creado por Juan Pérez</div>
+              </div>
+              <div class="change-item">
+                <div class="change-time">2024-01-15 11:15</div>
+                <div class="change-description">Evento "Entrega de Semillas" actualizado por María Gómez (descripción modificada)</div>
+              </div>
+              <div class="change-item">
+                <div class="change-time">2024-01-14 16:45</div>
+                <div class="change-description">Evento "Proyecto de Riego" editado por Carlos Rodríguez (comunidades afectadas actualizadas)</div>
+              </div>
+              <div class="change-item">
+                <div class="change-time">2024-01-14 09:20</div>
+                <div class="change-description">Evento "Capacitación en Ganadería" creado por Ana Martínez</div>
+              </div>
+              <div class="change-item">
+                <div class="change-time">2024-01-13 15:10</div>
+                <div class="change-description">Evento "Entrega de Fertilizantes" actualizado por Luis Hernández (beneficiarios agregados)</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sección de Generar Reporte -->
+        <section class="report-section">
+          <div class="report-container">
+            <h2 class="report-title">Generar Reporte</h2>
+            <p class="report-description">Crear reportes detallados de eventos y actividades realizadas</p>
+            <button class="btn-generate-report" id="generateReportBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10,9 9,9 8,9"></polyline>
+              </svg>
+              <span>Generar Reporte</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Vista de Crear Evento -->
+      <div id="createEventView" class="create-event-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromCreateBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Crear Nuevo Evento</h2>
+        </div>
+
+        <div class="form-container">
+          <form id="eventForm" class="event-form">
+            <!-- Nombre del Evento -->
+            <div class="form-group">
+              <label for="eventName" class="form-label">Nombre del Evento</label>
+              <input type="text" id="eventName" name="eventName" class="form-input" placeholder="Ingrese el nombre del evento" required>
+            </div>
+
+            <!-- Tipo de Evento -->
+            <div class="form-group">
+              <label for="eventType" class="form-label">Tipo de Evento</label>
+              <select id="eventType" name="eventType" class="form-select" required>
+                <option value="">Seleccione un tipo de evento</option>
+                <option value="capacitacion">Capacitación</option>
+                <option value="entrega">Entrega</option>
+                <option value="proyecto-ayuda">Proyecto de Ayuda</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+
+            <!-- Comunidades Afectadas -->
+            <div class="form-group">
+              <label class="form-label">Comunidades Afectadas</label>
+              <div class="communities-selector">
+                <div class="communities-search">
+                  <input type="text" id="communitySearch" class="form-input" placeholder="Buscar comunidad...">
+                  <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </div>
+                <div class="communities-list" id="communitiesList">
+                  <!-- Las comunidades se cargarán dinámicamente -->
+                </div>
+                <div class="selected-communities" id="selectedCommunities">
+                  <span class="selected-count">0 comunidades seleccionadas</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Personal a Cargo -->
+            <div class="form-group">
+              <label class="form-label">Personal a Cargo</label>
+              <div class="personnel-selector">
+                <div class="personnel-search">
+                  <input type="text" id="personnelSearch" class="form-input" placeholder="Buscar personal...">
+                  <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </div>
+                <div class="personnel-list" id="personnelList">
+                  <!-- El personal se cargará dinámicamente -->
+                </div>
+                <div class="selected-personnel" id="selectedPersonnel">
+                  <span class="selected-count">0 personal seleccionado</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Descripción del Evento -->
+            <div class="form-group">
+              <label for="eventDescription" class="form-label">Descripción del Evento</label>
+              <textarea id="eventDescription" name="eventDescription" class="form-textarea" rows="5" placeholder="Describa los detalles del evento, objetivos, metodología, etc." required></textarea>
+            </div>
+
+            <!-- Beneficiarios -->
+            <div class="form-group">
+              <label class="form-label">Beneficiarios</label>
+              <div class="beneficiaries-container" id="beneficiariesContainer">
+                <!-- Los beneficiarios se agregarán dinámicamente -->
+              </div>
+              <button type="button" id="addBeneficiaryBtn" class="btn-add-beneficiary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar Beneficiario
+              </button>
+            </div>
+
+            <!-- Evidencias -->
+            <div class="form-group">
+              <label for="evidences" class="form-label">Evidencias (Fotos y Documentos)</label>
+              <div class="file-upload">
+                <input type="file" id="evidences" name="evidences" multiple accept="image/*,application/pdf,.doc,.docx" class="file-input">
+                <label for="evidences" class="file-label">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                  </svg>
+                  <span>Seleccionar archivos</span>
+                </label>
+                <div class="file-preview" id="filePreview"></div>
+              </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="form-actions">
+              <button type="submit" class="btn-primary btn-create-event">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Crear Evento
+              </button>
+              <button type="button" id="viewNewEventBtn" class="btn-secondary btn-view-event" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                Ver Evento Nuevo
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Vista de Gestionar Eventos -->
+      <div id="manageEventView" class="manage-event-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromManageBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Gestionar Eventos</h2>
+        </div>
+
+        <div class="events-list-container">
+          <h3 class="events-list-title">Eventos Existentes</h3>
+          <p class="events-list-description">Gestionar eventos creados anteriormente</p>
+          
+          <div class="events-list" id="eventsList">
+            <!-- Los eventos se cargarán dinámicamente -->
+            <div class="event-item">
+              <div class="event-info">
+                <h3 class="event-name">Capacitación Agrícola</h3>
+                <p class="event-type">Tipo: Capacitación</p>
+                <p class="event-communities">Comunidades: 3 seleccionadas</p>
+                <p class="event-personnel">Personal: Juan Pérez</p>
+                <p class="event-date">Creado: 15/01/2024 14:30</p>
+              </div>
+              <div class="event-actions">
+                <button type="button" class="btn-edit-event" data-event-id="event-1">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  Editar
+                </button>
+                <button type="button" class="btn-delete-event-item" data-event-id="event-1">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Eliminar
+                </button>
+              </div>
+            </div>
+
+            <div class="event-item">
+              <div class="event-info">
+                <h3 class="event-name">Entrega de Semillas</h3>
+                <p class="event-type">Tipo: Entrega</p>
+                <p class="event-communities">Comunidades: 5 seleccionadas</p>
+                <p class="event-personnel">Personal: María Gómez</p>
+                <p class="event-date">Creado: 15/01/2024 11:15</p>
+              </div>
+              <div class="event-actions">
+                <button type="button" class="btn-edit-event" data-event-id="event-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  Editar
+                </button>
+                <button type="button" class="btn-delete-event-item" data-event-id="event-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Eliminar
+                </button>
+              </div>
+            </div>
+
+            <div class="event-item">
+              <div class="event-info">
+                <h3 class="event-name">Proyecto de Riego</h3>
+                <p class="event-type">Tipo: Proyecto de Ayuda</p>
+                <p class="event-communities">Comunidades: 2 seleccionadas</p>
+                <p class="event-personnel">Personal: Carlos Rodríguez</p>
+                <p class="event-date">Creado: 14/01/2024 16:45</p>
+              </div>
+              <div class="event-actions">
+                <button type="button" class="btn-edit-event" data-event-id="event-3">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  Editar
+                </button>
+                <button type="button" class="btn-delete-event-item" data-event-id="event-3">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal de Confirmación de Eliminación -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirmar Eliminación</h3>
+        <button class="modal-close" id="closeModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-message">¿Estás seguro de que deseas eliminar este evento?</p>
+        <p class="modal-submessage">Para realizar este proceso, ingrese sus credenciales de administrador.</p>
+        
+        <div class="modal-form">
+          <div class="form-group">
+            <label for="adminUsername" class="form-label">Usuario</label>
+            <input type="text" id="adminUsername" name="adminUsername" class="form-input" placeholder="Ingrese su usuario">
+          </div>
+          <div class="form-group">
+            <label for="adminPassword" class="form-label">Contraseña</label>
+            <input type="password" id="adminPassword" name="adminPassword" class="form-input" placeholder="Ingrese su contraseña">
+          </div>
+          <div id="credentialError" class="error-message" style="display: none;">
+            Credenciales incorrectas. Intente nuevamente.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDeleteBtn" class="btn-danger" style="display: none;">Confirmar Eliminación</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista de Edición de Evento (Pantalla Completa) -->
+  <div id="editEventView" class="edit-event-view" style="display: none;">
+    <div class="edit-event-container">
+      <!-- Header de Edición -->
+      <div class="edit-event-header">
+        <div class="edit-event-title">
+          <h2>Editar Evento</h2>
+          <p id="editEventName">Nombre del Evento</p>
+        </div>
+        <div class="edit-event-actions">
+          <button type="button" id="applyChangesBtn" class="btn-primary btn-apply-changes">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Aplicar Cambios
+          </button>
+          <button type="button" id="backFromEditBtn" class="btn-secondary btn-back-edit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+        </div>
+      </div>
+
+      <!-- Formulario de Edición -->
+      <div class="edit-event-content">
+        <form id="editEventForm" class="edit-event-form">
+          <!-- Nombre del Evento -->
+          <div class="form-group">
+            <label for="editEventName" class="form-label">Nombre del Evento</label>
+            <input type="text" id="editEventName" name="editEventName" class="form-input" required>
+          </div>
+
+          <!-- Tipo de Evento -->
+          <div class="form-group">
+            <label for="editEventType" class="form-label">Tipo de Evento</label>
+            <select id="editEventType" name="editEventType" class="form-select" required>
+              <option value="">Seleccione un tipo de evento</option>
+              <option value="capacitacion">Capacitación</option>
+              <option value="entrega">Entrega</option>
+              <option value="proyecto-ayuda">Proyecto de Ayuda</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+
+          <!-- Comunidades Afectadas -->
+          <div class="form-group">
+            <label class="form-label">Comunidades Afectadas</label>
+            <div class="communities-selector">
+              <div class="communities-search">
+                <input type="text" id="editCommunitySearch" class="form-input" placeholder="Buscar comunidad...">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+              </div>
+              <div class="communities-list" id="editCommunitiesList">
+                <!-- Las comunidades se cargarán dinámicamente -->
+              </div>
+              <div class="selected-communities" id="editSelectedCommunities">
+                <span class="selected-count">0 comunidades seleccionadas</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Personal a Cargo -->
+          <div class="form-group">
+            <label class="form-label">Personal a Cargo</label>
+            <div class="personnel-selector">
+              <div class="personnel-search">
+                <input type="text" id="editPersonnelSearch" class="form-input" placeholder="Buscar personal...">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+              </div>
+              <div class="personnel-list" id="editPersonnelList">
+                <!-- El personal se cargará dinámicamente -->
+              </div>
+              <div class="selected-personnel" id="editSelectedPersonnel">
+                <span class="selected-count">0 personal seleccionado</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Descripción del Evento -->
+          <div class="form-group">
+            <label for="editEventDescription" class="form-label">Descripción del Evento</label>
+            <textarea id="editEventDescription" name="editEventDescription" class="form-textarea" rows="5" required></textarea>
+          </div>
+
+          <!-- Beneficiarios -->
+          <div class="form-group">
+            <label class="form-label">Beneficiarios</label>
+            <div class="beneficiaries-container" id="editBeneficiariesContainer">
+              <!-- Los beneficiarios se cargarán dinámicamente -->
+            </div>
+            <button type="button" id="editAddBeneficiaryBtn" class="btn-add-beneficiary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Agregar Beneficiario
+            </button>
+          </div>
+
+          <!-- Evidencias -->
+          <div class="form-group">
+            <label for="editEvidences" class="form-label">Evidencias (Fotos y Documentos)</label>
+            <div class="file-upload">
+              <input type="file" id="editEvidences" name="editEvidences" multiple accept="image/*,application/pdf,.doc,.docx" class="file-input">
+              <label for="editEvidences" class="file-label">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+                <span>Seleccionar archivos</span>
+              </label>
+              <div class="file-preview" id="editFilePreview"></div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación para Volver -->
+  <div id="backConfirmModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirmar Acción</h3>
+        <button class="modal-close" id="closeBackModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-message">¿Estás seguro de que deseas volver sin guardar los cambios?</p>
+        <p class="modal-submessage">Los cambios realizados se perderán si no se aplican.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelBackBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmBackBtn" class="btn-danger">Volver sin Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación para Aplicar Cambios -->
+  <div id="applyConfirmModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirmar Cambios</h3>
+        <button class="modal-close" id="closeApplyModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-message">¿Estás seguro de que deseas aplicar estos cambios al evento?</p>
+        <p class="modal-submessage">Esta acción actualizará permanentemente la información del evento.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelApplyBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmApplyBtn" class="btn-primary">Aplicar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= FOOTER ======= -->
+  <footer class="contact-section">
+    <div class="contact-container">
+      <!-- Columna izquierda - Información de contacto -->
+      <div class="contact-info">
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          <div class="contact-text">
+            <p><strong>Oficina Regional</strong></p>
+            <p>Kilómetro 164 CA-14</p>
+            <p>Purulhá, B.V.</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          <div class="contact-text">
+            <p>(502) 3015-6925</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <div class="contact-text">
+            <p>magaepurulha@gob.gt</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna central - Logo -->
+      <div class="contact-logo">
+        <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" class="maga-logo">
+      </div>
+
+      <!-- Columna derecha - Redes sociales y enlaces -->
+      <div class="contact-links">
+        <h4>Únete a nuestra comunidad</h4>
+        <div class="social-links">
+          <a href="#" class="social-link facebook" aria-label="Facebook">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+            </svg>
+          </a>
+          <a href="#" class="social-link instagram" aria-label="Instagram">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+            </svg>
+          </a>
+        </div>
+        <div class="footer-links">
+          <a href="#" class="footer-link">Preguntas Frecuentes</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ---------- Dropdowns escritorio ---------- */
+    const dropdowns = document.querySelectorAll('.dd');
+    const closeAll = () => dropdowns.forEach(dd => {
+      dd.querySelector('.dd__btn').classList.remove('is-open');
+      dd.querySelector('.dd__btn').setAttribute('aria-expanded','false');
+      dd.querySelector('.dd__panel').classList.remove('show');
+    });
+    dropdowns.forEach(dd=>{
+      const btn   = dd.querySelector('.dd__btn');
+      const panel = dd.querySelector('.dd__panel');
+      btn.addEventListener('click', ()=>{
+        const isOpen = panel.classList.contains('show');
+        closeAll();
+        if(!isOpen){
+          btn.classList.add('is-open');
+          btn.setAttribute('aria-expanded','true');
+          panel.classList.add('show');
+        }
+      });
+    });
+    document.addEventListener('click', (e)=>{ if(!e.target.closest('.dd')) closeAll(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeAll(); });
+
+    /* ---------- Buscador principal (demo) ---------- */
+    document.querySelector('.search .mini').addEventListener('click', (e)=>{
+      e.preventDefault();
+      const q = document.getElementById('buscar-proyecto').value.trim();
+      if(q) console.log('Buscar proyecto:', q);
+    });
+
+    /* ---------- Drawer móvil ---------- */
+    const drawer = document.getElementById('drawer');
+    const btnHamburger = document.getElementById('btnHamburger');
+    const btnCloseDrawer = document.getElementById('btnCloseDrawer');
+    const openDrawer = () => {
+      drawer.classList.add('open');
+      drawer.setAttribute('aria-hidden','false');
+      btnHamburger.setAttribute('aria-expanded','true');
+      document.body.style.overflow='hidden';
+    };
+    const closeDrawer = () => {
+      drawer.classList.remove('open');
+      drawer.setAttribute('aria-hidden','true');
+      btnHamburger.setAttribute('aria-expanded','false');
+      document.body.style.overflow='';
+    };
+    btnHamburger.addEventListener('click', openDrawer);
+    btnCloseDrawer.addEventListener('click', closeDrawer);
+    drawer.addEventListener('click', (e)=>{ if(e.target === drawer) closeDrawer(); });
+    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDrawer(); });
+
+    // Acordeón dentro del drawer
+    document.querySelectorAll('.ddm').forEach(ddm=>{
+      const btn = ddm.querySelector('.ddm__btn');
+      const panel = ddm.querySelector('.ddm__panel');
+      btn.addEventListener('click', ()=>{
+        const open = ddm.classList.toggle('open');
+        btn.setAttribute('aria-expanded', String(open));
+        panel.style.maxHeight = open ? panel.scrollHeight+'px' : '0px';
+      });
+    });
+
+    // ======= FUNCIONALIDAD DE SCROLL AUTOMÁTICO =======
+    
+    // Función para hacer scroll suave a una sección
+    function scrollToSection(sectionId) {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        // Calcular la posición considerando el header fijo
+        const headerHeight = document.querySelector('.topbar').offsetHeight + 
+                            document.querySelector('.nav').offsetHeight;
+        const sectionTop = section.offsetTop - headerHeight - 20; // 20px de margen adicional
+        
+        window.scrollTo({
+          top: sectionTop,
+          behavior: 'smooth'
+        });
+
+        // Agregar efecto de resaltado temporal
+        section.classList.add('scroll-highlight');
+        
+        // Remover el efecto después de 3 segundos
+        setTimeout(() => {
+          section.classList.remove('scroll-highlight');
+        }, 3000);
+      }
+    }
+
+    // Función para manejar el scroll automático desde URL
+    function handleUrlAnchor() {
+      const hash = window.location.hash;
+      if (hash) {
+        // Remover el # del hash
+        const sectionId = hash.substring(1);
+        
+        // Esperar un poco para que la página se cargue completamente
+        setTimeout(() => {
+          scrollToSection(sectionId);
+        }, 300);
+      }
+    }
+
+    // Manejar anclas de URL al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+      handleUrlAnchor();
+    });
+
+    // Escuchar cambios en el hash de la URL
+    window.addEventListener('hashchange', function() {
+      handleUrlAnchor();
+    });
+
+    // También manejar el caso cuando la página se carga directamente con hash
+    window.addEventListener('load', function() {
+      handleUrlAnchor();
+    });
+  </script>
+  <script src="{% static 'js/gestioneseventos.js' %}"></script>
+</body>
+</html>

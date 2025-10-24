@@ -20,7 +20,7 @@ def proyectos(request):
 
 def gestioneseventos(request):
     """Vista de gestión de eventos"""
-    return render(request, 'gestioneseventos.html')
+    return render(request, 'gestioneventos.html')
 
 def generarreportes(request):
     """Vista de generación de reportes"""
