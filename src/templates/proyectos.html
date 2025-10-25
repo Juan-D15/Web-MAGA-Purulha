@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
   <link rel="stylesheet" href="{% static 'css/proyectos.css' %}">
+  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
@@ -75,9 +77,9 @@
             <div class="dd__panel" role="menu" aria-label="Gestiones">
               <div class="dd__section">
                 <div class="dd__grid">
-                  <a class="dd__item" href="{% url 'webmaga:gestioneseventos' %}#createEventView" role="menuitem" tabindex="0">Agregar Evento</a>
-                  <a class="dd__item" href="{% url 'webmaga:gestioneseventos' %}#manageEventView" role="menuitem" tabindex="0">Editar Evento</a>
-                  <a class="dd__item" href="{% url 'webmaga:generarreportes' %}" role="menuitem" tabindex="0">Crear Reporte</a>
+                  <a class="dd__item" href="#" onclick="handleGestionesAction('createEventView'); return false;" role="menuitem" tabindex="0">Agregar Evento</a>
+                  <a class="dd__item" href="#" onclick="handleGestionesAction('manageEventView'); return false;" role="menuitem" tabindex="0">Editar Evento</a>
+                  <a class="dd__item" href="#" onclick="handleGestionesAction('createReport'); return false;" role="menuitem" tabindex="0">Crear Reporte</a>
                 </div>
               </div>
             </div>
@@ -113,9 +115,90 @@
           </div>
         </div>
 
+        <!-- Icono de usuario en desktop (junto al buscador) -->
+        <div class="nav-user-icon" id="navUserIcon" aria-label="Información de usuario" style="display: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+
       </div>
     </nav>
   </header>
+
+  <!-- Dropdown flotante del usuario (fuera de la cinta) -->
+  <div class="nav-user-dropdown" id="navUserDropdown" style="display: none;">
+    <!-- Contenido cuando hay sesión activa -->
+    <div class="nav-user-dropdown-content" id="navUserLoggedIn">
+      <div class="nav-user-dropdown-header">
+        <div class="nav-user-dropdown-avatar" id="navUserAvatar">A</div>
+        <div>
+          <h4 class="nav-user-dropdown-name" id="navUserName">Administrador</h4>
+          <p class="nav-user-dropdown-email" id="navUserEmail">admin@maga.gt</p>
+        </div>
+      </div>
+      <div class="nav-user-dropdown-menu">
+        <button class="nav-user-dropdown-item" id="navProfileBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          Mi Perfil
+        </button>
+        <button class="nav-user-dropdown-item" id="navSettingsBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Configuración
+        </button>
+        <div class="nav-user-dropdown-divider"></div>
+        <button class="nav-user-dropdown-item" id="navLogoutBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+
+    <!-- Contenido cuando NO hay sesión activa -->
+    <div class="nav-user-dropdown-content" id="navUserLoggedOut" style="display: none;">
+      <div class="nav-user-dropdown-header">
+        <div class="nav-user-dropdown-avatar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div>
+          <h4 class="nav-user-dropdown-name">Iniciar Sesión</h4>
+          <p class="nav-user-dropdown-email">Accede al sistema</p>
+        </div>
+      </div>
+      <div class="nav-user-dropdown-menu">
+        <button class="nav-user-dropdown-item nav-user-dropdown-primary" id="navLoginBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          Acceder al Sistema
+        </button>
+        <div class="nav-user-dropdown-divider"></div>
+        <button class="nav-user-dropdown-item" id="navCloseBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- ======= DRAWER MÓVIL ======= -->
   <aside class="drawer" id="drawer" aria-hidden="true">
@@ -145,9 +228,9 @@
             Gestiones <span class="car"></span>
           </button>
           <div class="ddm__panel">
-            <a href="{% url 'webmaga:gestioneseventos' %}#createEventView" class="ddm__item">Agregar Evento</a>
-            <a href="{% url 'webmaga:gestioneseventos' %}#manageEventView" class="ddm__item">Editar Evento</a>
-            <a href="{% url 'webmaga:generarreportes' %}" class="ddm__item">Crear Reporte</a>
+            <a href="#" onclick="handleGestionesAction('createEventView'); return false;" class="ddm__item">Agregar Evento</a>
+            <a href="#" onclick="handleGestionesAction('manageEventView'); return false;" class="ddm__item">Editar Evento</a>
+            <a href="#" onclick="handleGestionesAction('createReport'); return false;" class="ddm__item">Crear Reporte</a>
           </div>
         </div>
 
@@ -162,6 +245,76 @@
             </div>
             <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
             <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
+          </div>
+        </div>
+
+        <!-- Usuario en móvil -->
+        <div class="ddm" id="mobileUserMenu" style="display: none;">
+          <!-- Contenido cuando hay sesión activa -->
+          <div id="mobileUserLoggedIn">
+            <button class="ddm__btn" aria-expanded="false">
+              <div class="mobile-user-info">
+                <div class="mobile-user-avatar" id="mobileUserAvatar">A</div>
+                <span id="mobileUserName">Administrador</span>
+              </div>
+              <span class="car"></span>
+            </button>
+            <div class="ddm__panel">
+              <div class="mobile-user-details">
+                <div class="mobile-user-email" id="mobileUserEmail">admin@maga.gt</div>
+              </div>
+              <button class="ddm__item mobile-user-action" id="mobileProfileBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                Mi Perfil
+              </button>
+              <button class="ddm__item mobile-user-action" id="mobileSettingsBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                Configuración
+              </button>
+              <button class="ddm__item mobile-user-action mobile-logout" id="mobileLogoutBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                Cerrar Sesión
+              </button>
+            </div>
+          </div>
+
+          <!-- Contenido cuando NO hay sesión activa -->
+          <div id="mobileUserLoggedOut" style="display: none;">
+            <button class="ddm__btn" aria-expanded="false">
+              <div class="mobile-user-info">
+                <div class="mobile-user-avatar">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </div>
+                <span>Iniciar Sesión</span>
+              </div>
+              <span class="car"></span>
+            </button>
+            <div class="ddm__panel">
+              <div class="mobile-user-details">
+                <div class="mobile-user-email">Accede al sistema</div>
+              </div>
+              <button class="ddm__item mobile-user-action mobile-login" id="mobileLoginBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                  <polyline points="10 17 15 12 10 7"></polyline>
+                  <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                Acceder al Sistema
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -724,37 +877,6 @@
 
   <!-- ======= MODALES ======= -->
   
-  <!-- Modal para Credenciales de Administrador -->
-  <div id="adminCredentialsModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Credenciales de Administrador</h3>
-        <button class="modal-close" id="closeCredentialsModal">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="adminUsername" class="form-label">Usuario</label>
-          <input type="text" id="adminUsername" class="form-input" placeholder="Ingresa tu usuario">
-        </div>
-        <div class="form-group">
-          <label for="adminPassword" class="form-label">Contraseña</label>
-          <input type="password" id="adminPassword" class="form-input" placeholder="Ingresa tu contraseña">
-        </div>
-        <div id="credentialsError" class="error-message" style="display: none; color: #dc3545; margin-top: 10px; font-size: 14px;">
-          Credenciales incorrectas. Intenta nuevamente.
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" id="cancelCredentialsBtn" class="btn-secondary">Cancelar</button>
-        <button type="button" id="verifyCredentialsBtn" class="btn-primary">Verificar</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Modal para Agregar Imagen -->
   <div id="addImageModal" class="modal">
@@ -1300,6 +1422,658 @@
     </div>
   </footer>
 
+  <!-- ======= MODAL DE LOGIN ======= -->
+  <div id="loginModal" class="login-modal" style="display: none;">
+    <div class="login-modal-content">
+      <div class="login-modal-header">
+        <h2>Iniciar Sesión</h2>
+        <button class="login-modal-close" onclick="hideLoginModal()">&times;</button>
+      </div>
+      <div class="login-modal-body">
+        <form id="loginForm" class="login-form active">
+          <div class="form-group">
+            <label for="usernameOrEmail">Usuario o Correo</label>
+            <input type="text" id="usernameOrEmail" name="usernameOrEmail" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Contraseña</label>
+            <div class="password-input">
+              <input type="password" id="password" name="password" required>
+              <button type="button" class="password-toggle" onclick="togglePassword()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="rememberUser">
+              <span class="checkmark"></span>
+              Recordar usuario
+            </label>
+            <a href="#" onclick="showForgotPassword(); return false;" class="forgot-password">¿Olvidaste tu contraseña?</a>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Acceder</button>
+            <button type="button" class="btn-secondary" onclick="hideLoginModal()">Volver</button>
+          </div>
+        </form>
+
+        <form id="forgotPasswordForm" class="forgot-password-form">
+          <div class="form-group">
+            <label for="recoveryEmail">Correo de Recuperación</label>
+            <input type="email" id="recoveryEmail" name="recoveryEmail" required>
+          </div>
+          <div class="form-group">
+            <label for="recoveryCode">Código de Recuperación</label>
+            <input type="text" id="recoveryCode" name="recoveryCode" placeholder="Ingresa el código de 6 dígitos" maxlength="6">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Enviar Código</button>
+            <button type="button" class="btn-secondary" onclick="showLoginForm()">Volver al Login</button>
+          </div>
+        </form>
+
+        <form id="resetPasswordForm" class="reset-password-form">
+          <div class="form-group">
+            <label for="newPassword">Nueva Contraseña</label>
+            <div class="password-input">
+              <input type="password" id="newPassword" name="newPassword" required>
+              <button type="button" class="password-toggle" onclick="toggleNewPassword()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+            <div class="password-strength" id="passwordStrength">
+              <div class="password-strength-item" id="reqLength">Mínimo 8 caracteres</div>
+              <div class="password-strength-item" id="reqUppercase">Una letra mayúscula</div>
+              <div class="password-strength-item" id="reqLowercase">Una letra minúscula</div>
+              <div class="password-strength-item" id="reqNumber">Un número</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="confirmPassword">Confirmar Contraseña</label>
+            <div class="password-input">
+              <input type="password" id="confirmPassword" name="confirmPassword" required>
+              <button type="button" class="password-toggle" onclick="toggleConfirmPassword()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Cambiar Contraseña</button>
+            <button type="button" class="btn-secondary" onclick="showForgotPassword()">Volver</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Load user information from localStorage or session
+    function loadUserInfo() {
+      const userInfo = localStorage.getItem('userInfo') || sessionStorage.getItem('userInfo');
+      const navUserIcon = document.getElementById('navUserIcon');
+      const mobileUserMenu = document.getElementById('mobileUserMenu');
+      const navUserLoggedIn = document.getElementById('navUserLoggedIn');
+      const navUserLoggedOut = document.getElementById('navUserLoggedOut');
+      const mobileUserLoggedIn = document.getElementById('mobileUserLoggedIn');
+      const mobileUserLoggedOut = document.getElementById('mobileUserLoggedOut');
+      
+      if (userInfo) {
+        const user = JSON.parse(userInfo);
+        const userName = user.name || 'Usuario';
+        const userEmail = user.email || 'usuario@maga.gt';
+        const userInitial = (user.name || 'U').charAt(0).toUpperCase();
+        
+        // Actualizar información en desktop
+        document.getElementById('navUserName').textContent = userName;
+        document.getElementById('navUserEmail').textContent = userEmail;
+        document.getElementById('navUserAvatar').textContent = userInitial;
+        
+        // Actualizar información en móvil
+        document.getElementById('mobileUserName').textContent = userName;
+        document.getElementById('mobileUserEmail').textContent = userEmail;
+        document.getElementById('mobileUserAvatar').textContent = userInitial;
+        
+        // Mostrar contenido de sesión activa
+        if (navUserLoggedIn) navUserLoggedIn.style.display = 'block';
+        if (navUserLoggedOut) navUserLoggedOut.style.display = 'none';
+        if (mobileUserLoggedIn) mobileUserLoggedIn.style.display = 'block';
+        if (mobileUserLoggedOut) mobileUserLoggedOut.style.display = 'none';
+        
+        // Mostrar el icono de usuario en la navegación (desktop)
+        if (navUserIcon) {
+          navUserIcon.style.display = 'flex';
+        }
+        
+        // Mostrar el menú de usuario en móvil
+        if (mobileUserMenu) {
+          mobileUserMenu.style.display = 'block';
+        }
+      } else {
+        // Mostrar contenido de sesión no activa
+        if (navUserLoggedIn) navUserLoggedIn.style.display = 'none';
+        if (navUserLoggedOut) navUserLoggedOut.style.display = 'block';
+        if (mobileUserLoggedIn) mobileUserLoggedIn.style.display = 'none';
+        if (mobileUserLoggedOut) mobileUserLoggedOut.style.display = 'block';
+        
+        // Mostrar el icono de usuario en la navegación (desktop)
+        if (navUserIcon) {
+          navUserIcon.style.display = 'flex';
+        }
+        
+        // Mostrar el menú de usuario en móvil
+        if (mobileUserMenu) {
+          mobileUserMenu.style.display = 'block';
+        }
+      }
+      
+      // Configurar el menú móvil después de establecer los estados
+      setTimeout(() => {
+        setupMobileUserMenu();
+      }, 300);
+    }
+
+    /* ---------- NAV USER ICON FUNCTIONALITY (DESKTOP) ---------- */
+    const navUserIcon = document.getElementById('navUserIcon');
+    const navUserDropdown = document.getElementById('navUserDropdown');
+    const navProfileBtn = document.getElementById('navProfileBtn');
+    const navSettingsBtn = document.getElementById('navSettingsBtn');
+    const navLogoutBtn = document.getElementById('navLogoutBtn');
+
+    // Nav user icon click functionality
+    navUserIcon?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Toggle del dropdown
+      if (navUserDropdown.style.display === 'block') {
+        navUserDropdown.style.display = 'none';
+        navUserDropdown.classList.remove('show');
+        navUserIcon.classList.remove('active');
+      } else {
+        navUserDropdown.style.display = 'block';
+        navUserDropdown.classList.add('show');
+        navUserIcon.classList.add('active');
+      }
+    });
+
+    // Nav profile button functionality
+    navProfileBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+      console.log('Mostrar perfil del usuario (desktop)');
+    });
+
+    // Nav settings button functionality
+    navSettingsBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+      console.log('Mostrar configuración (desktop)');
+    });
+
+    // Nav logout button functionality
+    navLogoutBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+      if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+        localStorage.removeItem('userInfo');
+        sessionStorage.removeItem('userInfo');
+        // Recargar la página actual en lugar de redirigir al login
+        window.location.reload();
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (navUserIcon && navUserDropdown && !navUserIcon.contains(e.target) && !navUserDropdown.contains(e.target)) {
+        navUserDropdown.style.display = 'none';
+        navUserDropdown.classList.remove('show');
+        navUserIcon.classList.remove('active');
+      }
+    });
+
+    // Close dropdown on escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && navUserDropdown && navUserDropdown.style.display === 'block') {
+        navUserDropdown.style.display = 'none';
+        navUserDropdown.classList.remove('show');
+        navUserIcon.classList.remove('active');
+      }
+    });
+
+    /* ---------- MOBILE USER MENU FUNCTIONALITY ---------- */
+    const mobileProfileBtn = document.getElementById('mobileProfileBtn');
+    const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+    const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
+
+    // Mobile profile button functionality
+    mobileProfileBtn?.addEventListener('click', () => {
+      // Cerrar el drawer móvil manualmente
+      const drawer = document.getElementById('drawer');
+      const btnHamburger = document.getElementById('btnHamburger');
+      if (drawer && btnHamburger) {
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden','true');
+        btnHamburger.setAttribute('aria-expanded','false');
+        document.body.style.overflow='';
+      }
+      // Aquí se puede agregar funcionalidad para mostrar el perfil
+      console.log('Mostrar perfil del usuario (móvil)');
+    });
+
+    // Mobile settings button functionality
+    mobileSettingsBtn?.addEventListener('click', () => {
+      // Cerrar el drawer móvil manualmente
+      const drawer = document.getElementById('drawer');
+      const btnHamburger = document.getElementById('btnHamburger');
+      if (drawer && btnHamburger) {
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden','true');
+        btnHamburger.setAttribute('aria-expanded','false');
+        document.body.style.overflow='';
+      }
+      // Aquí se puede agregar funcionalidad para mostrar configuración
+      console.log('Mostrar configuración (móvil)');
+    });
+
+    // Mobile logout button functionality
+    mobileLogoutBtn?.addEventListener('click', () => {
+      // Cerrar el drawer móvil manualmente
+      const drawer = document.getElementById('drawer');
+      const btnHamburger = document.getElementById('btnHamburger');
+      if (drawer && btnHamburger) {
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden','true');
+        btnHamburger.setAttribute('aria-expanded','false');
+        document.body.style.overflow='';
+      }
+      // Confirmar logout
+      if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+        localStorage.removeItem('userInfo');
+        sessionStorage.removeItem('userInfo');
+        // Recargar la página actual en lugar de redirigir al login
+        window.location.reload();
+      }
+    });
+
+    // Función para configurar el menú de usuario móvil
+    function setupMobileUserMenu() {
+      const mobileUserMenu = document.getElementById('mobileUserMenu');
+      console.log('setupMobileUserMenu called, mobileUserMenu:', mobileUserMenu);
+      
+      if (mobileUserMenu) {
+        // Limpiar event listeners anteriores para evitar duplicados
+        const existingBtns = mobileUserMenu.querySelectorAll('.ddm__btn');
+        existingBtns.forEach(btn => {
+          // Crear una copia de los event listeners para poder removerlos
+          const newBtn = btn.cloneNode(true);
+          btn.parentNode.replaceChild(newBtn, btn);
+        });
+        
+        // Función para manejar el clic en cualquier botón del menú móvil
+        function handleMobileUserMenuClick(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          console.log('Mobile user menu clicked');
+          const isOpen = mobileUserMenu.classList.contains('open');
+          mobileUserMenu.classList.toggle('open');
+          
+          // Encontrar el botón y panel activos según el estado visible
+          const mobileUserLoggedIn = document.getElementById('mobileUserLoggedIn');
+          const mobileUserLoggedOut = document.getElementById('mobileUserLoggedOut');
+          
+          let activeBtn, activePanel;
+          
+          // Determinar cuál estado está visible
+          if (mobileUserLoggedIn && mobileUserLoggedIn.style.display !== 'none') {
+            // Estado logueado está activo
+            activeBtn = mobileUserLoggedIn.querySelector('.ddm__btn');
+            activePanel = mobileUserLoggedIn.querySelector('.ddm__panel');
+            console.log('Using logged in state');
+          } else if (mobileUserLoggedOut && mobileUserLoggedOut.style.display !== 'none') {
+            // Estado no logueado está activo
+            activeBtn = mobileUserLoggedOut.querySelector('.ddm__btn');
+            activePanel = mobileUserLoggedOut.querySelector('.ddm__panel');
+            console.log('Using logged out state');
+          }
+          
+          console.log('Active btn:', activeBtn, 'Active panel:', activePanel);
+          
+          if (activeBtn && activePanel) {
+            activeBtn.setAttribute('aria-expanded', String(!isOpen));
+            
+            if (!isOpen) {
+              // Abrir el panel - usar un valor fijo alto para asegurar que se vea
+              activePanel.style.maxHeight = '300px'; // Valor fijo alto para que se vea el contenido
+              console.log('Opening panel with maxHeight: 300px');
+            } else {
+              // Cerrar el panel
+              activePanel.style.maxHeight = '0px';
+              console.log('Closing panel');
+            }
+          }
+        }
+        
+        // Agregar event listener a todos los botones del menú móvil
+        const mobileUserBtns = mobileUserMenu.querySelectorAll('.ddm__btn');
+        console.log('Found mobile user buttons:', mobileUserBtns.length);
+        mobileUserBtns.forEach(btn => {
+          btn.addEventListener('click', handleMobileUserMenuClick);
+        });
+      }
+    }
+
+    // ======= EVENT LISTENERS FOR LOGGED OUT STATE =======
+    const navLoginBtn = document.getElementById('navLoginBtn');
+    const navCloseBtn = document.getElementById('navCloseBtn');
+    const mobileLoginBtn = document.getElementById('mobileLoginBtn');
+
+    // Nav login button functionality (redirect to login page)
+    navLoginBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+      // Guardar la página actual como origen antes de redirigir
+      sessionStorage.setItem('loginOriginPage', window.location.href);
+      window.location.href = '{% url "webmaga:login" %}';
+    });
+
+    // Nav close button functionality (just close dropdown)
+    navCloseBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+    });
+
+    // Mobile login button functionality (redirect to login page)
+    mobileLoginBtn?.addEventListener('click', () => {
+      // Cerrar el drawer móvil manualmente
+      const drawer = document.getElementById('drawer');
+      const btnHamburger = document.getElementById('btnHamburger');
+      if (drawer && btnHamburger) {
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden','true');
+        btnHamburger.setAttribute('aria-expanded','false');
+        document.body.style.overflow='';
+      }
+      // Guardar la página actual como origen antes de redirigir
+      sessionStorage.setItem('loginOriginPage', window.location.href);
+      window.location.href = '{% url "webmaga:login" %}';
+    });
+
+    // ===== FUNCIONES DE ADMINISTRADOR =====
+    
+    // Función para verificar si el usuario actual es administrador
+    function checkAdminAccess() {
+      const userInfo = localStorage.getItem('userInfo') || sessionStorage.getItem('userInfo');
+      console.log('Checking admin access, userInfo:', userInfo);
+      
+      if (userInfo) {
+        const user = JSON.parse(userInfo);
+        console.log('Parsed user:', user);
+        
+        // Fix: Si el usuario es admin pero no tiene la propiedad isAdmin, agregarla
+        if (user.username === 'admin' && !user.isAdmin) {
+          console.log('Fixing admin user - adding isAdmin property');
+          user.isAdmin = true;
+          localStorage.setItem('userInfo', JSON.stringify(user));
+          console.log('Updated admin user:', user);
+        }
+        
+        return user.isAdmin === true;
+      }
+      
+      console.log('No user info found or user is not admin');
+      return false;
+    }
+
+    // Función para mostrar el modal de login de administrador
+    function showAdminLoginModal() {
+      console.log('Showing admin login modal');
+      
+      // Crear el modal si no existe
+      let modal = document.getElementById('adminLoginModal');
+      if (!modal) {
+        console.log('Creating new admin login modal');
+        modal = document.createElement('div');
+        modal.id = 'adminLoginModal';
+        modal.className = 'admin-login-modal';
+        modal.innerHTML = `
+          <div class="admin-login-content">
+            <div class="admin-login-header">
+              <h2>Acceso de Administrador</h2>
+              <p>Ingrese las credenciales de administrador para acceder a la gestión de eventos</p>
+            </div>
+            <div class="admin-login-body">
+              <form class="admin-login-form" id="adminLoginForm">
+                <div class="admin-form-group">
+                  <label for="adminUsername">Usuario</label>
+                  <div class="admin-input-with-icon admin-user-icon">
+                    <input type="text" id="adminUsername" name="username" required>
+                  </div>
+                </div>
+                <div class="admin-form-group">
+                  <label for="adminPassword">Contraseña</label>
+                  <div class="admin-input-with-icon admin-password-input">
+                    <input type="password" id="adminPassword" name="password" required>
+                    <button type="button" class="admin-password-toggle" onclick="toggleAdminPassword()">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div id="adminLoginError" class="admin-error-message" style="display: none;">
+                  Credenciales incorrectas. Intente nuevamente.
+                </div>
+                <div class="admin-form-actions">
+                  <button type="submit" class="admin-btn-primary">Acceder</button>
+                  <button type="button" class="admin-btn-secondary" onclick="closeAdminLoginModal()">Cancelar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        console.log('Modal created and appended to body');
+      } else {
+        console.log('Modal already exists');
+      }
+      
+      // Mostrar el modal
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      console.log('Modal displayed');
+      
+      // Enfocar el primer campo y verificar elementos
+      setTimeout(() => {
+        const usernameInput = document.getElementById('adminUsername');
+        const passwordInput = document.getElementById('adminPassword');
+        const toggleBtn = document.querySelector('.admin-password-toggle');
+        
+        console.log('Elements check:', {
+          usernameInput: !!usernameInput,
+          passwordInput: !!passwordInput,
+          toggleBtn: !!toggleBtn
+        });
+        
+        if (usernameInput) {
+          usernameInput.focus();
+        }
+        
+        if (toggleBtn) {
+          console.log('Toggle button found:', toggleBtn);
+          console.log('Toggle button styles:', window.getComputedStyle(toggleBtn));
+        } else {
+          console.log('Toggle button NOT found');
+        }
+      }, 100);
+      
+      // Manejar el envío del formulario
+      const form = document.getElementById('adminLoginForm');
+      if (form) {
+        form.onsubmit = function(e) {
+          e.preventDefault();
+          
+          const usernameInput = document.getElementById('adminUsername');
+          const passwordInput = document.getElementById('adminPassword');
+          const errorDiv = document.getElementById('adminLoginError');
+          
+          if (!usernameInput || !passwordInput || !errorDiv) {
+            console.error('Required elements not found:', { usernameInput, passwordInput, errorDiv });
+            return;
+          }
+          
+          const username = usernameInput.value.trim();
+          const password = passwordInput.value.trim();
+          
+          console.log('Admin login attempt:', { username, password, usernameLength: username.length, passwordLength: password.length });
+          
+          // Verificar credenciales de administrador
+          if (username === 'admin' && password === 'admin123') {
+            console.log('Admin credentials correct, redirecting to gestioneventos');
+            
+            // Crear usuario admin en localStorage
+            const adminUser = {
+              username: 'admin',
+              email: 'admin@maga.gob.gt',
+              name: 'Administrador',
+              isAdmin: true
+            };
+            localStorage.setItem('userInfo', JSON.stringify(adminUser));
+            sessionStorage.setItem('userInfo', JSON.stringify(adminUser));
+            
+            // Cerrar modal
+            closeAdminLoginModal();
+            
+            // Redirigir a gestioneventos
+            window.location.href = '{% url "webmaga:gestioneseventos" %}';
+          } else {
+            console.log('Admin credentials incorrect:', { 
+              usernameMatch: username === 'admin', 
+              passwordMatch: password === 'admin123',
+              username, 
+              password 
+            });
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = 'Credenciales incorrectas. Intente nuevamente.';
+          }
+        };
+      }
+    }
+
+    // Función para cerrar el modal de login de administrador
+    function closeAdminLoginModal() {
+      console.log('closeAdminLoginModal called');
+      const modal = document.getElementById('adminLoginModal');
+      
+      if (modal) {
+        // Usar clase CSS para ocultar el modal
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+        
+        // Limpiar el formulario
+        const form = document.getElementById('adminLoginForm');
+        if (form) {
+          form.reset();
+        }
+        
+        // Ocultar mensaje de error
+        const errorDiv = document.getElementById('adminLoginError');
+        if (errorDiv) {
+          errorDiv.style.display = 'none';
+        }
+        
+        // Limpiar la acción guardada en sessionStorage
+        sessionStorage.removeItem('gestionesAction');
+        
+        console.log('Modal closed successfully');
+      }
+    }
+
+    // Función para alternar la visibilidad de la contraseña en el modal de admin
+    function toggleAdminPassword() {
+      console.log('toggleAdminPassword called');
+      const passwordInput = document.getElementById('adminPassword');
+      const toggleBtn = document.querySelector('.admin-password-toggle');
+      
+      console.log('Password input found:', passwordInput);
+      console.log('Toggle button found:', toggleBtn);
+      
+      if (passwordInput && toggleBtn) {
+        if (passwordInput.type === 'password') {
+          passwordInput.type = 'text';
+          toggleBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          `;
+        } else {
+          passwordInput.type = 'password';
+          toggleBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          `;
+        }
+      }
+    }
+
+    // Función para manejar las acciones de Gestiones
+    function handleGestionesAction(action) {
+      console.log('handleGestionesAction called with action:', action);
+      const isAdmin = checkAdminAccess();
+      console.log('Is admin:', isAdmin);
+      
+      if (isAdmin) {
+        console.log('Redirecting to gestioneventos as admin');
+        window.location.href = '{% url "webmaga:gestioneseventos" %}';
+      } else {
+        console.log('Showing admin login modal');
+        sessionStorage.setItem('gestionesAction', action); // Save action before showing modal
+        showAdminLoginModal();
+      }
+    }
+
+    // Cerrar modal al hacer clic fuera de él
+    document.addEventListener('click', function(e) {
+      const modal = document.getElementById('adminLoginModal');
+      if (modal && e.target === modal) {
+        closeAdminLoginModal();
+      }
+    });
+
+    // Cerrar modal con tecla Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('adminLoginModal');
+        if (modal && modal.style.display === 'flex') {
+          closeAdminLoginModal();
+        }
+      }
+    });
+
+    // Initialize user info
+    loadUserInfo();
+  </script>
   <script src="{% static 'js/proyectos.js' %}"></script>
 
 </body>

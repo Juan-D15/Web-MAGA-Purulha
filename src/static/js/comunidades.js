@@ -231,11 +231,11 @@ const allCommunitiesData = [
   { id: 'las-flores', name: 'Las Flores', region: 'Región Norte', type: 'Barrio', hasProjects: false, lastUpdate: '2024-11-03' }
 ];
 
-// Credenciales de administrador
-const ADMIN_CREDENTIALS = {
-  user: 'admin',
-  password: 'admin'
-};
+// Credenciales de administrador (ya no se usan)
+// const ADMIN_CREDENTIALS = {
+//   user: 'admin',
+//   password: 'admin'
+// };
 
 // Variables globales
 let currentCommunityData = null;
@@ -294,10 +294,10 @@ function hideModal(modalId) {
   }
 }
 
-// Función para validar credenciales
-function validateCredentials(user, password) {
-  return user === ADMIN_CREDENTIALS.user && password === ADMIN_CREDENTIALS.password;
-}
+// Función para validar credenciales (ya no se usa)
+// function validateCredentials(user, password) {
+//   return user === ADMIN_CREDENTIALS.user && password === ADMIN_CREDENTIALS.password;
+// }
 
 // ======= VISTA DE LISTA DE COMUNIDADES =======
 
@@ -587,53 +587,51 @@ function sortCommunities(sortBy) {
 
 // ======= FUNCIONES DE EDICIÓN =======
 
-// Variable para almacenar la acción pendiente
-let pendingAction = null;
+// Variable para almacenar la acción pendiente (ya no se usa)
+// let pendingAction = null;
 
-// Función para mostrar modal de credenciales
-function showCredentialsModal(action) {
-  pendingAction = action;
-  document.getElementById('adminUsername').value = '';
-  document.getElementById('adminPassword').value = '';
-  document.getElementById('credentialsError').style.display = 'none';
-  showModal('adminCredentialsModal');
-}
+// Función para mostrar modal de credenciales (ya no se usa)
+// function showCredentialsModal(action) {
+//   pendingAction = action;
+//   document.getElementById('adminUsername').value = '';
+//   document.getElementById('adminPassword').value = '';
+//   document.getElementById('credentialsError').style.display = 'none';
+//   showModal('adminCredentialsModal');
+// }
 
-// Función para validar credenciales
-function verifyCredentials() {
-  const username = document.getElementById('adminUsername').value;
-  const password = document.getElementById('adminPassword').value;
-  const errorDiv = document.getElementById('credentialsError');
+// Función para validar credenciales (ya no se usa)
+// function verifyCredentials() {
+//   const username = document.getElementById('adminUsername').value;
+//   const password = document.getElementById('adminPassword').value;
+//   const errorDiv = document.getElementById('credentialsError');
 
-  if (username === ADMIN_CREDENTIALS.user && password === ADMIN_CREDENTIALS.password) {
-    // Credenciales correctas - ejecutar acción directamente
-    errorDiv.style.display = 'none';
-    executePendingAction();
-  } else {
-    // Credenciales incorrectas
-    errorDiv.style.display = 'block';
-  }
-}
+//   if (username === ADMIN_CREDENTIALS.user && password === ADMIN_CREDENTIALS.password) {
+//     // Credenciales correctas - ejecutar acción directamente
+//     errorDiv.style.display = 'none';
+//     executePendingAction();
+//   } else {
+//     // Credenciales incorrectas
+//     errorDiv.style.display = 'block';
+//   }
+// }
 
-function executePendingAction() {
-  if (pendingAction) {
-    pendingAction();
-    pendingAction = null;
-  }
-  hideModal('adminCredentialsModal');
-}
+// function executePendingAction() {
+//   if (pendingAction) {
+//     pendingAction();
+//     pendingAction = null;
+//   }
+//   hideModal('adminCredentialsModal');
+// }
 
 // Función para mostrar modal de editar datos
 function showEditDataModal() {
   if (currentCommunityData) {
-    showCredentialsModal(() => {
-      // Cargar datos actuales en el modal
-      document.getElementById('editPopulation').value = currentCommunityData.population || '';
-      document.getElementById('editCoordinates').value = currentCommunityData.coordinates || '';
-      document.getElementById('editCocode').value = currentCommunityData.cocode || '';
-      document.getElementById('editCocodePhone').value = currentCommunityData.cocodePhone || '';
-      showModal('editDataModal');
-    });
+    // Cargar datos actuales en el modal
+    document.getElementById('editPopulation').value = currentCommunityData.population || '';
+    document.getElementById('editCoordinates').value = currentCommunityData.coordinates || '';
+    document.getElementById('editCocode').value = currentCommunityData.cocode || '';
+    document.getElementById('editCocodePhone').value = currentCommunityData.cocodePhone || '';
+    showModal('editDataModal');
   }
 }
 
@@ -666,13 +664,11 @@ function updateCommunityData() {
 // Función para mostrar modal de editar descripción
 function showEditDescriptionModal() {
   if (currentCommunityData) {
-    showCredentialsModal(() => {
-      // Cargar descripción actual en el modal
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = currentCommunityData.description || '';
-      document.getElementById('editDescriptionText').value = tempDiv.textContent || tempDiv.innerText || '';
-      showModal('editDescriptionModal');
-    });
+    // Cargar descripción actual en el modal
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = currentCommunityData.description || '';
+    document.getElementById('editDescriptionText').value = tempDiv.textContent || tempDiv.innerText || '';
+    showModal('editDescriptionModal');
   }
 }
 
@@ -714,10 +710,8 @@ function clearImageForm() {
 
 // Función para mostrar modal de agregar archivo
 function showAddFileModal() {
-  showCredentialsModal(() => {
-    showModal('addFileModal');
-    clearFileForm();
-  });
+  showModal('addFileModal');
+  clearFileForm();
 }
 
 function clearFileForm() {
@@ -890,27 +884,27 @@ document.addEventListener('DOMContentLoaded', function() {
     editDescriptionBtn.addEventListener('click', showEditDescriptionModal);
   }
   
-  // Event listeners para credenciales
-  const verifyCredentialsBtn = document.getElementById('verifyCredentialsBtn');
-  if (verifyCredentialsBtn) {
-    verifyCredentialsBtn.addEventListener('click', verifyCredentials);
-  }
+  // Event listeners para credenciales (ya no se usan)
+  // const verifyCredentialsBtn = document.getElementById('verifyCredentialsBtn');
+  // if (verifyCredentialsBtn) {
+  //   verifyCredentialsBtn.addEventListener('click', verifyCredentials);
+  // }
   
-  const cancelCredentialsBtn = document.getElementById('cancelCredentialsBtn');
-  if (cancelCredentialsBtn) {
-    cancelCredentialsBtn.addEventListener('click', () => {
-      pendingAction = null;
-      hideModal('adminCredentialsModal');
-    });
-  }
+  // const cancelCredentialsBtn = document.getElementById('cancelCredentialsBtn');
+  // if (cancelCredentialsBtn) {
+  //   cancelCredentialsBtn.addEventListener('click', () => {
+  //     pendingAction = null;
+  //     hideModal('adminCredentialsModal');
+  //   });
+  // }
   
-  const closeCredentialsModal = document.getElementById('closeCredentialsModal');
-  if (closeCredentialsModal) {
-    closeCredentialsModal.addEventListener('click', () => {
-      pendingAction = null;
-      hideModal('adminCredentialsModal');
-    });
-  }
+  // const closeCredentialsModal = document.getElementById('closeCredentialsModal');
+  // if (closeCredentialsModal) {
+  //   closeCredentialsModal.addEventListener('click', () => {
+  //     pendingAction = null;
+  //     hideModal('adminCredentialsModal');
+  //   });
+  // }
   
   // Event listeners para editar datos
   const confirmDataBtn = document.getElementById('confirmDataBtn');
@@ -1217,9 +1211,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (removeFileBtn) {
     removeFileBtn.addEventListener('click', function() {
-      showCredentialsModal(() => {
-        showFileSelectionModal();
-      });
+      showFileSelectionModal();
     });
   }
 });

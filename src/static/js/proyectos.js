@@ -85,9 +85,9 @@ function setupDrawer() {
   document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDrawer(); });
 }
 
-// Acordeón dentro del drawer
+// Acordeón dentro del drawer (excluyendo el menú de usuario móvil)
 function setupDrawerAccordion() {
-  document.querySelectorAll('.ddm').forEach(ddm=>{
+  document.querySelectorAll('.ddm:not(#mobileUserMenu)').forEach(ddm=>{
     const btn = ddm.querySelector('.ddm__btn');
     const panel = ddm.querySelector('.ddm__panel');
     if (btn && panel) {

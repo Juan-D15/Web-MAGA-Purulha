@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
+  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
 </head>
 <body>
 
@@ -112,9 +113,53 @@
           </div>
         </div>
 
+        <!-- Icono de usuario en desktop (junto al buscador) -->
+        <div class="nav-user-icon" id="navUserIcon" aria-label="Información de usuario" style="display: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+
       </div>
     </nav>
   </header>
+
+  <!-- Dropdown flotante del usuario (fuera de la cinta) -->
+  <div class="nav-user-dropdown" id="navUserDropdown" style="display: none;">
+    <div class="nav-user-dropdown-header">
+      <div class="nav-user-dropdown-avatar" id="navUserAvatar">A</div>
+      <div>
+        <h4 class="nav-user-dropdown-name" id="navUserName">Administrador</h4>
+        <p class="nav-user-dropdown-email" id="navUserEmail">admin@maga.gt</p>
+      </div>
+    </div>
+    <div class="nav-user-dropdown-menu">
+      <button class="nav-user-dropdown-item" id="navProfileBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        Mi Perfil
+      </button>
+      <button class="nav-user-dropdown-item" id="navSettingsBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        Configuración
+      </button>
+      <div class="nav-user-dropdown-divider"></div>
+      <button class="nav-user-dropdown-item" id="navLogoutBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        Cerrar Sesión
+      </button>
+    </div>
+  </div>
 
   <!-- ======= DRAWER MÓVIL ======= -->
   <aside class="drawer" id="drawer" aria-hidden="true">
@@ -161,6 +206,44 @@
             </div>
             <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
             <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
+          </div>
+        </div>
+
+        <!-- Usuario en móvil -->
+        <div class="ddm" id="mobileUserMenu" style="display: none;">
+          <button class="ddm__btn" aria-expanded="false">
+            <div class="mobile-user-info">
+              <div class="mobile-user-avatar" id="mobileUserAvatar">A</div>
+              <span id="mobileUserName">Administrador</span>
+            </div>
+            <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <div class="mobile-user-details">
+              <div class="mobile-user-email" id="mobileUserEmail">admin@maga.gt</div>
+            </div>
+            <button class="ddm__item mobile-user-action" id="mobileProfileBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Mi Perfil
+            </button>
+            <button class="ddm__item mobile-user-action" id="mobileSettingsBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              Configuración
+            </button>
+            <button class="ddm__item mobile-user-action mobile-logout" id="mobileLogoutBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Cerrar Sesión
+            </button>
           </div>
         </div>
       </nav>
@@ -881,6 +964,285 @@
     window.addEventListener('load', function() {
       handleUrlAnchor();
     });
+
+
+    // Verificar si el usuario es administrador
+    function checkAdminAccess() {
+      const userInfo = localStorage.getItem('userInfo') || sessionStorage.getItem('userInfo');
+      
+      if (userInfo) {
+        const user = JSON.parse(userInfo);
+        // Verificar si es administrador
+        if (user.username === 'admin' && user.isAdmin === true) {
+          return true;
+        }
+      }
+      
+      return false;
+    }
+
+    // Mostrar modal de login para administrador
+    function showAdminLoginModal() {
+      // Crear modal de login para administrador
+      const modal = document.createElement('div');
+      modal.className = 'admin-login-modal';
+      modal.innerHTML = `
+        <div class="admin-login-content">
+          <div class="admin-login-header">
+            <h2>Acceso de Administrador</h2>
+            <p>Ingrese sus credenciales de administrador para acceder a la gestión de eventos</p>
+          </div>
+          <div class="admin-login-body">
+            <form id="adminLoginForm" class="admin-login-form">
+              <div class="form-group">
+                <label for="adminUsername">Usuario</label>
+                <div class="input-with-icon user-icon">
+                  <input type="text" id="adminUsername" name="adminUsername" required>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="adminPassword">Contraseña</label>
+                <div class="password-input">
+                  <input type="password" id="adminPassword" name="adminPassword" required>
+                  <button type="button" class="password-toggle" onclick="toggleAdminPassword()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div id="adminLoginError" class="error-message" style="display: none;">
+                Credenciales incorrectas. Intente nuevamente.
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">Acceder</button>
+                <button type="button" class="btn-secondary" onclick="goBack()">Volver</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // Manejar envío del formulario
+      document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const username = document.getElementById('adminUsername').value;
+        const password = document.getElementById('adminPassword').value;
+        const errorDiv = document.getElementById('adminLoginError');
+        
+        // Verificar credenciales de administrador
+        if (username === 'admin' && password === 'admin123') {
+          // Guardar información de administrador
+          const adminUser = {
+            username: 'admin',
+            name: 'Administrador',
+            email: 'admin@maga.gt',
+            isAdmin: true
+          };
+          
+          localStorage.setItem('userInfo', JSON.stringify(adminUser));
+          
+          // Remover modal y recargar página
+          document.body.removeChild(modal);
+          window.location.reload();
+        } else {
+          // Mostrar error
+          errorDiv.style.display = 'block';
+          errorDiv.textContent = 'Credenciales incorrectas. Usuario: admin, Contraseña: admin123';
+        }
+      });
+    }
+
+    // Función para volver atrás
+    function goBack() {
+      window.history.back();
+    }
+
+    // Función para alternar visibilidad de contraseña
+    function toggleAdminPassword() {
+      const passwordInput = document.getElementById('adminPassword');
+      const toggleBtn = document.querySelector('.password-toggle');
+      
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleBtn.innerHTML = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>
+        `;
+      } else {
+        passwordInput.type = 'password';
+        toggleBtn.innerHTML = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        `;
+      }
+    }
+
+    // Load user information from localStorage or session
+    function loadUserInfo() {
+      const userInfo = localStorage.getItem('userInfo') || sessionStorage.getItem('userInfo');
+      if (userInfo) {
+        const user = JSON.parse(userInfo);
+        const userName = user.name || 'Usuario';
+        const userEmail = user.email || 'usuario@maga.gt';
+        const userInitial = (user.name || 'U').charAt(0).toUpperCase();
+        
+        // Actualizar información en desktop
+        document.getElementById('navUserName').textContent = userName;
+        document.getElementById('navUserEmail').textContent = userEmail;
+        document.getElementById('navUserAvatar').textContent = userInitial;
+        
+        // Actualizar información en móvil
+        document.getElementById('mobileUserName').textContent = userName;
+        document.getElementById('mobileUserEmail').textContent = userEmail;
+        document.getElementById('mobileUserAvatar').textContent = userInitial;
+        
+        // Mostrar el icono de usuario en la navegación (desktop)
+        const navUserIcon = document.getElementById('navUserIcon');
+        if (navUserIcon) {
+          // Solo mostrar en desktop (el CSS se encarga de ocultarlo en responsive)
+          navUserIcon.style.display = 'flex';
+        }
+        
+        // Mostrar el menú de usuario en móvil
+        const mobileUserMenu = document.getElementById('mobileUserMenu');
+        if (mobileUserMenu) {
+          mobileUserMenu.style.display = 'block';
+        }
+      } else {
+        // No mostrar usuario de prueba automáticamente
+        // El usuario debe hacer login como administrador
+      }
+    }
+
+    /* ---------- NAV USER ICON FUNCTIONALITY (DESKTOP) ---------- */
+    const navUserIcon = document.getElementById('navUserIcon');
+    const navUserDropdown = document.getElementById('navUserDropdown');
+    const navProfileBtn = document.getElementById('navProfileBtn');
+    const navSettingsBtn = document.getElementById('navSettingsBtn');
+    const navLogoutBtn = document.getElementById('navLogoutBtn');
+
+    // Nav user icon click functionality
+    navUserIcon?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Toggle del dropdown
+      if (navUserDropdown.style.display === 'block') {
+        navUserDropdown.style.display = 'none';
+        navUserDropdown.classList.remove('show');
+        navUserIcon.classList.remove('active');
+      } else {
+        navUserDropdown.style.display = 'block';
+        navUserDropdown.classList.add('show');
+        navUserIcon.classList.add('active');
+      }
+    });
+
+    // Nav profile button functionality
+    navProfileBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+      console.log('Mostrar perfil del usuario (desktop)');
+    });
+
+    // Nav settings button functionality
+    navSettingsBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+      console.log('Mostrar configuración (desktop)');
+    });
+
+    // Nav logout button functionality
+    navLogoutBtn?.addEventListener('click', () => {
+      navUserDropdown.style.display = 'none';
+      navUserDropdown.classList.remove('show');
+      navUserIcon.classList.remove('active');
+      if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+        localStorage.removeItem('userInfo');
+        sessionStorage.removeItem('userInfo');
+        // Redirigir directamente a index.html sin mostrar login
+        window.location.href = '/';
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (navUserIcon && navUserDropdown && !navUserIcon.contains(e.target) && !navUserDropdown.contains(e.target)) {
+        navUserDropdown.style.display = 'none';
+        navUserDropdown.classList.remove('show');
+        navUserIcon.classList.remove('active');
+      }
+    });
+
+    // Close dropdown on escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && navUserDropdown && navUserDropdown.style.display === 'block') {
+        navUserDropdown.style.display = 'none';
+        navUserDropdown.classList.remove('show');
+        navUserIcon.classList.remove('active');
+      }
+    });
+
+    /* ---------- MOBILE USER MENU FUNCTIONALITY ---------- */
+    const mobileProfileBtn = document.getElementById('mobileProfileBtn');
+    const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+    const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
+
+    // Mobile profile button functionality
+    mobileProfileBtn?.addEventListener('click', () => {
+      // Cerrar el drawer móvil
+      closeDrawer();
+      // Aquí se puede agregar funcionalidad para mostrar el perfil
+      console.log('Mostrar perfil del usuario (móvil)');
+    });
+
+    // Mobile settings button functionality
+    mobileSettingsBtn?.addEventListener('click', () => {
+      // Cerrar el drawer móvil
+      closeDrawer();
+      // Aquí se puede agregar funcionalidad para mostrar configuración
+      console.log('Mostrar configuración (móvil)');
+    });
+
+    // Mobile logout button functionality
+    mobileLogoutBtn?.addEventListener('click', () => {
+      // Cerrar el drawer móvil
+      closeDrawer();
+      // Confirmar logout
+      if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+        // Limpiar datos de sesión
+        localStorage.removeItem('userInfo');
+        sessionStorage.removeItem('userInfo');
+        // Redirigir directamente a index.html sin mostrar login
+        window.location.href = '/';
+      }
+    });
+
+    // Verificar acceso de administrador al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!checkAdminAccess()) {
+        showAdminLoginModal();
+      } else {
+        loadUserInfo();
+      }
+    });
+    
+    // Ensure dropdown is hidden on page load
+    if (userDropdown) {
+      userDropdown.classList.remove('show');
+      userDropdown.style.display = 'none';
+    }
   </script>
   <script src="{% static 'js/gestioneseventos.js' %}"></script>
 </body>

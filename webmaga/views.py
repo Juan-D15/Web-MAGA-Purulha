@@ -29,3 +29,7 @@ def generarreportes(request):
 def mapa_completo(request):
     """Vista del mapa completo"""
     return render(request, 'mapa-completo.html')
+
+def login(request):
+    """Vista de login"""
+    return render(request, 'login.html')

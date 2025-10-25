@@ -1,0 +1,489 @@
+/* ======= MODAL DE LOGIN ======= */
+
+/* Modal de Login */
+.login-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10001;
+  backdrop-filter: blur(5px);
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.login-modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  width: 95%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid #e9ecef;
+}
+
+.login-modal-header {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 30px 30px 20px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.login-header-content {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.login-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.login-logo {
+  height: 96px;
+  width: 480px;
+  background-image: url('../img/logos/logo maga letras png.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.login-modal-header h2 {
+  color: #283446;
+  margin: 0;
+  font-size: 2.2rem;
+  font-weight: 600;
+  font-family: 'Calisto MT', 'Times New Roman', serif;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ministry-text {
+  color: #495057;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: 'Manrope', sans-serif;
+  text-align: left;
+  opacity: 1;
+}
+
+.login-modal-close {
+  background: none;
+  border: none;
+  color: #6c757d;
+  font-size: 2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  opacity: 0.7;
+}
+
+.login-modal-close:hover {
+  background: #f8f9fa;
+  color: #0772d2;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.login-modal-body {
+  padding: 30px;
+}
+
+/* Formularios */
+.login-form, .forgot-password-form, .reset-password-form {
+  display: none;
+}
+
+.login-form.active, .forgot-password-form.active, .reset-password-form.active {
+  display: block;
+}
+
+/* ======= ICONOS DE ENTRADA CON CSS ======= */
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-icon input {
+  padding-left: 40px !important;
+}
+
+/* Icono de usuario */
+.user-icon::before {
+  content: "👤";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: #6c757d;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Icono de email */
+.email-icon::before {
+  content: "✉️";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: #6c757d;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Icono de código */
+.code-icon::before {
+  content: "🔐";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: #6c757d;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.password-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input::before {
+  content: "🔒";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: #6c757d;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.password-input input {
+  padding-left: 40px !important;
+  padding-right: 50px !important;
+}
+
+.form-group {
+  margin-bottom: 25px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #343a40;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 15px 20px;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  background: white;
+  color: #343a40;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #0772d2;
+  box-shadow: 0 0 0 3px rgba(7, 114, 210, 0.1);
+}
+
+.form-group input::placeholder {
+  color: #6c757d;
+}
+
+/* Input de contraseña */
+.password-input {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.password-toggle:hover {
+  color: #0772d2;
+  background: #f8f9fa;
+}
+
+/* Opciones del formulario */
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  color: #6c757d;
+  cursor: pointer;
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  display: none;
+}
+
+.checkmark {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e9ecef;
+  border-radius: 4px;
+  margin-right: 10px;
+  position: relative;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark {
+  background: #0772d2;
+  border-color: #0772d2;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.forgot-password {
+  color: #263247;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.forgot-password:hover {
+  color: #1a2332;
+  text-decoration: underline;
+}
+
+/* Botones */
+.form-actions {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.btn-primary, .btn-secondary {
+  flex: 1;
+  min-width: 120px;
+  padding: 15px 25px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-primary {
+  background: #263247;
+  color: white;
+  box-shadow: 0 4px 15px rgba(38, 50, 71, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(38, 50, 71, 0.4);
+}
+
+.btn-secondary {
+  background: white;
+  color: #6c757d;
+  border: 2px solid #e9ecef;
+}
+
+.btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #6c757d;
+  transform: translateY(-2px);
+}
+
+/* Mensajes de error */
+.error-message {
+  color: #dc3545;
+  font-size: 0.85rem;
+  margin-top: 8px;
+  display: none;
+}
+
+.error-message.show {
+  display: block;
+}
+
+/* Validación de contraseña */
+.password-strength {
+  margin-top: 10px;
+}
+
+.password-strength-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.password-strength-item.valid {
+  color: #28a745;
+}
+
+.password-strength-item.invalid {
+  color: #dc3545;
+}
+
+.password-strength-item::before {
+  content: '○';
+  margin-right: 8px;
+  font-size: 1.2rem;
+}
+
+.password-strength-item.valid::before {
+  content: '●';
+  color: #28a745;
+}
+
+.password-strength-item.invalid::before {
+  content: '●';
+  color: #dc3545;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .login-modal-content {
+    width: 95%;
+    margin: 20px;
+    border-radius: 8px;
+  }
+  
+  .login-modal-header {
+    padding: 25px 25px 15px;
+  }
+  
+  .login-logo {
+    height: 90px;
+    width: 450px;
+  }
+  
+  .login-modal-header h2 {
+    font-size: 1.8rem;
+  }
+  
+  .ministry-text {
+    font-size: 0.8rem;
+  }
+  
+  .login-header-content {
+    gap: 0;
+  }
+  
+  .login-modal-body {
+    padding: 25px;
+  }
+  
+  .form-group input {
+    padding: 12px 15px;
+    font-size: 0.95rem;
+  }
+  
+  .form-options {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .btn-primary, .btn-secondary {
+    width: 100%;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-modal-content {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    max-height: none;
+  }
+  
+  .login-modal-header {
+    padding: 20px 20px 15px;
+  }
+  
+  .login-logo {
+    height: 84px;
+    width: 420px;
+  }
+  
+  .login-modal-header h2 {
+    font-size: 1.8rem;
+  }
+  
+  .ministry-text {
+    font-size: 0.75rem;
+  }
+  
+  .login-header-content {
+    gap: 0;
+  }
+  
+  .login-modal-body {
+    padding: 20px;
+  }
+}

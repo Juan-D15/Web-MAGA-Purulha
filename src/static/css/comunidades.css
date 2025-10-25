@@ -958,7 +958,7 @@
 }
 
 .modal-content {
-  background: var(--background-secondary);
+  background: #28303D;
   border-radius: 16px;
   padding: 0;
   max-width: 500px;
@@ -1030,10 +1030,10 @@
 .form-textarea {
   width: 100%;
   padding: 12px 16px;
-  border: 2px solid var(--border-color);
+  border: 2px solid #4A5568;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-100);
+  background: #343D4C;
+  color: white;
   font-size: 14px;
   transition: all 0.3s ease;
 }
@@ -1041,8 +1041,9 @@
 .form-input:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: var(--primary-color);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: #007bff;
+  background: #343D4C;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
 .form-textarea {
@@ -1092,30 +1093,38 @@
 /* Estilos para placeholders */
 .form-input::placeholder,
 .form-textarea::placeholder {
-  color: var(--text-70);
+  color: #A0AEC0;
   opacity: 1;
 }
 
 .form-input::-webkit-input-placeholder,
 .form-textarea::-webkit-input-placeholder {
-  color: var(--text-70);
+  color: #A0AEC0;
   opacity: 1;
 }
 
 .form-input::-moz-placeholder,
 .form-textarea::-moz-placeholder {
-  color: var(--text-70);
+  color: #A0AEC0;
   opacity: 1;
 }
 
 .form-input:-ms-input-placeholder,
 .form-textarea:-ms-input-placeholder {
-  color: var(--text-70);
+  color: #A0AEC0;
   opacity: 1;
 }
 
+/* Estilos para mensajes de estado */
+.no-files {
+  color: var(--text-100) !important;
+  text-align: center;
+  margin: 20px 0;
+  font-style: italic;
+}
+
 .btn-primary {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  background: #2563EB;
   color: white;
   border: none;
   padding: 10px 20px;
@@ -1127,15 +1136,15 @@
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  background: #1d4ed8;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-100);
-  border: 1px solid var(--border);
+  background: #4A5568;
+  color: white;
+  border: 1px solid #4A5568;
   padding: 10px 20px;
   border-radius: 8px;
   font-weight: 600;
@@ -1145,8 +1154,8 @@
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: #5a6578;
+  border-color: #5a6578;
 }
 
 .confirm-message {

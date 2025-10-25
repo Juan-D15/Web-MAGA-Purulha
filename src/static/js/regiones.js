@@ -1,4 +1,6 @@
 // ======= DATOS DE REGIONES =======
+// Updated: 2025-01-25 03:13 - Complete rewrite without credential functions
+console.log('REGIONES.JS LOADED - VERSION 2025-01-25 03:13 - NO CREDENTIALS - DIRECT ACCESS ONLY');
 const regionsData = {
   'region-norte': {
     id: 'region-norte',
@@ -18,7 +20,7 @@ const regionsData = {
     ],
     description: `
       <p>La Región Norte de Purulhá se caracteriza por su diversidad geográfica y cultural. Esta región abarca comunidades rurales que se dedican principalmente a la agricultura y ganadería.</p>
-      <p>La región cuenta con un clima templado y suelos fértiles que favorecen el cultivo de maíz, frijol y café. Las comunidades mantienen tradiciones ancestrales y tienen una fuerte organización comunitaria.</p>
+      <p>La región cuenta con un clima templado y suelos fértiles que favorecen el cultivo de maíz, frijol y café. Las comunidades mantienen tradiciones ancestrales y tienen una fuerte organización comunitária.</p>
     `,
     projects: [
       { name: 'Capacitación en Técnicas Agrícolas', type: 'Capacitación', status: 'En ejecución' },
@@ -171,13 +173,6 @@ const regionsData = {
 // ======= VARIABLES GLOBALES =======
 let currentRegionData = null;
 let currentRegionId = null;
-let pendingAction = null; // Para almacenar la acción pendiente después de verificar credenciales
-
-// ======= CREDENCIALES DE ADMINISTRADOR =======
-const ADMIN_CREDENTIALS = {
-  username: 'admin',
-  password: 'admin'
-};
 
 // ======= FUNCIONES DE NAVEGACIÓN =======
 function showRegionsList() {
@@ -537,10 +532,8 @@ function formatDate(dateString) {
 
 // Función para mostrar modal de agregar archivo
 function showAddFileModal() {
-  showCredentialsModal(() => {
-    showModal('addFileModal');
-    clearFileForm();
-  });
+  showModal('addFileModal');
+  clearFileForm();
 }
 
 function clearFileForm() {
@@ -673,37 +666,7 @@ function hideModal(modalId) {
   }
 }
 
-// ======= FUNCIONES DE CREDENCIALES =======
-function showCredentialsModal(action) {
-  pendingAction = action;
-  document.getElementById('adminUsername').value = '';
-  document.getElementById('adminPassword').value = '';
-  document.getElementById('credentialsError').style.display = 'none';
-  showModal('adminCredentialsModal');
-}
-
-function verifyCredentials() {
-  const username = document.getElementById('adminUsername').value;
-  const password = document.getElementById('adminPassword').value;
-  const errorDiv = document.getElementById('credentialsError');
-
-  if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-    // Credenciales correctas - ejecutar acción directamente
-    errorDiv.style.display = 'none';
-    executePendingAction();
-  } else {
-    // Credenciales incorrectas
-    errorDiv.style.display = 'block';
-  }
-}
-
-function executePendingAction() {
-  if (pendingAction) {
-    pendingAction();
-    pendingAction = null;
-  }
-  hideModal('adminCredentialsModal');
-}
+// ======= FUNCIONES DE FORMULARIOS (SIN CREDENCIALES) =======
 
 function showAddImageModal() {
   showModal('addImageModal');
@@ -763,10 +726,8 @@ function addImageToRegion() {
 
 function showEditDescriptionModal() {
   if (currentRegionData) {
-    showCredentialsModal(() => {
-      document.getElementById('editDescriptionText').value = currentRegionData.description.replace(/<[^>]*>/g, '');
-      showModal('editDescriptionModal');
-    });
+    document.getElementById('editDescriptionText').value = currentRegionData.description.replace(/<[^>]*>/g, '');
+    showModal('editDescriptionModal');
   }
 }
 
@@ -788,17 +749,15 @@ function updateRegionDescription() {
 
 function showEditDataModal() {
   if (currentRegionData) {
-    showCredentialsModal(() => {
-      // Extraer valores actuales de los datos
-      const communitiesData = currentRegionData.data.find(item => item.label === 'Número de Comunidades');
-      const populationData = currentRegionData.data.find(item => item.label === 'Población Aproximada');
-      const sedeData = currentRegionData.data.find(item => item.label === 'Comunidad Sede');
-      
-      document.getElementById('editCommunitiesCount').value = communitiesData ? communitiesData.value.replace(/\D/g, '') : '';
-      document.getElementById('editPopulation').value = populationData ? populationData.value : '';
-      document.getElementById('editSedeCommunity').value = sedeData ? sedeData.value : '';
-      showModal('editDataModal');
-    });
+    // Extraer valores actuales de los datos
+    const communitiesData = currentRegionData.data.find(item => item.label === 'Número de Comunidades');
+    const populationData = currentRegionData.data.find(item => item.label === 'Población Aproximada');
+    const sedeData = currentRegionData.data.find(item => item.label === 'Comunidad Sede');
+    
+    document.getElementById('editCommunitiesCount').value = communitiesData ? communitiesData.value.replace(/\D/g, '') : '';
+    document.getElementById('editPopulation').value = populationData ? populationData.value : '';
+    document.getElementById('editSedeCommunity').value = sedeData ? sedeData.value : '';
+    showModal('editDataModal');
   }
 }
 
@@ -966,28 +925,6 @@ document.addEventListener('DOMContentLoaded', function() {
   if (closeDataModal) {
     closeDataModal.addEventListener('click', () => hideModal('editDataModal'));
   }
-
-  // Event listeners para credenciales
-  const verifyCredentialsBtn = document.getElementById('verifyCredentialsBtn');
-  if (verifyCredentialsBtn) {
-    verifyCredentialsBtn.addEventListener('click', verifyCredentials);
-  }
-  
-  const cancelCredentialsBtn = document.getElementById('cancelCredentialsBtn');
-  if (cancelCredentialsBtn) {
-    cancelCredentialsBtn.addEventListener('click', () => {
-      pendingAction = null;
-      hideModal('adminCredentialsModal');
-    });
-  }
-  
-  const closeCredentialsModal = document.getElementById('closeCredentialsModal');
-  if (closeCredentialsModal) {
-    closeCredentialsModal.addEventListener('click', () => {
-      pendingAction = null;
-      hideModal('adminCredentialsModal');
-    });
-  }
   
   // Cerrar modales al hacer clic fuera
   document.addEventListener('click', function(e) {
@@ -999,7 +936,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Cargar lista inicial
   loadRegionsList();
   
-  // Event listeners para archivos (al final para evitar conflictos)
+  // Event listeners para archivos
   const addFileBtn = document.getElementById('addFileBtn');
   if (addFileBtn) {
     addFileBtn.addEventListener('click', showAddFileModal);
@@ -1089,20 +1026,6 @@ function getCurrentRegion() {
   // Esta función debería retornar la región actualmente mostrada
   // Por ahora retornamos una región de ejemplo
   return regionsData['region-norte'];
-}
-
-// Función para mostrar mensaje de éxito
-function showSuccessMessage(message) {
-  // Crear notificación de éxito
-  const notification = document.createElement('div');
-  notification.className = 'success-notification';
-  notification.textContent = message;
-  document.body.appendChild(notification);
-  
-  // Remover después de 3 segundos
-  setTimeout(() => {
-    notification.remove();
-  }, 3000);
 }
 
 // Función para cargar galería con botones de eliminación
@@ -1200,9 +1123,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (removeFileBtn) {
     removeFileBtn.addEventListener('click', function() {
-      showCredentialsModal(() => {
-        showFileSelectionModal();
-      });
+      showFileSelectionModal();
     });
   }
 });
@@ -1320,3 +1241,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// FINAL VERSION: 2025-01-25 03:13 - Complete rewrite without any credential functions
+// All forms now open directly without any credential verification

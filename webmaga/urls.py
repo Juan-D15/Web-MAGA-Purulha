@@ -11,5 +11,6 @@ urlpatterns = [
     path('gestioneseventos/', views.gestioneseventos, name='gestioneseventos'),
     path('generarreportes/', views.generarreportes, name='generarreportes'),
     path('mapa-completo/', views.mapa_completo, name='mapa-completo'),
+    path('login/', views.login, name='login'),
 ]
 

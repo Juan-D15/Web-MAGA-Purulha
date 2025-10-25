@@ -1537,3 +1537,935 @@ html {
   transform: scale(1.02);
   transition: all 0.3s ease;
 }
+
+/* ======= USER ICON STYLES ======= */
+.user-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: var(--transition);
+  margin-left: 12px;
+  color: var(--text-primary);
+  border: 2px solid transparent;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.user-icon:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.user-icon:active {
+  transform: scale(0.95);
+}
+
+.user-icon svg {
+  transition: var(--transition);
+}
+
+.user-icon:hover svg {
+  color: #4a90e2;
+}
+
+/* Indicador de que es clickeable */
+.user-icon::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: #4a90e2;
+  border-radius: 50%;
+  opacity: 0;
+  transition: var(--transition);
+  box-shadow: 0 0 0 2px var(--background-primary);
+}
+
+.user-icon:hover::after {
+  opacity: 1;
+}
+
+/* Estado activo cuando el dropdown está abierto */
+.user-icon.active {
+  background: rgba(74, 144, 226, 0.2);
+  border-color: rgba(74, 144, 226, 0.4);
+  transform: scale(1.05);
+}
+
+.user-icon.active svg {
+  color: #4a90e2;
+}
+
+.user-icon.active::after {
+  opacity: 1;
+  background: #4a90e2;
+}
+
+/* User dropdown menu */
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-heavy);
+  min-width: 200px;
+  max-width: 280px;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: var(--transition);
+  margin-top: 8px;
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.user-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.user-dropdown-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.user-dropdown-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #4a90e2, #007bff);
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.user-dropdown-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.user-dropdown-email {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+}
+
+.user-dropdown-menu {
+  padding: 8px 0;
+}
+
+.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 14px;
+  transition: var(--transition);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #4a90e2;
+}
+
+.user-dropdown-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.user-dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 8px 0;
+}
+
+/* ======= RESPONSIVE PARA USER DROPDOWN ======= */
+@media (max-width: 768px) {
+  .user-dropdown {
+    position: fixed;
+    top: auto;
+    bottom: 20px;
+    right: 20px;
+    left: 20px;
+    min-width: auto;
+    max-width: none;
+    width: auto;
+    margin-top: 0;
+    transform: translateY(20px);
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  }
+  
+  .user-dropdown.show {
+    transform: translateY(0);
+  }
+  
+  .user-dropdown-header {
+    padding: 20px;
+  }
+  
+  .user-dropdown-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 20px;
+  }
+  
+  .user-dropdown-name {
+    font-size: 16px;
+  }
+  
+  .user-dropdown-email {
+    font-size: 14px;
+  }
+  
+  .user-dropdown-item {
+    padding: 16px 20px;
+    font-size: 16px;
+    gap: 16px;
+  }
+  
+  .user-dropdown-item svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-dropdown {
+    bottom: 10px;
+    right: 10px;
+    left: 10px;
+    border-radius: 12px;
+  }
+  
+  .user-dropdown-header {
+    padding: 16px;
+  }
+  
+  .user-dropdown-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+  }
+  
+  .user-dropdown-item {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+}
+
+/* Hide user icon completely - only show in mobile hamburger menu */
+.user-icon {
+  display: none !important;
+}
+
+/* ======= NAV USER ICON STYLES (DESKTOP) ======= */
+.nav-user-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 12px;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.nav-user-icon:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.nav-user-icon.active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.nav-user-icon svg {
+  color: #ffffff;
+  transition: color 0.3s ease;
+}
+
+.nav-user-icon.active svg {
+  color: #0772d2;
+}
+
+#navUserDropdown {
+  position: fixed !important;
+  top: 80px !important;
+  right: 20px !important;
+  left: auto !important;
+  background: #ffffff;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  min-width: 280px;
+  max-width: 320px;
+  z-index: 10000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-15px) scale(0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+#navUserDropdown.show {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(0) scale(1) !important;
+  pointer-events: auto !important;
+}
+
+.nav-user-dropdown-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f2f5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-user-dropdown-avatar {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #0772d2, #0a5bb8);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.nav-user-dropdown-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+  font-family: 'Manrope', sans-serif;
+  line-height: 1.2;
+}
+
+.nav-user-dropdown-email {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  font-family: 'Manrope', sans-serif;
+  line-height: 1.2;
+}
+
+.nav-user-dropdown-menu {
+  padding: 4px 0;
+}
+
+.nav-user-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  font-family: 'Manrope', sans-serif;
+  text-align: left;
+  gap: 10px;
+}
+
+.nav-user-dropdown-item:hover {
+  background-color: #f8fafc;
+  color: #0772d2;
+}
+
+.nav-user-dropdown-item svg {
+  width: 14px;
+  height: 14px;
+  color: #6b7280;
+  transition: color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.nav-user-dropdown-item:hover svg {
+  color: #0772d2;
+}
+
+.nav-user-dropdown-divider {
+  height: 1px;
+  background-color: #f0f2f5;
+  margin: 4px 0;
+}
+
+/* Primary button style for login */
+.nav-user-dropdown-primary {
+  background: linear-gradient(135deg, #0772d2, #0a5bb8) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  margin: 8px 12px !important;
+  padding: 12px 16px !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 8px rgba(7, 114, 210, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+.nav-user-dropdown-primary:hover {
+  background: linear-gradient(135deg, #0a5bb8, #084a9c) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(7, 114, 210, 0.4) !important;
+}
+
+.nav-user-dropdown-primary svg {
+  color: white !important;
+}
+
+/* Hide nav user icon on mobile and tablet - only show on desktop */
+@media (max-width: 1024px) {
+  .nav-user-icon {
+    display: none !important;
+  }
+}
+
+/* ======= MOBILE USER MENU STYLES ======= */
+.mobile-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.mobile-user-avatar {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #4a90e2, #007bff);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.mobile-user-details {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 8px;
+}
+
+.mobile-user-email {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.mobile-user-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 0;
+}
+
+.mobile-user-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #4a90e2;
+}
+
+.mobile-user-action svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.mobile-logout {
+  color: #ff6b6b;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 8px;
+}
+
+.mobile-logout:hover {
+  background: rgba(255, 107, 107, 0.1);
+  color: #ff5252;
+}
+
+/* Ocultar menú de usuario móvil en desktop */
+@media (min-width: 769px) {
+  #mobileUserMenu {
+    display: none;
+  }
+}
+
+/* ======= ADMIN LOGIN MODAL ======= */
+.admin-login-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 10002 !important;
+  backdrop-filter: blur(5px) !important;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.admin-login-modal[style*="display: none"],
+.admin-login-modal.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Forzar estilos para inputs del modal de administrador */
+.admin-login-modal input[type="text"],
+.admin-login-modal input[type="password"] {
+  background: white !important;
+  border: 2px solid #e9ecef !important;
+  color: #495057 !important;
+  width: 100% !important;
+  height: 48px !important;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  cursor: text !important;
+  padding: 12px 15px !important;
+  border-radius: 8px !important;
+  transition: border-color 0.3s ease !important;
+}
+
+.admin-login-modal input[type="text"]:focus,
+.admin-login-modal input[type="password"]:focus {
+  outline: none !important;
+  border-color: #263247 !important;
+  box-shadow: 0 0 0 3px rgba(38, 50, 71, 0.1) !important;
+}
+
+.admin-login-content {
+  background: white !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  width: 95%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid #e9ecef;
+}
+
+.admin-login-header {
+  padding: 30px 30px 20px;
+  border-bottom: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.admin-login-header h2 {
+  color: #283446;
+  margin: 0 0 10px 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  font-family: 'Calisto MT', 'Times New Roman', serif;
+}
+
+.admin-login-header p {
+  color: #6c757d;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.admin-login-body {
+  padding: 30px;
+}
+
+.admin-login-form .form-group {
+  margin-bottom: 20px;
+}
+
+.admin-login-form .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.admin-login-form .form-group input {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.admin-login-form .form-group input:focus {
+  outline: none;
+  border-color: #263247;
+}
+
+.admin-login-modal .admin-input-with-icon {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  pointer-events: auto !important;
+}
+
+.admin-login-modal .admin-input-with-icon input {
+  padding-left: 40px !important;
+  background: white !important;
+  border: 2px solid #e9ecef !important;
+  color: #495057 !important;
+  width: 100% !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  cursor: text !important;
+  position: relative !important;
+  z-index: 10 !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  /* Asegurar que el input sea completamente funcional */
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  resize: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  word-wrap: normal !important;
+  /* Forzar que el input sea editable */
+  readonly: false !important;
+  disabled: false !important;
+}
+
+.admin-login-modal .admin-input-with-icon input:focus {
+  outline: none !important;
+  border-color: #263247 !important;
+  box-shadow: 0 0 0 3px rgba(38, 50, 71, 0.1) !important;
+}
+
+.admin-login-modal .admin-user-icon::before {
+  content: "👤" !important;
+  position: absolute !important;
+  left: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-size: 16px !important;
+  color: #6c757d !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.admin-login-modal .admin-password-input {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  pointer-events: auto !important;
+}
+
+.admin-login-modal .admin-password-input input {
+  padding-right: 50px !important;
+  background: white !important;
+  border: 2px solid #e9ecef !important;
+  color: #495057 !important;
+  width: 100% !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  cursor: text !important;
+}
+
+.admin-login-modal .admin-password-input input:focus {
+  outline: none !important;
+  border-color: #263247 !important;
+  box-shadow: 0 0 0 3px rgba(38, 50, 71, 0.1) !important;
+}
+
+.admin-login-modal .admin-password-input::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  font-size: 16px !important;
+  color: #6c757d !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+
+.admin-login-modal .admin-password-toggle {
+  position: absolute !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: none !important;
+  border: none !important;
+  color: #6c757d !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  border-radius: 4px !important;
+  transition: color 0.3s ease !important;
+  pointer-events: auto !important;
+  z-index: 2 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.admin-login-modal .admin-password-toggle:hover {
+  color: #263247 !important;
+}
+
+.admin-login-modal .admin-password-toggle svg {
+  width: 20px !important;
+  height: 20px !important;
+  display: block !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+}
+
+.admin-login-modal .admin-form-actions {
+  display: flex !important;
+  gap: 15px !important;
+  margin-top: 30px !important;
+}
+
+.admin-login-modal .admin-btn-primary,
+.admin-login-modal .admin-btn-secondary {
+  flex: 1 !important;
+  min-width: 120px !important;
+  padding: 15px 25px !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  pointer-events: auto !important;
+}
+
+.admin-login-modal .admin-btn-primary {
+  background: #263247 !important;
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(38, 50, 71, 0.3) !important;
+}
+
+.admin-login-modal .admin-btn-primary:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(38, 50, 71, 0.4) !important;
+}
+
+.admin-login-modal .admin-btn-secondary {
+  background: white !important;
+  color: #6c757d !important;
+  border: 2px solid #e9ecef !important;
+}
+
+.admin-login-modal .admin-btn-secondary:hover {
+  background: #f8f9fa !important;
+  border-color: #dee2e6 !important;
+}
+
+.admin-login-modal .admin-error-message {
+  background: #f8d7da !important;
+  color: #721c24 !important;
+  padding: 12px 15px !important;
+  border-radius: 8px !important;
+  margin-bottom: 20px !important;
+  font-size: 0.9rem !important;
+  border: 1px solid #f5c6cb !important;
+}
+
+/* Estilos para los grupos de formulario del modal de administrador */
+.admin-login-modal .admin-form-group {
+  margin-bottom: 20px !important;
+}
+
+/* Estilos para las etiquetas del modal de administrador */
+.admin-login-modal .admin-form-group label {
+  color: #2c3e50 !important;
+  font-weight: 600 !important;
+  font-size: 0.95rem !important;
+  margin-bottom: 8px !important;
+  display: block !important;
+}
+
+/* Estilos específicos para el input de usuario simplificado */
+.admin-login-modal .admin-username-input {
+  width: 100% !important;
+  height: 48px !important;
+  padding: 12px 15px !important;
+  border: 2px solid #e9ecef !important;
+  border-radius: 8px !important;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+  color: #495057 !important;
+  background: white !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  cursor: text !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  resize: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  word-wrap: normal !important;
+  position: relative !important;
+  z-index: 1000 !important;
+  margin: 0 !important;
+  outline: none !important;
+  transition: border-color 0.3s ease !important;
+}
+
+.admin-login-modal .admin-username-input:focus {
+  border-color: #263247 !important;
+  box-shadow: 0 0 0 3px rgba(38, 50, 71, 0.1) !important;
+  outline: none !important;
+}
+
+.admin-login-modal .admin-username-input:hover {
+  border-color: #dee2e6 !important;
+}
+
+/* Responsive para admin login modal */
+@media (max-width: 768px) {
+  .admin-login-content {
+    width: 95%;
+    margin: 20px;
+    border-radius: 8px;
+  }
+  
+  .admin-login-header {
+    padding: 25px 25px 15px;
+  }
+  
+  .admin-login-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .admin-login-body {
+    padding: 25px;
+  }
+  
+  .admin-login-form .form-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-login-content {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    max-height: none;
+  }
+  
+  .admin-login-header {
+    padding: 20px 20px 15px;
+  }
+  
+  .admin-login-body {
+    padding: 20px;
+  }
+}
