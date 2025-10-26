@@ -1,320 +1,15 @@
+{% extends 'base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MAGA-PURULHA - Mapa del Municipio</title>
+
+{% block title %}MAGA-PURULHA - Mapa del Municipio{% endblock %}
+{% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
   <link rel="stylesheet" href="{% static 'css/mapa-completo.css' %}">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
-</head>
-<body>
-    <!-- ======= TOP / ENCABEZADO ======= -->
-    <header class="topbar" role="banner">
-        <div class="topbar__inner">
-            <!-- Logos para escritorio (MAGA a la izquierda) + un logo móvil adicional -->
-            <div class="brand" aria-label="Logotipos">
-                <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" loading="eager" class="brand__maga">
-                <!-- Este segundo logo solo se muestra en móvil para "juntar los dos logos" -->
-                <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo Purulhá (móvil)" class="brand__purulha-mobile" loading="eager">
-            </div>
-
-            <!-- Títulos (se ocultan en móvil) -->
-            <div class="headline">
-                <h1>MAGA — PURULHÁ</h1>
-                <p>Mapa del Municipio</p>
-            </div>
-
-            <div class="right-actions">
-                <!-- Logo de MAGA (solo escritorio/tablet) -->
-                <div class="right-logo" aria-label="Logo MAGA">
-                    <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo MAGA" loading="eager">
-                </div>
-                <!-- Botón hamburguesa (móvil) -->
-                <button class="hamburger" id="btnHamburger" aria-label="Abrir menú" aria-controls="drawer" aria-expanded="false">
-                    <span></span><span></span><span></span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Navegación -->
-        <nav class="nav" role="navigation" aria-label="Menú principal">
-        <div class="nav__inner">
-            <!-- Ítems de la cinta (ocultos en móvil) -->
-            <div class="nav__group">
-                <a class="nav__link" href="{% url 'webmaga:index' %}">Inicio</a>
-                <a class="nav__link active" href="{% url 'webmaga:mapa-completo' %}" aria-current="page">Mapa</a>
-
-                <!-- Proyectos Activos -->
-                <div class="dd">
-                    <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
-                        Proyectos Activos <span class="chev" aria-hidden="true"></span>
-                    </button>
-                    <div class="dd__panel" role="menu" aria-label="Proyectos Activos">
-                        <div class="dd__section">
-                            <div class="dd__grid">
-                                <a class="dd__item" href="{% url 'webmaga:proyectos' %}" role="menuitem" tabindex="0">Ver Todos</a>
-                                <a class="dd__item" href="{% url 'webmaga:proyectos' %}#capacitaciones" role="menuitem" tabindex="0">Capacitaciones</a>
-                                <a class="dd__item" href="{% url 'webmaga:proyectos' %}#entregas" role="menuitem" tabindex="0">Entregas</a>
-                                <a class="dd__item" href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" role="menuitem" tabindex="0">Proyectos de Ayuda</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Gestiones -->
-                <div class="dd">
-                    <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
-                        Gestiones <span class="chev" aria-hidden="true"></span>
-                    </button>
-                    <div class="dd__panel" role="menu" aria-label="Gestiones">
-                        <div class="dd__section">
-                            <div class="dd__grid">
-                                <a class="dd__item" href="#" onclick="handleGestionesAction('createEventView'); return false;" role="menuitem" tabindex="0">Agregar Evento</a>
-                                <a class="dd__item" href="#" onclick="handleGestionesAction('manageEventView'); return false;" role="menuitem" tabindex="0">Editar Evento</a>
-                                <a class="dd__item" href="#" onclick="handleGestionesAction('createReport'); return false;" role="menuitem" tabindex="0">Crear Reporte</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Comunidades -->
-                <div class="dd">
-                    <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
-                        Comunidades <span class="chev" aria-hidden="true"></span>
-                    </button>
-                    <div class="dd__panel" role="menu" aria-label="Comunidades">
-                        <div class="dd__search" role="search">
-                            <span class="icon icon--white" aria-hidden="true"></span>
-                            <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades" id="search-comunidades">
-                        </div>
-                        <div class="dd__section">
-                            <div class="dd__grid" id="comunidades-list">
-                                <a class="dd__item" href="{% url 'webmaga:comunidades' %}" role="menuitem" tabindex="0" data-name="Ver Comunidades">Ver Comunidades</a>
-                                <a class="dd__item" href="{% url 'webmaga:regiones' %}" role="menuitem" tabindex="0" data-name="Ver Regiones">Ver Regiones</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Buscador principal (permanece en móvil) -->
-            <div class="search" role="search">
-                <div class="search__wrap">
-                    <input id="buscar-proyecto" type="search" placeholder="Buscar proyecto…" aria-label="Buscar proyecto">
-                    <button class="mini mini--ghost" aria-label="Buscar">
-                        <span class="icon icon--white" aria-hidden="true"></span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Icono de usuario en desktop (junto al buscador) -->
-            <div class="nav-user-icon" id="navUserIcon" aria-label="Información de usuario" style="display: none;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
-        </div>
-        </nav>
-    </header>
-
-    <!-- Dropdown flotante del usuario (fuera de la cinta) -->
-    <div class="nav-user-dropdown" id="navUserDropdown" style="display: none;">
-      <!-- Contenido cuando hay sesión activa -->
-      <div class="nav-user-dropdown-content" id="navUserLoggedIn">
-        <div class="nav-user-dropdown-header">
-          <div class="nav-user-dropdown-avatar" id="navUserAvatar">A</div>
-          <div>
-            <h4 class="nav-user-dropdown-name" id="navUserName">Administrador</h4>
-            <p class="nav-user-dropdown-email" id="navUserEmail">admin@maga.gt</p>
-          </div>
-        </div>
-        <div class="nav-user-dropdown-menu">
-          <button class="nav-user-dropdown-item" id="navProfileBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-            Mi Perfil
-          </button>
-          <button class="nav-user-dropdown-item" id="navSettingsBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-            Configuración
-          </button>
-          <div class="nav-user-dropdown-divider"></div>
-          <button class="nav-user-dropdown-item" id="navLogoutBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            Cerrar Sesión
-          </button>
-        </div>
-      </div>
-
-      <!-- Contenido cuando NO hay sesión activa -->
-      <div class="nav-user-dropdown-content" id="navUserLoggedOut" style="display: none;">
-        <div class="nav-user-dropdown-header">
-          <div class="nav-user-dropdown-avatar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-          </div>
-          <div>
-            <h4 class="nav-user-dropdown-name">Iniciar Sesión</h4>
-            <p class="nav-user-dropdown-email">Accede al sistema</p>
-          </div>
-        </div>
-        <div class="nav-user-dropdown-menu">
-          <button class="nav-user-dropdown-item nav-user-dropdown-primary" id="navLoginBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-              <polyline points="10 17 15 12 10 7"></polyline>
-              <line x1="15" y1="12" x2="3" y2="12"></line>
-            </svg>
-            Acceder al Sistema
-          </button>
-          <div class="nav-user-dropdown-divider"></div>
-          <button class="nav-user-dropdown-item" id="navCloseBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ======= DRAWER MÓVIL ======= -->
-    <aside class="drawer" id="drawer" aria-hidden="true">
-        <div class="drawer__panel" role="dialog" aria-label="Menú móvil">
-            <button class="drawer__close" id="btnCloseDrawer" aria-label="Cerrar menú">
-                <span></span><span></span>
-            </button>
-
-            <nav class="drawer__menu">
-                <a class="drawer__link" href="{% url 'webmaga:index' %}">Inicio</a>
-                <a class="drawer__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
-
-                <div class="ddm">
-                    <button class="ddm__btn" aria-expanded="false">
-                        Proyectos Activos <span class="car"></span>
-                    </button>
-                    <div class="ddm__panel">
-                        <a href="{% url 'webmaga:proyectos' %}" class="ddm__item">Ver Todos</a>
-                        <a href="{% url 'webmaga:proyectos' %}#capacitaciones" class="ddm__item">Capacitaciones</a>
-                        <a href="{% url 'webmaga:proyectos' %}#entregas" class="ddm__item">Entregas</a>
-                        <a href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" class="ddm__item">Proyectos de Ayuda</a>
-                    </div>
-                </div>
-
-                <div class="ddm">
-                    <button class="ddm__btn" aria-expanded="false">
-                        Gestiones <span class="car"></span>
-                    </button>
-                    <div class="ddm__panel">
-                        <a href="#" onclick="handleGestionesAction('createEventView'); return false;" class="ddm__item">Agregar Evento</a>
-                        <a href="#" onclick="handleGestionesAction('manageEventView'); return false;" class="ddm__item">Editar Evento</a>
-                        <a href="#" onclick="handleGestionesAction('createReport'); return false;" class="ddm__item">Crear Reporte</a>
-                    </div>
-                </div>
-
-                <div class="ddm">
-                    <button class="ddm__btn" aria-expanded="false">
-                        Comunidades <span class="car"></span>
-                    </button>
-                    <div class="ddm__panel">
-                        <div class="ddm__search">
-                            <span class="icon icon--white" aria-hidden="true"></span>
-                            <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades">
-                        </div>
-                        <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
-                        <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
-                    </div>
-                </div>
-
-                <!-- Usuario en móvil -->
-                <div class="ddm" id="mobileUserMenu" style="display: none;">
-                  <!-- Contenido cuando hay sesión activa -->
-                  <div id="mobileUserLoggedIn">
-                    <button class="ddm__btn" aria-expanded="false">
-                      <div class="mobile-user-info">
-                        <div class="mobile-user-avatar" id="mobileUserAvatar">A</div>
-                        <span id="mobileUserName">Administrador</span>
-                      </div>
-                      <span class="car"></span>
-                    </button>
-                    <div class="ddm__panel">
-                      <div class="mobile-user-details">
-                        <div class="mobile-user-email" id="mobileUserEmail">admin@maga.gt</div>
-                      </div>
-                      <button class="ddm__item mobile-user-action" id="mobileProfileBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                        Mi Perfil
-                      </button>
-                      <button class="ddm__item mobile-user-action" id="mobileSettingsBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <circle cx="12" cy="12" r="3"></circle>
-                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                        </svg>
-                        Configuración
-                      </button>
-                      <button class="ddm__item mobile-user-action mobile-logout" id="mobileLogoutBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                          <polyline points="16 17 21 12 16 7"></polyline>
-                          <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        Cerrar Sesión
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Contenido cuando NO hay sesión activa -->
-                  <div id="mobileUserLoggedOut" style="display: none;">
-                    <button class="ddm__btn" aria-expanded="false">
-                      <div class="mobile-user-info">
-                        <div class="mobile-user-avatar">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                          </svg>
-                        </div>
-                        <span>Iniciar Sesión</span>
-                      </div>
-                      <span class="car"></span>
-                    </button>
-                    <div class="ddm__panel">
-                      <div class="mobile-user-details">
-                        <div class="mobile-user-email">Accede al sistema</div>
-                      </div>
-                      <button class="ddm__item mobile-user-action mobile-login" id="mobileLoginBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-                          <polyline points="10 17 15 12 10 7"></polyline>
-                          <line x1="15" y1="12" x2="3" y2="12"></line>
-                        </svg>
-                        Acceder al Sistema
-                      </button>
-                    </div>
-                  </div>
-                </div>
-            </nav>
-        </div>
-    </aside>
-
+{% endblock %}
+{% block nav_mapa %}active{% endblock %}
+{% block content %}
     <!-- Mapa SVG Completo -->
     <main class="map-container" id="mapa">
         <!-- Panel de región seleccionada -->
@@ -827,1146 +522,301 @@
             </div>
         </div>
     </section>
+{% endblock %}
 
-    <!-- ======= SECCIÓN DE CONTACTO ======= -->
-    <footer class="contact-section">
-      <div class="contact-container">
-        <!-- Columna izquierda - Información de contacto -->
-        <div class="contact-info">
-          <div class="contact-item">
-            <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-            <div class="contact-text">
-              <p><strong>Oficina Regional</strong></p>
-              <p>Kilómetro 164 CA-14</p>
-              <p>Purulhá, B.V.</p>
-            </div>
-          </div>
-          
-          <div class="contact-item">
-            <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-            </svg>
-            <div class="contact-text">
-              <p>(502) 3015-6925</p>
-            </div>
-          </div>
-          
-          <div class="contact-item">
-            <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-              <polyline points="22,6 12,13 2,6"></polyline>
-            </svg>
-            <div class="contact-text">
-              <p>magaepurulha@gob.gt</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Columna central - Logo -->
-        <div class="contact-logo">
-          <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" class="maga-logo">
-        </div>
-
-        <!-- Columna derecha - Redes sociales y enlaces -->
-        <div class="contact-links">
-          <h4>Únete a nuestra comunidad</h4>
-          <div class="social-links">
-            <a href="#" class="social-link facebook" aria-label="Facebook">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
-              </svg>
-            </a>
-            <a href="#" class="social-link instagram" aria-label="Instagram">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
-              </svg>
-            </a>
-          </div>
-          <div class="footer-links">
-            <a href="#" class="footer-link">Preguntas Frecuentes</a>
-          </div>
-        </div>
-      </div>
-    </footer>
-
-    <!-- ======= MODAL DE LOGIN ======= -->
-    <div id="loginModal" class="login-modal" style="display: none;">
-      <div class="login-modal-content">
-        <div class="login-modal-header">
-          <h2>Iniciar Sesión</h2>
-          <button class="login-modal-close" onclick="hideLoginModal()">&times;</button>
-        </div>
-        <div class="login-modal-body">
-          <form id="loginForm" class="login-form active">
-            <div class="form-group">
-              <label for="usernameOrEmail">Usuario o Correo</label>
-              <input type="text" id="usernameOrEmail" name="usernameOrEmail" required>
-            </div>
-            <div class="form-group">
-              <label for="password">Contraseña</label>
-              <div class="password-input">
-                <input type="password" id="password" name="password" required>
-                <button type="button" class="password-toggle" onclick="togglePassword()">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div class="form-options">
-              <label class="checkbox-label">
-                <input type="checkbox" id="rememberUser">
-                <span class="checkmark"></span>
-                Recordar usuario
-              </label>
-              <a href="#" onclick="showForgotPassword(); return false;" class="forgot-password">¿Olvidaste tu contraseña?</a>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Acceder</button>
-              <button type="button" class="btn-secondary" onclick="hideLoginModal()">Volver</button>
-            </div>
-          </form>
-
-          <form id="forgotPasswordForm" class="forgot-password-form">
-            <div class="form-group">
-              <label for="recoveryEmail">Correo de Recuperación</label>
-              <input type="email" id="recoveryEmail" name="recoveryEmail" required>
-            </div>
-            <div class="form-group">
-              <label for="recoveryCode">Código de Recuperación</label>
-              <input type="text" id="recoveryCode" name="recoveryCode" placeholder="Ingresa el código de 6 dígitos" maxlength="6">
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Enviar Código</button>
-              <button type="button" class="btn-secondary" onclick="showLoginForm()">Volver al Login</button>
-            </div>
-          </form>
-
-          <form id="resetPasswordForm" class="reset-password-form">
-            <div class="form-group">
-              <label for="newPassword">Nueva Contraseña</label>
-              <div class="password-input">
-                <input type="password" id="newPassword" name="newPassword" required>
-                <button type="button" class="password-toggle" onclick="toggleNewPassword()">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-              </div>
-              <div class="password-strength" id="passwordStrength">
-                <div class="password-strength-item" id="reqLength">Mínimo 8 caracteres</div>
-                <div class="password-strength-item" id="reqUppercase">Una letra mayúscula</div>
-                <div class="password-strength-item" id="reqLowercase">Una letra minúscula</div>
-                <div class="password-strength-item" id="reqNumber">Un número</div>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="confirmPassword">Confirmar Contraseña</label>
-              <div class="password-input">
-                <input type="password" id="confirmPassword" name="confirmPassword" required>
-                <button type="button" class="password-toggle" onclick="toggleConfirmPassword()">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Cambiar Contraseña</button>
-              <button type="button" class="btn-secondary" onclick="showForgotPassword()">Volver</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <script>
-        // Datos completos de las regiones con sus comunidades y sedes
-        const regionData = {
-            1: { 
-                title: "Región 1", 
-                sede: "Barrio El Centro",
-                communities: [
-                    "El Calvario", "El Carpintero", "El Cementerio", "El Centro", 
-                    "La Cruz", "San Antonio", "Cerrito El Calvario", "Cerro de La Cruz", 
-                    "La Cruz II", "Los Encuentros", "Barrio Las Moras"
-                ] 
-            },
-            2: { 
-                title: "Región 2", 
-                sede: "Aldea Mocohán",
-                communities: [
-                    "Mocohan", "El Durazno", "Cola del Mico", "Parrachoch I", 
-                    "Parrachoch II", "Mocohan Sector II", "Portezuelo", "Betania", "Pantin"
-                ] 
-            },
-            3: { 
-                title: "Región 3", 
-                sede: "Caserío Los Pinos",
-                communities: [
-                    "Los Manantiales", "Nueva Esperanza Cementerio", "Panimaquito", 
-                    "Monjas Panimaquito", "Rincón del Quetzal", "Los Pinos", 
-                    "Cumbre del Carpintero", "La Presa", "Rincón El Carpintero", 
-                    "Cuchilla del Nogal", "Río Colorado", "Rincón Nueva Jerusalén"
-                ] 
-            },
-            4: { 
-                title: "Región 4", 
-                sede: "Aldea Eben-Ezer",
-                communities: [
-                    "El Chorro", "Agua Viva", "Eben-Ezer", "El Jute I", "El Jute II", 
-                    "Chisiguan", "Caserío El Mezcal I", "El Pinal", "El Repollal I", 
-                    "El Repollal II", "Rincón del Suquinay", "El Mirador Cerro Alto", 
-                    "Rincón El Calvario", "Eben-Ezer II", "El Milagro"
-                ] 
-            },
-            5: { 
-                title: "Región 5", 
-                sede: "Caserío Suquinay II",
-                communities: [
-                    "Bella Vista Sachut", "Tierra Linda Sulín", "Ronda Sachut", 
-                    "Tres Cruces", "El Comunal", "Villa Nueva Sulín", "Suquinay II"
-                ] 
-            },
-            6: { 
-                title: "Región 6", 
-                sede: "Caserío San Luis Panzal",
-                communities: [
-                    "Santa Rita Panzal", "El Rosario Panzal", "Orejuela", 
-                    "Herederos Panzal", "Santa Elena Panzal", "San Luis Panzal", 
-                    "Camelias Panzal", "San Antonio Liquidambar", "Canahan Panzal"
-                ] 
-            },
-            7: { 
-                title: "Región 7", 
-                sede: "Aldea Panimá",
-                communities: [
-                    "La Ceiba", "Monjón Panimá", "San Miguel Panimá", "El Pacayal", 
-                    "San Luis Panimá", "Panimá", "Los Ángeles Maxaxá", "Peña del Ángel", 
-                    "Santa Elena Panimá"
-                ] 
-            },
-            8: { 
-                title: "Región 8", 
-                sede: "Caserío Centro Panchisivic",
-                communities: [
-                    "Nuevo Progreso Panchisivic", "Concepción Panchisivic", "Xombal Panchisivic", 
-                    "Sachoxá", "Santa Luisa Pancalá", "Cementerio Panchisivic", 
-                    "Centro Panchisivic", "Esfuerzo Chejel", "La Paz Chejel", "La Caoba Panchisivic"
-                ] 
-            },
-            9: { 
-                title: "Región 9", 
-                sede: "Aldea Chantel Chicoy",
-                communities: [
-                    "El Carmen Los Gavilanes", "Renacimiento Vega Larga I", "Chantel Chicoy", 
-                    "San Pablo La Línea", "Campo Nuevo Chicoy"
-                ] 
-            },
-            10: { 
-                title: "Región 10", 
-                sede: "Aldea Ribacó",
-                communities: [
-                    "Olimpia", "Ribacó", "Canaan Ribacó", "Vista Hermosa", "Los Naranjales", 
-                    "Cuchilla Jalanté", "Sucursal Chicoy Panchisivic", "Moxanté", 
-                    "Hamaca Panchisivic", "Concepción Sector I Panchisivic", "La Libertad Pampá", 
-                    "Nuevo San Rafael Panchisivic"
-                ] 
-            },
-            11: { 
-                title: "Región 11", 
-                sede: "San Marcos Sacsamaní",
-                communities: [
-                    "Panzal Jalauté", "San Marcos Sacsamaní", "Tierra Blanca Jalauté", 
-                    "Sector Norte Jalauté", "El Carmen Villa Nueva Jalauté", "Jalauté"
-                ] 
-            },
-            12: { 
-                title: "Región 12", 
-                sede: "Aldea Sacsamaní",
-                communities: [
-                    "Sacsamaní Panalbarda", "Guachabajá", "Nuevo Jinayá", "Sacsamaní", 
-                    "Vega Larga II"
-                ] 
-            },
-            13: { 
-                title: "Región 13", 
-                sede: "Aldea La Pinada",
-                communities: [
-                    "Esquipulas La Pinada", "Xejbal Monte Blanco", "Cruz del Río Monte Blanco", 
-                    "San Antonio La Pinada", "La Pinada", "Nueva Esperanza Monte Blanco", 
-                    "Xalitzul Monte Blanco", "Monte Blanco", "El Cementerio Monte Blanco", "Sechinanjá"
-                ] 
-            },
-            14: { 
-                title: "Región 14", 
-                sede: "Caserío Centro Helvetia",
-                communities: [
-                    "Salijá", "San Pablo Helvetia", "Cortéz La Cuchilla", "Cabsibij", 
-                    "Centro Helvetia", "Tixilhá", "San José Helvetia", "Mululhá"
-                ] 
-            },
-            15: { 
-                title: "Región 15", 
-                sede: "Aldea Matanzas",
-                communities: [
-                    "Crucero Helvetia", "Centro Westfalia", "Crucero Westfalia", "Civijá", 
-                    "Civijá Sector I", "Matucuy II", "Matanzas", "Matucuy I", "San Alfredo", 
-                    "Nueva Esperanza Westfalia", "Centro Westfalia Sector II"
-                ] 
-            },
-            16: { 
-                title: "Región 16", 
-                sede: "Caserío Nuevo Amanecer Pancoc",
-                communities: [
-                    "Pampacay", "Nueva Gloria", "Concepción Las Flores", "Monte Verde", 
-                    "Chacalté Pampacay", "Nuevo Amanecer Pancoc", "Cumbre Chacalté Jabalí", 
-                    "Nuevo San Rafael", "Monte Alegre", "Concepción El Espinero", "Bethel Monte Verde"
-                ] 
-            },
-            17: { 
-                title: "Región 17", 
-                sede: "Caserío Sierra Linda",
-                communities: [
-                    "Sierra Linda", "Río Nuevo Chantelito", "Santo Domingo Rio Blanco", 
-                    "Moxanté Cruz de Piedra", "Villa Nueva Pancajoc"
-                ] 
-            }
-        };
-
-        // Variables globales
-        let currentRegion = null;
-        const regionDetailPanel = document.getElementById('regionDetailPanel');
-        const regionTitle = document.getElementById('regionTitle');
-        const regionSvgContainer = document.getElementById('regionSvgContainer');
-        const communitiesList = document.getElementById('communitiesList');
-        const closeRegionBtn = document.getElementById('closeRegionBtn');
-
-        // Función para verificar si un archivo existe
-        async function checkFileExists(url) {
-            try {
-                const response = await fetch(url, { method: 'HEAD' });
-                return response.ok;
-            } catch (error) {
-                return false;
-            }
-        }
-
-        // Función para cargar el SVG de una región
-        async function loadRegionSvg(regionNumber) {
-            // Mostrar indicador de carga
-            regionSvgContainer.innerHTML = `
-                <div style="text-align: center; padding: 2rem; color: #ffffff;">
-                    <div style="margin-bottom: 1rem;">
-                        <div style="width: 40px; height: 40px; border: 3px solid #333; border-top: 3px solid #0772d2; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
-                    </div>
-                    <p>Cargando mapa de la región ${regionNumber}...</p>
-                </div>
-            `;
-            
-            try {
-                // Detectar si estamos usando file:// protocol
-                const isFileProtocol = window.location.protocol === 'file:';
-                console.log('Protocolo actual:', window.location.protocol);
-                
-                let svgText = null;
-                
-                if (isFileProtocol) {
-                    // Para file:// protocol, usar object element
-                    console.log('Usando file:// protocol - cargando SVG con object');
-                    regionSvgContainer.innerHTML = `
-                        <object data="{% static 'svg/regiones/region' %}${regionNumber}.svg" type="image/svg+xml" style="width: 100%; height: 100%; min-height: 400px; border-radius: 8px; object-fit: contain;">
-                            <div style="text-align: center; padding: 2rem; color: #ffffff;">
-                                <p>Error: No se pudo cargar el SVG con object element</p>
-                            </div>
-                        </object>
-                    `;
-                    
-                    // Esperar un poco y verificar si se cargó
-                    setTimeout(() => {
-                        const object = regionSvgContainer.querySelector('object');
-                        if (object && object.contentDocument) {
-                            console.log('✓ SVG cargado exitosamente con object element');
-                        } else {
-                            // Si object no funciona, intentar con img
-                            regionSvgContainer.innerHTML = `
-                                <img src="{% static 'svg/regiones/region' %}${regionNumber}.svg" alt="Mapa de la región ${regionNumber}" style="width: 100%; height: 100%; min-height: 400px; border-radius: 8px; object-fit: contain;">
-                            `;
-                            console.log('✓ SVG cargado exitosamente con img element');
-                        }
-                    }, 500);
-                    
-                    return;
-                }
-                
-                // Para http/https protocol, usar fetch
-                const possiblePaths = [
-                    `{% static 'svg/regiones/region' %}${regionNumber}.svg`,
-                    `/static/svg/regiones/region${regionNumber}.svg`
-                ];
-                
-                for (const path of possiblePaths) {
-                    try {
-                        console.log(`Intentando fetch: ${path}`);
-                        const response = await fetch(path);
-                        
-                        if (response.ok) {
-                            svgText = await response.text();
-                            console.log(`✓ SVG cargado exitosamente desde: ${path}`);
-                            break;
-                        } else {
-                            console.log(`✗ HTTP ${response.status} para ${path}`);
-                        }
-                    } catch (e) {
-                        console.log(`✗ Error fetch para ${path}:`, e.message);
-                        continue;
-                    }
-                }
-                
-                if (!svgText) {
-                    throw new Error('No se pudo cargar el SVG desde ninguna ruta');
-                }
-                
-                regionSvgContainer.innerHTML = svgText;
-                
-                // Ajustar el SVG para que se vea bien en el contenedor
-                const svg = regionSvgContainer.querySelector('svg');
-                if (svg) {
-                    svg.style.width = '100%';
-                    svg.style.height = '100%';
-                    svg.style.maxHeight = 'none';
-                    svg.style.minHeight = '400px';
-                    svg.style.maxWidth = '100%';
-                    svg.style.display = 'block';
-                    svg.style.margin = '0 auto';
-                    svg.style.borderRadius = '8px';
-                    svg.style.objectFit = 'contain';
-                    
-                    // Asegurar que el SVG sea visible y responsive
-                    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-                    
-                    // Si no tiene viewBox, agregar uno por defecto
-                    if (!svg.getAttribute('viewBox')) {
-                        svg.setAttribute('viewBox', '0 0 400 400');
-                    }
-                    
-                    // Hacer que el SVG sea responsive
-                    svg.style.overflow = 'visible';
-                    
-                    console.log('✓ SVG configurado correctamente para tamaño completo');
-                } else {
-                    console.warn('⚠ No se encontró elemento SVG en el contenido cargado');
-                }
-                
-            } catch (error) {
-                console.error('Error al cargar el SVG:', error);
-                regionSvgContainer.innerHTML = `
-                    <div style="text-align: center; padding: 2rem; color: #ffffff;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🗺️</div>
-                        <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">Error al cargar el mapa de la región ${regionNumber}</p>
-                        <p style="font-size: 0.9rem; opacity: 0.7;">Error: ${error.message}</p>
-                        <p style="font-size: 0.8rem; opacity: 0.5; margin-top: 1rem;">
-                            <strong>Soluciones:</strong><br>
-                            • Usa un servidor local (Live Server, Python http.server)<br>
-                            • Verifica que region${regionNumber}.svg existe en regiones/
-                        </p>
-                        <button onclick="loadRegionSvg(${regionNumber})" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #0772d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                            Reintentar
-                        </button>
-                    </div>
-                `;
-            }
-        }
-
-        // Función para mostrar información de la región
-        function showRegionInfo(regionNumber) {
-            const data = regionData[regionNumber];
-            if (!data) return;
-
-            regionTitle.textContent = `${data.title} - Sede: ${data.sede}`;
-            
-            // Mostrar lista de comunidades
-            communitiesList.innerHTML = '';
-            if (data.communities && data.communities.length > 0) {
-                // Crear encabezado con información de la sede
-                const sedeHeader = document.createElement('div');
-                sedeHeader.className = 'sede-info';
-                sedeHeader.innerHTML = `
-                    <h4>📍 Sede Regional</h4>
-                    <p><strong>${data.sede}</strong></p>
-                    <h4>🏘️ Comunidades (${data.communities.length})</h4>
-                `;
-                communitiesList.appendChild(sedeHeader);
-                
-                // Crear lista de comunidades
-                const list = document.createElement('ul');
-                list.className = 'communities-list-items';
-                data.communities.forEach((community, index) => {
-                    const item = document.createElement('li');
-                    item.innerHTML = `<span class="community-number">${index + 1}.</span> ${community}`;
-                    list.appendChild(item);
-                });
-                communitiesList.appendChild(list);
-            } else {
-                communitiesList.innerHTML = '<p class="placeholder-text">Lista de comunidades próximamente...</p>';
-            }
-        }
-
-        // Función para mostrar el panel de región
-        function showRegionPanel(regionNumber) {
-            currentRegion = regionNumber;
-            loadRegionSvg(regionNumber);
-            showRegionInfo(regionNumber);
-            
-            // Mostrar panel con animación
-            regionDetailPanel.classList.add('active');
-            
-            // Ocultar el mapa principal
-            document.querySelector('.map-wrapper').style.display = 'none';
-        }
-
-        // Función para ocultar el panel de región
-        function hideRegionPanel() {
-            regionDetailPanel.classList.remove('active');
-            document.querySelector('.map-wrapper').style.display = 'block';
-            currentRegion = null;
-        }
-
-
-        // Event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            // Agregar event listeners a todas las regiones
-            const regionGroups = document.querySelectorAll('.region-group');
-            regionGroups.forEach(group => {
-                group.addEventListener('click', function() {
-                    const regionNumber = parseInt(this.dataset.region);
-                    showRegionPanel(regionNumber);
-                });
-
-                // Efecto hover
-                group.addEventListener('mouseenter', function() {
-                    this.style.fill = '#0a5f9f';
-                    this.style.cursor = 'pointer';
-                    this.style.transition = 'fill 0.3s ease';
-                });
-
-                group.addEventListener('mouseleave', function() {
-                    this.style.fill = '#0772d2';
-                });
-            });
-
-            // Botón cerrar
-            closeRegionBtn.addEventListener('click', hideRegionPanel);
-
-            // Cerrar con tecla Escape
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && currentRegion) {
-                    hideRegionPanel();
-                }
-            });
-
-            /* ---------- Dropdowns escritorio - Exactamente como index.html ---------- */
-            const dropdowns = document.querySelectorAll('.dd');
-            
-            const closeAll = () => dropdowns.forEach(dd => {
-                dd.querySelector('.dd__btn').classList.remove('is-open');
-                dd.querySelector('.dd__btn').setAttribute('aria-expanded','false');
-                dd.querySelector('.dd__panel').classList.remove('show');
-            });
-            
-            dropdowns.forEach((dd, index)=>{
-                const btn   = dd.querySelector('.dd__btn');
-                const panel = dd.querySelector('.dd__panel');
-                
-                btn.addEventListener('click', (e)=>{
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const isOpen = panel.classList.contains('show');
-                    closeAll();
-                    if(!isOpen){
-                        btn.classList.add('is-open');
-                        btn.setAttribute('aria-expanded','true');
-                        panel.classList.add('show');
-                    }
-                });
-            });
-            
-            document.addEventListener('click', (e)=>{ if(!e.target.closest('.dd')) closeAll(); });
-            document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeAll(); });
-
-            /* ---------- Buscador principal (demo) ---------- */
-            const searchBtn = document.querySelector('.search .mini');
-            if (searchBtn) {
-                searchBtn.addEventListener('click', (e)=>{
-                    e.preventDefault();
-                    const q = document.getElementById('buscar-proyecto').value.trim();
-                    if(q) console.log('Buscar proyecto:', q);
-                });
-            }
-
-            /* ---------- Drawer móvil - Exactamente como index.html ---------- */
-            const drawer = document.getElementById('drawer');
-            const btnHamburger = document.getElementById('btnHamburger');
-            const btnCloseDrawer = document.getElementById('btnCloseDrawer');
-            
-            const openDrawer = () => {
-                drawer.classList.add('open');
-                drawer.setAttribute('aria-hidden','false');
-                btnHamburger.setAttribute('aria-expanded','true');
-                document.body.style.overflow='hidden';
-            };
-            
-            const closeDrawer = () => {
-                drawer.classList.remove('open');
-                drawer.setAttribute('aria-hidden','true');
-                btnHamburger.setAttribute('aria-expanded','false');
-                document.body.style.overflow='';
-            };
-            
-            btnHamburger.addEventListener('click', openDrawer);
-            btnCloseDrawer.addEventListener('click', closeDrawer);
-            drawer.addEventListener('click', (e)=>{ if(e.target === drawer) closeDrawer(); });
-            document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDrawer(); });
-
-            // Acordeón dentro del drawer (excluyendo el menú de usuario móvil)
-            document.querySelectorAll('.ddm:not(#mobileUserMenu)').forEach(ddm=>{
-                const btn = ddm.querySelector('.ddm__btn');
-                const panel = ddm.querySelector('.ddm__panel');
-                btn.addEventListener('click', ()=>{
-                    const open = ddm.classList.toggle('open');
-                    btn.setAttribute('aria-expanded', String(open));
-                    panel.style.maxHeight = open ? panel.scrollHeight+'px' : '0px';
-                });
-            });
-        });
-
-        // ======= FUNCIONALIDAD DE SCROLL AUTOMÁTICO =======
-        
-        // Función para hacer scroll suave a una sección
-        function scrollToSection(sectionId) {
-            const section = document.getElementById(sectionId);
-            if (section) {
-                // Calcular la posición considerando el header fijo
-                const headerHeight = document.querySelector('.topbar').offsetHeight + 
-                                    document.querySelector('.nav').offsetHeight;
-                const sectionTop = section.offsetTop - headerHeight - 20; // 20px de margen adicional
-                
-                window.scrollTo({
-                    top: sectionTop,
-                    behavior: 'smooth'
-                });
-
-                // Agregar efecto de resaltado temporal
-                section.classList.add('scroll-highlight');
-                
-                // Remover el efecto después de 3 segundos
-                setTimeout(() => {
-                    section.classList.remove('scroll-highlight');
-                }, 3000);
-            }
-        }
-
-        // Función para manejar el scroll automático desde URL
-        function handleUrlAnchor() {
-            const hash = window.location.hash;
-            if (hash) {
-                // Remover el # del hash
-                const sectionId = hash.substring(1);
-                
-                // Esperar un poco para que la página se cargue completamente
-                setTimeout(() => {
-                    scrollToSection(sectionId);
-                }, 300);
-            }
-        }
-
-        // Manejar anclas de URL al cargar la página
-        document.addEventListener('DOMContentLoaded', function() {
-            handleUrlAnchor();
-        });
-
-        // Escuchar cambios en el hash de la URL
-        window.addEventListener('hashchange', function() {
-            handleUrlAnchor();
-        });
-
-        // También manejar el caso cuando la página se carga directamente con hash
-        window.addEventListener('load', function() {
-            handleUrlAnchor();
-        });
-
-        // Load user information from localStorage or session
-        function loadUserInfo() {
-          const userInfo = localStorage.getItem('userInfo') || sessionStorage.getItem('userInfo');
-          const navUserIcon = document.getElementById('navUserIcon');
-          const mobileUserMenu = document.getElementById('mobileUserMenu');
-          const navUserLoggedIn = document.getElementById('navUserLoggedIn');
-          const navUserLoggedOut = document.getElementById('navUserLoggedOut');
-          const mobileUserLoggedIn = document.getElementById('mobileUserLoggedIn');
-          const mobileUserLoggedOut = document.getElementById('mobileUserLoggedOut');
-          
-          if (userInfo) {
-            const user = JSON.parse(userInfo);
-            const userName = user.name || 'Usuario';
-            const userEmail = user.email || 'usuario@maga.gt';
-            const userInitial = (user.name || 'U').charAt(0).toUpperCase();
-            
-            // Actualizar información en desktop
-            document.getElementById('navUserName').textContent = userName;
-            document.getElementById('navUserEmail').textContent = userEmail;
-            document.getElementById('navUserAvatar').textContent = userInitial;
-            
-            // Actualizar información en móvil
-            document.getElementById('mobileUserName').textContent = userName;
-            document.getElementById('mobileUserEmail').textContent = userEmail;
-            document.getElementById('mobileUserAvatar').textContent = userInitial;
-            
-            // Mostrar contenido de sesión activa
-            if (navUserLoggedIn) navUserLoggedIn.style.display = 'block';
-            if (navUserLoggedOut) navUserLoggedOut.style.display = 'none';
-            if (mobileUserLoggedIn) mobileUserLoggedIn.style.display = 'block';
-            if (mobileUserLoggedOut) mobileUserLoggedOut.style.display = 'none';
-            
-            // Mostrar el icono de usuario en la navegación (desktop)
-            if (navUserIcon) {
-              navUserIcon.style.display = 'flex';
-            }
-            
-            // Mostrar el menú de usuario en móvil
-            if (mobileUserMenu) {
-              mobileUserMenu.style.display = 'block';
-            }
-          } else {
-            // Mostrar contenido de sesión no activa
-            if (navUserLoggedIn) navUserLoggedIn.style.display = 'none';
-            if (navUserLoggedOut) navUserLoggedOut.style.display = 'block';
-            if (mobileUserLoggedIn) mobileUserLoggedIn.style.display = 'none';
-            if (mobileUserLoggedOut) mobileUserLoggedOut.style.display = 'block';
-            
-            // Mostrar el icono de usuario en la navegación (desktop)
-            if (navUserIcon) {
-              navUserIcon.style.display = 'flex';
-            }
-            
-            // Mostrar el menú de usuario en móvil
-            if (mobileUserMenu) {
-              mobileUserMenu.style.display = 'block';
-            }
-          }
-          
-          // Configurar el menú móvil después de establecer los estados
-          setTimeout(() => {
-            setupMobileUserMenu();
-          }, 300);
-        }
-
-        /* ---------- NAV USER ICON FUNCTIONALITY (DESKTOP) ---------- */
-        const navUserIcon = document.getElementById('navUserIcon');
-        const navUserDropdown = document.getElementById('navUserDropdown');
-        const navProfileBtn = document.getElementById('navProfileBtn');
-        const navSettingsBtn = document.getElementById('navSettingsBtn');
-        const navLogoutBtn = document.getElementById('navLogoutBtn');
-
-        // Nav user icon click functionality
-        navUserIcon?.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          
-          // Toggle del dropdown
-          if (navUserDropdown.style.display === 'block') {
-            navUserDropdown.style.display = 'none';
-            navUserDropdown.classList.remove('show');
-            navUserIcon.classList.remove('active');
-          } else {
-            navUserDropdown.style.display = 'block';
-            navUserDropdown.classList.add('show');
-            navUserIcon.classList.add('active');
-          }
-        });
-
-        // Nav profile button functionality
-        navProfileBtn?.addEventListener('click', () => {
-          navUserDropdown.style.display = 'none';
-          navUserDropdown.classList.remove('show');
-          navUserIcon.classList.remove('active');
-          console.log('Mostrar perfil del usuario (desktop)');
-        });
-
-        // Nav settings button functionality
-        navSettingsBtn?.addEventListener('click', () => {
-          navUserDropdown.style.display = 'none';
-          navUserDropdown.classList.remove('show');
-          navUserIcon.classList.remove('active');
-          console.log('Mostrar configuración (desktop)');
-        });
-
-        // Nav logout button functionality
-        navLogoutBtn?.addEventListener('click', () => {
-          navUserDropdown.style.display = 'none';
-          navUserDropdown.classList.remove('show');
-          navUserIcon.classList.remove('active');
-          if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-            localStorage.removeItem('userInfo');
-            sessionStorage.removeItem('userInfo');
-            // Recargar la página actual en lugar de redirigir al login
-            window.location.reload();
-          }
-        });
-
-        // Close dropdown when clicking outside
-        document.addEventListener('click', (e) => {
-          if (navUserIcon && navUserDropdown && !navUserIcon.contains(e.target) && !navUserDropdown.contains(e.target)) {
-            navUserDropdown.style.display = 'none';
-            navUserDropdown.classList.remove('show');
-            navUserIcon.classList.remove('active');
-          }
-        });
-
-        // Close dropdown on escape key
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && navUserDropdown && navUserDropdown.style.display === 'block') {
-            navUserDropdown.style.display = 'none';
-            navUserDropdown.classList.remove('show');
-            navUserIcon.classList.remove('active');
-          }
-        });
-
-        /* ---------- MOBILE USER MENU FUNCTIONALITY ---------- */
-        const mobileProfileBtn = document.getElementById('mobileProfileBtn');
-        const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
-        const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
-
-        // Mobile profile button functionality
-        mobileProfileBtn?.addEventListener('click', () => {
-          // Cerrar el drawer móvil manualmente
-          const drawer = document.getElementById('drawer');
-          const btnHamburger = document.getElementById('btnHamburger');
-          if (drawer && btnHamburger) {
-            drawer.classList.remove('open');
-            drawer.setAttribute('aria-hidden','true');
-            btnHamburger.setAttribute('aria-expanded','false');
-            document.body.style.overflow='';
-          }
-          // Aquí se puede agregar funcionalidad para mostrar el perfil
-          console.log('Mostrar perfil del usuario (móvil)');
-        });
-
-        // Mobile settings button functionality
-        mobileSettingsBtn?.addEventListener('click', () => {
-          // Cerrar el drawer móvil manualmente
-          const drawer = document.getElementById('drawer');
-          const btnHamburger = document.getElementById('btnHamburger');
-          if (drawer && btnHamburger) {
-            drawer.classList.remove('open');
-            drawer.setAttribute('aria-hidden','true');
-            btnHamburger.setAttribute('aria-expanded','false');
-            document.body.style.overflow='';
-          }
-          // Aquí se puede agregar funcionalidad para mostrar configuración
-          console.log('Mostrar configuración (móvil)');
-        });
-
-        // Mobile logout button functionality
-        mobileLogoutBtn?.addEventListener('click', () => {
-          // Cerrar el drawer móvil manualmente
-          const drawer = document.getElementById('drawer');
-          const btnHamburger = document.getElementById('btnHamburger');
-          if (drawer && btnHamburger) {
-            drawer.classList.remove('open');
-            drawer.setAttribute('aria-hidden','true');
-            btnHamburger.setAttribute('aria-expanded','false');
-            document.body.style.overflow='';
-          }
-          // Confirmar logout
-          if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-            localStorage.removeItem('userInfo');
-            sessionStorage.removeItem('userInfo');
-            // Recargar la página actual en lugar de redirigir al login
-            window.location.reload();
-          }
-        });
-
-        // Función para configurar el menú de usuario móvil
-        function setupMobileUserMenu() {
-          const mobileUserMenu = document.getElementById('mobileUserMenu');
-          console.log('setupMobileUserMenu called, mobileUserMenu:', mobileUserMenu);
-          
-          if (mobileUserMenu) {
-            // Limpiar event listeners anteriores para evitar duplicados
-            const existingBtns = mobileUserMenu.querySelectorAll('.ddm__btn');
-            existingBtns.forEach(btn => {
-              btn.removeEventListener('click', handleMobileUserMenuClick);
-            });
-            
-            // Función para manejar el clic en cualquier botón del menú móvil
-            function handleMobileUserMenuClick(e) {
-              e.preventDefault();
-              e.stopPropagation();
-              
-              console.log('Mobile user menu clicked');
-              const isOpen = mobileUserMenu.classList.contains('open');
-              mobileUserMenu.classList.toggle('open');
-              
-              // Encontrar el botón y panel activos según el estado visible
-              const mobileUserLoggedIn = document.getElementById('mobileUserLoggedIn');
-              const mobileUserLoggedOut = document.getElementById('mobileUserLoggedOut');
-              
-              let activeBtn, activePanel;
-              
-              // Determinar cuál estado está visible
-              if (mobileUserLoggedIn && mobileUserLoggedIn.style.display !== 'none') {
-                // Estado logueado está activo
-                activeBtn = mobileUserLoggedIn.querySelector('.ddm__btn');
-                activePanel = mobileUserLoggedIn.querySelector('.ddm__panel');
-                console.log('Using logged in state');
-              } else if (mobileUserLoggedOut && mobileUserLoggedOut.style.display !== 'none') {
-                // Estado no logueado está activo
-                activeBtn = mobileUserLoggedOut.querySelector('.ddm__btn');
-                activePanel = mobileUserLoggedOut.querySelector('.ddm__panel');
-                console.log('Using logged out state');
-              }
-              
-              console.log('Active btn:', activeBtn, 'Active panel:', activePanel);
-              
-              if (activeBtn && activePanel) {
-                activeBtn.setAttribute('aria-expanded', String(!isOpen));
-                
-                if (!isOpen) {
-                  // Abrir el panel - usar un valor fijo alto para asegurar que se vea
-                  activePanel.style.maxHeight = '300px'; // Valor fijo alto para que se vea el contenido
-                  console.log('Opening panel with maxHeight: 300px');
-                } else {
-                  // Cerrar el panel
-                  activePanel.style.maxHeight = '0px';
-                  console.log('Closing panel');
-                }
-              }
-            }
-            
-            // Agregar event listener a todos los botones del menú móvil
-            const mobileUserBtns = mobileUserMenu.querySelectorAll('.ddm__btn');
-            console.log('Found mobile user buttons:', mobileUserBtns.length);
-            mobileUserBtns.forEach(btn => {
-              btn.addEventListener('click', handleMobileUserMenuClick);
-            });
-          }
-        }
-
-        // ======= EVENT LISTENERS FOR LOGGED OUT STATE =======
-        const navLoginBtn = document.getElementById('navLoginBtn');
-        const navCloseBtn = document.getElementById('navCloseBtn');
-        const mobileLoginBtn = document.getElementById('mobileLoginBtn');
-
-    // Nav login button functionality (redirect to login page)
-    navLoginBtn?.addEventListener('click', () => {
-      navUserDropdown.style.display = 'none';
-      navUserDropdown.classList.remove('show');
-      navUserIcon.classList.remove('active');
-      // Guardar la página actual como origen antes de redirigir
-      sessionStorage.setItem('loginOriginPage', window.location.href);
-      window.location.href = '{% url "webmaga:login" %}';
-    });
-
-        // Nav close button functionality (just close dropdown)
-        navCloseBtn?.addEventListener('click', () => {
-          navUserDropdown.style.display = 'none';
-          navUserDropdown.classList.remove('show');
-          navUserIcon.classList.remove('active');
-        });
-
-    // Mobile login button functionality (redirect to login page)
-    mobileLoginBtn?.addEventListener('click', () => {
-      // Cerrar el drawer móvil manualmente
-      const drawer = document.getElementById('drawer');
-      const btnHamburger = document.getElementById('btnHamburger');
-      if (drawer && btnHamburger) {
-        drawer.classList.remove('open');
-        drawer.setAttribute('aria-hidden','true');
-        btnHamburger.setAttribute('aria-expanded','false');
-        document.body.style.overflow='';
+{% block extra_js %}
+  <script>
+    // ======= DATOS DE REGIONES CON COMUNIDADES =======
+    const regionData = {
+      1: { 
+        title: "Región 1", 
+        sede: "Barrio El Centro",
+        communities: [
+          "El Calvario", "El Carpintero", "El Cementerio", "El Centro", 
+          "La Cruz", "San Antonio", "Cerrito El Calvario", "Cerro de La Cruz", 
+          "La Cruz II", "Los Encuentros", "Barrio Las Moras"
+        ] 
+      },
+      2: { 
+        title: "Región 2", 
+        sede: "Aldea Mocohán",
+        communities: [
+          "Mocohan", "El Durazno", "Cola del Mico", "Parrachoch I", 
+          "Parrachoch II", "Mocohan Sector II", "Portezuelo", "Betania", "Pantin"
+        ] 
+      },
+      3: { 
+        title: "Región 3", 
+        sede: "Caserío Los Pinos",
+        communities: [
+          "Los Manantiales", "Nueva Esperanza Cementerio", "Panimaquito", 
+          "Monjas Panimaquito", "Rincón del Quetzal", "Los Pinos", 
+          "Cumbre del Carpintero", "La Presa", "Rincón El Carpintero", 
+          "Cuchilla del Nogal", "Río Colorado", "Rincón Nueva Jerusalén"
+        ] 
+      },
+      4: { 
+        title: "Región 4", 
+        sede: "Aldea Eben-Ezer",
+        communities: [
+          "El Chorro", "Agua Viva", "Eben-Ezer", "El Jute I", "El Jute II", 
+          "Chisiguan", "Caserío El Mezcal I", "El Pinal", "El Repollal I", 
+          "El Repollal II", "Rincón del Suquinay", "El Mirador Cerro Alto", 
+          "Rincón El Calvario", "Eben-Ezer II", "El Milagro"
+        ] 
+      },
+      5: { 
+        title: "Región 5", 
+        sede: "Caserío Suquinay II",
+        communities: [
+          "Bella Vista Sachut", "Tierra Linda Sulín", "Ronda Sachut", 
+          "Tres Cruces", "El Comunal", "Villa Nueva Sulín", "Suquinay II"
+        ] 
+      },
+      6: { 
+        title: "Región 6", 
+        sede: "Caserío San Luis Panzal",
+        communities: [
+          "Santa Rita Panzal", "El Rosario Panzal", "Orejuela", 
+          "Herederos Panzal", "Santa Elena Panzal", "San Luis Panzal", 
+          "Camelias Panzal", "San Antonio Liquidambar", "Canahan Panzal"
+        ] 
+      },
+      7: { 
+        title: "Región 7", 
+        sede: "Aldea Panimá",
+        communities: [
+          "La Ceiba", "Monjón Panimá", "San Miguel Panimá", "El Pacayal", 
+          "San Luis Panimá", "Panimá", "Los Ángeles Maxaxá", "Peña del Ángel", 
+          "Santa Elena Panimá"
+        ] 
+      },
+      8: { 
+        title: "Región 8", 
+        sede: "Caserío Centro Panchisivic",
+        communities: [
+          "Nuevo Progreso Panchisivic", "Concepción Panchisivic", "Xombal Panchisivic", 
+          "Sachoxá", "Santa Luisa Pancalá", "Cementerio Panchisivic", 
+          "Centro Panchisivic", "Esfuerzo Chejel", "La Paz Chejel", "La Caoba Panchisivic"
+        ] 
+      },
+      9: { 
+        title: "Región 9", 
+        sede: "Aldea Chantel Chicoy",
+        communities: [
+          "El Carmen Los Gavilanes", "Renacimiento Vega Larga I", "Chantel Chicoy", 
+          "San Pablo La Línea", "Campo Nuevo Chicoy"
+        ] 
+      },
+      10: { 
+        title: "Región 10", 
+        sede: "Aldea Ribacó",
+        communities: [
+          "Olimpia", "Ribacó", "Canaan Ribacó", "Vista Hermosa", "Los Naranjales", 
+          "Cuchilla Jalanté", "Sucursal Chicoy Panchisivic", "Moxanté", 
+          "Hamaca Panchisivic", "Concepción Sector I Panchisivic", "La Libertad Pampá", 
+          "Nuevo San Rafael Panchisivic"
+        ] 
+      },
+      11: { 
+        title: "Región 11", 
+        sede: "San Marcos Sacsamaní",
+        communities: [
+          "Panzal Jalauté", "San Marcos Sacsamaní", "Tierra Blanca Jalauté", 
+          "Sector Norte Jalauté", "El Carmen Villa Nueva Jalauté", "Jalauté"
+        ] 
+      },
+      12: { 
+        title: "Región 12", 
+        sede: "Aldea Sacsamaní",
+        communities: [
+          "Sacsamaní Panalbarda", "Guachabajá", "Nuevo Jinayá", "Sacsamaní", 
+          "Vega Larga II"
+        ] 
+      },
+      13: { 
+        title: "Región 13", 
+        sede: "Aldea La Pinada",
+        communities: [
+          "Esquipulas La Pinada", "Xejbal Monte Blanco", "Cruz del Río Monte Blanco", 
+          "San Antonio La Pinada", "La Pinada", "Nueva Esperanza Monte Blanco", 
+          "Xalitzul Monte Blanco", "Monte Blanco", "El Cementerio Monte Blanco", "Sechinanjá"
+        ] 
+      },
+      14: { 
+        title: "Región 14", 
+        sede: "Caserío Centro Helvetia",
+        communities: [
+          "Salijá", "San Pablo Helvetia", "Cortéz La Cuchilla", "Cabsibij", 
+          "Centro Helvetia", "Tixilhá", "San José Helvetia", "Mululhá"
+        ] 
+      },
+      15: { 
+        title: "Región 15", 
+        sede: "Aldea Matanzas",
+        communities: [
+          "Crucero Helvetia", "Centro Westfalia", "Crucero Westfalia", "Civijá", 
+          "Civijá Sector I", "Matucuy II", "Matanzas", "Matucuy I", "San Alfredo", 
+          "Nueva Esperanza Westfalia", "Centro Westfalia Sector II"
+        ] 
+      },
+      16: { 
+        title: "Región 16", 
+        sede: "Caserío Nuevo Amanecer Pancoc",
+        communities: [
+          "Pampacay", "Nueva Gloria", "Concepción Las Flores", "Monte Verde", 
+          "Chacalté Pampacay", "Nuevo Amanecer Pancoc", "Cumbre Chacalté Jabalí", 
+          "Nuevo San Rafael", "Monte Alegre", "Concepción El Espinero", "Bethel Monte Verde"
+        ] 
+      },
+      17: { 
+        title: "Región 17", 
+        sede: "Caserío Sierra Linda",
+        communities: [
+          "Sierra Linda", "Río Nuevo Chantelito", "Santo Domingo Rio Blanco", 
+          "Moxanté Cruz de Piedra", "Villa Nueva Pancajoc"
+        ] 
       }
-      // Guardar la página actual como origen antes de redirigir
-      sessionStorage.setItem('loginOriginPage', window.location.href);
-      window.location.href = '{% url "webmaga:login" %}';
-    });
+    };
 
-        // ======= FUNCIONES DE ADMINISTRADOR =======
+    // Variables globales
+    let currentRegion = null;
+    const regionDetailPanel = document.getElementById('regionDetailPanel');
+    const regionTitle = document.getElementById('regionTitle');
+    const regionSvgContainer = document.getElementById('regionSvgContainer');
+    const communitiesList = document.getElementById('communitiesList');
+    const closeRegionBtn = document.getElementById('closeRegionBtn');
+
+    // Función para cargar el SVG de una región
+    async function loadRegionSvg(regionNumber) {
+      regionSvgContainer.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: #ffffff;">
+          <div style="margin-bottom: 1rem;">
+            <div style="width: 40px; height: 40px; border: 3px solid #333; border-top: 3px solid #0772d2; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+          </div>
+          <p>Cargando mapa de la región ${regionNumber}...</p>
+        </div>
+      `;
+      
+      try {
+        const svgPath = `/static/svg/regiones/region${regionNumber}.svg`;
+        const response = await fetch(svgPath);
         
-        // Verificar si el usuario es administrador
-        function checkAdminAccess() {
-          const userInfo = localStorage.getItem('userInfo') || sessionStorage.getItem('userInfo');
-          console.log('checkAdminAccess - userInfo:', userInfo);
+        if (response.ok) {
+          const svgText = await response.text();
+          regionSvgContainer.innerHTML = svgText;
           
-          if (userInfo) {
-            const user = JSON.parse(userInfo);
-            // Verificar si es administrador
-            if (user.username === 'admin' && user.isAdmin === true) {
-              return true;
-            }
-            // Corregir automáticamente si es admin pero no tiene la propiedad isAdmin
-            if (user.username === 'admin' && !user.isAdmin) {
-              console.log('Fixing admin user - adding isAdmin property');
-              user.isAdmin = true;
-              localStorage.setItem('userInfo', JSON.stringify(user));
-              console.log('Updated admin user:', user);
-              return true;
-            }
+          const svg = regionSvgContainer.querySelector('svg');
+          if (svg) {
+            svg.style.width = '100%';
+            svg.style.height = '100%';
+            svg.style.maxHeight = 'none';
+            svg.style.minHeight = '400px';
+            svg.style.display = 'block';
+            svg.style.margin = '0 auto';
+            svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
           }
-          
-          return false;
+        } else {
+          throw new Error('No se pudo cargar el SVG');
         }
+      } catch (error) {
+        console.error('Error al cargar el SVG:', error);
+        regionSvgContainer.innerHTML = `
+          <div style="text-align: center; padding: 2rem; color: #ffffff;">
+            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🗺️</div>
+            <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">Mapa no disponible</p>
+            <p style="font-size: 0.9rem; opacity: 0.7;">No se pudo cargar el mapa de la región ${regionNumber}</p>
+          </div>
+        `;
+      }
+    }
 
-        // Mostrar modal de login para administrador
-        function showAdminLoginModal() {
-          console.log('showAdminLoginModal called');
-          // Crear modal de login para administrador
-          const modal = document.createElement('div');
-          modal.className = 'admin-login-modal';
-          modal.innerHTML = `
-            <div class="admin-login-content">
-              <div class="admin-login-header">
-                <h2>Acceso de Administrador</h2>
-                <p>Ingrese sus credenciales de administrador para acceder a la gestión de eventos</p>
-              </div>
-              <div class="admin-login-body">
-                <form id="adminLoginForm" class="admin-login-form">
-                  <div class="admin-form-group">
-                    <label for="adminUsername">Usuario</label>
-                    <div class="admin-input-with-icon admin-user-icon">
-                      <input type="text" id="adminUsername" name="adminUsername" required>
-                    </div>
-                  </div>
-                  <div class="admin-form-group">
-                    <label for="adminPassword">Contraseña</label>
-                    <div class="admin-password-input">
-                      <input type="password" id="adminPassword" name="adminPassword" required>
-                      <button type="button" class="admin-password-toggle" onclick="toggleAdminPassword()">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                  <div id="adminLoginError" class="admin-error-message" style="display: none;">
-                    Credenciales incorrectas. Intente nuevamente.
-                  </div>
-                  <div class="admin-form-actions">
-                    <button type="submit" class="admin-btn-primary">Acceder</button>
-                    <button type="button" class="admin-btn-secondary" onclick="closeAdminLoginModal()">Cancelar</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          `;
-          
-          document.body.appendChild(modal);
-          
-          // Debug: verificar que el modal se agregó correctamente
-          console.log('Modal added to DOM:', modal);
-          console.log('Modal display style:', window.getComputedStyle(modal).display);
-          console.log('Modal visibility:', window.getComputedStyle(modal).visibility);
-          console.log('Modal opacity:', window.getComputedStyle(modal).opacity);
-          
-          const usernameInput = document.getElementById('adminUsername');
-          const passwordInput = document.getElementById('adminPassword');
-          console.log('Username input:', usernameInput);
-          console.log('Password input:', passwordInput);
-          if (usernameInput) {
-            console.log('Username input styles:', window.getComputedStyle(usernameInput));
-            usernameInput.focus();
-          }
-          
-          // Manejar envío del formulario
-          document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const username = document.getElementById('adminUsername').value;
-            const password = document.getElementById('adminPassword').value;
-            const errorDiv = document.getElementById('adminLoginError');
-            
-            // Verificar credenciales de administrador
-            if (username === 'admin' && password === 'admin123') {
-              // Guardar información de administrador
-              const adminUser = {
-                username: 'admin',
-                name: 'Administrador',
-                email: 'admin@maga.gt',
-                isAdmin: true
-              };
-              
-              localStorage.setItem('userInfo', JSON.stringify(adminUser));
-              console.log('Admin user saved:', adminUser);
-              
-              // Remover modal y redirigir a gestioneventos
-              document.body.removeChild(modal);
-              window.location.href = '{% url "webmaga:gestioneseventos" %}';
-            } else {
-              // Mostrar error
-              errorDiv.style.display = 'block';
-              errorDiv.textContent = 'Credenciales incorrectas. Intente nuevamente.';
-            }
+    // Función para mostrar información de la región
+    function showRegionInfo(regionNumber) {
+      const data = regionData[regionNumber];
+      if (!data) return;
+
+      regionTitle.textContent = `${data.title} - Sede: ${data.sede}`;
+      
+      communitiesList.innerHTML = '';
+      if (data.communities && data.communities.length > 0) {
+        const sedeHeader = document.createElement('div');
+        sedeHeader.className = 'sede-info';
+        sedeHeader.innerHTML = `
+          <h4>📍 Sede Regional</h4>
+          <p><strong>${data.sede}</strong></p>
+          <h4>🏘️ Comunidades (${data.communities.length})</h4>
+        `;
+        communitiesList.appendChild(sedeHeader);
+        
+        const list = document.createElement('ul');
+        list.className = 'communities-list-items';
+        data.communities.forEach((community, index) => {
+          const item = document.createElement('li');
+          item.innerHTML = `<span class="community-number">${index + 1}.</span> ${community}`;
+          list.appendChild(item);
+        });
+        communitiesList.appendChild(list);
+      } else {
+        communitiesList.innerHTML = '<p class="placeholder-text">Lista de comunidades próximamente...</p>';
+      }
+    }
+
+    // Función para mostrar el panel de región
+    function showRegionPanel(regionNumber) {
+      currentRegion = regionNumber;
+      loadRegionSvg(regionNumber);
+      showRegionInfo(regionNumber);
+      
+      regionDetailPanel.classList.add('active');
+      document.querySelector('.map-wrapper').style.display = 'none';
+    }
+
+    // Función para ocultar el panel de región
+    function hideRegionPanel() {
+      regionDetailPanel.classList.remove('active');
+      document.querySelector('.map-wrapper').style.display = 'block';
+      currentRegion = null;
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      // Agregar event listeners a todas las regiones
+      const regionGroups = document.querySelectorAll('.region-group');
+      regionGroups.forEach(group => {
+        group.addEventListener('click', function() {
+          const regionNumber = parseInt(this.dataset.region);
+          showRegionPanel(regionNumber);
+        });
+
+        // Efecto hover
+        group.addEventListener('mouseenter', function() {
+          const paths = this.querySelectorAll('path');
+          paths.forEach(path => {
+            path.style.fill = '#0a5f9f';
           });
-        }
+          this.style.cursor = 'pointer';
+          this.style.transition = 'fill 0.3s ease';
+        });
 
-        // Cerrar modal de login de administrador
-        function closeAdminLoginModal() {
-          const modal = document.querySelector('.admin-login-modal');
-          if (modal) {
-            document.body.removeChild(modal);
-          }
-        }
+        group.addEventListener('mouseleave', function() {
+          const paths = this.querySelectorAll('path');
+          paths.forEach(path => {
+            path.style.fill = '#0772d2';
+          });
+        });
+      });
 
-        // Función para alternar visibilidad de contraseña
-        function toggleAdminPassword() {
-          const passwordInput = document.getElementById('adminPassword');
-          const toggleBtn = document.querySelector('.admin-password-toggle');
-          
-          if (passwordInput.type === 'password') {
-            passwordInput.type = 'text';
-            toggleBtn.innerHTML = `
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                <line x1="1" y1="1" x2="23" y2="23"></line>
-              </svg>
-            `;
-          } else {
-            passwordInput.type = 'password';
-            toggleBtn.innerHTML = `
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-            `;
-          }
-        }
+      // Botón cerrar
+      closeRegionBtn.addEventListener('click', hideRegionPanel);
 
-        // Función para manejar acciones de Gestiones
-        function handleGestionesAction(action) {
-          console.log('handleGestionesAction called with action:', action);
-          const isAdmin = checkAdminAccess();
-          console.log('Is admin:', isAdmin);
-          
-          if (isAdmin) {
-            console.log('Redirecting to gestioneventos as admin');
-            window.location.href = '{% url "webmaga:gestioneseventos" %}';
-          } else {
-            console.log('Showing admin login modal');
-            sessionStorage.setItem('gestionesAction', action); // Save action before showing modal
-            showAdminLoginModal();
-          }
+      // Cerrar con tecla Escape
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && currentRegion) {
+          hideRegionPanel();
         }
-
-        // Initialize user info
-        loadUserInfo();
-    </script>
-               </body>
-               </html>
+      });
+    });
+  </script>
+{% endblock %}
+    

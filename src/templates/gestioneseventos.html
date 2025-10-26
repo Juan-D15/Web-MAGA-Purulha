@@ -1,0 +1,705 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Gestión de Eventos — MAGA Purulhá{% endblock %}
+{% block extra_css %}
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
+  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
+{% endblock %}
+{% block nav_gestioneseventos %}active{% endblock %}
+{% block content %}
+  <!-- ======= MAIN CONTENT ======= -->
+  <main class="gestiones-main">
+    <div class="gestiones-container">
+      <!-- Vista Principal con Tarjetas -->
+      <div id="mainView" class="main-view">
+        <!-- Tarjetas Principales -->
+        <div class="main-cards">
+          <div class="main-card" id="createEventCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+            <h3 class="card-title">Crear Evento</h3>
+            <p class="card-description">Crear un nuevo evento de capacitación, entrega o proyecto de ayuda</p>
+            <button class="card-button" id="openCreateEventBtn">
+              <span>Crear Nuevo</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="main-card" id="manageEventCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </div>
+            <h3 class="card-title">Editar y Eliminar Evento</h3>
+            <p class="card-description">Gestionar eventos existentes, editar información o eliminar eventos del sistema</p>
+            <button class="card-button" id="openManageEventBtn">
+              <span>Gestionar</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sección de Cambios Recientes -->
+        <section class="recent-changes-section">
+          <div class="changes-container">
+            <h2 class="changes-title">Cambios Recientes</h2>
+            <div class="changes-log" id="changesLog">
+              <div class="change-item" style="text-align: center; color: #6c757d; padding: 20px;">
+                <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+                <p>Cargando cambios recientes...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sección de Generar Reporte -->
+        <section class="report-section">
+          <div class="report-container">
+            <h2 class="report-title">Generar Reporte</h2>
+            <p class="report-description">Crear reportes detallados de eventos y actividades realizadas</p>
+            <button class="btn-generate-report" id="generateReportBtn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10,9 9,9 8,9"></polyline>
+              </svg>
+              <span>Generar Reporte</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Vista de Crear Evento -->
+      <div id="createEventView" class="create-event-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromCreateBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Crear Nuevo Evento</h2>
+        </div>
+
+        <div class="form-container">
+          <form id="eventForm" class="event-form" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <!-- Nombre del Evento -->
+            <div class="form-group">
+              <label for="eventName" class="form-label">Nombre del Evento *</label>
+              <input type="text" id="eventName" name="nombre" class="form-input" placeholder="Ingrese el nombre del evento" required>
+            </div>
+
+            <!-- Tipo de Evento -->
+            <div class="form-group">
+              <label for="eventType" class="form-label">Tipo de Evento *</label>
+              <select id="eventType" name="tipo_actividad_id" class="form-select" required>
+                <option value="">Seleccione un tipo de evento</option>
+                {% for tipo in tipos_actividad %}
+                  <option value="{{ tipo.id }}">{{ tipo.nombre }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Comunidad -->
+            <div class="form-group">
+              <label for="comunidad" class="form-label">Comunidad *</label>
+              <select id="comunidad" name="comunidad_id" class="form-select" required>
+                <option value="">Seleccione una comunidad</option>
+                {% for comunidad in comunidades %}
+                  <option value="{{ comunidad.id }}">
+                    {{ comunidad.nombre }} {% if comunidad.region %}({{ comunidad.region.nombre }}){% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <!-- Fecha -->
+            <div class="form-group">
+              <label for="fecha" class="form-label">Fecha del Evento *</label>
+              <input type="date" id="fecha" name="fecha" class="form-input" required>
+            </div>
+            
+            <!-- Estado -->
+            <div class="form-group">
+              <label for="estado" class="form-label">Estado</label>
+              <select id="estado" name="estado" class="form-select">
+                <option value="planificado" selected>Planificado</option>
+                <option value="en_progreso">En Progreso</option>
+                <option value="completado">Completado</option>
+              </select>
+            </div>
+
+
+            <!-- Personal a Cargo -->
+            <div class="form-group">
+              <label class="form-label">Personal a Cargo</label>
+              <div class="personnel-selector">
+                <div class="personnel-search">
+                  <input type="text" id="personnelSearch" class="form-input" placeholder="Buscar personal...">
+                  <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </div>
+                <div class="personnel-list" id="personnelList">
+                  <!-- El personal se cargará dinámicamente -->
+                </div>
+                <div class="selected-personnel" id="selectedPersonnel">
+                  <span class="selected-count">0 personal seleccionado</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Descripción del Evento -->
+            <div class="form-group">
+              <label for="eventDescription" class="form-label">Descripción del Evento *</label>
+              <textarea id="eventDescription" name="descripcion" class="form-textarea" rows="5" placeholder="Describa los detalles del evento, objetivos, metodología, etc." required></textarea>
+            </div>
+            
+            <!-- Beneficiarios -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <label class="form-label" style="margin: 0;">Beneficiarios del Evento</label>
+                <button type="button" id="addBeneficiaryBtn" class="btn-add-beneficiary" style="padding: 8px 16px; font-size: 0.9rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Agregar Beneficiario
+                </button>
+              </div>
+              
+              <div id="beneficiariesContainer" style="min-height: 50px;">
+                <p style="color: #6c757d; font-style: italic; text-align: center; padding: 20px 0;">
+                  No hay beneficiarios agregados. Haz click en "Agregar Beneficiario" para registrar uno.
+                </p>
+              </div>
+            </div>
+            
+            <!-- Coordenadas (Opcional) -->
+            <div class="form-row">
+              <div class="form-group">
+                <label for="latitud" class="form-label">Latitud (Opcional)</label>
+                <input type="number" step="0.00000001" id="latitud" name="latitud" class="form-input" placeholder="Ej: 15.12345678">
+              </div>
+              <div class="form-group">
+                <label for="longitud" class="form-label">Longitud (Opcional)</label>
+                <input type="number" step="0.00000001" id="longitud" name="longitud" class="form-input" placeholder="Ej: -90.12345678">
+              </div>
+            </div>
+
+            <!-- Evidencias -->
+            <div class="form-group">
+              <label for="evidences" class="form-label">Evidencias (Fotos y Documentos)</label>
+              
+              <!-- Área de carga de archivos -->
+              <div class="file-upload">
+                <input type="file" id="evidences" name="evidences" multiple accept="image/*,application/pdf,.doc,.docx" class="file-input">
+                <label for="evidences" class="file-label">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                  </svg>
+                  <span>Seleccionar archivos (múltiples)</span>
+                </label>
+              </div>
+              
+              <!-- Área de archivos seleccionados (separada) -->
+              <div id="filesSection" style="margin-top: 16px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                  <h4 style="margin: 0; font-size: 0.95rem; color: #b8c5d1; font-weight: 600;">Archivos Seleccionados</h4>
+                  <div id="fileCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                </div>
+                <div class="file-preview" id="filePreview"></div>
+              </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="form-actions">
+              <button type="submit" class="btn-primary btn-create-event">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Crear Evento
+              </button>
+              <button type="button" id="viewNewEventBtn" class="btn-secondary btn-view-event" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                Ver Evento Nuevo
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Vista de Gestionar Eventos -->
+      <div id="manageEventView" class="manage-event-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromManageBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Gestionar Eventos</h2>
+        </div>
+
+        <div class="events-list-container">
+          <h3 class="events-list-title">Eventos Existentes</h3>
+          <p class="events-list-description">Gestionar eventos creados anteriormente</p>
+          
+          <div class="events-list" id="eventsList">
+            <!-- Los eventos se cargarán dinámicamente desde la base de datos -->
+            <div style="text-align: center; padding: 60px 20px; color: #6c757d;">
+              <div style="margin-bottom: 20px;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.5;">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </div>
+              <p style="font-size: 1.1rem; margin: 0;">Cargando eventos...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal de Confirmación de Eliminación -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirmar Eliminación</h3>
+        <button class="modal-close" id="closeModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-message">¿Estás seguro de que deseas eliminar este evento?</p>
+        <p class="modal-submessage">Para realizar este proceso, ingrese sus credenciales de administrador.</p>
+        
+        <div class="modal-form">
+          <div class="form-group">
+            <label for="adminUsername" class="form-label">Usuario</label>
+            <input type="text" id="adminUsername" name="adminUsername" class="form-input" placeholder="Ingrese su usuario">
+          </div>
+          <div class="form-group">
+            <label for="adminPassword" class="form-label">Contraseña</label>
+            <input type="password" id="adminPassword" name="adminPassword" class="form-input" placeholder="Ingrese su contraseña">
+          </div>
+          <div id="credentialError" class="error-message" style="display: none;">
+            Credenciales incorrectas. Intente nuevamente.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmDeleteBtn" class="btn-danger" style="display: none;">Confirmar Eliminación</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista de Edición de Evento (Pantalla Completa) -->
+  <div id="editEventView" class="edit-event-view" style="display: none;">
+    <div class="edit-event-container">
+      <!-- Header de Edición -->
+      <div class="edit-event-header">
+        <div class="edit-event-title">
+          <h2>Editar Evento</h2>
+          <p id="editEventName">Nombre del Evento</p>
+        </div>
+        <div class="edit-event-actions">
+          <button type="button" id="applyChangesBtn" class="btn-primary btn-apply-changes">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Aplicar Cambios
+          </button>
+          <button type="button" id="backFromEditBtn" class="btn-secondary btn-back-edit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+        </div>
+      </div>
+
+      <!-- Formulario de Edición -->
+      <div class="edit-event-content">
+        <form id="editEventForm" class="edit-event-form">
+          <!-- Nombre del Evento -->
+          <div class="form-group">
+            <label for="editEventName" class="form-label">Nombre del Evento</label>
+            <input type="text" id="editEventName" name="editEventName" class="form-input" required>
+          </div>
+
+          <!-- Tipo de Evento -->
+          <div class="form-group">
+            <label for="editEventType" class="form-label">Tipo de Evento</label>
+            <select id="editEventType" name="editEventType" class="form-select" required>
+              <option value="">Seleccione un tipo de evento</option>
+              <option value="capacitacion">Capacitación</option>
+              <option value="entrega">Entrega</option>
+              <option value="proyecto-ayuda">Proyecto de Ayuda</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+
+          <!-- Comunidades Afectadas -->
+          <div class="form-group">
+            <label class="form-label">Comunidades Afectadas</label>
+            <div class="communities-selector">
+              <div class="communities-search">
+                <input type="text" id="editCommunitySearch" class="form-input" placeholder="Buscar comunidad...">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+              </div>
+              <div class="communities-list" id="editCommunitiesList">
+                <!-- Las comunidades se cargarán dinámicamente -->
+              </div>
+              <div class="selected-communities" id="editSelectedCommunities">
+                <span class="selected-count">0 comunidades seleccionadas</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Personal a Cargo -->
+          <div class="form-group">
+            <label class="form-label">Personal a Cargo</label>
+            <div class="personnel-selector">
+              <div class="personnel-search">
+                <input type="text" id="editPersonnelSearch" class="form-input" placeholder="Buscar personal...">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+              </div>
+              <div class="personnel-list" id="editPersonnelList">
+                <!-- El personal se cargará dinámicamente -->
+              </div>
+              <div class="selected-personnel" id="editSelectedPersonnel">
+                <span class="selected-count">0 personal seleccionado</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Descripción del Evento -->
+          <div class="form-group">
+            <label for="editEventDescription" class="form-label">Descripción del Evento</label>
+            <textarea id="editEventDescription" name="editEventDescription" class="form-textarea" rows="5" required></textarea>
+          </div>
+
+          <!-- Beneficiarios -->
+          <div class="form-group">
+            <label class="form-label">Beneficiarios</label>
+            <div class="beneficiaries-container" id="editBeneficiariesContainer">
+              <!-- Los beneficiarios se cargarán dinámicamente -->
+            </div>
+            <button type="button" id="editAddBeneficiaryBtn" class="btn-add-beneficiary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Agregar Beneficiario
+            </button>
+          </div>
+
+          <!-- Evidencias -->
+          <div class="form-group">
+            <label for="editEvidences" class="form-label">Evidencias (Fotos y Documentos)</label>
+            <div class="file-upload">
+              <input type="file" id="editEvidences" name="editEvidences" multiple accept="image/*,application/pdf,.doc,.docx" class="file-input">
+              <label for="editEvidences" class="file-label">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+                <span>Seleccionar archivos</span>
+              </label>
+              <div class="file-preview" id="editFilePreview"></div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación para Volver -->
+  <div id="backConfirmModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirmar Acción</h3>
+        <button class="modal-close" id="closeBackModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-message">¿Estás seguro de que deseas volver sin guardar los cambios?</p>
+        <p class="modal-submessage">Los cambios realizados se perderán si no se aplican.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelBackBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmBackBtn" class="btn-danger">Volver sin Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación para Aplicar Cambios -->
+  <div id="applyConfirmModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirmar Cambios</h3>
+        <button class="modal-close" id="closeApplyModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-message">¿Estás seguro de que deseas aplicar estos cambios al evento?</p>
+        <p class="modal-submessage">Esta acción actualizará permanentemente la información del evento.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelApplyBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmApplyBtn" class="btn-primary">Aplicar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Beneficiario -->
+  <div id="addBeneficiaryModal" class="modal">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Beneficiario</h3>
+        <button class="modal-close" id="closeBeneficiaryModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+        <form id="beneficiaryForm">
+          <!-- Tipo de Beneficiario -->
+          <div class="form-group">
+            <label for="benef_tipo" class="form-label">Tipo de Beneficiario *</label>
+            <select id="benef_tipo" class="form-select" required>
+              <option value="">Seleccione un tipo</option>
+              <option value="individual">Individual</option>
+              <option value="familia">Familia</option>
+              <option value="institución">Institución</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+
+          <!-- Campos para Individual -->
+          <div id="campos_individual" style="display: none;">
+            <div class="form-group">
+              <label for="benef_ind_nombre" class="form-label">Nombre *</label>
+              <input type="text" id="benef_ind_nombre" class="form-input" placeholder="Ej: Juan">
+            </div>
+            <div class="form-group">
+              <label for="benef_ind_apellido" class="form-label">Apellido *</label>
+              <input type="text" id="benef_ind_apellido" class="form-input" placeholder="Ej: Pérez García">
+            </div>
+            <div class="form-group">
+              <label for="benef_ind_dpi" class="form-label">DPI</label>
+              <input type="text" id="benef_ind_dpi" class="form-input" maxlength="20" placeholder="Ej: 1234567890101">
+            </div>
+            <div class="form-group">
+              <label for="benef_ind_fecha_nac" class="form-label">Fecha de Nacimiento</label>
+              <input type="date" id="benef_ind_fecha_nac" class="form-input">
+            </div>
+            <div class="form-group">
+              <label for="benef_ind_genero" class="form-label">Género</label>
+              <select id="benef_ind_genero" class="form-select">
+                <option value="">Seleccione</option>
+                <option value="masculino">Masculino</option>
+                <option value="femenino">Femenino</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="benef_ind_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_ind_telefono" class="form-input" placeholder="Ej: 5512-3456">
+            </div>
+          </div>
+
+          <!-- Campos para Familia -->
+          <div id="campos_familia" style="display: none;">
+            <div class="form-group">
+              <label for="benef_fam_nombre" class="form-label">Nombre de la Familia *</label>
+              <input type="text" id="benef_fam_nombre" class="form-input" placeholder="Ej: Familia González">
+            </div>
+            <div class="form-group">
+              <label for="benef_fam_jefe" class="form-label">Jefe de Familia *</label>
+              <input type="text" id="benef_fam_jefe" class="form-input" placeholder="Ej: Pedro González Ramírez">
+            </div>
+            <div class="form-group">
+              <label for="benef_fam_dpi" class="form-label">DPI del Jefe de Familia</label>
+              <input type="text" id="benef_fam_dpi" class="form-input" maxlength="20" placeholder="Ej: 4567890123104">
+            </div>
+            <div class="form-group">
+              <label for="benef_fam_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_fam_telefono" class="form-input" placeholder="Ej: 5545-6789">
+            </div>
+            <div class="form-group">
+              <label for="benef_fam_miembros" class="form-label">Número de Miembros</label>
+              <input type="number" id="benef_fam_miembros" class="form-input" min="1" placeholder="Ej: 5">
+            </div>
+          </div>
+
+          <!-- Campos para Institución -->
+          <div id="campos_institucion" style="display: none;">
+            <div class="form-group">
+              <label for="benef_inst_nombre" class="form-label">Nombre de la Institución *</label>
+              <input type="text" id="benef_inst_nombre" class="form-input" placeholder="Ej: Escuela Rural Mixta">
+            </div>
+            <div class="form-group">
+              <label for="benef_inst_tipo" class="form-label">Tipo de Institución *</label>
+              <select id="benef_inst_tipo" class="form-select">
+                <option value="">Seleccione</option>
+                <option value="escuela">Escuela</option>
+                <option value="cooperativa">Cooperativa</option>
+                <option value="asociación">Asociación</option>
+                <option value="ONG">ONG</option>
+                <option value="iglesia">Iglesia</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="benef_inst_representante" class="form-label">Representante Legal</label>
+              <input type="text" id="benef_inst_representante" class="form-input" placeholder="Ej: Carmen Ramírez">
+            </div>
+            <div class="form-group">
+              <label for="benef_inst_dpi_rep" class="form-label">DPI del Representante</label>
+              <input type="text" id="benef_inst_dpi_rep" class="form-input" maxlength="20" placeholder="Ej: 7890123456107">
+            </div>
+            <div class="form-group">
+              <label for="benef_inst_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_inst_telefono" class="form-input" placeholder="Ej: 5578-9012">
+            </div>
+            <div class="form-group">
+              <label for="benef_inst_email" class="form-label">Email</label>
+              <input type="email" id="benef_inst_email" class="form-input" placeholder="Ej: contacto@institucion.org">
+            </div>
+            <div class="form-group">
+              <label for="benef_inst_num_beneficiarios" class="form-label">Número de Beneficiarios Directos</label>
+              <input type="number" id="benef_inst_num_beneficiarios" class="form-input" min="1" placeholder="Ej: 150">
+            </div>
+          </div>
+
+          <!-- Campos para Otro -->
+          <div id="campos_otro" style="display: none;">
+            <div class="form-group">
+              <label for="benef_otro_nombre" class="form-label">Nombre/Descripción *</label>
+              <input type="text" id="benef_otro_nombre" class="form-input" placeholder="Ej: Grupo Comunitario">
+            </div>
+            <div class="form-group">
+              <label for="benef_otro_tipo_desc" class="form-label">Especifique el Tipo</label>
+              <input type="text" id="benef_otro_tipo_desc" class="form-input" placeholder="Ej: Grupo juvenil, Comité local, etc.">
+            </div>
+            <div class="form-group">
+              <label for="benef_otro_contacto" class="form-label">Persona de Contacto</label>
+              <input type="text" id="benef_otro_contacto" class="form-input" placeholder="Ej: Nombre del responsable">
+            </div>
+            <div class="form-group">
+              <label for="benef_otro_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_otro_telefono" class="form-input" placeholder="Ej: 5590-1234">
+            </div>
+            <div class="form-group">
+              <label for="benef_otro_descripcion" class="form-label">Descripción Adicional</label>
+              <textarea id="benef_otro_descripcion" class="form-textarea" rows="3" placeholder="Información adicional sobre este beneficiario"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelBeneficiaryBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveBeneficiaryBtn" class="btn-primary">Agregar Beneficiario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación de Eliminación -->
+  <div id="confirmDeleteModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ Confirmar Eliminación</h3>
+        <button class="modal-close" id="closeConfirmDeleteModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-primary); margin-bottom: 1.5rem; font-size: 1rem;">
+          Estás a punto de eliminar el evento: <strong id="deleteEventName"></strong>
+        </p>
+        <p style="color: var(--danger); margin-bottom: 1.5rem; font-size: 0.95rem;">
+          Esta acción requiere autorización de administrador. Por favor, ingresa tus credenciales:
+        </p>
+        
+        <form id="confirmDeleteForm">
+          <div class="form-group">
+            <label for="delete_username" class="form-label">Usuario *</label>
+            <input type="text" id="delete_username" class="form-input" placeholder="Tu usuario" required autocomplete="username">
+          </div>
+          
+          <div class="form-group">
+            <label for="delete_password" class="form-label">Contraseña *</label>
+            <input type="password" id="delete_password" class="form-input" placeholder="Tu contraseña" required autocomplete="current-password">
+          </div>
+          
+          <div id="deleteErrorMessage" style="display: none; color: var(--danger); padding: 0.75rem; background: rgba(244, 67, 54, 0.1); border-radius: 6px; margin-top: 1rem; font-size: 0.9rem;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="executeDeleteBtn" class="btn-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Eliminar Evento
+        </button>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/gestioneseventos.js' %}?v=28"></script>
+{% endblock %}
