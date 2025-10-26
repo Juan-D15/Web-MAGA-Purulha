@@ -1,104 +1,7 @@
 /* ======= JAVASCRIPT PARA PROYECTOS.HTML ======= */
 
-/* ---------- Dropdowns escritorio ---------- */
-let dropdowns = [];
-let closeAll = () => dropdowns.forEach(dd => {
-  const btn = dd.querySelector('.dd__btn');
-  const panel = dd.querySelector('.dd__panel');
-  if (btn && panel) {
-    btn.classList.remove('is-open');
-    btn.setAttribute('aria-expanded','false');
-    panel.classList.remove('show');
-  }
-});
-
-function setupDropdowns() {
-  dropdowns = document.querySelectorAll('.dd');
-  console.log('Configurando dropdowns:', dropdowns.length);
-  
-  dropdowns.forEach(dd=>{
-    const btn   = dd.querySelector('.dd__btn');
-    const panel = dd.querySelector('.dd__panel');
-    if (btn && panel) {
-      btn.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        const isOpen = panel.classList.contains('show');
-        closeAll();
-        if(!isOpen){
-          btn.classList.add('is-open');
-          btn.setAttribute('aria-expanded','true');
-          panel.classList.add('show');
-        }
-      });
-    }
-  });
-  
-  // Event listeners globales para cerrar dropdowns
-  document.addEventListener('click', (e)=>{ 
-    if(!e.target.closest('.dd')) closeAll(); 
-  });
-  document.addEventListener('keydown', (e)=>{ 
-    if(e.key === 'Escape') closeAll(); 
-  });
-}
-
-/* ---------- Buscador principal (demo) ---------- */
-function setupSearch() {
-  const searchBtn = document.querySelector('.search .mini');
-  if (searchBtn) {
-    searchBtn.addEventListener('click', (e)=>{
-      e.preventDefault();
-      const q = document.getElementById('buscar-proyecto').value.trim();
-      if(q) console.log('Buscar proyecto:', q);
-    });
-  }
-}
-
-/* ---------- Drawer móvil ---------- */
-function setupDrawer() {
-  const drawer = document.getElementById('drawer');
-  const btnHamburger = document.getElementById('btnHamburger');
-  const btnCloseDrawer = document.getElementById('btnCloseDrawer');
-  
-  if (!drawer || !btnHamburger || !btnCloseDrawer) {
-    console.log('Elementos del drawer no encontrados');
-    return;
-  }
-  
-  const openDrawer = () => {
-    drawer.classList.add('open');
-    drawer.setAttribute('aria-hidden','false');
-    btnHamburger.setAttribute('aria-expanded','true');
-    document.body.style.overflow='hidden';
-  };
-  
-  const closeDrawer = () => {
-    drawer.classList.remove('open');
-    drawer.setAttribute('aria-hidden','true');
-    btnHamburger.setAttribute('aria-expanded','false');
-    document.body.style.overflow='';
-  };
-  
-  btnHamburger.addEventListener('click', openDrawer);
-  btnCloseDrawer.addEventListener('click', closeDrawer);
-  drawer.addEventListener('click', (e)=>{ if(e.target === drawer) closeDrawer(); });
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDrawer(); });
-}
-
-// Acordeón dentro del drawer (excluyendo el menú de usuario móvil)
-function setupDrawerAccordion() {
-  document.querySelectorAll('.ddm:not(#mobileUserMenu)').forEach(ddm=>{
-    const btn = ddm.querySelector('.ddm__btn');
-    const panel = ddm.querySelector('.ddm__panel');
-    if (btn && panel) {
-      btn.addEventListener('click', ()=>{
-        const open = ddm.classList.toggle('open');
-        btn.setAttribute('aria-expanded', String(open));
-        panel.style.maxHeight = open ? panel.scrollHeight+'px' : '0px';
-      });
-    }
-  });
-}
+// NOTA: La funcionalidad de dropdowns, búsqueda y drawer está manejada por navigation.js
+// Este archivo solo contiene la lógica específica de la página de proyectos
 
 /* ---------- ANIMACIONES DE ENTRADA ---------- */
 const observerOptions = {
@@ -123,8 +26,11 @@ document.querySelectorAll('.project-card, .featured-card, .category-section').fo
   observer.observe(el);
 });
 
-// Datos de proyectos (simulados - en un proyecto real vendrían de una API)
-const projectsData = {
+// ======= DATOS DE PROYECTOS - CARGA DESDE BD =======
+console.log('📦 Proyectos.js - Usando datos desde la base de datos');
+
+// Los datos se cargarán desde la API
+let projectsData = {
   capacitaciones: [
     {
       id: 1,
@@ -762,11 +668,7 @@ let currentProjectData = null;
 let currentProjectId = null;
 let pendingAction = null; // Para almacenar la acción pendiente después de verificar credenciales
 
-// ======= CREDENCIALES DE ADMINISTRADOR =======
-const ADMIN_CREDENTIALS = {
-  username: 'admin',
-  password: 'admin'
-};
+// Sistema de permisos manejado por permisos.js y el backend
 
 // ======= DATOS FICTICIOS =======
 const availableCommunities = [
@@ -1979,12 +1881,6 @@ function addChangeToProject() {
 document.addEventListener('DOMContentLoaded', function() {
   console.log('DOM cargado, configurando event listeners...');
   
-  // Configurar componentes básicos
-  setupDropdowns();
-  setupSearch();
-  setupDrawer();
-  setupDrawerAccordion();
-  
   // Manejar anclas de URL al cargar la página
   handleUrlAnchor();
 
@@ -2018,12 +1914,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Botón "Agregar nuevo"
   document.getElementById('btnAgregarNuevo').addEventListener('click', function() {
     // Mostrar confirmación antes de redirigir
-    const confirmed = confirm('¿Está seguro que quiere crear un evento nuevo?\n\nAbandonará esta página y será redirigido al formulario de creación de eventos.');
-    
-    if (confirmed) {
-      // Redirigir a la página de gestión de eventos con scroll automático al formulario de creación
-      window.location.href = 'gestioneseventos.html#createEventView';
-    }
+  const confirmed = confirm('¿Está seguro que quiere crear un evento nuevo?\n\nAbandonará esta página y será redirigido al formulario de creación de eventos.');
+  
+  if (confirmed) {
+    // Redirigir a la página de gestión de eventos con scroll automático al formulario de creación
+    window.location.href = window.DJANGO_URLS.gestioneseventos + '#createEventView';
+  }
   });
 
   // Escuchar cambios en el hash de la URL
@@ -2074,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const editEventBtn = document.getElementById('editEventBtn');
   if (editEventBtn) {
     editEventBtn.addEventListener('click', function() {
-      window.location.href = 'gestioneseventos.html#manageEventView';
+      window.location.href = window.DJANGO_URLS.gestioneseventos + '#manageEventView';
     });
   }
 

@@ -1,7 +1,8 @@
-// ======= DATOS DE REGIONES =======
-// Updated: 2025-01-25 03:13 - Complete rewrite without credential functions
-console.log('REGIONES.JS LOADED - VERSION 2025-01-25 03:13 - NO CREDENTIALS - DIRECT ACCESS ONLY');
-const regionsData = {
+// ======= DATOS DE REGIONES - CARGA DESDE BD =======
+console.log('📦 Regiones.js - Usando datos desde la base de datos');
+
+// Los datos se cargarán desde la API
+let regionsData = {
   'region-norte': {
     id: 'region-norte',
     name: 'Región Norte',

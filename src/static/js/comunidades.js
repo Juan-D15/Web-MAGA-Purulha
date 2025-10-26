@@ -1,69 +1,10 @@
 /* ======= FUNCIONALIDAD PARA COMUNIDADES ======= */
 
-// ======= DROPDOWNS ESCRITORIO =======
-const dropdowns = document.querySelectorAll('.dd');
-const closeAll = () => dropdowns.forEach(dd => {
-  dd.querySelector('.dd__btn').classList.remove('is-open');
-  dd.querySelector('.dd__btn').setAttribute('aria-expanded','false');
-  dd.querySelector('.dd__panel').classList.remove('show');
-});
-dropdowns.forEach(dd=>{
-  const btn   = dd.querySelector('.dd__btn');
-  const panel = dd.querySelector('.dd__panel');
-  btn.addEventListener('click', ()=>{
-    const isOpen = panel.classList.contains('show');
-    closeAll();
-    if(!isOpen){
-      btn.classList.add('is-open');
-      btn.setAttribute('aria-expanded','true');
-      panel.classList.add('show');
-    }
-  });
-});
-document.addEventListener('click', (e)=>{ if(!e.target.closest('.dd')) closeAll(); });
-document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeAll(); });
+// ======= DATOS DE COMUNIDADES - CARGA DESDE BD =======
+console.log('📦 Comunidades.js - Usando datos desde la base de datos');
 
-// ======= BUSCADOR PRINCIPAL =======
-document.querySelector('.search .mini').addEventListener('click', (e)=>{
-  e.preventDefault();
-  const q = document.getElementById('buscar-comunidad').value.trim();
-  if(q) console.log('Buscar comunidad:', q);
-});
-
-// ======= DRAWER MÓVIL =======
-const drawer = document.getElementById('drawer');
-const btnHamburger = document.getElementById('btnHamburger');
-const btnCloseDrawer = document.getElementById('btnCloseDrawer');
-const openDrawer = () => {
-  drawer.classList.add('open');
-  drawer.setAttribute('aria-hidden','false');
-  btnHamburger.setAttribute('aria-expanded','true');
-  document.body.style.overflow='hidden';
-};
-const closeDrawer = () => {
-  drawer.classList.remove('open');
-  drawer.setAttribute('aria-hidden','true');
-  btnHamburger.setAttribute('aria-expanded','false');
-  document.body.style.overflow='';
-};
-btnHamburger.addEventListener('click', openDrawer);
-btnCloseDrawer.addEventListener('click', closeDrawer);
-drawer.addEventListener('click', (e)=>{ if(e.target === drawer) closeDrawer(); });
-document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeDrawer(); });
-
-// Acordeón dentro del drawer
-document.querySelectorAll('.ddm').forEach(ddm=>{
-  const btn = ddm.querySelector('.ddm__btn');
-  const panel = ddm.querySelector('.ddm__panel');
-  btn.addEventListener('click', ()=>{
-    const open = ddm.classList.toggle('open');
-    btn.setAttribute('aria-expanded', String(open));
-    panel.style.maxHeight = open ? panel.scrollHeight+'px' : '0px';
-  });
-});
-
-// ======= DATOS DE COMUNIDADES =======
-const communitiesData = {
+// Los datos se cargarán desde la API
+let communitiesData = {
   'san-jose': {
     name: 'San José',
     region: 'Región Norte',
@@ -231,11 +172,7 @@ const allCommunitiesData = [
   { id: 'las-flores', name: 'Las Flores', region: 'Región Norte', type: 'Barrio', hasProjects: false, lastUpdate: '2024-11-03' }
 ];
 
-// Credenciales de administrador (ya no se usan)
-// const ADMIN_CREDENTIALS = {
-//   user: 'admin',
-//   password: 'admin'
-// };
+// Sistema de permisos manejado por permisos.js y el backend
 
 // Variables globales
 let currentCommunityData = null;

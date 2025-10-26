@@ -184,18 +184,69 @@ function sendRecoveryCode(email) {
   document.getElementById('recoveryCode').focus();
 }
 
-// Función para validar credenciales (simulada)
-function validateCredentials(username, password) {
-  // Credenciales de prueba
-  const validCredentials = [
-    { username: 'admin', password: 'admin123', name: 'Administrador', email: 'admin@maga.gt' },
-    { username: 'usuario', password: 'usuario123', name: 'Usuario', email: 'usuario@maga.gt' },
-    { username: 'test@maga.gt', password: 'test123', name: 'Usuario Test', email: 'test@maga.gt' }
-  ];
-  
-  return validCredentials.find(cred => 
-    (cred.username === username || cred.email === username) && cred.password === password
-  );
+// Función para validar credenciales con el backend de Django
+async function validateCredentials(username, password) {
+  try {
+    // Obtener el CSRF token
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+    
+    // Hacer petición al backend de Django
+    const response = await fetch('/login/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': csrftoken
+      },
+      body: new URLSearchParams({
+        'username': username,
+        'password': password,
+        'remember_me': document.getElementById('rememberUser')?.checked || false
+      })
+    });
+    
+    // Si la respuesta es una redirección (login exitoso)
+    if (response.redirected) {
+      return { 
+        success: true, 
+        redirectUrl: response.url,
+        username: username 
+      };
+    }
+    
+    // Si es 200 pero no redirige, obtener el HTML y buscar errores
+    const html = await response.text();
+    
+    // Verificar si hay errores en el HTML
+    if (html.includes('Credenciales incorrectas') || html.includes('Usuario o contraseña incorrectos')) {
+      return null;
+    }
+    
+    // Si llegamos aquí, asumimos que el login fue exitoso
+    return { 
+      success: true, 
+      username: username 
+    };
+    
+  } catch (error) {
+    console.error('Error al validar credenciales:', error);
+    return null;
+  }
+}
+
+// Función auxiliar para obtener el CSRF token de las cookies
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
 }
 
 // Función para detectar la página de origen al cargar el login
@@ -253,49 +304,30 @@ document.addEventListener('DOMContentLoaded', function() {
   // Detectar la página de origen al cargar
   detectOriginPage();
   
-  // Formulario de login
-  document.getElementById('loginForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const username = document.getElementById('usernameOrEmail').value;
-    const password = document.getElementById('password').value;
-    const rememberUser = document.getElementById('rememberUser').checked;
-    
-    // Validar credenciales
-    const user = validateCredentials(username, password);
-    
-    if (user) {
-      // Guardar información del usuario
-      if (rememberUser) {
-        localStorage.setItem('userInfo', JSON.stringify(user));
-      } else {
-        sessionStorage.setItem('userInfo', JSON.stringify(user));
+  // Formulario de login - DEJAR QUE DJANGO LO MANEJE
+  // El formulario se envía normalmente (sin preventDefault)
+  // Django validará las credenciales y manejará la redirección
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', function(e) {
+      // Verificar si es el formulario del modal (sin action definida originalmente)
+      const isModal = this.closest('.login-modal') !== null;
+      
+      // Mostrar indicador de carga
+      const submitButton = this.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Validando...';
       }
       
-      // Ocultar modal
-      hideLoginModal();
-      
-      // Detectar si el login se inició desde una acción de Gestiones
-      const gestionesAction = isFromGestionesAction();
-      
-      // Redirigir según la acción solicitada o a la página de origen
-      if (targetAction === 'createEventView' || gestionesAction === 'createEventView') {
-        window.location.href = '/gestioneseventos/';
-      } else if (targetAction === 'manageEventView' || gestionesAction === 'manageEventView') {
-        window.location.href = '/gestioneseventos/';
-      } else if (targetAction === 'createReport' || gestionesAction === 'createReport') {
-        window.location.href = '/gestioneseventos/';
-      } else if (originPage && originPage !== window.location.href) {
-        // Redirigir a la página de origen si existe y es diferente a la actual
-        window.location.href = originPage;
-      } else {
-        // Redirigir a la página principal por defecto
-        window.location.href = '/';
+      // Si es el modal y no tiene action, prevenir y redirigir manualmente
+      if (isModal && !this.hasAttribute('data-submitted')) {
+        // Marcar como enviado para evitar loops
+        this.setAttribute('data-submitted', 'true');
       }
-    } else {
-      alert('Credenciales incorrectas. Intenta nuevamente.');
-    }
-  });
+      // NO hacer preventDefault() - dejar que el formulario se envíe normalmente
+    });
+  }
   
   // Formulario de recuperación
   document.getElementById('forgotPasswordForm').addEventListener('submit', function(e) {
@@ -360,4 +392,14 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   });
+  
+  // Exponer funciones globalmente para que puedan ser llamadas desde otros archivos
+  window.showLoginModal = showLoginModal;
+  window.hideLoginModal = hideLoginModal;
+  window.showLoginForm = showLoginForm;
+  window.showForgotPassword = showForgotPassword;
+  window.showResetPassword = showResetPassword;
+  window.togglePassword = togglePassword;
+  window.toggleNewPassword = toggleNewPassword;
+  window.toggleConfirmPassword = toggleConfirmPassword;
 });
