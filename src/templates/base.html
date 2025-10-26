@@ -1,0 +1,443 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Gestión de Eventos — Purulhá{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
+  
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+  <!-- ======= TOP / ENCABEZADO ======= -->
+  <header class="topbar" role="banner">
+    <div class="topbar__inner">
+      <!-- Logos para escritorio (MAGA a la izquierda) + un logo móvil adicional -->
+        <div class="brand" aria-label="Logotipos">
+          <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" loading="eager" class="brand__maga">
+          <!-- Este segundo logo solo se muestra en móvil para "juntar los dos logos" -->
+          <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo Purulhá (móvil)" class="brand__purulha-mobile" loading="eager">
+        </div>
+
+      <!-- Títulos (se ocultan en móvil) -->
+      <div class="headline">
+        <h1>MAGA — PURULHÁ</h1>
+        <p>{% block header_subtitle %}Gestión de Eventos{% endblock %}</p>
+      </div>
+
+      <div class="right-actions">
+        <!-- Logo de MAGA (solo escritorio/tablet) -->
+        <div class="right-logo" aria-label="Logo MAGA">
+          <img src="{% static 'img/logos/maga_logo.png' %}" alt="Logo MAGA" loading="eager">
+        </div>
+        <!-- Botón hamburguesa (móvil) -->
+        <button class="hamburger" id="btnHamburger" aria-label="Abrir menú" aria-controls="drawer" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ======= NAV ======= -->
+    <nav class="nav" role="navigation" aria-label="Menú principal">
+      <div class="nav__inner">
+        <!-- Ítems de la cinta (ocultos en móvil) -->
+        <div class="nav__group">
+          <a class="nav__link {% block nav_inicio %}{% endblock %}" href="{% url 'webmaga:index' %}">Inicio</a>
+          <a class="nav__link {% block nav_mapa %}{% endblock %}" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+          <!-- Proyectos Activos -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Proyectos Activos <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Proyectos Activos">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}" role="menuitem" tabindex="0">Ver Todos</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#capacitaciones" role="menuitem" tabindex="0">Capacitaciones</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#entregas" role="menuitem" tabindex="0">Entregas</a>
+                  <a class="dd__item" href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" role="menuitem" tabindex="0">Proyectos de Ayuda</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gestiones (Solo para Admin) -->
+          {% if es_admin %}
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Gestiones <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Gestiones">
+              <div class="dd__section">
+                <div class="dd__grid">
+                  <a class="dd__item" href="#" onclick="handleGestionesAction('createEventView'); return false;" role="menuitem" tabindex="0">Agregar Evento</a>
+                  <a class="dd__item" href="#" onclick="handleGestionesAction('manageEventView'); return false;" role="menuitem" tabindex="0">Editar Evento</a>
+                  <a class="dd__item" href="#" onclick="handleGestionesAction('createReport'); return false;" role="menuitem" tabindex="0">Crear Reporte</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Comunidades -->
+          <div class="dd">
+            <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
+              Comunidades <span class="chev" aria-hidden="true"></span>
+            </button>
+            <div class="dd__panel" role="menu" aria-label="Comunidades">
+              <div class="dd__search" role="search">
+                <span class="icon icon--white" aria-hidden="true"></span>
+                <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades" id="search-comunidades">
+              </div>
+              <div class="dd__section">
+                <div class="dd__grid" id="comunidades-list">
+                  <a class="dd__item" href="{% url 'webmaga:comunidades' %}" role="menuitem" tabindex="0" data-name="Ver Comunidades">Ver Comunidades</a>
+                  <a class="dd__item" href="{% url 'webmaga:regiones' %}" role="menuitem" tabindex="0" data-name="Ver Regiones">Ver Regiones</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buscador principal (permanece en móvil) -->
+        <div class="search" role="search">
+          <div class="search__wrap">
+            <input id="{% block search_input_id %}buscar-proyecto{% endblock %}" type="search" placeholder="{% block search_placeholder %}Buscar proyecto…{% endblock %}" aria-label="{% block search_label %}Buscar proyecto{% endblock %}">
+            <button class="mini mini--ghost" aria-label="Buscar">
+              <span class="icon icon--white" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Icono de usuario en desktop (junto al buscador) -->
+        <div class="nav-user-icon" id="navUserIcon" aria-label="Información de usuario">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+
+      </div>
+    </nav>
+  </header>
+
+  <!-- Dropdown flotante del usuario (fuera de la cinta) -->
+  <div class="nav-user-dropdown" id="navUserDropdown" style="display: none;">
+    <!-- Contenido cuando hay sesión activa -->
+    <div class="nav-user-dropdown-content" id="navUserLoggedIn" style="display: {% if user.is_authenticated %}block{% else %}none{% endif %};">
+      <div class="nav-user-dropdown-header">
+      <div class="nav-user-dropdown-avatar" id="navUserAvatar">
+        {% if usuario_maga %}{{ usuario_maga.username|first|upper }}{% else %}U{% endif %}
+      </div>
+      <div>
+        <h4 class="nav-user-dropdown-name" id="navUserName">
+          {% if usuario_maga %}{{ usuario_maga.username }}{% else %}Usuario{% endif %}
+        </h4>
+        <p class="nav-user-dropdown-email" id="navUserEmail">
+          {% if usuario_maga %}{{ usuario_maga.email }}{% else %}usuario@maga.gt{% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="nav-user-dropdown-menu">
+      <button class="nav-user-dropdown-item" id="navProfileBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        Mi Perfil
+      </button>
+      <button class="nav-user-dropdown-item" id="navSettingsBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        Configuración
+      </button>
+      <div class="nav-user-dropdown-divider"></div>
+      <button class="nav-user-dropdown-item" id="navLogoutBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        Cerrar Sesión
+      </button>
+    </div>
+    </div>
+
+    <!-- Contenido cuando NO hay sesión activa -->
+    <div class="nav-user-dropdown-content" id="navUserLoggedOut" style="display: {% if user.is_authenticated %}none{% else %}block{% endif %};">
+      <div class="nav-user-dropdown-header">
+        <div class="nav-user-dropdown-avatar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div>
+          <h4 class="nav-user-dropdown-name">Iniciar Sesión</h4>
+          <p class="nav-user-dropdown-email">Accede al sistema</p>
+        </div>
+      </div>
+      <div class="nav-user-dropdown-menu">
+        <button class="nav-user-dropdown-item nav-user-dropdown-primary" id="navLoginBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
+          Acceder al Sistema
+        </button>
+        <div class="nav-user-dropdown-divider"></div>
+        <button class="nav-user-dropdown-item" id="navCloseBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= DRAWER MÓVIL ======= -->
+  <aside class="drawer" id="drawer" aria-hidden="true" inert>
+    <div class="drawer__panel" role="dialog" aria-label="Menú móvil" aria-modal="true">
+      <button class="drawer__close" id="btnCloseDrawer" aria-label="Cerrar menú">
+        <span></span><span></span>
+      </button>
+
+      <nav class="drawer__menu">
+        <a class="drawer__link" href="{% url 'webmaga:index' %}">Inicio</a>
+        <a class="drawer__link" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Proyectos Activos <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="{% url 'webmaga:proyectos' %}" class="ddm__item">Ver Todos</a>
+            <a href="{% url 'webmaga:proyectos' %}#capacitaciones" class="ddm__item">Capacitaciones</a>
+            <a href="{% url 'webmaga:proyectos' %}#entregas" class="ddm__item">Entregas</a>
+            <a href="{% url 'webmaga:proyectos' %}#proyectos-ayuda" class="ddm__item">Proyectos de Ayuda</a>
+          </div>
+        </div>
+
+        <!-- Gestiones Móvil (Solo para Admin) -->
+        {% if es_admin %}
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Gestiones <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <a href="#" onclick="handleGestionesAction('createEventView'); return false;" class="ddm__item">Agregar Evento</a>
+            <a href="#" onclick="handleGestionesAction('manageEventView'); return false;" class="ddm__item">Editar Evento</a>
+            <a href="#" onclick="handleGestionesAction('createReport'); return false;" class="ddm__item">Crear Reporte</a>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="ddm">
+          <button class="ddm__btn" aria-expanded="false">
+            Comunidades <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <div class="ddm__search">
+              <span class="icon icon--white" aria-hidden="true"></span>
+              <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades">
+            </div>
+            <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
+            <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
+          </div>
+        </div>
+
+        <!-- Usuario en móvil -->
+        <div class="ddm" id="mobileUserMenu">
+          <!-- Contenido cuando hay sesión activa -->
+          <div id="mobileUserLoggedIn" style="display: {% if user.is_authenticated %}block{% else %}none{% endif %};">
+            <button class="ddm__btn" aria-expanded="false">
+            <div class="mobile-user-info">
+              <div class="mobile-user-avatar" id="mobileUserAvatar">
+                {% if usuario_maga %}{{ usuario_maga.username|first|upper }}{% else %}U{% endif %}
+              </div>
+              <span id="mobileUserName">
+                {% if usuario_maga %}{{ usuario_maga.username }}{% else %}Usuario{% endif %}
+              </span>
+            </div>
+            <span class="car"></span>
+          </button>
+          <div class="ddm__panel">
+            <div class="mobile-user-details">
+              <div class="mobile-user-email" id="mobileUserEmail">
+                {% if usuario_maga %}{{ usuario_maga.email }}{% else %}usuario@maga.gt{% endif %}
+              </div>
+            </div>
+            <button class="ddm__item mobile-user-action" id="mobileProfileBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Mi Perfil
+            </button>
+            <button class="ddm__item mobile-user-action" id="mobileSettingsBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              Configuración
+            </button>
+            <button class="ddm__item mobile-user-action mobile-logout" id="mobileLogoutBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Cerrar Sesión
+            </button>
+          </div>
+          </div>
+
+          <!-- Contenido cuando NO hay sesión activa -->
+          <div id="mobileUserLoggedOut" style="display: {% if user.is_authenticated %}none{% else %}block{% endif %};">
+            <button class="ddm__btn" aria-expanded="false">
+              <div class="mobile-user-info">
+                <div class="mobile-user-avatar">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </div>
+                <span>Iniciar Sesión</span>
+              </div>
+              <span class="car"></span>
+            </button>
+            <div class="ddm__panel">
+              <div class="mobile-user-details">
+                <div class="mobile-user-email">Accede al sistema</div>
+              </div>
+              <button class="ddm__item mobile-user-action mobile-login" id="mobileLoginBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                  <polyline points="10 17 15 12 10 7"></polyline>
+                  <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                Acceder al Sistema
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </aside>
+
+  
+  <!-- ======= CONTENIDO PRINCIPAL ======= -->
+  {% block content %}
+  {% endblock %}
+
+  <!-- ======= SECCIÓN DE CONTACTO / FOOTER ======= -->
+  <footer class="contact-section">
+    <div class="contact-container">
+      <!-- Columna izquierda - Información de contacto -->
+      <div class="contact-info">
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          <div class="contact-text">
+            <p><strong>Oficina Regional</strong></p>
+            <p>Kilómetro 164 CA-14</p>
+            <p>Purulhá, B.V.</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          <div class="contact-text">
+            <p>(502) 3015-6925</p>
+          </div>
+        </div>
+        
+        <div class="contact-item">
+          <svg class="contact-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <div class="contact-text">
+            <p>magaepurulha@gob.gt</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna central - Logo -->
+      <div class="contact-logo">
+        <img src="{% static 'img/logos/logo_maga.png' %}" alt="Logo MAGA" class="maga-logo">
+      </div>
+
+      <!-- Columna derecha - Redes sociales y enlaces -->
+      <div class="contact-links">
+        <h4>Únete a nuestra comunidad</h4>
+        <div class="social-links">
+          <a href="#" class="social-link facebook" aria-label="Facebook">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+            </svg>
+          </a>
+          <a href="#" class="social-link instagram" aria-label="Instagram">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+            </svg>
+          </a>
+        </div>
+        <div class="footer-links">
+          <a href="#" class="footer-link">Preguntas Frecuentes</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ======= SCRIPTS BASE ======= -->
+  <!-- Script para pasar variables de Django al JavaScript -->
+  <script>
+    // Pasar variables de Django al JavaScript (disponible en todas las páginas)
+    (function() {
+      var djangoUrls = {
+        mapaCompleto: '{% url "webmaga:mapa-completo" %}',
+        login: '{% url "webmaga:login" %}',
+        logout: '{% url "webmaga:logout" %}',
+        gestioneseventos: '{% url "webmaga:gestioneseventos" %}',
+        proyectos: '{% url "webmaga:proyectos" %}'
+      };
+      
+      var userAuth = {
+        isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
+        isAdmin: {% if es_admin %}true{% else %}false{% endif %},
+        username: "{% if usuario_maga %}{{ usuario_maga.username }}{% else %}{% endif %}",
+        email: "{% if usuario_maga %}{{ usuario_maga.email }}{% else %}{% endif %}"
+      };
+      
+      // Hacer disponibles globalmente
+      window.DJANGO_URLS = djangoUrls;
+      window.USER_AUTH = userAuth;
+    })();
+  </script>
+  
+  <script src="{% static 'js/navigation.js' %}"></script>
+  <script src="{% static 'js/admin-gestiones.js' %}"></script>
+  
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
+
