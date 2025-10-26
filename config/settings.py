@@ -63,6 +63,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'webmaga.context_processors.usuario_maga',  # Context processor personalizado
             ],
         },
     },
@@ -76,14 +77,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD', ''),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
 
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+
+# Backend de autenticación personalizado
+AUTHENTICATION_BACKENDS = [
+    'webmaga.authentication.UsuarioMAGABackend',  # Backend personalizado para tabla usuarios
+    'django.contrib.auth.backends.ModelBackend',  # Backend por defecto de Django
+]
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -100,13 +111,18 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# URLs de autenticación
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/login/'
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-gt'  # Español de Guatemala
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Guatemala'  # Zona horaria de Guatemala (UTC-6)
 
 USE_I18N = True
 
