@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Usuario, Region, TipoComunidad, Comunidad, ComunidadAutoridad,
+    Puesto, Usuario, Region, TipoComunidad, Comunidad, ComunidadAutoridad,
     TipoActividad, TipoBeneficiario, Beneficiario, BeneficiarioIndividual,
     BeneficiarioFamilia, BeneficiarioInstitucion, Actividad, ActividadPersonal,
     ActividadBeneficiario, Evidencia, ActividadCambio, ActividadArchivo,
@@ -11,9 +11,29 @@ from .models import (
 # CONFIGURACIÓN DE ADMIN - USUARIOS Y GEOGRAFÍA
 # =====================================================
 
+@admin.register(Puesto)
+class PuestoAdmin(admin.ModelAdmin):
+    list_display = ['codigo', 'nombre', 'activo', 'creado_en']
+    list_filter = ['activo']
+    search_fields = ['codigo', 'nombre']
+    readonly_fields = ['id', 'creado_en', 'actualizado_en']
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('codigo', 'nombre', 'descripcion')
+        }),
+        ('Estado', {
+            'fields': ('activo',)
+        }),
+        ('Fechas', {
+            'fields': ('creado_en', 'actualizado_en'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
 @admin.register(Usuario)
 class UsuarioAdmin(admin.ModelAdmin):
-    list_display = ['username', 'email', 'rol', 'activo', 'creado_en']
+    list_display = ['username', 'email', 'rol', 'puesto', 'activo', 'creado_en']
     list_filter = ['rol', 'activo']
     search_fields = ['username', 'email', 'telefono']
     readonly_fields = ['id', 'creado_en', 'actualizado_en']
@@ -22,7 +42,7 @@ class UsuarioAdmin(admin.ModelAdmin):
             'fields': ('username', 'email', 'telefono', 'password_hash')
         }),
         ('Roles y Permisos', {
-            'fields': ('rol', 'activo', 'permite_offline')
+            'fields': ('rol', 'puesto', 'activo', 'permite_offline')
         }),
         ('Seguridad', {
             'fields': ('intentos_fallidos', 'bloqueado_hasta')

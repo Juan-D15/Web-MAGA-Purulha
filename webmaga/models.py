@@ -6,6 +6,27 @@ import uuid
 # MODELOS BASE
 # =====================================================
 
+class Puesto(models.Model):
+    """Puestos de trabajo para personal de la organización"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    codigo = models.CharField(max_length=20, unique=True)
+    nombre = models.CharField(max_length=100)
+    descripcion = models.TextField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'puestos'
+        verbose_name = 'Puesto'
+        verbose_name_plural = 'Puestos'
+        ordering = ['nombre']
+    
+    def __str__(self):
+        return f"{self.codigo} - {self.nombre}"
+
+
 class Usuario(models.Model):
     """Usuarios del sistema MAGA - Sistema simplificado con 2 roles: admin y personal"""
     
@@ -20,6 +41,7 @@ class Usuario(models.Model):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     password_hash = models.TextField()
     rol = models.CharField(max_length=50, choices=ROL_CHOICES, default='personal')
+    puesto = models.ForeignKey(Puesto, on_delete=models.SET_NULL, null=True, blank=True, related_name='usuarios', db_column='puesto_id')
     activo = models.BooleanField(default=True)
     intentos_fallidos = models.IntegerField(default=0)
     bloqueado_hasta = models.DateTimeField(blank=True, null=True)
