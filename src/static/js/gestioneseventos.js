@@ -158,7 +158,18 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const label = document.createElement('label');
             label.htmlFor = `personal-${persona.id}`;
-            label.textContent = `${persona.username} (${persona.rol_display})`;
+            
+            // Crear estructura mejorada para mostrar nombre, puesto y rol
+            const puestoInfo = persona.puesto || 'Sin puesto asignado';
+            const rolInfo = persona.rol_display || persona.rol || 'Personal';
+            
+            label.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-weight: 600; color: #f8f9fa; font-size: 0.95rem;">${persona.username}</span>
+                    <span style="font-size: 0.85rem; color: #007bff; font-weight: 500;">${puestoInfo}</span>
+                    <span style="font-size: 0.8rem; color: #b8c5d1; text-transform: capitalize;">${rolInfo}</span>
+                </div>
+            `;
             
             item.appendChild(checkbox);
             item.appendChild(label);
@@ -172,7 +183,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedPersonnel = document.getElementById('selectedPersonnel');
         if (!selectedPersonnel) return;
         
-        selectedPersonnel.innerHTML = `<span class="selected-count">${selectedPersonnelList.length} personal seleccionado</span>`;
+        const count = selectedPersonnelList.length;
+        const icon = count > 0 ? '✓' : '';
+        const text = count === 1 ? '1 persona seleccionada' : `${count} personas seleccionadas`;
+        
+        selectedPersonnel.innerHTML = `
+            <span class="selected-count" style="display: flex; align-items: center; gap: 6px;">
+                ${count > 0 ? `<span style="color: #28a745; font-size: 16px;">${icon}</span>` : ''}
+                ${text}
+            </span>
+        `;
     }
     
     // ===== GESTIÓN DE BENEFICIARIOS =====
@@ -402,14 +422,37 @@ document.addEventListener('DOMContentLoaded', function() {
     // Renderizar beneficiarios existentes (en modo edición)
     function renderBeneficiariosExistentes() {
         const container = document.getElementById('beneficiariesContainer');
+        const beneficiariesSection = document.getElementById('beneficiariesSection');
+        const beneficiaryCount = document.getElementById('beneficiaryCount');
+        
         if (!container) return;
+        
+        // Si no hay beneficiarios existentes ni nuevos, ocultar sección
+        if (beneficiariosExistentes.length === 0 && beneficiariosNuevos.length === 0) {
+            if (beneficiariesSection) {
+                beneficiariesSection.style.display = 'none';
+            }
+            return;
+        }
+        
+        // Mostrar sección
+        if (beneficiariesSection) {
+            beneficiariesSection.style.display = 'block';
+        }
+        
+        // Actualizar contador
+        if (beneficiaryCount) {
+            const total = beneficiariosExistentes.length + beneficiariosNuevos.length;
+            const text = total === 1 ? '1 beneficiario' : `${total} beneficiarios`;
+            beneficiaryCount.textContent = text;
+        }
         
         container.innerHTML = '';
         
         if (beneficiariosExistentes.length > 0) {
             const headerDiv = document.createElement('div');
             headerDiv.style.cssText = 'padding: 12px; background: rgba(33, 150, 243, 0.1); border-radius: 8px; border: 1px solid rgba(33, 150, 243, 0.3); margin-bottom: 12px;';
-            headerDiv.innerHTML = '<p style="margin: 0; color: #2196F3; font-size: 0.9rem; font-weight: 600;">✓ ' + beneficiariosExistentes.length + ' beneficiarios asociados</p><p style="margin: 8px 0 0 0; color: #6c757d; font-size: 0.85rem;">Puedes eliminar beneficiarios o agregar nuevos</p>';
+            headerDiv.innerHTML = '<p style="margin: 0; color: #2196F3; font-size: 0.9rem; font-weight: 600;">✓ ' + beneficiariosExistentes.length + ' beneficiarios asociados</p><p style="margin: 8px 0 0 0; color: #b8c5d1; font-size: 0.85rem;">Puedes editar, eliminar o agregar nuevos</p>';
             container.appendChild(headerDiv);
             
             beneficiariosExistentes.forEach((benef, index) => {
@@ -474,8 +517,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // Si realmente no hay nada después de renderizar, ocultar sección
         if (beneficiariosExistentes.length === 0 && beneficiariosNuevos.length === 0) {
-            container.innerHTML = '<p style="color: #6c757d; font-style: italic; text-align: center; padding: 20px 0;">No hay beneficiarios. Haz click en "Agregar Beneficiario" para registrar uno.</p>';
+            if (beneficiariesSection) {
+                beneficiariesSection.style.display = 'none';
+            }
         }
     }
     
@@ -619,16 +665,32 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function renderBeneficiarios() {
+        const beneficiariesSection = document.getElementById('beneficiariesSection');
+        const beneficiaryCount = document.getElementById('beneficiaryCount');
+        
+        // Si no hay beneficiarios, ocultar sección
         if (beneficiariosNuevos.length === 0) {
-            beneficiariesContainer.innerHTML = '<p style="color: #6c757d; font-style: italic; text-align: center; padding: 20px 0;">No hay beneficiarios agregados. Haz click en "Agregar Beneficiario" para registrar uno.</p>';
+            if (beneficiariesSection) {
+                beneficiariesSection.style.display = 'none';
+            }
             return;
+        }
+        
+        // Mostrar sección y actualizar contador
+        if (beneficiariesSection) {
+            beneficiariesSection.style.display = 'block';
+        }
+        
+        if (beneficiaryCount) {
+            const text = beneficiariosNuevos.length === 1 ? '1 beneficiario' : `${beneficiariosNuevos.length} beneficiarios`;
+            beneficiaryCount.textContent = text;
         }
         
         beneficiariesContainer.innerHTML = '';
         
         beneficiariosNuevos.forEach((benef, index) => {
             const item = document.createElement('div');
-            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);';
+            item.className = 'beneficiary-item-display';
             
             let tipoIcon = '👤';
             if (benef.tipo === 'individual') tipoIcon = '👤';
@@ -637,15 +699,16 @@ document.addEventListener('DOMContentLoaded', function() {
             else if (benef.tipo === 'otro') tipoIcon = '📋';
             
             item.innerHTML = `
-                <div style="display: flex; gap: 12px; align-items: center; flex: 1;">
-                    <span style="font-size: 1.5rem;">${tipoIcon}</span>
-                    <div>
-                        <div style="color: #b8c5d1; font-weight: 600;">${benef.display_name}</div>
-                        <div style="color: #6c757d; font-size: 0.85rem;">Tipo: ${benef.tipo}</div>
-                    </div>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="8.5" cy="7" r="4"></circle>
+                </svg>
+                <div style="flex: 1;">
+                    <div style="color: #ffffff; font-weight: 600; margin-bottom: 2px;">${benef.display_name}</div>
+                    <div style="color: #b8c5d1; font-size: 0.85rem; text-transform: capitalize;">${benef.tipo}</div>
                 </div>
-                <button type="button" class="btn-remove-beneficiary" data-index="${index}" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 1.3rem; font-weight: bold; padding: 0 8px;" title="Eliminar beneficiario">
-                    ×
+                <button type="button" class="btn-remove-beneficiary" data-index="${index}" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.3s;" title="Eliminar beneficiario">
+                    ✖ Quitar
                 </button>
             `;
             
@@ -658,6 +721,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 beneficiariosNuevos.splice(idx, 1);
                 console.log('➖ Beneficiario eliminado');
                 renderBeneficiarios();
+            });
+            
+            // Hover effect
+            removeBtn.addEventListener('mouseenter', function() {
+                this.style.background = '#c82333';
+            });
+            removeBtn.addEventListener('mouseleave', function() {
+                this.style.background = '#dc3545';
             });
         });
         

@@ -353,9 +353,16 @@ def api_crear_evento(request):
             if data.get('personal_ids'):
                 try:
                     personal_ids = json.loads(data['personal_ids'])
-                    for personal_data in personal_ids:
-                        usuario_id = personal_data.get('id')
-                        rol = personal_data.get('rol', 'Colaborador')
+                    for item in personal_ids:
+                        # Manejar tanto strings (IDs) como objetos {"id": "...", "rol": "..."}
+                        if isinstance(item, str):
+                            usuario_id = item
+                            rol = 'Colaborador'
+                        elif isinstance(item, dict):
+                            usuario_id = item.get('id')
+                            rol = item.get('rol', 'Colaborador')
+                        else:
+                            continue
                         
                         if usuario_id:
                             ActividadPersonal.objects.create(
@@ -364,6 +371,7 @@ def api_crear_evento(request):
                                 rol_en_actividad=rol
                             )
                 except (json.JSONDecodeError, ValueError) as e:
+                    print(f"Error al asignar personal: {e}")
                     pass  # Ignorar si no hay personal válido
             
             # 3. Crear y asignar beneficiarios nuevos
@@ -523,7 +531,7 @@ def api_crear_evento(request):
 @permiso_gestionar_eventos
 def api_listar_personal(request):
     """API: Listar personal disponible para asignar a eventos"""
-    usuarios = Usuario.objects.filter(activo=True).order_by('username')
+    usuarios = Usuario.objects.filter(activo=True).select_related('puesto').order_by('username')
     
     personal_list = []
     for usuario in usuarios:
@@ -532,7 +540,8 @@ def api_listar_personal(request):
             'username': usuario.username,
             'email': usuario.email,
             'rol': usuario.rol,
-            'rol_display': usuario.get_rol_display()
+            'rol_display': usuario.get_rol_display(),
+            'puesto': usuario.puesto.nombre if usuario.puesto else None
         })
     
     return JsonResponse(personal_list, safe=False)
@@ -652,7 +661,7 @@ def api_obtener_evento(request, evento_id):
         evento = Actividad.objects.select_related(
             'tipo', 'comunidad', 'responsable'
         ).prefetch_related(
-            'personal__usuario',
+            'personal__usuario__puesto',
             'beneficiarios__beneficiario__individual',
             'beneficiarios__beneficiario__familia',
             'beneficiarios__beneficiario__institucion',
@@ -666,7 +675,8 @@ def api_obtener_evento(request, evento_id):
                 'id': str(ap.usuario.id),
                 'username': ap.usuario.username,
                 'rol': ap.rol_en_actividad,
-                'rol_display': ap.usuario.get_rol_display()
+                'rol_display': ap.usuario.get_rol_display(),
+                'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else None
             })
         
         # Beneficiarios con detalles completos
@@ -927,7 +937,7 @@ def api_actualizar_evento(request, evento_id):
                                 benef_inst.tipo_institucion = 'otro'
                                 benef_inst.representante_legal = benef_data.get('contacto')
                                 benef_inst.telefono = benef_data.get('telefono')
-                                benef_inst.observaciones = benef_data.get('descripcion')
+                                # Nota: El campo observaciones no existe en el modelo
                                 benef_inst.save()
                                 print(f"✅ Otro actualizado: {benef_inst.nombre_institucion}")
                             except BeneficiarioInstitucion.DoesNotExist:

@@ -110,9 +110,23 @@
 
 .form-label {
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #ffffff !important;  /* Forzar color blanco */
   font-size: 15px;
-  margin: 0;
+  margin: 0 0 8px 0;
+  display: block;
+}
+
+/* Asegurar que todos los títulos y labels sean visibles */
+h1, h2, h3, h4, h5, h6 {
+  color: #ffffff !important;
+}
+
+label {
+  color: #ffffff;
+}
+
+.form-group label {
+  color: #ffffff !important;
 }
 
 .form-input,
@@ -388,6 +402,38 @@
 .btn-primary,
 .btn-secondary,
 .btn-danger,
+/* Estilos para área de agregar beneficiarios (similar a evidencias) */
+.beneficiary-upload {
+  position: relative;
+}
+
+.beneficiary-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--border-radius);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: var(--transition);
+  color: var(--text-secondary);
+  font-weight: 500;
+  width: 100%;
+  font-size: 15px;
+}
+
+.beneficiary-label:hover {
+  border-color: var(--primary-color);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.beneficiary-label svg {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
 .btn-add-beneficiary {
   display: inline-flex;
   align-items: center;
@@ -445,17 +491,31 @@
   transform: translateY(-2px);
 }
 
-.btn-add-beneficiary {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
-  border: 1px dashed var(--border-color);
-  width: 100%;
+/* Lista de beneficiarios agregados */
+#beneficiariesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.btn-add-beneficiary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--primary-color);
+.beneficiary-item-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid var(--primary-color);
+  transition: var(--transition);
+}
+
+.beneficiary-item-display:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.beneficiary-item-display svg {
   color: var(--primary-color);
+  flex-shrink: 0;
 }
 
 .form-actions {
@@ -1391,12 +1451,12 @@
   background: var(--background-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  padding: 16px;
+  padding: 12px;
 }
 
 .personnel-search {
   position: relative;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .personnel-search .search-icon {
@@ -1409,17 +1469,18 @@
 }
 
 .personnel-list {
-  max-height: 200px;
+  max-height: 240px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border-radius: 6px;
   background: var(--background-tertiary);
 }
 
 .personnel-item {
   display: flex;
-  align-items: center;
-  padding: 12px 16px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: var(--transition);
@@ -1439,10 +1500,27 @@
 }
 
 .personnel-checkbox {
-  margin-right: 12px;
   width: 18px;
   height: 18px;
   accent-color: var(--primary-color);
+  cursor: pointer;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.personnel-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.personnel-item label {
+  flex: 1;
+  cursor: pointer;
+  user-select: none;
 }
 
 .personnel-info {
@@ -1461,16 +1539,19 @@
 }
 
 .selected-personnel {
-  margin-top: 16px;
-  padding: 12px;
-  background: rgba(0, 123, 255, 0.1);
-  border: 1px solid rgba(0, 123, 255, 0.3);
-  border-radius: var(--border-radius);
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(0, 123, 255, 0.15);
+  border: 1px solid rgba(0, 123, 255, 0.4);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .selected-count {
-  font-size: 14px;
-  color: var(--primary-color);
+  font-size: 13px;
+  color: #ffffff;
   font-weight: 600;
 }
 
