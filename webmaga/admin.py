@@ -33,13 +33,13 @@ class PuestoAdmin(admin.ModelAdmin):
 
 @admin.register(Usuario)
 class UsuarioAdmin(admin.ModelAdmin):
-    list_display = ['username', 'email', 'rol', 'puesto', 'activo', 'creado_en']
+    list_display = ['username', 'nombre', 'email', 'rol', 'puesto', 'activo', 'creado_en']
     list_filter = ['rol', 'activo']
-    search_fields = ['username', 'email', 'telefono']
+    search_fields = ['username', 'nombre', 'email', 'telefono']
     readonly_fields = ['id', 'creado_en', 'actualizado_en']
     fieldsets = (
         ('Información Básica', {
-            'fields': ('username', 'email', 'telefono', 'password_hash')
+            'fields': ('username', 'nombre', 'email', 'telefono', 'password_hash')
         }),
         ('Roles y Permisos', {
             'fields': ('rol', 'puesto', 'activo', 'permite_offline')

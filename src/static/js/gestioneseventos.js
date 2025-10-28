@@ -141,9 +141,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         selectedPersonnelList.push({
                             id: persona.id,
                             username: persona.username,
+                            nombre: persona.nombre,  // Incluir nombre completo
                             rol: persona.rol_display
                         });
-                        console.log(`➕ Personal agregado: ${persona.username}`);
+                        const displayName = persona.nombre || persona.username;
+                        console.log(`➕ Personal agregado: ${displayName}`);
                     }
                 } else {
                     // Filtrar el personal removido
@@ -151,7 +153,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const pId = typeof p === 'object' ? p.id : p;
                         return pId !== persona.id;
                     });
-                    console.log(`➖ Personal removido: ${persona.username}`);
+                    const displayName = persona.nombre || persona.username;
+                    console.log(`➖ Personal removido: ${displayName}`);
                 }
                 updateSelectedPersonnelDisplay();
             });
@@ -160,12 +163,13 @@ document.addEventListener('DOMContentLoaded', function() {
             label.htmlFor = `personal-${persona.id}`;
             
             // Crear estructura mejorada para mostrar nombre, puesto y rol
+            const nombreDisplay = persona.nombre || persona.username;  // Usar nombre completo o username
             const puestoInfo = persona.puesto || 'Sin puesto asignado';
             const rolInfo = persona.rol_display || persona.rol || 'Personal';
             
             label.innerHTML = `
                 <div style="display: flex; flex-direction: column; gap: 2px;">
-                    <span style="font-weight: 600; color: #f8f9fa; font-size: 0.95rem;">${persona.username}</span>
+                    <span style="font-weight: 600; color: #f8f9fa; font-size: 0.95rem;">${nombreDisplay}</span>
                     <span style="font-size: 0.85rem; color: #007bff; font-weight: 500;">${puestoInfo}</span>
                     <span style="font-size: 0.8rem; color: #b8c5d1; text-transform: capitalize;">${rolInfo}</span>
                 </div>

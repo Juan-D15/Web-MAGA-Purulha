@@ -37,6 +37,7 @@ class Usuario(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=50, unique=True)
+    nombre = models.CharField(max_length=150, blank=True, null=True)  # Nombre completo del usuario
     email = models.EmailField(max_length=100, unique=True)
     telefono = models.CharField(max_length=20, blank=True, null=True)
     password_hash = models.TextField()

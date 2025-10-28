@@ -296,7 +296,7 @@ def api_actividades(request):
                 'nombre': act.comunidad.nombre,
                 'codigo': act.comunidad.codigo
             } if act.comunidad else None,
-            'responsable': act.responsable.username if act.responsable else None
+            'responsable': (act.responsable.nombre if act.responsable.nombre else act.responsable.username) if act.responsable else None
         })
     
     return JsonResponse(actividades, safe=False)
@@ -538,6 +538,7 @@ def api_listar_personal(request):
         personal_list.append({
             'id': str(usuario.id),
             'username': usuario.username,
+            'nombre': usuario.nombre or '',  # Nombre completo (opcional)
             'email': usuario.email,
             'rol': usuario.rol,
             'rol_display': usuario.get_rol_display(),
@@ -608,8 +609,11 @@ def api_listar_eventos(request):
             personal_count = evento.personal.count()
             beneficiarios_count = evento.beneficiarios.count()
             
-            # Obtener nombres del personal
-            personal_nombres = [ap.usuario.username for ap in evento.personal.all()[:3]]
+            # Obtener nombres del personal (usar nombre completo o username como fallback)
+            personal_nombres = [
+                ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username 
+                for ap in evento.personal.all()[:3]
+            ]
             if personal_count > 3:
                 personal_nombres.append(f'+{personal_count - 3} más')
             
@@ -636,7 +640,7 @@ def api_listar_eventos(request):
                 'personal_count': personal_count,
                 'personal_nombres': ', '.join(personal_nombres) if personal_nombres else 'Sin personal',
                 'beneficiarios_count': beneficiarios_count,
-                'responsable': evento.responsable.username if evento.responsable else 'Sin responsable',
+                'responsable': (evento.responsable.nombre if evento.responsable.nombre else evento.responsable.username) if evento.responsable else 'Sin responsable',
                 'creado_en': creado_en_local.strftime('%d/%m/%Y %H:%M')
             })
         
@@ -674,6 +678,7 @@ def api_obtener_evento(request, evento_id):
             personal_data.append({
                 'id': str(ap.usuario.id),
                 'username': ap.usuario.username,
+                'nombre': ap.usuario.nombre or '',  # Nombre completo (opcional)
                 'rol': ap.rol_en_actividad,
                 'rol_display': ap.usuario.get_rol_display(),
                 'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else None
@@ -1157,7 +1162,7 @@ def api_cambios_recientes(request):
                     'id': str(cambio.id),
                     'actividad_id': str(cambio.actividad.id),
                     'actividad_nombre': cambio.actividad.nombre,
-                    'responsable': cambio.responsable.username if cambio.responsable else 'Sistema',
+                    'responsable': (cambio.responsable.nombre if cambio.responsable.nombre else cambio.responsable.username) if cambio.responsable else 'Sistema',
                     'descripcion': cambio.descripcion_cambio,
                     'fecha': fecha_local.strftime('%d/%m/%Y %H:%M'),
                     'evento_eliminado': evento_eliminado
