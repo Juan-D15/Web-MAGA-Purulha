@@ -11,6 +11,7 @@
     initUserMenuDesktop();
     initUserMenuMobile();
     initUserInfoDisplay();
+    updateActiveProjectLink();
   });
 
   // ========== DROPDOWNS DE ESCRITORIO ==========
@@ -48,9 +49,72 @@
       const links = panel.querySelectorAll('a');
       links.forEach(link => {
         link.addEventListener('click', (e) => {
-          // Permitir que el enlace funcione normalmente
           e.stopPropagation(); // Evitar que cierre el dropdown
-          // El navegador procesará el href del enlace
+          
+          // Manejar enlaces con anclas (#capacitaciones, #entregas, etc.)
+          const href = link.getAttribute('href');
+          if (href && href.includes('#')) {
+            const [path, hash] = href.split('#');
+            const currentPath = window.location.pathname;
+            
+            // Si ya estamos en la página de proyectos
+            if (currentPath.includes('/proyectos') && hash) {
+              e.preventDefault(); // Prevenir navegación
+              closeAll(); // Cerrar dropdown
+              
+              // Si hay un hash, navegar a esa sección
+              if (hash) {
+                // Primero actualizar la URL
+                window.history.pushState(null, '', href);
+                
+                // Actualizar enlace activo
+                if (window.updateActiveProjectLink) {
+                  window.updateActiveProjectLink();
+                }
+                
+                // Luego hacer scroll a la sección
+                const targetElement = document.getElementById(hash);
+                if (targetElement) {
+                  // Ocultar vistas de lista y detalle si existen
+                  const listView = document.getElementById('projectsListView');
+                  const detailView = document.getElementById('projectDetailView');
+                  const mainView = document.querySelector('.projects-main');
+                  
+                  if (listView) listView.style.display = 'none';
+                  if (detailView) detailView.style.display = 'none';
+                  if (mainView) mainView.style.display = 'block';
+                  
+                  // Scroll suave a la sección
+                  targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                  // Si no existe el elemento, recargar la página
+                  window.location.href = href;
+                }
+              } else {
+                // Si no hay hash, mostrar la vista principal
+                window.history.pushState(null, '', href);
+                
+                // Actualizar enlace activo
+                if (window.updateActiveProjectLink) {
+                  window.updateActiveProjectLink();
+                }
+                
+                const listView = document.getElementById('projectsListView');
+                const detailView = document.getElementById('projectDetailView');
+                const mainView = document.querySelector('.projects-main');
+                
+                if (listView) listView.style.display = 'none';
+                if (detailView) detailView.style.display = 'none';
+                if (mainView) {
+                  mainView.style.display = 'block';
+                  // Scroll al inicio
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }
+            }
+            // Si no estamos en proyectos, dejar que navegue normalmente
+          }
+          // El navegador procesará el href del enlace si no se previno
         });
       });
     });
@@ -147,6 +211,81 @@
         const open = ddm.classList.toggle('open');
         btn.setAttribute('aria-expanded', String(open));
         panel.style.maxHeight = open ? panel.scrollHeight + 'px' : '0px';
+      });
+      
+      // Manejar enlaces dentro del panel móvil
+      const links = panel.querySelectorAll('a');
+      links.forEach(link => {
+        link.addEventListener('click', (e) => {
+          // Manejar enlaces con anclas
+          const href = link.getAttribute('href');
+          if (href && href.includes('#')) {
+            const [path, hash] = href.split('#');
+            const currentPath = window.location.pathname;
+            
+            // Si ya estamos en la página de proyectos
+            if (currentPath.includes('/proyectos') && hash) {
+              e.preventDefault(); // Prevenir navegación
+              closeDrawer(); // Cerrar drawer móvil
+              
+              // Si hay un hash, navegar a esa sección
+              if (hash) {
+                // Primero actualizar la URL
+                window.history.pushState(null, '', href);
+                
+                // Actualizar enlace activo
+                if (window.updateActiveProjectLink) {
+                  window.updateActiveProjectLink();
+                }
+                
+                // Luego hacer scroll a la sección
+                const targetElement = document.getElementById(hash);
+                if (targetElement) {
+                  // Ocultar vistas de lista y detalle si existen
+                  const listView = document.getElementById('projectsListView');
+                  const detailView = document.getElementById('projectDetailView');
+                  const mainView = document.querySelector('.projects-main');
+                  
+                  if (listView) listView.style.display = 'none';
+                  if (detailView) detailView.style.display = 'none';
+                  if (mainView) mainView.style.display = 'block';
+                  
+                  // Scroll suave a la sección
+                  targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                  // Si no existe el elemento, recargar la página
+                  window.location.href = href;
+                }
+              } else {
+                // Si no hay hash, mostrar la vista principal
+                window.history.pushState(null, '', href);
+                
+                // Actualizar enlace activo
+                if (window.updateActiveProjectLink) {
+                  window.updateActiveProjectLink();
+                }
+                
+                const listView = document.getElementById('projectsListView');
+                const detailView = document.getElementById('projectDetailView');
+                const mainView = document.querySelector('.projects-main');
+                
+                if (listView) listView.style.display = 'none';
+                if (detailView) detailView.style.display = 'none';
+                if (mainView) {
+                  mainView.style.display = 'block';
+                  // Scroll al inicio
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }
+            } else {
+              // Si no estamos en proyectos, cerrar drawer y dejar que navegue
+              closeDrawer();
+            }
+          } else {
+            // Enlaces normales sin ancla, cerrar drawer
+            closeDrawer();
+          }
+        });
       });
     });
 
@@ -391,6 +530,46 @@
 
   // Exponer funciones globales necesarias
   window.handleGestionesAction = handleGestionesAction;
+
+  // ========== MARCAR ENLACE ACTIVO EN PROYECTOS ==========
+  function updateActiveProjectLink() {
+    // Solo ejecutar si estamos en la página de proyectos
+    if (!window.location.pathname.includes('/proyectos')) {
+      return;
+    }
+
+    const hash = window.location.hash;
+    
+    // Remover clase active de todos los enlaces de proyectos
+    const allProjectLinks = document.querySelectorAll('.dd__item[href*="/proyectos"], .ddm__item[href*="/proyectos"]');
+    allProjectLinks.forEach(link => link.classList.remove('active'));
+
+    // Marcar el enlace activo según el hash
+    let activeSelector = '';
+    if (hash === '#capacitaciones') {
+      activeSelector = '[href$="#capacitaciones"]';
+    } else if (hash === '#entregas') {
+      activeSelector = '[href$="#entregas"]';
+    } else if (hash === '#proyectos-ayuda') {
+      activeSelector = '[href$="#proyectos-ayuda"]';
+    } else {
+      // Sin hash o "Ver Todos"
+      activeSelector = '[href="/proyectos/"]:not([href*="#"])';
+    }
+
+    if (activeSelector) {
+      const activeLinks = document.querySelectorAll(`.dd__item${activeSelector}, .ddm__item${activeSelector}`);
+      activeLinks.forEach(link => {
+        link.classList.add('active');
+      });
+    }
+  }
+
+  // Actualizar cuando cambie el hash (sin recargar la página)
+  window.addEventListener('hashchange', updateActiveProjectLink);
+
+  // Exponer para uso externo
+  window.updateActiveProjectLink = updateActiveProjectLink;
 
 })();
 

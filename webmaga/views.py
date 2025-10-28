@@ -378,9 +378,12 @@ def api_crear_evento(request):
             if data.get('beneficiarios_nuevos'):
                 try:
                     beneficiarios_nuevos = json.loads(data['beneficiarios_nuevos'])
+                    print(f"📋 Beneficiarios nuevos a crear: {len(beneficiarios_nuevos)}")
                     
                     for benef_data in beneficiarios_nuevos:
                         tipo = benef_data.get('tipo')
+                        print(f"🔍 Procesando beneficiario tipo: {tipo}")
+                        print(f"🔍 Datos completos: {benef_data}")
                         comunidad_id = data.get('comunidad_id')  # Usar la misma comunidad del evento
                         
                         # Obtener el tipo de beneficiario (mapear "otro" a "institucion")
@@ -414,8 +417,8 @@ def api_crear_evento(request):
                                 telefono=benef_data.get('telefono'),
                                 numero_miembros=benef_data.get('numero_miembros')
                             )
-                        elif tipo == 'institucion':
-                            BeneficiarioInstitucion.objects.create(
+                        elif tipo == 'institucion' or tipo == 'institución':
+                            inst = BeneficiarioInstitucion.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_institucion=benef_data.get('nombre_institucion', ''),
                                 tipo_institucion=benef_data.get('tipo_institucion', 'otro'),
@@ -425,6 +428,7 @@ def api_crear_evento(request):
                                 email=benef_data.get('email'),
                                 numero_beneficiarios_directos=benef_data.get('numero_beneficiarios_directos')
                             )
+                            print(f"✅ Institución creada: {inst.nombre_institucion} (ID: {inst.id})")
                         elif tipo == 'otro':
                             # Guardar como institución con tipo 'otro' y usar campos flexibles
                             BeneficiarioInstitucion.objects.create(
@@ -1026,7 +1030,7 @@ def api_actualizar_evento(request, evento_id):
                                 telefono=benef_data.get('telefono'),
                                 numero_miembros=benef_data.get('numero_miembros')
                             )
-                        elif tipo == 'institucion':
+                        elif tipo == 'institucion' or tipo == 'institución':
                             BeneficiarioInstitucion.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_institucion=benef_data.get('nombre_institucion', ''),
@@ -1317,4 +1321,455 @@ def api_eliminar_evento(request, evento_id):
         return JsonResponse({
             'success': False,
             'error': f'Error al eliminar evento: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_listar_proyectos_por_tipo(request, tipo_actividad):
+    """
+    Lista proyectos/eventos filtrados por tipo de actividad (ej: Capacitación, Entrega, etc.)
+    Devuelve información completa incluyendo imagen principal (primera evidencia)
+    """
+    try:
+        from django.utils.timezone import localtime, is_aware, make_aware
+        import pytz
+        
+        # Normalizar el tipo de actividad para la búsqueda
+        tipo_map = {
+            'capacitaciones': 'Capacitación',
+            'entregas': 'Entrega',
+            'proyectos-ayuda': 'Proyecto de Ayuda'
+        }
+        
+        tipo_nombre = tipo_map.get(tipo_actividad.lower())
+        if not tipo_nombre:
+            return JsonResponse({
+                'success': False,
+                'error': f'Tipo de actividad no válido: {tipo_actividad}'
+            }, status=400)
+        
+        # Buscar eventos de ese tipo que no estén eliminados
+        eventos = Actividad.objects.filter(
+            tipo__nombre=tipo_nombre,
+            eliminado_en__isnull=True
+        ).select_related(
+            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+        ).prefetch_related(
+            'personal__usuario',
+            'beneficiarios__beneficiario',
+            'evidencias'
+        ).order_by('-actualizado_en')
+        
+        proyectos_data = []
+        for evento in eventos:
+            try:
+                # Obtener la primera evidencia como imagen principal
+                primera_evidencia = evento.evidencias.filter(es_imagen=True).first()
+                imagen_url = None
+                if primera_evidencia and primera_evidencia.url_almacenamiento:
+                    try:
+                        imagen_url = primera_evidencia.url_almacenamiento
+                    except:
+                        imagen_url = None
+                
+                # Convertir fechas a zona horaria local
+                try:
+                    if evento.creado_en:
+                        if not is_aware(evento.creado_en):
+                            creado_en_aware = make_aware(evento.creado_en, pytz.UTC)
+                        else:
+                            creado_en_aware = evento.creado_en
+                        creado_en_local = localtime(creado_en_aware)
+                    else:
+                        creado_en_local = None
+                except:
+                    creado_en_local = None
+                
+                try:
+                    if evento.actualizado_en:
+                        if not is_aware(evento.actualizado_en):
+                            actualizado_en_aware = make_aware(evento.actualizado_en, pytz.UTC)
+                        else:
+                            actualizado_en_aware = evento.actualizado_en
+                        actualizado_en_local = localtime(actualizado_en_aware)
+                    else:
+                        actualizado_en_local = None
+                except:
+                    actualizado_en_local = None
+                
+                # Obtener nombres del personal
+                try:
+                    personal_nombres = [
+                        ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username 
+                        for ap in evento.personal.all()[:3]
+                    ]
+                    personal_count = evento.personal.count()
+                    if personal_count > 3:
+                        personal_nombres.append(f'+{personal_count - 3} más')
+                except:
+                    personal_nombres = []
+                    personal_count = 0
+                
+                # Construir ubicación de forma segura
+                ubicacion = 'Sin ubicación'
+                region_nombre = None
+                if evento.comunidad:
+                    if evento.comunidad.region:
+                        ubicacion = f"{evento.comunidad.nombre}, {evento.comunidad.region.nombre}"
+                        region_nombre = evento.comunidad.region.nombre
+                    else:
+                        ubicacion = evento.comunidad.nombre
+                
+                proyectos_data.append({
+                    'id': str(evento.id),
+                    'nombre': evento.nombre or 'Sin nombre',
+                    'tipo': evento.tipo.nombre if evento.tipo else 'Sin tipo',
+                    'comunidad': evento.comunidad.nombre if evento.comunidad else 'Sin comunidad',
+                    'region': region_nombre,
+                    'ubicacion': ubicacion,
+                    'fecha': str(evento.fecha) if evento.fecha else '',
+                    'estado': evento.estado or 'planificado',
+                    'estado_display': evento.get_estado_display() if hasattr(evento, 'get_estado_display') else evento.estado,
+                    'descripcion': evento.descripcion or '',
+                    'imagen_principal': imagen_url,
+                    'personal_count': personal_count,
+                    'personal_nombres': ', '.join(personal_nombres) if personal_nombres else 'Sin personal',
+                    'beneficiarios_count': evento.beneficiarios.count() if hasattr(evento, 'beneficiarios') else 0,
+                    'evidencias_count': evento.evidencias.count() if hasattr(evento, 'evidencias') else 0,
+                    'creado_en': creado_en_local.strftime('%Y-%m-%d') if creado_en_local else '',
+                    'actualizado_en': actualizado_en_local.strftime('%Y-%m-%d') if actualizado_en_local else '',
+                    'creado_en_formatted': creado_en_local.strftime('%d de %B de %Y') if creado_en_local else '',
+                    'actualizado_en_formatted': actualizado_en_local.strftime('%d de %B de %Y') if actualizado_en_local else ''
+                })
+            except Exception as item_error:
+                # Si hay error con un evento específico, continuar con el siguiente
+                print(f"Error procesando evento {evento.id}: {item_error}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'tipo': tipo_nombre,
+            'proyectos': proyectos_data,
+            'total': len(proyectos_data)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al listar proyectos: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_ultimos_proyectos(request):
+    """
+    Devuelve los últimos proyectos/eventos creados o actualizados (máximo 2)
+    """
+    try:
+        from django.utils.timezone import localtime, is_aware, make_aware
+        import pytz
+        
+        # Obtener los últimos 2 eventos actualizados
+        eventos = Actividad.objects.filter(
+            eliminado_en__isnull=True
+        ).select_related(
+            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+        ).prefetch_related(
+            'personal__usuario',
+            'beneficiarios__beneficiario',
+            'evidencias'
+        ).order_by('-actualizado_en')[:2]
+        
+        proyectos_data = []
+        for evento in eventos:
+            try:
+                # Obtener la primera evidencia como imagen principal
+                primera_evidencia = evento.evidencias.filter(es_imagen=True).first()
+                imagen_url = None
+                if primera_evidencia and primera_evidencia.url_almacenamiento:
+                    try:
+                        imagen_url = primera_evidencia.url_almacenamiento
+                    except:
+                        imagen_url = None
+                
+                # Convertir fecha a zona horaria local
+                try:
+                    if evento.fecha:
+                        fecha_obj = evento.fecha
+                    elif evento.actualizado_en:
+                        fecha_obj = evento.actualizado_en.date() if hasattr(evento.actualizado_en, 'date') else evento.actualizado_en
+                    else:
+                        fecha_obj = evento.creado_en.date() if hasattr(evento.creado_en, 'date') else evento.creado_en
+                except:
+                    fecha_obj = None
+                
+                # Construir ubicación de forma segura
+                ubicacion = 'Sin ubicación'
+                if evento.comunidad:
+                    if evento.comunidad.region:
+                        ubicacion = f"{evento.comunidad.nombre}, {evento.comunidad.region.nombre}"
+                    else:
+                        ubicacion = evento.comunidad.nombre
+                
+                # Obtener conteo de personal
+                try:
+                    personal_count = evento.personal.count()
+                    personal_nombres = [
+                        ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username 
+                        for ap in evento.personal.all()[:3]
+                    ]
+                    if personal_count > 3:
+                        personal_nombres.append(f'+{personal_count - 3} más')
+                except:
+                    personal_count = 0
+                    personal_nombres = []
+                
+                proyectos_data.append({
+                    'id': str(evento.id),
+                    'nombre': evento.nombre or 'Sin nombre',
+                    'tipo': evento.tipo.nombre if evento.tipo else 'Sin tipo',
+                    'ubicacion': ubicacion,
+                    'fecha': str(fecha_obj) if fecha_obj else '',
+                    'estado': evento.estado or 'planificado',
+                    'descripcion': evento.descripcion or '',
+                    'imagen_principal': imagen_url,
+                    'personal_count': personal_count,
+                    'personal_nombres': ', '.join(personal_nombres) if personal_nombres else 'Sin personal',
+                })
+            except Exception as item_error:
+                print(f"Error procesando evento para últimos proyectos {evento.id}: {item_error}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'proyectos': proyectos_data,
+            'total': len(proyectos_data)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener últimos proyectos: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_ultimos_eventos_inicio(request):
+    """
+    Devuelve los últimos 6 eventos para mostrar en el inicio
+    """
+    try:
+        from django.utils.timezone import localtime, is_aware, make_aware
+        import pytz
+        
+        # Obtener los últimos 6 eventos no eliminados
+        eventos = Actividad.objects.filter(
+            eliminado_en__isnull=True
+        ).select_related(
+            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+        ).prefetch_related(
+            'evidencias'
+        ).order_by('-creado_en')[:6]
+        
+        eventos_data = []
+        for evento in eventos:
+            try:
+                # Obtener la primera evidencia como imagen
+                primera_evidencia = evento.evidencias.filter(es_imagen=True).first()
+                imagen_url = None
+                if primera_evidencia and primera_evidencia.url_almacenamiento:
+                    imagen_url = primera_evidencia.url_almacenamiento
+                
+                # Si no hay evidencias, usar imagen por defecto
+                if not imagen_url:
+                    imagen_url = '/static/img/default-event.jpg'
+                
+                # Convertir fecha a zona horaria local
+                try:
+                    if evento.fecha:
+                        fecha_obj = evento.fecha
+                    elif evento.creado_en:
+                        if not is_aware(evento.creado_en):
+                            creado_aware = make_aware(evento.creado_en, pytz.UTC)
+                        else:
+                            creado_aware = evento.creado_en
+                        fecha_local = localtime(creado_aware)
+                        fecha_obj = fecha_local.date()
+                    else:
+                        fecha_obj = None
+                except:
+                    fecha_obj = None
+                
+                # Formatear fecha
+                if fecha_obj:
+                    meses = {
+                        1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun',
+                        7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'
+                    }
+                    mes = meses.get(fecha_obj.month, '')
+                    dia = fecha_obj.day
+                    anio = fecha_obj.year
+                else:
+                    mes = ''
+                    dia = ''
+                    anio = ''
+                
+                eventos_data.append({
+                    'id': str(evento.id),
+                    'nombre': evento.nombre or 'Sin nombre',
+                    'descripcion': evento.descripcion[:100] + '...' if evento.descripcion and len(evento.descripcion) > 100 else (evento.descripcion or 'Sin descripción'),
+                    'imagen_url': imagen_url,
+                    'fecha_mes': mes,
+                    'fecha_dia': dia,
+                    'fecha_anio': anio,
+                    'tipo': evento.tipo.nombre if evento.tipo else 'Sin tipo',
+                    'comunidad': evento.comunidad.nombre if evento.comunidad else 'Sin comunidad'
+                })
+            except Exception as item_error:
+                print(f"Error procesando evento para inicio {evento.id}: {item_error}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'eventos': eventos_data,
+            'total': len(eventos_data)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener últimos eventos: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_obtener_detalle_proyecto(request, evento_id):
+    """
+    Obtiene los detalles completos de un proyecto/evento específico
+    """
+    try:
+        from django.utils.timezone import localtime, is_aware, make_aware
+        import pytz
+        
+        evento = Actividad.objects.select_related(
+            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+        ).prefetch_related(
+            'personal__usuario__puesto',
+            'beneficiarios__beneficiario__individual',
+            'beneficiarios__beneficiario__familia',
+            'beneficiarios__beneficiario__institucion',
+            'evidencias'
+        ).get(id=evento_id, eliminado_en__isnull=True)
+        
+        # Personal asignado
+        personal_data = []
+        for ap in evento.personal.all():
+            personal_data.append({
+                'id': str(ap.usuario.id),
+                'username': ap.usuario.username,
+                'nombre': ap.usuario.nombre or ap.usuario.username,
+                'rol': ap.rol_en_actividad,
+                'rol_display': ap.usuario.get_rol_display() if hasattr(ap.usuario, 'get_rol_display') else ap.usuario.rol,
+                'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else 'Sin puesto'
+            })
+        
+        # Beneficiarios
+        beneficiarios_data = []
+        for ab in evento.beneficiarios.all():
+            benef = ab.beneficiario
+            nombre_display = ''
+            tipo_beneficiario = str(benef.tipo) if benef.tipo else 'individual'
+            
+            if benef.tipo == 'individual' and hasattr(benef, 'individual') and benef.individual:
+                nombre_display = f"{benef.individual.nombre} {benef.individual.apellido}"
+            elif benef.tipo == 'familia' and hasattr(benef, 'familia') and benef.familia:
+                nombre_display = f"Familia {benef.familia.apellido_familia}"
+            elif benef.tipo == 'institución' and hasattr(benef, 'institucion') and benef.institucion:
+                nombre_display = benef.institucion.nombre
+            
+            beneficiarios_data.append({
+                'id': str(benef.id),
+                'tipo': tipo_beneficiario,
+                'nombre': nombre_display or 'Sin nombre',
+                'descripcion': ''  # Sin campo de descripción en el modelo
+            })
+        
+        # Evidencias/Galería
+        evidencias_data = []
+        for evidencia in evento.evidencias.all():
+            evidencias_data.append({
+                'id': str(evidencia.id),
+                'nombre': evidencia.archivo_nombre,
+                'url': evidencia.url_almacenamiento,
+                'tipo': evidencia.archivo_tipo or '',
+                'es_imagen': evidencia.es_imagen,
+                'descripcion': evidencia.descripcion or ''
+            })
+        
+        # Ubicación
+        ubicacion = 'Sin ubicación'
+        if evento.comunidad:
+            if evento.comunidad.region:
+                ubicacion = f"{evento.comunidad.nombre}, {evento.comunidad.region.nombre}"
+            else:
+                ubicacion = evento.comunidad.nombre
+        
+        # Convertir fechas
+        try:
+            if evento.fecha:
+                fecha_str = evento.fecha.strftime('%Y-%m-%d')
+                fecha_display = evento.fecha.strftime('%d de %B de %Y')
+            else:
+                fecha_str = ''
+                fecha_display = ''
+        except:
+            fecha_str = ''
+            fecha_display = ''
+        
+        proyecto_data = {
+            'id': str(evento.id),
+            'nombre': evento.nombre,
+            'tipo': evento.tipo.nombre if evento.tipo else 'Sin tipo',
+            'descripcion': evento.descripcion or 'Sin descripción',
+            'ubicacion': ubicacion,
+            'comunidad': evento.comunidad.nombre if evento.comunidad else 'Sin comunidad',
+            'region': evento.comunidad.region.nombre if evento.comunidad and evento.comunidad.region else None,
+            'fecha': fecha_str,
+            'fecha_display': fecha_display,
+            'estado': evento.estado,
+            'estado_display': evento.get_estado_display() if hasattr(evento, 'get_estado_display') else evento.estado,
+            'responsable': (evento.responsable.nombre if evento.responsable.nombre else evento.responsable.username) if evento.responsable else 'Sin responsable',
+            'personal': personal_data,
+            'beneficiarios': beneficiarios_data,
+            'evidencias': evidencias_data
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'proyecto': proyecto_data
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Proyecto no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener proyecto: {str(e)}'
         }, status=500)

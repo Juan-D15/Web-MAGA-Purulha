@@ -1975,6 +1975,10 @@ html {
   pointer-events: auto !important;
 }
 
+.nav-user-dropdown-content {
+  color: #1a1a1a;
+}
+
 .nav-user-dropdown-header {
   padding: 12px 16px;
   border-bottom: 1px solid #f0f2f5;
@@ -2000,7 +2004,7 @@ html {
 .nav-user-dropdown-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #1a1a1a !important;
   margin: 0;
   font-family: 'Manrope', sans-serif;
   line-height: 1.2;
@@ -2008,10 +2012,18 @@ html {
 
 .nav-user-dropdown-email {
   font-size: 12px;
-  color: #6b7280;
+  color: #6b7280 !important;
   margin: 0;
   font-family: 'Manrope', sans-serif;
   line-height: 1.2;
+}
+
+#navUserName {
+  color: #1a1a1a !important;
+}
+
+#navUserEmail {
+  color: #6b7280 !important;
 }
 
 .nav-user-dropdown-menu {
@@ -2025,7 +2037,7 @@ html {
   padding: 10px 16px;
   background: none;
   border: none;
-  color: #374151;
+  color: #374151 !important;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;

@@ -27,89 +27,137 @@ document.querySelectorAll('.project-card, .featured-card, .category-section').fo
 });
 
 // ======= DATOS DE PROYECTOS - CARGA DESDE BD =======
-console.log('📦 Proyectos.js - Usando datos desde la base de datos');
+console.log('📦 Proyectos.js - Cargando datos desde la base de datos');
 
 // Los datos se cargarán desde la API
 let projectsData = {
-  capacitaciones: [
-    {
-      id: 1,
-      name: "Capacitación Técnica Avanzada",
-      location: "Los Pinos, Región 3",
-      createdDate: "2024-11-15",
-      modifiedDate: "2024-11-28",
-      type: "Capacitación"
-    },
-    {
-      id: 2,
-      name: "Taller de Desarrollo Comunitario",
-      location: "Aldea San Miguel, Región 1",
-      createdDate: "2024-11-10",
-      modifiedDate: "2024-11-25",
-      type: "Capacitación"
-    },
-    {
-      id: 3,
-      name: "Curso de Agricultura Sostenible",
-      location: "Centro Panchisivic, Región 8",
-      createdDate: "2024-11-05",
-      modifiedDate: "2024-11-20",
-      type: "Capacitación"
-    }
-  ],
-  entregas: [
-    {
-      id: 4,
-      name: "Entrega de Herramientas Agrícolas",
-      location: "Aldea El Chol, Región 5",
-      createdDate: "2024-11-12",
-      modifiedDate: "2024-11-20",
-      type: "Entrega"
-    },
-    {
-      id: 5,
-      name: "Entrega de Fertilizantes Orgánicos",
-      location: "Aldea Los Ángeles, Región 7",
-      createdDate: "2024-11-08",
-      modifiedDate: "2024-11-18",
-      type: "Entrega"
-    },
-    {
-      id: 6,
-      name: "Entrega de Semillas Mejoradas",
-      location: "Aldea San Antonio, Región 9",
-      createdDate: "2024-11-03",
-      modifiedDate: "2024-11-15",
-      type: "Entrega"
-    }
-  ],
-  "proyectos-ayuda": [
-    {
-      id: 7,
-      name: "Construcción de Invernadero Comunitario",
-      location: "Aldea San José, Región 10",
-      createdDate: "2024-11-01",
-      modifiedDate: "2024-11-22",
-      type: "Proyecto de Ayuda"
-    },
-    {
-      id: 8,
-      name: "Instalación de Sistema de Riego",
-      location: "Centro Panchisivic, Región 8",
-      createdDate: "2024-10-28",
-      modifiedDate: "2024-11-18",
-      type: "Proyecto de Ayuda"
-    },
-    {
-      id: 9,
-      name: "Mejora de Infraestructura Rural",
-      location: "Aldea El Chol, Región 5",
-      createdDate: "2024-10-25",
-      modifiedDate: "2024-11-12",
-      type: "Proyecto de Ayuda"
-    }
-  ]
+  capacitaciones: [],
+  entregas: [],
+  "proyectos-ayuda": []
 };
+
+// Función para cargar proyectos desde la API
+async function cargarProyectosPorTipo(tipo) {
+  try {
+    console.log(`🔄 Cargando proyectos tipo: ${tipo}`);
+    const response = await fetch(`/api/proyectos/${tipo}/`);
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log(`✅ Cargados ${data.total} proyectos de tipo ${tipo}`);
+      
+      // Convertir el formato de la API al formato esperado por el frontend
+      return data.proyectos.map(proyecto => ({
+        id: proyecto.id,
+        name: proyecto.nombre,
+        location: proyecto.ubicacion,
+        createdDate: proyecto.creado_en,
+        modifiedDate: proyecto.actualizado_en,
+        type: proyecto.tipo,
+        estado: proyecto.estado,
+        estado_display: proyecto.estado_display,
+        descripcion: proyecto.descripcion,
+        imagen_principal: proyecto.imagen_principal,
+        personal_count: proyecto.personal_count,
+        personal_nombres: proyecto.personal_nombres,
+        beneficiarios_count: proyecto.beneficiarios_count,
+        evidencias_count: proyecto.evidencias_count,
+        fecha: proyecto.fecha
+      }));
+    } else {
+      console.error(`❌ Error al cargar ${tipo}:`, data.error);
+      return [];
+    }
+  } catch (error) {
+    console.error(`❌ Error al cargar proyectos tipo ${tipo}:`, error);
+    return [];
+  }
+}
+
+// Función para cargar los últimos proyectos
+async function cargarUltimosProyectos() {
+  try {
+    console.log('🔄 Cargando últimos proyectos...');
+    const response = await fetch('/api/ultimos-proyectos/');
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log(`✅ Cargados ${data.total} últimos proyectos`);
+      return data.proyectos;
+    } else {
+      console.error('❌ Error al cargar últimos proyectos:', data.error);
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ Error al cargar últimos proyectos:', error);
+    return [];
+  }
+}
+
+// Función para inicializar la carga de todos los tipos de proyectos
+async function inicializarProyectos() {
+  try {
+    console.log('🔄 Inicializando carga de proyectos...');
+    
+    // Cargar todos los tipos de proyectos y los últimos en paralelo
+    const [capacitaciones, entregas, proyectosAyuda, ultimosProyectos] = await Promise.all([
+      cargarProyectosPorTipo('capacitaciones'),
+      cargarProyectosPorTipo('entregas'),
+      cargarProyectosPorTipo('proyectos-ayuda'),
+      cargarUltimosProyectos()
+    ]);
+    
+    // Actualizar projectsData con los resultados
+    projectsData.capacitaciones = capacitaciones;
+    projectsData.entregas = entregas;
+    projectsData['proyectos-ayuda'] = proyectosAyuda;
+    
+    console.log('✅ Todos los proyectos cargados:', projectsData);
+    
+    // Renderizar proyectos en el HTML
+    renderizarProyectosEnHTML();
+    
+    // Renderizar últimos proyectos
+    renderizarUltimosProyectos(ultimosProyectos);
+    
+    // Verificar si hay un hash en la URL para abrir un evento específico
+    verificarHashYAbrirEvento();
+    
+  } catch (error) {
+    console.error('❌ Error al inicializar proyectos:', error);
+  }
+}
+
+// Función para verificar el hash de la URL y abrir el evento correspondiente
+function verificarHashYAbrirEvento() {
+  const hash = window.location.hash;
+  if (hash && hash.startsWith('#evento-')) {
+    const eventoId = hash.replace('#evento-', '');
+    console.log(`🔍 Abriendo detalle del evento desde hash: ${eventoId}`);
+    
+    // Esperar un poco para que los proyectos se rendericen
+    setTimeout(() => {
+      loadProjectDetails(eventoId);
+    }, 500);
+  }
+}
+
+// Llamar a la función de inicialización cuando el DOM esté listo
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', inicializarProyectos);
+} else {
+  inicializarProyectos();
+}
 
 // Función para formatear fechas
 function formatDate(dateString) {
@@ -119,6 +167,302 @@ function formatDate(dateString) {
     month: 'long',
     day: 'numeric'
   });
+}
+
+// Función para renderizar proyectos en el HTML
+function renderizarProyectosEnHTML() {
+  console.log('🎨 Renderizando proyectos en el HTML...');
+  
+  // Renderizar capacitaciones
+  renderizarCategoria('capacitaciones', projectsData.capacitaciones);
+  
+  // Renderizar entregas
+  renderizarCategoria('entregas', projectsData.entregas);
+  
+  // Renderizar proyectos de ayuda
+  renderizarCategoria('proyectos-ayuda', projectsData['proyectos-ayuda']);
+}
+
+// Función para renderizar una categoría específica
+function renderizarCategoria(categoriaId, proyectos) {
+  const seccionCategoria = document.getElementById(categoriaId);
+  if (!seccionCategoria) {
+    console.warn(`No se encontró la sección ${categoriaId}`);
+    return;
+  }
+  
+  const gridContainer = seccionCategoria.querySelector('.projects-grid');
+  if (!gridContainer) {
+    console.warn(`No se encontró el grid en la sección ${categoriaId}`);
+    return;
+  }
+  
+  // Limpiar contenido existente
+  gridContainer.innerHTML = '';
+  
+  // Si no hay proyectos, mostrar mensaje
+  if (!proyectos || proyectos.length === 0) {
+    gridContainer.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">
+        <p>No hay proyectos de este tipo aún.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Mostrar solo los primeros 3 proyectos
+  const proyectosMostrar = proyectos.slice(0, 3);
+  
+  proyectosMostrar.forEach(proyecto => {
+    const projectCard = crearTarjetaProyecto(proyecto);
+    gridContainer.appendChild(projectCard);
+  });
+  
+  console.log(`✅ Renderizados ${proyectosMostrar.length} proyectos en ${categoriaId}`);
+}
+
+// Función para crear una tarjeta de proyecto
+function crearTarjetaProyecto(proyecto) {
+  const card = document.createElement('div');
+  card.className = 'project-card';
+  
+  // Extraer mes, día y año de la fecha
+  const fecha = new Date(proyecto.fecha || proyecto.createdDate);
+  const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const mes = meses[fecha.getMonth()];
+  const dia = fecha.getDate();
+  const anio = fecha.getFullYear();
+  
+  // Determinar la imagen a usar
+  const imagenUrl = proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
+  
+  card.innerHTML = `
+    <div class="project-image">
+      <img src="${imagenUrl}" alt="${proyecto.nombre || proyecto.name}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80'">
+      <div class="project-date-overlay">
+        <div class="date__month">${mes}</div>
+        <div class="date__day">${dia}</div>
+        <div class="date__year">${anio}</div>
+      </div>
+      <div class="project-content-overlay">
+        <h4 class="project-title">${proyecto.nombre || proyecto.name}</h4>
+        <p class="project-location">
+          <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          ${proyecto.ubicacion || proyecto.location}
+        </p>
+        <button class="project-btn" data-project-id="${proyecto.id}">Ver más ></button>
+      </div>
+    </div>
+  `;
+  
+  // Agregar evento click al botón
+  const btn = card.querySelector('.project-btn');
+  btn.addEventListener('click', function() {
+    const projectId = this.getAttribute('data-project-id');
+    loadProjectDetails(projectId);
+  });
+  
+  return card;
+}
+
+// Función para renderizar los últimos proyectos
+function renderizarUltimosProyectos(proyectos) {
+  console.log('🎨 Renderizando últimos proyectos...');
+  
+  // Buscar el contenedor de últimos proyectos
+  const featuredGrid = document.querySelector('.latest-projects .projects-grid.featured');
+  if (!featuredGrid) {
+    console.warn('No se encontró el grid de últimos proyectos');
+    return;
+  }
+  
+  // Limpiar contenido existente
+  featuredGrid.innerHTML = '';
+  
+  // Si no hay proyectos, mostrar mensaje
+  if (!proyectos || proyectos.length === 0) {
+    featuredGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">
+        <p>No hay proyectos recientes aún.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Renderizar cada proyecto (máximo 2)
+  proyectos.forEach(proyecto => {
+    const card = crearTarjetaProyectoDestacado(proyecto);
+    featuredGrid.appendChild(card);
+  });
+  
+  console.log(`✅ Renderizados ${proyectos.length} últimos proyectos`);
+}
+
+// Función para crear una tarjeta de proyecto destacado
+function crearTarjetaProyectoDestacado(proyecto) {
+  const card = document.createElement('div');
+  card.className = 'project-card featured-card';
+  
+  // Extraer mes, día y año de la fecha
+  const fecha = new Date(proyecto.fecha || new Date());
+  const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const mes = meses[fecha.getMonth()];
+  const dia = fecha.getDate();
+  const anio = fecha.getFullYear();
+  
+  // Determinar la imagen a usar
+  const imagenUrl = proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+  
+  card.innerHTML = `
+    <div class="project-image">
+      <img src="${imagenUrl}" alt="${proyecto.nombre}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
+      <div class="project-date-overlay">
+        <div class="date__month">${mes}</div>
+        <div class="date__day">${dia}</div>
+        <div class="date__year">${anio}</div>
+      </div>
+      <div class="project-content-overlay">
+        <h3 class="project-title">${proyecto.nombre}</h3>
+        <p class="project-location">
+          <svg class="location-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          ${proyecto.ubicacion}
+        </p>
+        <button class="project-btn" data-project-id="${proyecto.id}">Ver más ></button>
+      </div>
+    </div>
+  `;
+  
+  // Agregar evento click al botón
+  const btn = card.querySelector('.project-btn');
+  btn.addEventListener('click', function() {
+    const projectId = this.getAttribute('data-project-id');
+    loadProjectDetails(projectId);
+  });
+  
+  return card;
+}
+
+// Función para cargar los detalles completos de un proyecto
+async function loadProjectDetails(projectId) {
+  try {
+    console.log(`🔄 Cargando detalles del proyecto ${projectId}...`);
+    
+    const response = await fetch(`/api/proyecto/${projectId}/`);
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('✅ Detalles del proyecto cargados:', data.proyecto);
+      mostrarDetalleProyecto(data.proyecto);
+    } else {
+      console.error('❌ Error al cargar proyecto:', data.error);
+      alert('Error al cargar el proyecto: ' + data.error);
+    }
+  } catch (error) {
+    console.error('❌ Error al cargar proyecto:', error);
+    alert('Error al cargar el proyecto. Por favor, intenta de nuevo.');
+  }
+}
+
+// Función para mostrar los detalles del proyecto en la vista de detalle
+function mostrarDetalleProyecto(proyecto) {
+  console.log('📝 Mostrando datos del proyecto:', proyecto.nombre);
+  
+  // Ocultar todas las vistas y mostrar solo la de detalle
+  const mainView = document.querySelector('.projects-main');
+  const listView = document.getElementById('projectsListView');
+  const detailView = document.getElementById('projectDetailView');
+  
+  if (!detailView) {
+    console.error('❌ No se encontró la vista de detalle');
+    return;
+  }
+  
+  // Ocultar todas las demás vistas
+  if (mainView) mainView.style.display = 'none';
+  if (listView) listView.style.display = 'none';
+  
+  // Mostrar vista de detalle
+  detailView.style.display = 'block';
+  
+  // Actualizar título y ubicación
+  const detailTitle = document.getElementById('detailTitle');
+  const detailLocation = document.getElementById('detailLocation');
+  const detailDateText = document.getElementById('detailDateText');
+  const statusText = document.getElementById('statusText');
+  const detailMainImage = document.getElementById('detailMainImage');
+  const detailDescription = document.getElementById('detailDescription');
+  
+  if (detailTitle) detailTitle.textContent = proyecto.nombre;
+  if (detailLocation) detailLocation.textContent = proyecto.ubicacion;
+  if (detailDateText) detailDateText.textContent = proyecto.fecha_display || proyecto.fecha;
+  if (statusText) statusText.textContent = proyecto.estado_display || proyecto.estado;
+  
+  // Actualizar imagen principal
+  if (detailMainImage && proyecto.evidencias && proyecto.evidencias.length > 0) {
+    const primeraImagen = proyecto.evidencias.find(e => e.es_imagen);
+    if (primeraImagen) {
+      detailMainImage.src = primeraImagen.url;
+    } else {
+      detailMainImage.src = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+    }
+  }
+  
+  // Actualizar descripción
+  if (detailDescription) {
+    detailDescription.innerHTML = `<p>${proyecto.descripcion || 'Sin descripción disponible'}</p>`;
+  }
+  
+  // Actualizar personal a cargo
+  const detailPersonnelInfo = document.getElementById('detailPersonnelInfo');
+  if (detailPersonnelInfo && proyecto.personal) {
+    if (proyecto.personal.length === 0) {
+      detailPersonnelInfo.innerHTML = '<p style="color: #6c757d;">No hay personal asignado a este proyecto.</p>';
+    } else {
+      detailPersonnelInfo.innerHTML = proyecto.personal.map(persona => `
+        <div class="personnel-card" style="background: rgba(255, 255, 255, 0.05); padding: 16px; border-radius: 8px; margin-bottom: 12px; border-left: 3px solid #007bff;">
+          <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div>
+              <h4 style="margin: 0 0 4px 0; color: #ffffff; font-size: 1.1rem;">${persona.nombre}</h4>
+              <p style="margin: 4px 0; color: #007bff; font-weight: 500;">${persona.puesto}</p>
+              <p style="margin: 4px 0; color: #b8c5d1; font-size: 0.9rem;">Rol: ${persona.rol_display}</p>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+  
+  // Actualizar galería de imágenes
+  const detailGallery = document.getElementById('detailGallery');
+  if (detailGallery && proyecto.evidencias) {
+    const imagenes = proyecto.evidencias.filter(e => e.es_imagen);
+    if (imagenes.length === 0) {
+      detailGallery.innerHTML = '<p style="color: #6c757d; grid-column: 1 / -1;">No hay imágenes disponibles.</p>';
+    } else {
+      detailGallery.innerHTML = imagenes.map(img => `
+        <div class="gallery-item" style="position: relative; border-radius: 12px; overflow: hidden; aspect-ratio: 16/9;">
+          <img src="${img.url}" alt="${img.nombre}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+          ${img.descripcion ? `<div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 8px; color: white; font-size: 0.85rem;">${img.descripcion}</div>` : ''}
+        </div>
+      `).join('');
+    }
+  }
+  
+  // Scroll al inicio
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  console.log('✅ Vista de detalle actualizada');
 }
 
 // Función para generar elementos de lista
@@ -493,42 +837,30 @@ const projectDetails = {
 
 // Función para mostrar la vista detallada
 function showProjectDetail(projectId) {
-  console.log('Intentando mostrar proyecto:', projectId);
+  console.log('🔍 Mostrando detalle del proyecto:', projectId);
   
   const mainView = document.querySelector('.projects-main');
   const listView = document.getElementById('projectsListView');
   const detailView = document.getElementById('projectDetailView');
   
-  console.log('Elementos encontrados:');
-  console.log('- Vista principal:', mainView ? 'Sí' : 'No');
-  console.log('- Vista de lista:', listView ? 'Sí' : 'No');
-  console.log('- Vista detallada:', detailView ? 'Sí' : 'No');
-  
   if (!detailView) {
-    console.error('No se encontró la vista detallada');
+    console.error('❌ No se encontró la vista detallada');
     return;
   }
-  
-  // Establecer el proyecto actual
-  setCurrentProject(projectId);
   
   // Ocultar otras vistas
   if (mainView) mainView.style.display = 'none';
   if (listView) listView.style.display = 'none';
   
-  // Mostrar vista detallada
+  // Mostrar vista detallada (con indicador de carga)
   detailView.style.display = 'block';
-  
-  // Cargar datos del proyecto
-  const project = projectDetails[projectId];
-  if (project) {
-    loadProjectDetail(project);
-  } else {
-    console.error('No se encontraron datos para el proyecto:', projectId);
-  }
   
   // Scroll al inicio
   window.scrollTo(0, 0);
+  
+  // Cargar datos del proyecto desde la API
+  console.log('📡 Cargando datos desde la API...');
+  loadProjectDetails(projectId);
 }
 
 // Función para cargar los datos del proyecto en la vista detallada
@@ -604,14 +936,18 @@ function openImageModal(imageUrl) {
 
 // Función para volver a la vista principal desde la vista detallada
 function backFromDetail() {
+  console.log('🔙 Volviendo a la vista principal');
+  
   const mainView = document.querySelector('.projects-main');
+  const listView = document.getElementById('projectsListView');
   const detailView = document.getElementById('projectDetailView');
   
-  // Ocultar vista detallada
-  detailView.style.display = 'none';
+  // Ocultar vistas de detalle y lista
+  if (detailView) detailView.style.display = 'none';
+  if (listView) listView.style.display = 'none';
   
   // Mostrar vista principal
-  mainView.style.display = 'block';
+  if (mainView) mainView.style.display = 'block';
   
   // Scroll al inicio
   window.scrollTo(0, 0);

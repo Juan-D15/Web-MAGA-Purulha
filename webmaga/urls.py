@@ -33,5 +33,13 @@ urlpatterns = [
     path('api/personal/', views.api_listar_personal, name='api-personal'),
     path('api/beneficiarios/', views.api_listar_beneficiarios, name='api-beneficiarios'),
     path('api/verificar-admin/', views.api_verificar_admin, name='api-verificar-admin'),
+    
+    # APIs de Proyectos
+    path('api/proyectos/<str:tipo_actividad>/', views.api_listar_proyectos_por_tipo, name='api-proyectos-por-tipo'),
+    path('api/ultimos-proyectos/', views.api_ultimos_proyectos, name='api-ultimos-proyectos'),
+    path('api/proyecto/<uuid:evento_id>/', views.api_obtener_detalle_proyecto, name='api-detalle-proyecto'),
+    
+    # APIs para Inicio
+    path('api/ultimos-eventos-inicio/', views.api_ultimos_eventos_inicio, name='api-ultimos-eventos-inicio'),
 ]
 

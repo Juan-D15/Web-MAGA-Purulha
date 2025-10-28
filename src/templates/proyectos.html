@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}">
+  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}?v=4">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -22,51 +22,7 @@
       <section class="latest-projects">
         <h2 class="section-title">Últimos Proyectos</h2>
         <div class="projects-grid featured">
-          <!-- Proyecto Destacado 1 -->
-          <div class="project-card featured-card">
-            <div class="project-image">
-              <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Capacitación agrícola">
-              <div class="project-date-overlay">
-                <div class="date__month">Dic</div>
-                <div class="date__day">15</div>
-                <div class="date__year">2024</div>
-              </div>
-              <div class="project-content-overlay">
-                <h3 class="project-title">Capacitación en Técnicas Agrícolas</h3>
-                <p class="project-location">
-                  <svg class="location-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                    <circle cx="12" cy="10" r="3"></circle>
-                  </svg>
-                  Centro Panchisivic, Región 8
-                </p>
-                <button class="project-btn" data-project-id="proyecto-1">Ver más ></button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Proyecto Destacado 2 -->
-          <div class="project-card featured-card">
-            <div class="project-image">
-              <img src="https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Entrega de semillas">
-              <div class="project-date-overlay">
-                <div class="date__month">Dic</div>
-                <div class="date__day">12</div>
-                <div class="date__year">2024</div>
-              </div>
-              <div class="project-content-overlay">
-                <h3 class="project-title">Entrega de Semillas Mejoradas</h3>
-                <p class="project-location">
-                  <svg class="location-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                    <circle cx="12" cy="10" r="3"></circle>
-                  </svg>
-                  Aldea Mocohán, Región 2
-                </p>
-                <button class="project-btn" data-project-id="proyecto-2">Ver más ></button>
-              </div>
-            </div>
-          </div>
+          <!-- Los últimos proyectos se cargarán dinámicamente desde la base de datos -->
         </div>
       </section>
 
@@ -77,74 +33,7 @@
           <div class="category-section" id="capacitaciones">
             <h3 class="category-title">Capacitaciones</h3>
             <div class="projects-grid">
-              <!-- Proyecto 1 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Capacitación técnica">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">28</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Capacitación Técnica Avanzada</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Los Pinos, Región 3
-                    </p>
-                    <button class="project-btn" data-project-id="1">Ver más ></button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Proyecto 2 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1559027615-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Taller comunitario">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">25</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Taller de Desarrollo Comunitario</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Eben-Ezer, Región 4
-                    </p>
-                    <button class="project-btn" data-project-id="2">Ver más ></button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Proyecto 3 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Capacitación agrícola">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">22</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Capacitación en Manejo de Cultivos</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Suquinay II, Región 5
-                    </p>
-                    <button class="project-btn" data-project-id="3">Ver más ></button>
-                  </div>
-                </div>
-              </div>
+              <!-- Los proyectos se cargarán dinámicamente desde la base de datos -->
             </div>
             <div class="category-actions">
               <button class="btn-ver-todos" data-category="capacitaciones">Ver todos</button>
@@ -155,74 +44,7 @@
           <div class="category-section" id="entregas">
             <h3 class="category-title">Entregas</h3>
             <div class="projects-grid">
-              <!-- Proyecto 1 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Entrega de insumos">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">20</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Entrega de Herramientas Agrícolas</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Aldea El Chol, Región 5
-                    </p>
-                    <button class="project-btn" data-project-id="4">Ver más ></button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Proyecto 2 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Entrega de fertilizantes">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">18</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Entrega de Fertilizantes Orgánicos</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Aldea Los Ángeles, Región 7
-                    </p>
-                    <button class="project-btn" data-project-id="5">Ver más ></button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Proyecto 3 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Entrega de semillas">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">15</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Entrega de Semillas de Maíz</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Aldea San Antonio, Región 9
-                    </p>
-                    <button class="project-btn" data-project-id="6">Ver más ></button>
-                  </div>
-                </div>
-              </div>
+              <!-- Los proyectos se cargarán dinámicamente desde la base de datos -->
             </div>
             <div class="category-actions">
               <button class="btn-ver-todos" data-category="entregas">Ver todos</button>
@@ -233,74 +55,7 @@
           <div class="category-section" id="proyectos-ayuda">
             <h3 class="category-title">Proyectos de Ayuda</h3>
             <div class="projects-grid">
-              <!-- Proyecto 1 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Construcción de invernadero">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">12</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Construcción de Invernadero Comunitario</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Aldea Las Flores, Región 6
-                    </p>
-                    <button class="project-btn" data-project-id="7">Ver más ></button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Proyecto 2 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1574943320219-553eb213f72d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Sistema de riego">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">10</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Instalación de Sistema de Riego</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Aldea El Progreso, Región 8
-                    </p>
-                    <button class="project-btn" data-project-id="8">Ver más ></button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Proyecto 3 -->
-              <div class="project-card">
-                <div class="project-image">
-                  <img src="https://images.unsplash.com/photo-1574943320219-553eb213f72d?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Proyecto comunitario">
-                  <div class="project-date-overlay">
-                    <div class="date__month">Nov</div>
-                    <div class="date__day">08</div>
-                    <div class="date__year">2024</div>
-                  </div>
-                  <div class="project-content-overlay">
-                    <h4 class="project-title">Mejoramiento de Caminos Rurales</h4>
-                    <p class="project-location">
-                      <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
-                      Aldea San José, Región 10
-                    </p>
-                    <button class="project-btn" data-project-id="9">Ver más ></button>
-                  </div>
-                </div>
-              </div>
+              <!-- Los proyectos se cargarán dinámicamente desde la base de datos -->
             </div>
             <div class="category-actions">
               <button class="btn-ver-todos" data-category="proyectos-ayuda">Ver todos</button>
@@ -1048,5 +803,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/proyectos.js' %}"></script>
+  <script src="{% static 'js/proyectos.js' %}?v=10"></script>
 {% endblock %}

@@ -711,12 +711,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div style="color: #ffffff; font-weight: 600; margin-bottom: 2px;">${benef.display_name}</div>
                     <div style="color: #b8c5d1; font-size: 0.85rem; text-transform: capitalize;">${benef.tipo}</div>
                 </div>
-                <button type="button" class="btn-remove-beneficiary" data-index="${index}" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.3s;" title="Eliminar beneficiario">
-                    ✖ Quitar
-                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn-edit-beneficiary" data-index="${index}" style="background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.3s;" title="Editar beneficiario">
+                        ✏️ Editar
+                    </button>
+                    <button type="button" class="btn-remove-beneficiary" data-index="${index}" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.3s;" title="Eliminar beneficiario">
+                        ✖ Quitar
+                    </button>
+                </div>
             `;
             
             beneficiariesContainer.appendChild(item);
+            
+            // Agregar evento de editar
+            const editBtn = item.querySelector('.btn-edit-beneficiary');
+            editBtn.addEventListener('click', function() {
+                const idx = parseInt(this.getAttribute('data-index'));
+                editarBeneficiarioNuevo(idx);
+            });
+            
+            // Hover effect para editar
+            editBtn.addEventListener('mouseenter', function() {
+                this.style.background = '#0056b3';
+            });
+            editBtn.addEventListener('mouseleave', function() {
+                this.style.background = '#007bff';
+            });
             
             // Agregar evento de eliminar
             const removeBtn = item.querySelector('.btn-remove-beneficiary');
@@ -727,7 +747,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 renderBeneficiarios();
             });
             
-            // Hover effect
+            // Hover effect para eliminar
             removeBtn.addEventListener('mouseenter', function() {
                 this.style.background = '#c82333';
             });
