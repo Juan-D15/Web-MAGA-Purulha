@@ -665,6 +665,16 @@
   };
 
   let currentTooltip = null;
+
+  const CALENDAR_DEBUG_ENABLED = (() => {
+    try {
+      return Boolean(window && window.localStorage && window.localStorage.getItem('WEBMAGA_DEBUG'));
+    } catch (err) {
+      return false;
+    }
+  })();
+  const calendarDebugLog = (...args) => { if (CALENDAR_DEBUG_ENABLED) console.log(...args); };
+  const calendarDebugWarn = (...args) => { if (CALENDAR_DEBUG_ENABLED) console.warn(...args); };
   function createTooltip(){
     if(currentTooltip) return currentTooltip;
     const t = document.createElement('div');
@@ -705,7 +715,7 @@
   const handleRegionHover = (event) => {
     const path = event.target;
     // Buscar el grupo padre para obtener inkscape:label (gN)
-    const group = path.closest('g[inkscape\:label]');
+    const group = path.closest('g[inkscape\\:label]');
     const label = group ? group.getAttribute('inkscape:label') : null;
     let regionNumber = null;
     if (label && /^g\d+$/i.test(label)) {
@@ -723,7 +733,7 @@
     path.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
     if(regionNumber){ showTooltip(regionNumber, event); }
     
-    console.log(`Hovering over region: ${regionNumber}`);
+    calendarDebugLog(`Hovering over region: ${regionNumber}`);
   };
 
   const handleRegionLeave = (event) => {
@@ -754,7 +764,7 @@
       window.location.href = mapaUrl;
     }
     
-    console.log(`Redirigiendo al mapa completo desde región: ${regionNumber}`);
+    calendarDebugLog(`Redirigiendo al mapa completo desde región: ${regionNumber}`);
   };
 
   // Agregar event listeners a paths y grupos
@@ -847,7 +857,7 @@
   const calModalTitle = modal.querySelector('#calModalTitle');
 
   function openCalModal(dateLabel, events, avances = null){
-    console.log('🔵 Abriendo modal del día:', dateLabel, 'con eventos:', events?.length || 0, 'y avances:', avances?.length || 0);
+    calendarDebugLog('🔵 Abriendo modal del día:', dateLabel, 'con eventos:', events?.length || 0, 'y avances:', avances?.length || 0);
     calModalTitle.textContent = `Eventos — ${dateLabel}`;
     
     // Limpiar contenido anterior COMPLETAMENTE
@@ -892,11 +902,11 @@
           ${ev.owners ? `<div class="event-card__meta" style="margin-top:6px">Encargados: ${ev.owners}</div>` : ''}
         `;
         eventsSection.appendChild(card);
-        console.log(`✅ Evento agregado: ${ev.name || 'Evento'}`);
+        calendarDebugLog(`✅ Evento agregado: ${ev.name || 'Evento'}`);
       });
       
       calModalBody.appendChild(eventsSection);
-      console.log(`✅ ${events.length} eventos agregados al modal`);
+      calendarDebugLog(`✅ ${events.length} eventos agregados al modal`);
     }
     
     // Mostrar avances si se proporcionaron
@@ -933,14 +943,14 @@
           ${av.responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${av.responsable}</div>` : ''}
         `;
         avancesSection.appendChild(card);
-        console.log(`✅ Avance agregado: ${av.evento_nombre || 'Sin nombre'}`);
+        calendarDebugLog(`✅ Avance agregado: ${av.evento_nombre || 'Sin nombre'}`);
       });
       
       if(eventsSection){
         avancesSection.style.marginTop = '20px';
       }
       calModalBody.appendChild(avancesSection);
-      console.log(`✅ ${avances.length} avances agregados al modal`);
+      calendarDebugLog(`✅ ${avances.length} avances agregados al modal`);
     }
     
     // Cargar avances del día si no se proporcionaron
@@ -998,14 +1008,14 @@
     
     // Cargar y mostrar recordatorios (asíncrono)
     fetchDayReminders(dateLabel).then(reminders => {
-      console.log('📋 Recordatorios recibidos en openCalModal:', reminders);
+    calendarDebugLog('📋 Recordatorios recibidos en openCalModal:', reminders);
       
       if(reminders && reminders.length > 0){
-        console.log(`📝 Procesando ${reminders.length} recordatorios para mostrar`);
+        calendarDebugLog(`📝 Procesando ${reminders.length} recordatorios para mostrar`);
         
         // Filtrar recordatorios que coincidan con la fecha del día seleccionado
         const dateISO = parseLabelToISO(dateLabel);
-        console.log(`🔍 Filtrando recordatorios para fecha: ${dateISO}`);
+        calendarDebugLog(`🔍 Filtrando recordatorios para fecha: ${dateISO}`);
         
         // Filtrar recordatorios que pertenezcan al día seleccionado
         const dayReminders = reminders.filter(r => {
@@ -1016,15 +1026,15 @@
           const reminderDate = r.date.split('T')[0];
           const isMatch = reminderDate === dateISO;
           if(!isMatch){
-            console.log(`⚠️ Recordatorio filtrado: fecha ${reminderDate} no coincide con ${dateISO}`);
+            calendarDebugLog(`⚠️ Recordatorio filtrado: fecha ${reminderDate} no coincide con ${dateISO}`);
           }
           return isMatch;
         });
         
-        console.log(`✅ ${dayReminders.length} recordatorios después del filtro de fecha (de ${reminders.length} totales)`);
+        calendarDebugLog(`✅ ${dayReminders.length} recordatorios después del filtro de fecha (de ${reminders.length} totales)`);
         
         if(dayReminders.length === 0){
-          console.log('⚠️ No hay recordatorios para este día después del filtro');
+          calendarDebugLog('⚠️ No hay recordatorios para este día después del filtro');
           if(calModalBody.children.length === 0){
             const noContentMsg = document.createElement('p');
             noContentMsg.style.cssText = 'color:#a8b2c2;text-align:center;padding:20px;font-style:italic';
@@ -1075,9 +1085,9 @@
         
         // Mostrar recordatorios futuros primero
         if(remindersFuture.length > 0){
-          console.log(`✅ Renderizando ${remindersFuture.length} recordatorios futuros`);
+          calendarDebugLog(`✅ Renderizando ${remindersFuture.length} recordatorios futuros`);
           remindersFuture.forEach((r, index) => {
-            console.log(`🎯 Renderizando recordatorio FUTURO ${index + 1}/${remindersFuture.length}:`, r);
+            calendarDebugLog(`🎯 Renderizando recordatorio FUTURO ${index + 1}/${remindersFuture.length}:`, r);
             try{
               const card = createReminderCard(r, dateLabel, false);
               if(card){
@@ -1088,9 +1098,9 @@
                 }
                 // Forzar reflow para asegurar renderizado
                 card.offsetHeight;
-                console.log(`✅ Recordatorio futuro ${index + 1} agregado al DOM`);
+                calendarDebugLog(`✅ Recordatorio futuro ${index + 1} agregado al DOM`);
               } else {
-                console.warn(`⚠️ createReminderCard retornó null para recordatorio:`, r);
+                calendarDebugWarn(`⚠️ createReminderCard retornó null para recordatorio:`, r);
               }
             }catch(e){
               console.error(`❌ Error al renderizar recordatorio futuro:`, e, r);
@@ -1100,7 +1110,7 @@
         
         // Luego mostrar recordatorios pasados
         if(remindersPassed.length > 0){
-          console.log(`✅ Renderizando ${remindersPassed.length} recordatorios pasados`);
+          calendarDebugLog(`✅ Renderizando ${remindersPassed.length} recordatorios pasados`);
           
           if(remindersFuture.length > 0){
             const divider = document.createElement('div');
@@ -1114,7 +1124,7 @@
           }
           
           remindersPassed.forEach((r, index) => {
-            console.log(`🎯 Renderizando recordatorio PASADO ${index + 1}/${remindersPassed.length}:`, r);
+            calendarDebugLog(`🎯 Renderizando recordatorio PASADO ${index + 1}/${remindersPassed.length}:`, r);
             try{
               const card = createReminderCard(r, dateLabel, true);
               if(card){
@@ -1125,9 +1135,9 @@
                 }
                 // Forzar reflow para asegurar renderizado
                 card.offsetHeight;
-                console.log(`✅ Recordatorio pasado ${index + 1} agregado al DOM`);
+                calendarDebugLog(`✅ Recordatorio pasado ${index + 1} agregado al DOM`);
               } else {
-                console.warn(`⚠️ createReminderCard retornó null para recordatorio:`, r);
+                calendarDebugWarn(`⚠️ createReminderCard retornó null para recordatorio:`, r);
               }
             }catch(e){
               console.error(`❌ Error al renderizar recordatorio pasado:`, e, r);
@@ -1135,7 +1145,7 @@
           });
         }
         
-        console.log(`✅ Total de recordatorios agregados al modal: ${remindersFuture.length + remindersPassed.length}`);
+        calendarDebugLog(`✅ Total de recordatorios agregados al modal: ${remindersFuture.length + remindersPassed.length}`);
         
         // Forzar reflow completo del modal
         calModalBody.offsetHeight;
@@ -1144,7 +1154,7 @@
         const reminderCards = calModalBody.querySelectorAll('.event-card[data-reminder-id]');
         const eventCards = calModalBody.querySelectorAll('.event-card[data-item-type="event"]');
         const avanceCards = calModalBody.querySelectorAll('.event-card[data-item-type="avance"]');
-        console.log(`✅ Verificación: ${eventCards.length} eventos, ${avanceCards.length} avances y ${reminderCards.length} recordatorios en el DOM`);
+        calendarDebugLog(`✅ Verificación: ${eventCards.length} eventos, ${avanceCards.length} avances y ${reminderCards.length} recordatorios en el DOM`);
         
         // Scroll al inicio de los recordatorios si hay muchos
         if(remindersFuture.length > 0 && remindersHeader){
@@ -1153,7 +1163,7 @@
           }, 150);
         }
       } else {
-        console.log('⚠️ No hay recordatorios para mostrar');
+        calendarDebugLog('⚠️ No hay recordatorios para mostrar');
         // Si no hay recordatorios ni eventos, mostrar mensaje
         if(calModalBody.children.length === 0){
           const noContentMsg = document.createElement('p');
@@ -1253,7 +1263,7 @@
           e.stopPropagation();
           
           if(confirm('¿Estás seguro de que deseas eliminar este recordatorio?')){
-            console.log('🗑️ Eliminando recordatorio:', r.id);
+            calendarDebugLog('🗑️ Eliminando recordatorio:', r.id);
             deleteReminder(r.id, dateLabel);
           }
         });
@@ -1400,7 +1410,7 @@
       
       // Agregar recordatorios del día
       const dayReminders = remindersByDate.get(key) || [];
-      console.log(`📋 Día ${key}: ${dayReminders.length} recordatorio(s) encontrado(s)`);
+      calendarDebugLog(`📋 Día ${key}: ${dayReminders.length} recordatorio(s) encontrado(s)`);
       const futureReminders = dayReminders.filter(r => {
         if(r.date && r.time){
           const reminderDateTime = new Date(`${r.date}T${r.time || '00:00'}`);
@@ -1532,15 +1542,15 @@
               remindersMap.set(reminderDate, []);
             }
             remindersMap.get(reminderDate).push(r);
-            console.log(`📍 Recordatorio mapeado: ${r.event_name || 'Sin nombre'} → fecha ${reminderDate}`);
+            calendarDebugLog(`📍 Recordatorio mapeado: ${r.event_name || 'Sin nombre'} → fecha ${reminderDate}`);
           });
         }
       });
       
-      console.log(`✅ Recordatorios del mes cargados: ${remindersMap.size} días con recordatorios`);
+      calendarDebugLog(`✅ Recordatorios del mes cargados: ${remindersMap.size} días con recordatorios`);
       // Log para debugging: mostrar todas las fechas con recordatorios
       remindersMap.forEach((reminders, dateKey) => {
-        console.log(`  📅 ${dateKey}: ${reminders.length} recordatorio(s)`);
+        calendarDebugLog(`  📅 ${dateKey}: ${reminders.length} recordatorio(s)`);
       });
     }catch(e){
       console.warn('Error al cargar recordatorios del mes:', e);
@@ -1597,12 +1607,12 @@
               avancesMap.set(avanceDate, []);
             }
             avancesMap.get(avanceDate).push(av);
-            console.log(`📍 Avance mapeado: ${av.evento_nombre || 'Sin nombre'} → fecha ${avanceDate}`);
+            calendarDebugLog(`📍 Avance mapeado: ${av.evento_nombre || 'Sin nombre'} → fecha ${avanceDate}`);
           });
         }
       });
       
-      console.log(`✅ Avances del mes cargados: ${avancesMap.size} días con avances`);
+      calendarDebugLog(`✅ Avances del mes cargados: ${avancesMap.size} días con avances`);
     }catch(e){
       console.warn('Error al cargar avances del mes:', e);
     }
@@ -1613,7 +1623,7 @@
   async function fetchDayAvances(dateLabel){
     try{
       const dateISO = parseLabelToISO(dateLabel);
-      console.log('🔍 Buscando avances para fecha:', dateLabel, '→ ISO:', dateISO);
+      calendarDebugLog('🔍 Buscando avances para fecha:', dateLabel, '→ ISO:', dateISO);
       const res = await fetch(`${AVANCES_API}?date=${dateISO}`);
       
       if(!res.ok){
@@ -1623,7 +1633,7 @@
       
       const data = await res.json();
       const avances = Array.isArray(data) ? data : (data.results || []);
-      console.log('✅ Avances encontrados:', avances.length, avances);
+      calendarDebugLog('✅ Avances encontrados:', avances.length, avances);
       return avances;
     }catch(e){
       console.error('❌ Error en fetchDayAvances:', e);
@@ -1678,7 +1688,7 @@
   async function fetchDayReminders(dateLabel){ 
     try{ 
       const dateISO = parseLabelToISO(dateLabel);
-      console.log('🔍 Buscando recordatorios para fecha:', dateLabel, '→ ISO:', dateISO);
+      calendarDebugLog('🔍 Buscando recordatorios para fecha:', dateLabel, '→ ISO:', dateISO);
       const res = await fetch(`${REM_API}?date=${dateISO}`);
       
       if(!res.ok){
@@ -1688,7 +1698,7 @@
       
       const data = await res.json();
       const reminders = Array.isArray(data) ? data : (data.results || []);
-      console.log('✅ Recordatorios encontrados:', reminders.length, reminders);
+      calendarDebugLog('✅ Recordatorios encontrados:', reminders.length, reminders);
       return reminders;
     }catch(e){ 
       console.error('❌ Error en fetchDayReminders:', e);
@@ -2025,7 +2035,7 @@
       });
       if(res.ok){
         const result = await res.json();
-        console.log('✅ Recordatorio guardado exitosamente:', result);
+        calendarDebugLog('✅ Recordatorio guardado exitosamente:', result);
         closeReminderModal();
         // Cerrar el modal del día si está abierto
         closeCalModal();

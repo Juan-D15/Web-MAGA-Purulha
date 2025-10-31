@@ -4,6 +4,16 @@
  * ========================================
  */
 
+const DEBUG_LOGS = (() => {
+    try {
+        return Boolean(window && window.localStorage && window.localStorage.getItem('WEBMAGA_DEBUG'));
+    } catch (err) {
+        return false;
+    }
+})();
+const debugLog = (...args) => { if (DEBUG_LOGS) console.log(...args); };
+const debugWarn = (...args) => { if (DEBUG_LOGS) console.warn(...args); };
+
 // Función para cargar los últimos eventos desde la API
 async function cargarUltimosEventos() {
     try {
@@ -16,9 +26,9 @@ async function cargarUltimosEventos() {
         
         if (data.success && data.eventos && data.eventos.length > 0) {
             renderizarEventos(data.eventos);
-            console.log(`✅ ${data.eventos.length} eventos cargados exitosamente`);
+            debugLog(`✅ ${data.eventos.length} eventos cargados exitosamente`);
         } else {
-            console.warn('⚠️ No hay eventos para mostrar');
+            debugWarn('⚠️ No hay eventos para mostrar');
             mostrarMensajeSinEventos();
         }
     } catch (error) {
@@ -205,7 +215,7 @@ function agregarEventListenersVerMas() {
 
 // Inicializar cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Iniciando carga de últimos eventos...');
+    debugLog('🚀 Iniciando carga de últimos eventos...');
     cargarUltimosEventos();
 });
 

@@ -3,6 +3,15 @@
 (function() {
   'use strict';
 
+  const DEBUG_LOGS = (() => {
+    try {
+      return Boolean(window && window.localStorage && window.localStorage.getItem('WEBMAGA_DEBUG'));
+    } catch (err) {
+      return false;
+    }
+  })();
+  const debugLog = (...args) => { if (DEBUG_LOGS) console.log(...args); };
+
   // ========== INICIALIZACIÓN ==========
   document.addEventListener('DOMContentLoaded', function() {
     initDesktopDropdowns();
@@ -149,7 +158,7 @@
         e.preventDefault();
         const query = searchInput.value.trim();
         if (query) {
-          console.log('Buscar proyecto:', query);
+          debugLog('Buscar proyecto:', query);
           // Aquí puedes agregar la funcionalidad de búsqueda
         }
       });
@@ -159,7 +168,7 @@
           e.preventDefault();
           const query = searchInput.value.trim();
           if (query) {
-            console.log('Buscar proyecto:', query);
+            debugLog('Buscar proyecto:', query);
             // Aquí puedes agregar la funcionalidad de búsqueda
           }
         }
@@ -382,7 +391,7 @@
         navUserDropdown.style.display = 'none';
         navUserDropdown.classList.remove('show');
         navUserIcon.classList.remove('active');
-        console.log('Mostrar perfil del usuario');
+        debugLog('Mostrar perfil del usuario');
       });
     }
 
@@ -392,7 +401,7 @@
         navUserDropdown.style.display = 'none';
         navUserDropdown.classList.remove('show');
         navUserIcon.classList.remove('active');
-        console.log('Mostrar configuración');
+        debugLog('Mostrar configuración');
       });
     }
 
@@ -463,7 +472,7 @@
     if (mobileProfileBtn) {
       mobileProfileBtn.addEventListener('click', () => {
         if (window.closeDrawer) window.closeDrawer();
-        console.log('Mostrar perfil del usuario (móvil)');
+        debugLog('Mostrar perfil del usuario (móvil)');
       });
     }
 
@@ -471,7 +480,7 @@
     if (mobileSettingsBtn) {
       mobileSettingsBtn.addEventListener('click', () => {
         if (window.closeDrawer) window.closeDrawer();
-        console.log('Mostrar configuración (móvil)');
+        debugLog('Mostrar configuración (móvil)');
       });
     }
 
@@ -503,23 +512,23 @@
   function initUserInfoDisplay() {
     // La visibilidad inicial ya se maneja en el template de Django
     // Esta función solo se mantiene para posibles actualizaciones dinámicas futuras
-    console.log('User info display initialized');
+    debugLog('User info display initialized');
   }
 
   // ========== FUNCIONES DE ADMINISTRADOR (GESTIONES) ==========
   function handleGestionesAction(action) {
-    console.log('handleGestionesAction called with action:', action);
+    debugLog('handleGestionesAction called with action:', action);
     
     // Usar las variables globales de base.html
     if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
-      console.log('Redirecting to gestioneventos as admin');
+      debugLog('Redirecting to gestioneventos as admin');
       if (window.DJANGO_URLS && window.DJANGO_URLS.gestioneseventos) {
         window.location.href = window.DJANGO_URLS.gestioneseventos;
       }
     } else if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && !window.USER_AUTH.isAdmin) {
       alert('No tienes permisos de administrador para acceder a esta sección.');
     } else {
-      console.log('User not authenticated, redirecting to login');
+      debugLog('User not authenticated, redirecting to login');
       sessionStorage.setItem('gestionesAction', action);
       sessionStorage.setItem('loginOriginPage', window.location.href);
       if (window.DJANGO_URLS && window.DJANGO_URLS.login) {

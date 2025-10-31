@@ -602,9 +602,10 @@ def api_listar_eventos(request):
         eventos = Actividad.objects.filter(
             eliminado_en__isnull=True
         ).select_related(
-            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador'
         ).prefetch_related(
-            'personal__usuario',
+            'personal__usuario__puesto',
+            'personal__colaborador',
             'beneficiarios__beneficiario'
         ).order_by('-creado_en')
         
@@ -615,10 +616,12 @@ def api_listar_eventos(request):
             beneficiarios_count = evento.beneficiarios.count()
             
             # Obtener nombres del personal (usar nombre completo o username como fallback)
-            personal_nombres = [
-                ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username 
-                for ap in evento.personal.all()[:3]
-            ]
+            personal_nombres = []
+            for ap in evento.personal.all()[:3]:
+                if ap.usuario:
+                    personal_nombres.append(ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username)
+                elif ap.colaborador:
+                    personal_nombres.append(ap.colaborador.nombre)
             if personal_count > 3:
                 personal_nombres.append(f'+{personal_count - 3} más')
             
@@ -668,9 +671,10 @@ def api_obtener_evento(request, evento_id):
     """Obtiene los detalles completos de un evento"""
     try:
         evento = Actividad.objects.select_related(
-            'tipo', 'comunidad', 'responsable'
+            'tipo', 'comunidad', 'responsable', 'colaborador'
         ).prefetch_related(
             'personal__usuario__puesto',
+            'personal__colaborador__puesto',
             'beneficiarios__beneficiario__individual',
             'beneficiarios__beneficiario__familia',
             'beneficiarios__beneficiario__institucion',
@@ -680,14 +684,26 @@ def api_obtener_evento(request, evento_id):
         # Personal asignado
         personal_data = []
         for ap in evento.personal.all():
-            personal_data.append({
-                'id': str(ap.usuario.id),
-                'username': ap.usuario.username,
-                'nombre': ap.usuario.nombre or '',  # Nombre completo (opcional)
-                'rol': ap.rol_en_actividad,
-                'rol_display': ap.usuario.get_rol_display(),
-                'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else None
-            })
+            if ap.usuario:
+                personal_data.append({
+                    'id': str(ap.usuario.id),
+                    'username': ap.usuario.username,
+                    'nombre': ap.usuario.nombre or '',
+                    'rol': ap.rol_en_actividad,
+                    'rol_display': ap.usuario.get_rol_display(),
+                    'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else None,
+                    'tipo': 'usuario'
+                })
+            elif ap.colaborador:
+                personal_data.append({
+                    'id': str(ap.colaborador.id),
+                    'username': ap.colaborador.correo or '',
+                    'nombre': ap.colaborador.nombre,
+                    'rol': ap.rol_en_actividad,
+                    'rol_display': 'Personal Fijo' if ap.colaborador.es_personal_fijo else 'Colaborador Externo',
+                    'puesto': ap.colaborador.puesto.nombre if ap.colaborador.puesto else None,
+                    'tipo': 'colaborador'
+                })
         
         # Beneficiarios con detalles completos
         beneficiarios_data = []
@@ -836,7 +852,7 @@ def api_actualizar_evento(request, evento_id):
             # Actualizar personal
             if data.get('personal_ids'):
                 personal_ids_nuevos = set(json.loads(data.get('personal_ids')))
-                personal_ids_actuales = set(str(ap.usuario.id) for ap in evento.personal.all())
+                personal_ids_actuales = {str(ap.usuario.id) for ap in evento.personal.all() if ap.usuario_id}
                 
                 # Eliminar personal que ya no está asignado
                 personal_a_eliminar = personal_ids_actuales - personal_ids_nuevos
@@ -1400,10 +1416,12 @@ def api_listar_proyectos_por_tipo(request, tipo_actividad):
                 
                 # Obtener nombres del personal
                 try:
-                    personal_nombres = [
-                        ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username 
-                        for ap in evento.personal.all()[:3]
-                    ]
+                    personal_nombres = []
+                    for ap in evento.personal.all()[:3]:
+                        if ap.usuario:
+                            personal_nombres.append(ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username)
+                        elif ap.colaborador:
+                            personal_nombres.append(ap.colaborador.nombre)
                     personal_count = evento.personal.count()
                     if personal_count > 3:
                         personal_nombres.append(f'+{personal_count - 3} más')
@@ -1519,10 +1537,12 @@ def api_ultimos_proyectos(request):
                 # Obtener conteo de personal
                 try:
                     personal_count = evento.personal.count()
-                    personal_nombres = [
-                        ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username 
-                        for ap in evento.personal.all()[:3]
-                    ]
+                    personal_nombres = []
+                    for ap in evento.personal.all()[:3]:
+                        if ap.usuario:
+                            personal_nombres.append(ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username)
+                        elif ap.colaborador:
+                            personal_nombres.append(ap.colaborador.nombre)
                     if personal_count > 3:
                         personal_nombres.append(f'+{personal_count - 3} más')
                 except:
@@ -2092,9 +2112,10 @@ def api_obtener_detalle_proyecto(request, evento_id):
         import pytz
         
         evento = Actividad.objects.select_related(
-            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador'
         ).prefetch_related(
             'personal__usuario__puesto',
+            'personal__colaborador__puesto',
             'beneficiarios__beneficiario__individual',
             'beneficiarios__beneficiario__familia',
             'beneficiarios__beneficiario__institucion',
@@ -2104,14 +2125,26 @@ def api_obtener_detalle_proyecto(request, evento_id):
         # Personal asignado
         personal_data = []
         for ap in evento.personal.all():
-            personal_data.append({
-                'id': str(ap.usuario.id),
-                'username': ap.usuario.username,
-                'nombre': ap.usuario.nombre or ap.usuario.username,
-                'rol': ap.rol_en_actividad,
-                'rol_display': ap.usuario.get_rol_display() if hasattr(ap.usuario, 'get_rol_display') else ap.usuario.rol,
-                'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else 'Sin puesto'
-            })
+            if ap.usuario:
+                personal_data.append({
+                    'id': str(ap.usuario.id),
+                    'username': ap.usuario.username,
+                    'nombre': ap.usuario.nombre or ap.usuario.username,
+                    'rol': ap.rol_en_actividad,
+                    'rol_display': ap.usuario.get_rol_display() if hasattr(ap.usuario, 'get_rol_display') else ap.usuario.rol,
+                    'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else 'Sin puesto',
+                    'tipo': 'usuario'
+                })
+            elif ap.colaborador:
+                personal_data.append({
+                    'id': str(ap.colaborador.id),
+                    'username': ap.colaborador.correo or '',
+                    'nombre': ap.colaborador.nombre,
+                    'rol': ap.rol_en_actividad,
+                    'rol_display': 'Personal Fijo' if ap.colaborador.es_personal_fijo else 'Colaborador Externo',
+                    'puesto': ap.colaborador.puesto.nombre if ap.colaborador.puesto else 'Sin puesto',
+                    'tipo': 'colaborador'
+                })
         
         # Beneficiarios
         beneficiarios_data = []

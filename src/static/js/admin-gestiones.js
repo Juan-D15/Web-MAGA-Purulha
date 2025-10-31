@@ -3,6 +3,15 @@
 (function() {
   'use strict';
 
+  const DEBUG_LOGS = (() => {
+    try {
+      return Boolean(window && window.localStorage && window.localStorage.getItem('WEBMAGA_DEBUG'));
+    } catch (err) {
+      return false;
+    }
+  })();
+  const debugLog = (...args) => { if (DEBUG_LOGS) console.log(...args); };
+
   // ========== VERIFICAR ACCESO DE ADMINISTRADOR ==========
   function checkAdminAccess() {
     // Usar las variables globales de Django si están disponibles
@@ -19,7 +28,7 @@
         
         // Corregir automáticamente si es admin pero no tiene la propiedad isAdmin
         if (user.username === 'admin' && !user.isAdmin) {
-          console.log('Fixing admin user - adding isAdmin property');
+          debugLog('Fixing admin user - adding isAdmin property');
           user.isAdmin = true;
           localStorage.setItem('userInfo', JSON.stringify(user));
         }
@@ -39,12 +48,12 @@
   function loadUserInfo() {
     // Ya no es necesario porque Django maneja esto en el template
     // Esta función se mantiene para compatibilidad con código legacy
-    console.log('User info managed by Django template');
+    debugLog('User info managed by Django template');
   }
 
   // ========== MOSTRAR MODAL DE LOGIN DE ADMINISTRADOR ==========
   function showAdminLoginModal() {
-    console.log('showAdminLoginModal called');
+    debugLog('showAdminLoginModal called');
     
     // Crear modal de login para administrador
     const modal = document.createElement('div');
@@ -129,13 +138,13 @@
         // Verificar credenciales de administrador
         // NOTA: En producción, esto debe validarse en el backend
         if (username === 'admin' && password === 'admin123') {
-          console.log('Admin credentials correct, redirecting to gestioneventos');
+          debugLog('Admin credentials correct, redirecting to gestioneventos');
           
           // Redirigir usando la URL de Django
           const gestionesUrl = window.DJANGO_URLS?.gestioneseventos || '/gestioneseventos/';
           window.location.href = gestionesUrl;
         } else {
-          console.log('Admin credentials incorrect');
+          debugLog('Admin credentials incorrect');
           errorDiv.style.display = 'block';
           errorDiv.textContent = 'Credenciales incorrectas. Intente nuevamente.';
         }
@@ -161,7 +170,7 @@
 
   // ========== CERRAR MODAL DE LOGIN DE ADMINISTRADOR ==========
   function closeAdminLoginModal() {
-    console.log('closeAdminLoginModal called');
+    debugLog('closeAdminLoginModal called');
     const modal = document.getElementById('adminLoginModal');
     
     if (modal) {
@@ -171,13 +180,13 @@
       // Limpiar la acción guardada en sessionStorage
       sessionStorage.removeItem('gestionesAction');
       
-      console.log('Modal closed successfully');
+      debugLog('Modal closed successfully');
     }
   }
 
   // ========== ALTERNAR VISIBILIDAD DE CONTRASEÑA ==========
   function toggleAdminPassword() {
-    console.log('toggleAdminPassword called');
+    debugLog('toggleAdminPassword called');
     const passwordInput = document.getElementById('adminPassword');
     const toggleBtn = document.querySelector('.admin-password-toggle');
     
@@ -205,17 +214,17 @@
   // ========== MANEJAR ACCIONES DE GESTIONES (OVERRIDE) ==========
   // Esta función sobrescribe la versión básica de navigation.js con lógica de modal
   function handleGestionesActionWithModal(action) {
-    console.log('handleGestionesActionWithModal called with action:', action);
+    debugLog('handleGestionesActionWithModal called with action:', action);
     
     // Usar las variables globales de base.html
     if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
-      console.log('Redirecting to gestioneventos as admin');
+      debugLog('Redirecting to gestioneventos as admin');
       const gestionesUrl = window.DJANGO_URLS?.gestioneseventos || '/gestioneseventos/';
       window.location.href = gestionesUrl;
     } else if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && !window.USER_AUTH.isAdmin) {
       alert('No tienes permisos de administrador para acceder a esta sección.');
     } else {
-      console.log('User not authenticated, showing admin login modal');
+      debugLog('User not authenticated, showing admin login modal');
       sessionStorage.setItem('gestionesAction', action);
       showAdminLoginModal();
     }
@@ -231,6 +240,6 @@
   // Sobrescribir handleGestionesAction con la versión que tiene modal
   window.handleGestionesAction = handleGestionesActionWithModal;
 
-  console.log('Admin gestiones module loaded');
+  debugLog('Admin gestiones module loaded');
 })();
 
