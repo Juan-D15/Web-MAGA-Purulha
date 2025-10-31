@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="{% static 'css/mapa-completo.css' %}">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
+  <!-- Estilos para el mapa completo están en mapa-completo.css -->
 {% endblock %}
 {% block nav_mapa %}active{% endblock %}
 {% block content %}
@@ -19,16 +20,16 @@
                 <h2 class="region-title" id="regionTitle">Selecciona una región</h2>
             </div>
             <div class="region-content">
+                <div class="region-info">
+                    <h3>Información de la Región</h3>
+                    <div class="communities-list" id="communitiesList"></div>
+                    <div class="region-info-actions">
+                        <a id="viewRegionBtn" class="btn-view-region" href="#">Mostrar información completa de la región</a>
+                    </div>
+                </div>
                 <div class="region-map-container">
                     <div class="region-svg-container" id="regionSvgContainer">
                         <!-- SVG individual de la región se cargará aquí -->
-                    </div>
-                </div>
-                <div class="region-info">
-                    <h3>Información de la Región</h3>
-                    <div class="communities-list" id="communitiesList">
-                        <!-- Lista de comunidades se mostrará aquí -->
-                        <p class="placeholder-text">Lista de comunidades próximamente...</p>
                     </div>
                 </div>
             </div>
@@ -36,20 +37,20 @@
 
         <div class="map-wrapper">
             <svg
-               xmlns:dc="http://purl.org/dc/elements/1.1/"
-               xmlns:cc="http://creativecommons.org/ns#"
-               xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-               xmlns:svg="http://www.w3.org/2000/svg"
-               xmlns="http://www.w3.org/2000/svg"
-               xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-               xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-               width="100%"
-               height="100%"
-               viewBox="0 0 1920 1080"
-               id="svg8"
-               version="1.1"
-               inkscape:version="0.92.3 (2405545, 2018-03-11)"
-               sodipodi:docname="mapa_regionizado_numerizado.svg">
+            xmlns:dc="http://purl.org/dc/elements/1.1/"
+            xmlns:cc="http://creativecommons.org/ns#"
+            xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+            xmlns:svg="http://www.w3.org/2000/svg"
+            xmlns="http://www.w3.org/2000/svg"
+            xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+            xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+            width="1920"
+            height="1080"
+            viewBox="0 0 1920 1080"
+            id="svg8"
+            version="1.1"
+            inkscape:version="0.92.3 (2405545, 2018-03-11)"
+            sodipodi:docname="mapa_regionizado_numerizado.svg">
                <defs
                   id="defs2">
                   <marker
@@ -435,6 +436,17 @@
                    </div>
                  </main>
 
+    <!-- Modal de lista completa -->
+    <div class="communities-modal" id="communitiesModal" aria-hidden="true">
+      <div class="communities-modal__panel" role="dialog" aria-modal="true">
+        <div class="communities-modal__header">
+          <h3 class="communities-modal__title" id="communitiesModalTitle">Comunidades</h3>
+          <button class="communities-modal__close" id="closeCommunitiesModal" aria-label="Cerrar">×</button>
+        </div>
+        <div class="communities-modal__body" id="communitiesModalBody"></div>
+      </div>
+    </div>
+
     <!-- ======= SECCIÓN DE MICRORREGIONES ======= -->
     <section class="microrregiones-section">
         <div class="microrregiones-container">
@@ -526,166 +538,160 @@
 
 {% block extra_js %}
   <script>
-    // ======= DATOS DE REGIONES CON COMUNIDADES =======
-    const regionData = {
-      1: { 
-        title: "Región 1", 
-        sede: "Barrio El Centro",
-        communities: [
-          "El Calvario", "El Carpintero", "El Cementerio", "El Centro", 
-          "La Cruz", "San Antonio", "Cerrito El Calvario", "Cerro de La Cruz", 
-          "La Cruz II", "Los Encuentros", "Barrio Las Moras"
-        ] 
-      },
-      2: { 
-        title: "Región 2", 
-        sede: "Aldea Mocohán",
-        communities: [
-          "Mocohan", "El Durazno", "Cola del Mico", "Parrachoch I", 
-          "Parrachoch II", "Mocohan Sector II", "Portezuelo", "Betania", "Pantin"
-        ] 
-      },
-      3: { 
-        title: "Región 3", 
-        sede: "Caserío Los Pinos",
-        communities: [
-          "Los Manantiales", "Nueva Esperanza Cementerio", "Panimaquito", 
-          "Monjas Panimaquito", "Rincón del Quetzal", "Los Pinos", 
-          "Cumbre del Carpintero", "La Presa", "Rincón El Carpintero", 
-          "Cuchilla del Nogal", "Río Colorado", "Rincón Nueva Jerusalén"
-        ] 
-      },
-      4: { 
-        title: "Región 4", 
-        sede: "Aldea Eben-Ezer",
-        communities: [
-          "El Chorro", "Agua Viva", "Eben-Ezer", "El Jute I", "El Jute II", 
-          "Chisiguan", "Caserío El Mezcal I", "El Pinal", "El Repollal I", 
-          "El Repollal II", "Rincón del Suquinay", "El Mirador Cerro Alto", 
-          "Rincón El Calvario", "Eben-Ezer II", "El Milagro"
-        ] 
-      },
-      5: { 
-        title: "Región 5", 
-        sede: "Caserío Suquinay II",
-        communities: [
-          "Bella Vista Sachut", "Tierra Linda Sulín", "Ronda Sachut", 
-          "Tres Cruces", "El Comunal", "Villa Nueva Sulín", "Suquinay II"
-        ] 
-      },
-      6: { 
-        title: "Región 6", 
-        sede: "Caserío San Luis Panzal",
-        communities: [
-          "Santa Rita Panzal", "El Rosario Panzal", "Orejuela", 
-          "Herederos Panzal", "Santa Elena Panzal", "San Luis Panzal", 
-          "Camelias Panzal", "San Antonio Liquidambar", "Canahan Panzal"
-        ] 
-      },
-      7: { 
-        title: "Región 7", 
-        sede: "Aldea Panimá",
-        communities: [
-          "La Ceiba", "Monjón Panimá", "San Miguel Panimá", "El Pacayal", 
-          "San Luis Panimá", "Panimá", "Los Ángeles Maxaxá", "Peña del Ángel", 
-          "Santa Elena Panimá"
-        ] 
-      },
-      8: { 
-        title: "Región 8", 
-        sede: "Caserío Centro Panchisivic",
-        communities: [
-          "Nuevo Progreso Panchisivic", "Concepción Panchisivic", "Xombal Panchisivic", 
-          "Sachoxá", "Santa Luisa Pancalá", "Cementerio Panchisivic", 
-          "Centro Panchisivic", "Esfuerzo Chejel", "La Paz Chejel", "La Caoba Panchisivic"
-        ] 
-      },
-      9: { 
-        title: "Región 9", 
-        sede: "Aldea Chantel Chicoy",
-        communities: [
-          "El Carmen Los Gavilanes", "Renacimiento Vega Larga I", "Chantel Chicoy", 
-          "San Pablo La Línea", "Campo Nuevo Chicoy"
-        ] 
-      },
-      10: { 
-        title: "Región 10", 
-        sede: "Aldea Ribacó",
-        communities: [
-          "Olimpia", "Ribacó", "Canaan Ribacó", "Vista Hermosa", "Los Naranjales", 
-          "Cuchilla Jalanté", "Sucursal Chicoy Panchisivic", "Moxanté", 
-          "Hamaca Panchisivic", "Concepción Sector I Panchisivic", "La Libertad Pampá", 
-          "Nuevo San Rafael Panchisivic"
-        ] 
-      },
-      11: { 
-        title: "Región 11", 
-        sede: "San Marcos Sacsamaní",
-        communities: [
-          "Panzal Jalauté", "San Marcos Sacsamaní", "Tierra Blanca Jalauté", 
-          "Sector Norte Jalauté", "El Carmen Villa Nueva Jalauté", "Jalauté"
-        ] 
-      },
-      12: { 
-        title: "Región 12", 
-        sede: "Aldea Sacsamaní",
-        communities: [
-          "Sacsamaní Panalbarda", "Guachabajá", "Nuevo Jinayá", "Sacsamaní", 
-          "Vega Larga II"
-        ] 
-      },
-      13: { 
-        title: "Región 13", 
-        sede: "Aldea La Pinada",
-        communities: [
-          "Esquipulas La Pinada", "Xejbal Monte Blanco", "Cruz del Río Monte Blanco", 
-          "San Antonio La Pinada", "La Pinada", "Nueva Esperanza Monte Blanco", 
-          "Xalitzul Monte Blanco", "Monte Blanco", "El Cementerio Monte Blanco", "Sechinanjá"
-        ] 
-      },
-      14: { 
-        title: "Región 14", 
-        sede: "Caserío Centro Helvetia",
-        communities: [
-          "Salijá", "San Pablo Helvetia", "Cortéz La Cuchilla", "Cabsibij", 
-          "Centro Helvetia", "Tixilhá", "San José Helvetia", "Mululhá"
-        ] 
-      },
-      15: { 
-        title: "Región 15", 
-        sede: "Aldea Matanzas",
-        communities: [
-          "Crucero Helvetia", "Centro Westfalia", "Crucero Westfalia", "Civijá", 
-          "Civijá Sector I", "Matucuy II", "Matanzas", "Matucuy I", "San Alfredo", 
-          "Nueva Esperanza Westfalia", "Centro Westfalia Sector II"
-        ] 
-      },
-      16: { 
-        title: "Región 16", 
-        sede: "Caserío Nuevo Amanecer Pancoc",
-        communities: [
-          "Pampacay", "Nueva Gloria", "Concepción Las Flores", "Monte Verde", 
-          "Chacalté Pampacay", "Nuevo Amanecer Pancoc", "Cumbre Chacalté Jabalí", 
-          "Nuevo San Rafael", "Monte Alegre", "Concepción El Espinero", "Bethel Monte Verde"
-        ] 
-      },
-      17: { 
-        title: "Región 17", 
-        sede: "Caserío Sierra Linda",
-        communities: [
-          "Sierra Linda", "Río Nuevo Chantelito", "Santo Domingo Rio Blanco", 
-          "Moxanté Cruz de Piedra", "Villa Nueva Pancajoc"
-        ] 
-      }
+    // ======= MAPEO DE NOMBRES DE REGIONES =======
+    const regionNames = {
+      1: "BARRIO EL CENTRO",
+      2: "ALDEA MOCOHÁN",
+      3: "CASERÍO LOS PINOS",
+      4: "ALDEA EBEN-EZER",
+      5: "CASERÍO SUQUINAY II",
+      6: "CASERÍO SAN LUIS PANZAL",
+      7: "ALDEA PANIMÁ",
+      8: "CASERÍO CENTRO PANCHISIVIC",
+      9: "ALDEA CHANTEL CHICOY",
+      10: "ALDEA RIBACÓ",
+      11: "SAN MARCOS SACSAMANÍ",
+      12: "ALDEA SACSAMANÍ",
+      13: "ALDEA LA PINADA",
+      14: "CASERÍO CENTRO HELVETIA",
+      15: "ALDEA MATANZAS",
+      16: "CASERÍO NUEVO AMANECER PANCOC",
+      17: "CASERÍO SIERRA LINDA"
+    };
+
+    // ======= SEDES POR REGIÓN =======
+    const regionSedes = {
+      1: "BARRIO EL CENTRO",
+      2: "ALDEA MOCOHÁN",
+      3: "CASERÍO LOS PINOS",
+      4: "ALDEA EBEN-EZER",
+      5: "CASERÍO SUQUINAY II",
+      6: "CASERÍO SAN LUIS PANZAL",
+      7: "ALDEA PANIMÁ",
+      8: "CASERÍO CENTRO PANCHISIVIC",
+      9: "ALDEA CHANTEL CHICOY",
+      10: "ALDEA RIBACÓ",
+      11: "SAN MARCOS SACSAMANÍ",
+      12: "ALDEA SACSAMANÍ",
+      13: "ALDEA LA PINADA",
+      14: "CASERÍO CENTRO HELVETIA",
+      15: "ALDEA MATANZAS",
+      16: "CASERÍO NUEVO AMANECER PANCOC",
+      17: "CASERÍO SIERRA LINDA"
+    };
+
+    // ======= LISTA DE COMUNIDADES POR REGIÓN =======
+    const regionCommunities = {
+      1: [
+        "El Calvario","El Carpintero","El Cementerio","El Centro","La Cruz","San Antonio","Cerrito El Calvario","Cerro de La Cruz","La Cruz II","Los Encuentros","Barrio Las Moras"
+      ],
+      2: [
+        "Mocohan","El Durazno","Cola del Mico","Parrachoch I","Parrachoch II","Mocohan Sector II","Portezuelo","Betania","Pantin"
+      ],
+      3: [
+        "Los Manantiales","Nueva Esperanza Cementerio","Panimaquito","Monjas Panimaquito","Rincón del Quetzal","Los Pinos","Cumbre del Carpintero","La Presa","Rincón El Carpintero","Cuchilla del Nogal","Río Colorado","Rincón Nueva Jerusalén"
+      ],
+      4: [
+        "El Chorro","Agua Viva","Eben-Ezer","El Jute I","El Jute II","Chisiguan","Caserío El Mezcal I","El Pinal","El Repollal I","El Repollal II","Rincón del Suquinay","El Mirador Cerro Alto","Rincón El Calvario","Eben-Ezer II","El Milagro"
+      ],
+      5: [
+        "Bella Vista Sachut","Tierra Linda Sulín","Ronda Sachut","Tres Cruces","El Comunal","Villa Nueva Sulín","Suquinay II"
+      ],
+      6: [
+        "Santa Rita Panzal","El Rosario Panzal","Orejuela","Herederos Panzal","Santa Elena Panzal","San Luis Panzal","Camelias Panzal","San Antonio Liquidambar","Canahan Panzal"
+      ],
+      7: [
+        "La Ceiba","Monjón Panimá","San Miguel Panimá","El Pacayal","San Luis Panimá","Panimá","Los Ángeles Maxaxá","Peña del Ángel","Santa Elena Panimá"
+      ],
+      8: [
+        "Nuevo Progreso Panchisivic","Concepción Panchisivic","Xombal Panchisivic","Sachoxá","Santa Luisa Pancalá","Cementerio Panchisivic","Centro Panchisivic","Esfuerzo Chejel","La Paz Chejel","La Caoba Panchisivic"
+      ],
+      9: [
+        "El Carmen Los Gavilanes","Renacimiento Vega Larga I","Chantel Chicoy","San Pablo La Línea","Campo Nuevo Chicoy"
+      ],
+      10: [
+        "Olimpia","Ribacó","Canaan Ribacó","Vista Hermosa","Los Naranjales","Cuchilla Jalanté","Sucursal Chicoy Panchisivic","Moxanté","Hamaca Panchisivic","Concepción Sector I Panchisivic","La Libertad Pampá","Nuevo San Rafael Panchisivic"
+      ],
+      11: [
+        "Panzal Jalauté","San Marcos Sacsamaní","Tierra Blanca Jalauté","Sector Norte Jalauté","El Carmen Villa Nueva Jalauté","Jalauté"
+      ],
+      12: [
+        "Sacsamaní Panalbarda","Guachabajá","Nuevo Jinayá","Sacsamaní","Vega Larga II"
+      ],
+      13: [
+        "Esquipulas La Pinada","Xejbal Monte Blanco","Cruz del Río Monte Blanco","San Antonio La Pinada","La Pinada","Nueva Esperanza Monte Blanco","Xalitzul Monte Blanco","Monte Blanco","El Cementerio Monte Blanco","Sechinanjá"
+      ],
+      14: [
+        "Salijá","San Pablo Helvetia","Cortéz La Cuchilla","Cabsibij","Centro Helvetia","Tixilhá","San José Helvetia","Mululhá"
+      ],
+      15: [
+        "Crucero Helvetia","Centro Westfalia","Crucero Westfalia","Civijá","Civijá Sector I","Matucuy II","Matanzas","Matucuy I","San Alfredo","Nueva Esperanza Westfalia","Centro Westfalia Sector II"
+      ],
+      16: [
+        "Pampacay","Nueva Gloria","Concepción Las Flores","Monte Verde","Chacalté Pampacay","Nuevo Amanecer Pancoc","Cumbre Chacalté Jabalí","Nuevo San Rafael","Monte Alegre","Concepción El Espinero","Bethel Monte Verde"
+      ],
+      17: [
+        "Sierra Linda","Río Nuevo Chantelito","Santo Domingo Rio Blanco","Moxanté Cruz de Piedra","Villa Nueva Pancajoc"
+      ]
     };
 
     // Variables globales
     let currentRegion = null;
+    let currentTooltip = null;
     const regionDetailPanel = document.getElementById('regionDetailPanel');
     const regionTitle = document.getElementById('regionTitle');
     const regionSvgContainer = document.getElementById('regionSvgContainer');
     const communitiesList = document.getElementById('communitiesList');
     const closeRegionBtn = document.getElementById('closeRegionBtn');
+
+    // ======= FUNCIONES PARA TOOLTIP INTERACTIVO =======
+    function createTooltip() {
+      if (currentTooltip) return currentTooltip;
+      
+      currentTooltip = document.createElement('div');
+      currentTooltip.className = 'region-tooltip';
+      currentTooltip.style.position = 'absolute';
+      currentTooltip.style.pointerEvents = 'none';
+      currentTooltip.style.zIndex = '1000';
+      document.body.appendChild(currentTooltip);
+      
+      return currentTooltip;
+    }
+
+    function showTooltip(regionNumber, event) {
+      const tooltip = createTooltip();
+      const regionName = regionNames[regionNumber];
+      
+      if (!regionName) return;
+      
+      tooltip.textContent = regionName;
+      tooltip.classList.add('visible');
+      
+      // Posicionar el tooltip
+      const rect = event.target.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      
+      let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+      let top = rect.top - tooltipRect.height - 12;
+      
+      // Ajustar posición para evitar que se salga de la pantalla
+      if (left < 10) left = 10;
+      if (left + tooltipRect.width > window.innerWidth - 10) {
+        left = window.innerWidth - tooltipRect.width - 10;
+      }
+      if (top < 10) {
+        top = rect.bottom + 12;
+      }
+      
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    }
+
+    function hideTooltip() {
+      if (currentTooltip) {
+        currentTooltip.classList.remove('visible');
+      }
+    }
 
     // Función para cargar el SVG de una región
     async function loadRegionSvg(regionNumber) {
@@ -708,12 +714,11 @@
           
           const svg = regionSvgContainer.querySelector('svg');
           if (svg) {
-            svg.style.width = '100%';
-            svg.style.height = '100%';
-            svg.style.maxHeight = 'none';
-            svg.style.minHeight = '400px';
-            svg.style.display = 'block';
-            svg.style.margin = '0 auto';
+            // Remover estilos inline que interfieren con CSS
+            svg.style.removeProperty('width');
+            svg.style.removeProperty('height');
+            svg.style.removeProperty('minHeight');
+            svg.style.removeProperty('maxHeight');
             svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
           }
         } else {
@@ -731,40 +736,73 @@
       }
     }
 
-    // Función para mostrar información de la región
+    // Construir tarjeta con sede y comunidades
     function showRegionInfo(regionNumber) {
-      const data = regionData[regionNumber];
-      if (!data) return;
+      const sede = regionSedes[regionNumber] || '';
+      const items = regionCommunities[regionNumber] || [];
+      regionTitle.textContent = `Región ${regionNumber} - Sede: ${sede}`;
 
-      regionTitle.textContent = `${data.title} - Sede: ${data.sede}`;
-      
       communitiesList.innerHTML = '';
-      if (data.communities && data.communities.length > 0) {
-        const sedeHeader = document.createElement('div');
-        sedeHeader.className = 'sede-info';
-        sedeHeader.innerHTML = `
-          <h4>📍 Sede Regional</h4>
-          <p><strong>${data.sede}</strong></p>
-          <h4>🏘️ Comunidades (${data.communities.length})</h4>
-        `;
-        communitiesList.appendChild(sedeHeader);
-        
+      const sedeHeader = document.createElement('div');
+      sedeHeader.className = 'sede-info';
+      sedeHeader.innerHTML = `<h4>📍 Sede Regional</h4><p><strong>${sede}</strong></p><h4>🏘️ Comunidades (${items.length})</h4>`;
+      communitiesList.appendChild(sedeHeader);
+
+      if (items.length) {
         const list = document.createElement('ul');
         list.className = 'communities-list-items';
-        data.communities.forEach((community, index) => {
-          const item = document.createElement('li');
-          item.innerHTML = `<span class="community-number">${index + 1}.</span> ${community}`;
-          list.appendChild(item);
+        items.forEach((name, idx) => {
+          const li = document.createElement('li');
+          li.innerHTML = `<span class="community-number">${idx + 1}.</span> ${name}`;
+          list.appendChild(li);
         });
         communitiesList.appendChild(list);
-      } else {
-        communitiesList.innerHTML = '<p class="placeholder-text">Lista de comunidades próximamente...</p>';
+      }
+      // Configurar botón para ir a vista individual de la región
+      const btn = document.getElementById('viewRegionBtn');
+      if (btn) {
+        // Enlace directo a la vista individual de regiones
+        btn.href = `/regiones?region=${regionNumber}`;
+        btn.onclick = null;
+        btn.setAttribute('aria-label', `Mostrar información completa de la región ${regionNumber}`);
       }
     }
+
+    function openCommunitiesModal(regionNumber){
+      const sede = regionSedes[regionNumber] || '';
+      const items = regionCommunities[regionNumber] || [];
+      const modal = document.getElementById('communitiesModal');
+      const title = document.getElementById('communitiesModalTitle');
+      const body = document.getElementById('communitiesModalBody');
+      title.textContent = `Región ${regionNumber} — ${sede}`;
+      body.innerHTML = '';
+      const sedeHeader = document.createElement('div');
+      sedeHeader.className = 'sede-info';
+      sedeHeader.innerHTML = `<h4>📍 Sede Regional</h4><p><strong>${sede}</strong></p><h4>🏘️ Comunidades (${items.length})</h4>`;
+      body.appendChild(sedeHeader);
+      const list = document.createElement('ul');
+      list.className = 'communities-list-items';
+      items.forEach((name, idx)=>{
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="community-number">${idx+1}.</span> ${name}`;
+        list.appendChild(li);
+      });
+      body.appendChild(list);
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden','false');
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+      const modal = document.getElementById('communitiesModal');
+      const closeBtn = document.getElementById('closeCommunitiesModal');
+      if(closeBtn){ closeBtn.addEventListener('click', ()=>{ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }); }
+      modal.addEventListener('click', (e)=>{ if(e.target === modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); } });
+    });
 
     // Función para mostrar el panel de región
     function showRegionPanel(regionNumber) {
       currentRegion = regionNumber;
+      hideTooltip(); // Ocultar tooltip cuando se abre el panel
       loadRegionSvg(regionNumber);
       showRegionInfo(regionNumber);
       
@@ -784,19 +822,28 @@
       // Agregar event listeners a todas las regiones
       const regionGroups = document.querySelectorAll('.region-group');
       regionGroups.forEach(group => {
-        group.addEventListener('click', function() {
-          const regionNumber = parseInt(this.dataset.region);
+        const regionNumber = parseInt(group.dataset.region);
+        
+        group.addEventListener('click', function(event) {
+          event.preventDefault();
           showRegionPanel(regionNumber);
         });
 
-        // Efecto hover
-        group.addEventListener('mouseenter', function() {
+        // Efecto hover con tooltip
+        group.addEventListener('mouseenter', function(event) {
           const paths = this.querySelectorAll('path');
           paths.forEach(path => {
             path.style.fill = '#0a5f9f';
           });
           this.style.cursor = 'pointer';
           this.style.transition = 'fill 0.3s ease';
+          showTooltip(regionNumber, event);
+        });
+
+        group.addEventListener('mousemove', function(event) {
+          if (currentTooltip && currentTooltip.classList.contains('visible')) {
+            showTooltip(regionNumber, event);
+          }
         });
 
         group.addEventListener('mouseleave', function() {
@@ -804,6 +851,7 @@
           paths.forEach(path => {
             path.style.fill = '#0772d2';
           });
+          hideTooltip();
         });
       });
 
@@ -816,6 +864,21 @@
           hideRegionPanel();
         }
       });
+
+      // Ocultar tooltip al hacer scroll
+      window.addEventListener('scroll', hideTooltip);
+      
+      // Ocultar tooltip al redimensionar ventana
+      window.addEventListener('resize', hideTooltip);
+
+      // Abrir región desde query param ?region=N
+      const params = new URLSearchParams(window.location.search);
+      const regionParam = params.get('region');
+      const regionNum = regionParam ? parseInt(regionParam, 10) : null;
+      if (regionNum && !isNaN(regionNum)) {
+        // Esperar un tick para asegurar DOM listo
+        setTimeout(()=>{ showRegionPanel(regionNum); }, 0);
+      }
     });
   </script>
 {% endblock %}

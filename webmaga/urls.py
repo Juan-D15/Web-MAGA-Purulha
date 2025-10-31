@@ -41,5 +41,12 @@ urlpatterns = [
     
     # APIs para Inicio
     path('api/ultimos-eventos-inicio/', views.api_ultimos_eventos_inicio, name='api-ultimos-eventos-inicio'),
+    # APIs para Calendario
+    path('api/calendar-events/', views.api_calendar_events, name='api-calendar-events'),
+    path('api/reminders/', views.api_reminders, name='api-reminders'),
+    path('api/avances/', views.api_avances, name='api-avances'),
+    path('api/reminders/<uuid:reminder_id>/', views.api_reminder_detail, name='api-reminder-detail'),
+    path('api/events-list/', views.api_events_list, name='api-events-list'),
+    path('api/collaborators/', views.api_collaborators, name='api-collaborators'),
 ]
 

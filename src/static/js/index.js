@@ -43,6 +43,9 @@ function renderizarEventos(eventos) {
     
     // Crear las tarjetas de eventos
     eventos.forEach((evento, index) => {
+        const placeholderSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 200'><rect width='100%' height='100%' fill='%231d2531'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23b8c5d1' font-family='Arial' font-size='16'>Sin imagen</text></svg>";
+        const invalidSrc = !evento.imagen_url || evento.imagen_url === 'null' || evento.imagen_url === 'undefined' || /default-event\.jpg$/i.test(String(evento.imagen_url));
+        const safeImgSrc = invalidSrc ? placeholderSvg : evento.imagen_url;
         // Crear tarjeta de evento
         const eventCard = document.createElement('div');
         eventCard.className = 'event-card';
@@ -57,7 +60,7 @@ function renderizarEventos(eventos) {
                 <div class="date__year">${evento.fecha_anio || '0000'}</div>
             </div>
             <div class="event-card__image">
-                <img src="${evento.imagen_url}" alt="${evento.nombre}" loading="lazy" onerror="this.src='/static/img/default-event.jpg'">
+                <img src="${safeImgSrc}" alt="${evento.nombre}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${placeholderSvg}'">
                 <button class="event-card__btn" data-evento-id="${evento.id}">Ver más ></button>
             </div>
             <div class="event-card__content">

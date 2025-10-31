@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
+from django.db import connection
 from django.contrib.auth import login as auth_login, logout as auth_logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -1590,7 +1591,7 @@ def api_ultimos_eventos_inicio(request):
                 
                 # Si no hay evidencias, usar imagen por defecto
                 if not imagen_url:
-                    imagen_url = '/static/img/default-event.jpg'
+                    imagen_url = None  # evitar rutas inexistentes para que el frontend use placeholder
                 
                 # Convertir fecha a zona horaria local
                 try:
@@ -1653,6 +1654,433 @@ def api_ultimos_eventos_inicio(request):
             'error': f'Error al obtener últimos eventos: {str(e)}'
         }, status=500)
 
+
+@require_http_methods(["GET"])
+def api_calendar_events(request):
+    """Eventos para el calendario entre start y end (YYYY-MM-DD)."""
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+    if not start or not end:
+        return JsonResponse([], safe=False)
+    try:
+        actividades = Actividad.objects.filter(
+            eliminado_en__isnull=True,
+            fecha__gte=start,
+            fecha__lte=end
+        ).select_related('tipo', 'comunidad', 'responsable')
+
+        # Obtener IDs de actividades para consultas optimizadas
+        actividad_ids = list(actividades.values_list('id', flat=True))
+        
+        # Personal asignado (tabla ActividadPersonal)
+        # Obtener usuarios asignados a través de ActividadPersonal
+        usuarios_asignados_map = {}
+        for ap in ActividadPersonal.objects.filter(actividad_id__in=actividad_ids).select_related('usuario'):
+            key = str(ap.actividad_id)
+            if ap.usuario_id:
+                if key not in usuarios_asignados_map:
+                    usuarios_asignados_map[key] = set()
+                usuarios_asignados_map[key].add(str(ap.usuario_id))
+
+        data = []
+        for a in actividades:
+            # IDs de usuarios asignados a través de ActividadPersonal
+            usuarios_ids = usuarios_asignados_map.get(str(a.id), set()).copy()
+            
+            # Agregar responsable si existe
+            if a.responsable_id:
+                usuarios_ids.add(str(a.responsable_id))
+            
+            # Obtener nombres de responsables/encargados (usuario.nombre o username)
+            responsables_nombres = []
+            if a.responsable:
+                responsables_nombres.append(a.responsable.nombre if a.responsable.nombre else a.responsable.username)
+            
+            # Obtener nombres de personal asignado
+            personal_asignado = ActividadPersonal.objects.filter(actividad_id=a.id).select_related('usuario')
+            for ap in personal_asignado:
+                if ap.usuario:
+                    nombre = ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username
+                    if nombre not in responsables_nombres:
+                        responsables_nombres.append(nombre)
+            
+            responsables_texto = ', '.join(responsables_nombres) if responsables_nombres else None
+
+            data.append({
+                'date': a.fecha.isoformat() if a.fecha else None,
+                'name': a.nombre,
+                'description': a.descripcion,
+                'status': a.estado,
+                'responsable': a.responsable.username if a.responsable else None,
+                'owners': responsables_texto,  # Texto con todos los responsables/encargados
+                'usuarios_asignados_ids': list(usuarios_ids),
+            })
+        return JsonResponse(data, safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["GET"])
+@login_required
+def api_avances(request):
+    """Obtiene avances/cambios de eventos para el calendario por fecha."""
+    date_str = request.GET.get('date')
+    if not date_str:
+        return JsonResponse([], safe=False)
+    
+    try:
+        from django.utils.timezone import localtime, is_aware, make_aware
+        import pytz
+        from django.db import connection
+        
+        # Buscar cambios cuya fecha_cambio (en zona horaria de Guatemala) corresponda al día solicitado
+        with connection.cursor() as cur:
+            cur.execute(
+                """
+                SELECT ac.id::text,
+                       ac.actividad_id::text,
+                       ac.responsable_id::text,
+                       ac.descripcion_cambio,
+                       ac.fecha_cambio
+                FROM actividad_cambios ac
+                INNER JOIN actividades a ON a.id = ac.actividad_id
+                WHERE (ac.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
+                  AND a.eliminado_en IS NULL
+                ORDER BY ac.fecha_cambio ASC
+                """,
+                [date_str]
+            )
+            rows = cur.fetchall()
+        
+        results = []
+        for row in rows:
+            cambio_id, actividad_id, responsable_id, descripcion, fecha_cambio = row
+            
+            # Obtener nombre del evento
+            evento_nombre = None
+            try:
+                actividad = Actividad.objects.get(id=actividad_id)
+                evento_nombre = actividad.nombre
+            except Actividad.DoesNotExist:
+                continue
+            
+            # Obtener nombre del responsable
+            responsable_nombre = None
+            if responsable_id:
+                try:
+                    with connection.cursor() as cur_resp:
+                        cur_resp.execute(
+                            "SELECT COALESCE(nombre, username) FROM usuarios WHERE id = %s LIMIT 1",
+                            [responsable_id]
+                        )
+                        resp_row = cur_resp.fetchone()
+                        if resp_row:
+                            responsable_nombre = resp_row[0]
+                except Exception:
+                    responsable_nombre = None
+            
+            # Convertir fecha_cambio a zona horaria de Guatemala
+            if fecha_cambio:
+                guatemala_tz = pytz.timezone('America/Guatemala')
+                if fecha_cambio.tzinfo is None:
+                    fecha_guatemala = guatemala_tz.localize(fecha_cambio)
+                else:
+                    fecha_guatemala = fecha_cambio.astimezone(guatemala_tz)
+                fecha_iso = fecha_guatemala.date().isoformat()
+                hora_str = fecha_guatemala.strftime('%H:%M')
+            else:
+                fecha_iso = date_str
+                hora_str = ''
+            
+            results.append({
+                'id': cambio_id,
+                'actividad_id': actividad_id,
+                'evento_nombre': evento_nombre,
+                'fecha': fecha_iso,
+                'hora': hora_str,
+                'responsable': responsable_nombre or 'Sistema',
+                'descripcion': descripcion or ''
+            })
+        
+        return JsonResponse(results, safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["GET", "POST"])
+@login_required
+def api_reminders(request):
+    """Lista o crea recordatorios usando tablas recordatorios y recordatorio_colaboradores."""
+    if request.method == 'GET':
+        date_str = request.GET.get('date')
+        if not date_str:
+            return JsonResponse([], safe=False)
+        
+        # Verificar si el usuario es admin
+        is_admin = False
+        user_id = None
+        try:
+            with connection.cursor() as cur_user:
+                cur_user.execute(
+                    "SELECT id::text, rol FROM usuarios WHERE username = %s LIMIT 1",
+                    [getattr(request.user, 'username', None)]
+                )
+                user_row = cur_user.fetchone()
+                if user_row:
+                    user_id, user_rol = user_row
+                    is_admin = (user_rol == 'admin')
+        except Exception:
+            pass
+        
+        try:
+            with connection.cursor() as cur:
+                # Si es admin, mostrar todos los recordatorios del día
+                # Si no es admin, mostrar solo los suyos
+                if is_admin:
+                    cur.execute(
+                        """
+                        SELECT r.id::text,
+                               r.actividad_id::text,
+                               r.created_by::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado
+                        FROM recordatorios r
+                        WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
+                        ORDER BY r.due_at ASC
+                        """,
+                        [date_str]
+                    )
+                else:
+                    # Solo los recordatorios del usuario actual
+                    if user_id:
+                        cur.execute(
+                            """
+                            SELECT r.id::text,
+                                   r.actividad_id::text,
+                                   r.created_by::text,
+                                   r.titulo,
+                                   r.descripcion,
+                                   r.due_at,
+                                   r.enviar_notificacion,
+                                   r.enviado
+                            FROM recordatorios r
+                            WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
+                              AND r.created_by = %s
+                            ORDER BY r.due_at ASC
+                            """,
+                            [date_str, user_id]
+                        )
+                    else:
+                        # Si no hay user_id, no mostrar nada
+                        rows = []
+                        results = []
+                        return JsonResponse(results, safe=False)
+                rows = cur.fetchall()
+
+            results = []
+            for row in rows:
+                rid, act_id, created_by, titulo, desc, due_at, enviar, enviado = row
+                # owners text
+                with connection.cursor() as cur2:
+                    cur2.execute(
+                        """
+                        SELECT c.nombre
+                        FROM recordatorio_colaboradores rc
+                        JOIN colaboradores c ON c.id = rc.colaborador_id
+                        WHERE rc.recordatorio_id = %s
+                        ORDER BY c.nombre
+                        """,
+                        [rid]
+                    )
+                    owners_names = [r[0] for r in cur2.fetchall()]
+                owners_text = ', '.join(owners_names)
+                
+                # Extraer fecha y hora correctamente en zona horaria de Guatemala
+                if due_at:
+                    import pytz
+                    guatemala_tz = pytz.timezone('America/Guatemala')
+                    # Si due_at ya es timezone-aware, convertir a Guatemala
+                    if due_at.tzinfo is None:
+                        due_at_guatemala = guatemala_tz.localize(due_at)
+                    else:
+                        due_at_guatemala = due_at.astimezone(guatemala_tz)
+                    
+                    # Extraer hora y fecha por separado para evitar problemas de cambio de día
+                    time_str = due_at_guatemala.strftime('%H:%M')
+                    # Usar directamente la fecha del datetime en zona horaria de Guatemala
+                    # Importante: usar .date() después de la conversión de timezone
+                    date_iso = due_at_guatemala.date().isoformat()
+                else:
+                    time_str = ''
+                    date_iso = date_str
+                    
+                results.append({
+                    'id': rid,
+                    'date': date_iso,
+                    'time': time_str,
+                    'description': desc or '',
+                    'event_name': titulo or None,
+                    'created_by': created_by,
+                    'owners_text': owners_text
+                })
+            return JsonResponse(results, safe=False)
+        except Exception as e:
+            return JsonResponse([], safe=False)
+
+    # POST crear recordatorio
+    try:
+        payload = json.loads(request.body or '{}')
+        date = payload.get('date')
+        time = payload.get('time') or '08:00'
+        event_name = payload.get('event_name')
+        description = payload.get('description') or ''
+        owners = payload.get('owners') or []
+
+        # due_at timestamptz (zona horaria de Guatemala)
+        try:
+            from django.utils.timezone import make_aware
+            import pytz
+            # Crear datetime naive desde la fecha y hora (parsear por separado para evitar problemas)
+            date_parts = date.split('-')
+            time_parts = time.split(':')
+            if len(date_parts) == 3 and len(time_parts) >= 2:
+                year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+                hour, minute = int(time_parts[0]), int(time_parts[1])
+                dt_naive = datetime(year, month, day, hour, minute)
+            else:
+                dt_naive = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            # Convertir a timezone-aware usando zona horaria de Guatemala
+            guatemala_tz = pytz.timezone('America/Guatemala')
+            due_at = guatemala_tz.localize(dt_naive)
+        except Exception as e:
+            # Fallback: usar hora actual con timezone de Guatemala
+            import pytz
+            guatemala_tz = pytz.timezone('America/Guatemala')
+            due_at = timezone.now().astimezone(guatemala_tz)
+
+        # Resolver created_by (UUID en tabla usuarios). Si el auth user no es el mismo modelo, buscar por username
+        created_by = None
+        try:
+            with connection.cursor() as curu:
+                curu.execute("SELECT id::text FROM usuarios WHERE username = %s LIMIT 1", [getattr(request.user, 'username', None)])
+                rowu = curu.fetchone()
+                if rowu:
+                    created_by = rowu[0]
+        except Exception:
+            created_by = None
+        actividad_id = None
+        if event_name:
+            act = Actividad.objects.filter(nombre__iexact=event_name).order_by('-creado_en').first()
+            if act:
+                actividad_id = str(act.id)
+
+        # Insertar recordatorio
+        with connection.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO recordatorios (actividad_id, created_by, titulo, descripcion, due_at)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                [actividad_id, created_by, event_name, description, due_at]
+            )
+            rid = cur.fetchone()[0]
+        # Insertar involucrados
+        if owners:
+            with connection.cursor() as cur2:
+                cur2.executemany(
+                    """
+                    INSERT INTO recordatorio_colaboradores (recordatorio_id, colaborador_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (recordatorio_id, colaborador_id) DO NOTHING
+                    """,
+                    [(rid, o) for o in owners]
+                )
+        return JsonResponse({'id': str(rid)})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@require_http_methods(["DELETE"])
+@login_required
+def api_reminder_detail(request, reminder_id):
+    """Eliminar recordatorio si es admin o creador."""
+    try:
+        # Obtener información del recordatorio
+        with connection.cursor() as cur:
+            cur.execute("SELECT created_by::text FROM recordatorios WHERE id = %s", [reminder_id])
+            row = cur.fetchone()
+            if not row:
+                return JsonResponse({'error': 'Not found'}, status=404)
+            created_by = row[0]
+        
+        # Verificar permisos: admin o creador
+        is_admin = False
+        is_creator = False
+        
+        # Obtener usuario actual desde la tabla usuarios
+        try:
+            with connection.cursor() as cur_user:
+                cur_user.execute(
+                    "SELECT id::text, rol FROM usuarios WHERE username = %s LIMIT 1",
+                    [getattr(request.user, 'username', None)]
+                )
+                user_row = cur_user.fetchone()
+                if user_row:
+                    user_id, user_rol = user_row
+                    is_admin = (user_rol == 'admin')
+                    is_creator = (created_by == user_id)
+        except Exception:
+            pass
+        
+        if not (is_admin or is_creator):
+            return JsonResponse({'error': 'Forbidden'}, status=403)
+        
+        # Eliminar el recordatorio (CASCADE eliminará también los colaboradores)
+        with connection.cursor() as cur2:
+            cur2.execute("DELETE FROM recordatorios WHERE id = %s", [reminder_id])
+        
+        return JsonResponse({'deleted': True})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@require_http_methods(["GET"])
+def api_events_list(request):
+    """Lista simple de eventos (id, name) para el formulario de recordatorios."""
+    qs = Actividad.objects.filter(eliminado_en__isnull=True).order_by('-creado_en')[:300]
+    data = [{'id': str(a.id), 'name': a.nombre} for a in qs]
+    return JsonResponse(data, safe=False)
+
+
+@require_http_methods(["GET"])
+def api_collaborators(request):
+    """Lista de colaboradores activos para el formulario (id, nombre, puesto)."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.id::text, c.nombre, COALESCE(p.nombre,'') as puesto
+                FROM colaboradores c
+                LEFT JOIN puestos p ON p.id = c.puesto_id
+                WHERE c.activo = TRUE
+                ORDER BY c.nombre
+                """
+            )
+            rows = cur.fetchall()
+        data = [{'id': r[0], 'name': r[1], 'puesto': r[2]} for r in rows]
+        return JsonResponse(data, safe=False)
+    except Exception as e:
+        return JsonResponse([], safe=False)
 
 @require_http_methods(["GET"])
 def api_obtener_detalle_proyecto(request, evento_id):

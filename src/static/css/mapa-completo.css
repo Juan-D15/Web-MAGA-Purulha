@@ -520,12 +520,17 @@ body {
   flex: 1;
   width: 100%;
   position: relative;
-  overflow: visible;
   background: radial-gradient(900px 400px at 10% 30%, #ffffff10 0%, transparent 60%),radial-gradient(1100px 600px at 90% 70%, #ffffff0b 0%, transparent 65%),linear-gradient(180deg, #212a38 0%, #243044 35%, #1e2736 100%);
   border-top: 1px solid var(--border);
-  min-height: 60vh;
+  min-height: 100vh;
+  max-height: 100vh;
   transition: all 0.3s ease;
   scroll-margin-top: 120px; /* Espacio para el header fijo */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 20px 80px;
+  box-sizing: border-box;
 }
 
 /* Efecto de resaltado cuando se hace scroll a la sección */
@@ -543,24 +548,76 @@ html {
 
 .map-wrapper {
   width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 15px;
-  max-width: 1600px;
+  max-width: 1400px;
   margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
 }
 
-/* Estilos del SVG - Aún más grande para ocupar más espacio */
-svg {
-  width: 98%;
-  height: 98%;
-  max-width: 98%;
-  max-height: 98%;
+/* Estilos del SVG - Perfectamente centrado sin corte */
+.map-wrapper svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
   background: #1a2332;
   border-radius: 12px;
   filter: drop-shadow(0 14px 40px rgba(0,0,0,.45));
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+/* ======= TOOLTIP INTERACTIVO PARA REGIONES ======= */
+.region-tooltip {
+  position: absolute;
+  background: linear-gradient(135deg, #0772d2, #0a5f9f);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(7, 114, 210, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(8px) scale(0.95);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  white-space: nowrap;
+  font-family: "Manrope", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: 0.02em;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.region-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.region-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #0772d2;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* Efectos adicionales para las regiones con tooltip */
+.region-group:hover .region-path {
+  filter: brightness(1.3) drop-shadow(0 4px 12px rgba(10, 138, 232, 0.5));
 }
 
 /* Estilos de las regiones - Exactamente como index.html */
@@ -656,24 +713,29 @@ svg {
 .region-content {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr; /* mitad mapa, mitad listado */
   gap: 2rem;
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  min-height: 600px;
+  height: calc(100vh - 160px);
 }
 
 .region-map-container {
   background: var(--bg-800);
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  padding: 1.5rem;
+  padding: 1rem; /* menos padding para ganar área útil */
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 500px;
+  min-height: 0;
   height: 100%;
+  position: relative;
+  z-index: 1;
+  overflow: hidden; /* evita que el SVG se desborde y se superponga al panel derecho */
 }
 
 .region-svg-container {
@@ -682,35 +744,37 @@ svg {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 450px;
+  min-height: 0;
+  max-width: 100%;
 }
 
 .region-svg-container svg,
 .region-svg-container object,
 .region-svg-container img {
-  width: 100%;
-  height: 100%;
-  max-height: none;
-  min-height: 400px;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
   background: transparent;
   border-radius: 8px;
   object-fit: contain;
 }
 
-/* Borde brillante para SVG de región individual */
+/* Borde sutil para SVG de región individual */
 .region-detail-panel .region-svg-container svg path {
   stroke: #ffffff !important;
-  stroke-width: 5px !important;
+  stroke-width: 2px !important;
   stroke-linejoin: round !important;
   stroke-linecap: round !important;
-  stroke-opacity: 1 !important;
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5)) !important;
+  stroke-opacity: 0.8 !important;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.3)) !important;
   transition: all 0.3s ease !important;
 }
 
-/* Efecto adicional para hacer el borde más visible */
+/* Efecto sutil adicional para el borde */
 .region-detail-panel .region-svg-container svg {
-  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.4));
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.2));
 }
 
 /* Sin borde en los contenedores, solo efecto de brillo sutil */
@@ -723,17 +787,108 @@ svg {
   background: var(--bg-800);
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  padding: 0;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 700px;
+  height: 700px; /* altura fija para evitar entrecortes */
+  position: relative;
+  z-index: 3;
 }
+
+/* Área desplazable para la lista de comunidades dentro del panel */
+.region-info > h3 { margin-bottom: 1rem; }
+.region-info .communities-list { flex: 0 0 70%; overflow-y: auto; max-height: 100%; }
+.region-info .communities-list { position: relative; z-index: 4; }
+
+/* Área de acciones fija ocupando la mitad inferior */
+.region-info-actions {
+  flex: 0 0 30%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.btn-view-region {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #12b76a, #079455); /* verde */
+  color: #ffffff;
+  font-weight: 800;
+  text-decoration: none;
+  letter-spacing: .03em;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.btn-view-region:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(18,183,106,.35);
+}
+
+@media (max-width: 1024px) {
+  .region-info { min-height: 600px; height: 600px; }
+}
+
+@media (max-width: 768px) {
+  .region-info { min-height: 500px; height: 500px; }
+}
+
+@media (max-width: 480px) {
+  .region-info { min-height: 420px; height: 420px; }
+}
+
+/* ===== Modal para lista completa (fallback si aún se corta) ===== */
+.communities-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  display: none;
+  z-index: 200;
+}
+
+.communities-modal.open { display: block; }
+
+.communities-modal__panel {
+  position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(90vw, 800px);
+  max-height: 80vh;
+  background: var(--bg-800);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
+}
+
+.communities-modal__header {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: linear-gradient(135deg, var(--bg-900), var(--bg-950));
+}
+
+.communities-modal__title { font-weight: 800; color: var(--text-100); margin: 0; }
+
+.communities-modal__close {
+  background: transparent; border: 1px solid var(--border); color: #fff;
+  width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
+}
+
+.communities-modal__body { padding: 16px; overflow: auto; }
 
 .region-info-scroll {
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem;
-  max-height: calc(100vh - 120px);
+  max-height: 85vh !important;
+  min-height: 500px !important;
+  height: auto !important;
+  overflow-y: auto !important;
 }
 
 .region-info-scroll::-webkit-scrollbar {
@@ -855,19 +1010,7 @@ svg {
   transform: translateX(4px);
 }
 
-.community-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 26px;
-  height: 26px;
-  background: #0772d2;
-  color: #fff;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  padding: 0 0.4rem;
-}
+.community-number { color: #cbe7ff; font-weight: 800; margin-right: 0.6rem; }
 
 .placeholder-text {
   color: var(--text-50);
@@ -1008,25 +1151,30 @@ svg text {
     grid-template-columns: 1fr;
     gap: 1.5rem;
     padding: 1.5rem;
+    height: auto; /* permite que el mapa tome su propio alto grande */
   }
   
   .region-map-container {
-    min-height: 350px;
+    min-height: 700px;
+    height: 700px;
+    padding: 0.8rem;
   }
   
   .region-svg-container {
-    min-height: 300px;
+    min-height: 650px;
   }
   
   .region-svg-container svg,
   .region-svg-container object,
   .region-svg-container img {
-    min-height: 300px;
+    min-height: 650px !important;
+    height: 650px !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    width: 100% !important;
   }
   
-  .region-info-scroll {
-    max-height: 500px;
-  }
+  .region-info .communities-list { max-height: 70vh; }
   
   .region-stats {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -1059,27 +1207,30 @@ svg text {
   .region-content {
     padding: 1rem;
     gap: 1rem;
+    height: auto;
   }
   
   .region-map-container {
-    min-height: 300px;
-    padding: 0.8rem;
+    min-height: 600px;
+    height: 600px;
+    padding: 0.6rem;
   }
   
   .region-svg-container {
-    min-height: 250px;
+    min-height: 550px;
   }
   
   .region-svg-container svg,
   .region-svg-container object,
   .region-svg-container img {
-    min-height: 220px;
+    min-height: 550px !important;
+    height: 550px !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    width: 100% !important;
   }
   
-  .region-info-scroll {
-    padding: 1rem;
-    max-height: 450px;
-  }
+  .region-info .communities-list { padding: 1rem; max-height: 65vh; }
   
   .region-stats {
     grid-template-columns: 1fr;
@@ -1123,27 +1274,30 @@ svg text {
   
   .region-content {
     padding: 0.8rem;
+    height: auto;
   }
   
   .region-map-container {
-    min-height: 250px;
-    padding: 0.6rem;
+    min-height: 520px;
+    height: 520px;
+    padding: 0.5rem;
   }
   
   .region-svg-container {
-    min-height: 200px;
+    min-height: 480px;
   }
   
   .region-svg-container svg,
   .region-svg-container object,
   .region-svg-container img {
-    min-height: 180px;
+    min-height: 480px !important;
+    height: 480px !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    width: 100% !important;
   }
   
-  .region-info-scroll {
-    padding: 0.8rem;
-    max-height: 400px;
-  }
+  .region-info .communities-list { padding: 0.8rem; max-height: 60vh; }
   
   .region-stats {
     padding: 0.6rem;
@@ -1185,11 +1339,7 @@ svg text {
     font-size: 0.9rem;
   }
   
-  .community-number {
-    min-width: 22px;
-    height: 22px;
-    font-size: 0.75rem;
-  }
+  .community-number { font-size: 0.85rem; }
 }
 
 /* ======= SECCIÓN DE MICRORREGIONES ======= */
