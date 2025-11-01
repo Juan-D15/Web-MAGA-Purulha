@@ -296,6 +296,11 @@ function renderizarUltimosProyectos(proyectos) {
   // Renderizar cada proyecto (máximo 2)
   proyectos.forEach(proyecto => {
     const card = crearTarjetaProyectoDestacado(proyecto);
+    const imagenDestacada = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal;
+    const imgTag = card.querySelector('img');
+    if (imgTag && imagenDestacada) {
+      imgTag.src = imagenDestacada;
+    }
     featuredGrid.appendChild(card);
   });
   
@@ -306,17 +311,14 @@ function renderizarUltimosProyectos(proyectos) {
 function crearTarjetaProyectoDestacado(proyecto) {
   const card = document.createElement('div');
   card.className = 'project-card featured-card';
-  
-  // Extraer mes, día y año de la fecha
   const fecha = new Date(proyecto.fecha || new Date());
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   const mes = meses[fecha.getMonth()];
   const dia = fecha.getDate();
   const anio = fecha.getFullYear();
-  
-  // Determinar la imagen a usar
-  const imagenUrl = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-  
+  const portadaUrl = proyecto.portada && proyecto.portada.url ? proyecto.portada.url : null;
+  const imagenUrl = portadaUrl || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+
   card.innerHTML = `
     <div class="project-image">
       <img src="${imagenUrl}" alt="${proyecto.nombre}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
@@ -338,14 +340,13 @@ function crearTarjetaProyectoDestacado(proyecto) {
       </div>
     </div>
   `;
-  
-  // Agregar evento click al botón
+
   const btn = card.querySelector('.project-btn');
   btn.addEventListener('click', function() {
     const projectId = this.getAttribute('data-project-id');
     loadProjectDetails(projectId);
   });
-  
+
   return card;
 }
 
