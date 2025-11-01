@@ -2199,6 +2199,7 @@ def api_ultimos_proyectos(request):
                     'estado': evento.estado or 'planificado',
                     'descripcion': evento.descripcion or '',
                     'imagen_principal': imagen_url,
+                    'portada': obtener_portada_evento(evento),
                     'tarjetas_datos': obtener_tarjetas_datos(evento),
                     'personal_count': personal_count,
                     'personal_nombres': ', '.join(personal_nombres) if personal_nombres else 'Sin personal',
