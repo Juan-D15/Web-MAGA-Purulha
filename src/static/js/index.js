@@ -54,8 +54,10 @@ function renderizarEventos(eventos) {
     // Crear las tarjetas de eventos
     eventos.forEach((evento, index) => {
         const placeholderSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 200'><rect width='100%' height='100%' fill='%231d2531'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23b8c5d1' font-family='Arial' font-size='16'>Sin imagen</text></svg>";
-        const invalidSrc = !evento.imagen_url || evento.imagen_url === 'null' || evento.imagen_url === 'undefined' || /default-event\.jpg$/i.test(String(evento.imagen_url));
-        const safeImgSrc = invalidSrc ? placeholderSvg : evento.imagen_url;
+        const portadaUrl = evento.portada && evento.portada.url ? evento.portada.url : null;
+        const imagenPrincipal = portadaUrl || evento.imagen_url;
+        const invalidSrc = !imagenPrincipal || imagenPrincipal === 'null' || imagenPrincipal === 'undefined' || /default-event\.jpg$/i.test(String(imagenPrincipal));
+        const safeImgSrc = invalidSrc ? placeholderSvg : imagenPrincipal;
         // Crear tarjeta de evento
         const eventCard = document.createElement('div');
         eventCard.className = 'event-card';

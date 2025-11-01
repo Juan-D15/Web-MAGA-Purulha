@@ -106,6 +106,29 @@
               <input type="text" id="eventName" name="nombre" class="form-input" placeholder="Ingrese el nombre del evento" required>
             </div>
 
+            <!-- Imagen de Portada -->
+            <div class="form-group">
+              <label class="form-label">Imagen de Portada</label>
+              <div class="file-upload" id="coverUploadContainer">
+                <input type="file" id="coverFileInput" accept="image/*" class="file-input">
+                <label for="coverFileInput" class="file-label" style="flex-direction: column; gap: 6px;">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="14" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="7.5" r="1.5"></circle>
+                    <path d="M21 15l-5-5L5 21"></path>
+                  </svg>
+                  <span>Seleccionar imagen (PNG, JPG)</span>
+                  <small style="color: #6c757d;">Solo se admite una imagen; reemplaza la actual al volver a seleccionar.</small>
+                </label>
+              </div>
+              <div id="coverPreviewWrapper" style="display: none; align-items: center; gap: 16px; margin-top: 12px;">
+                <img id="coverImagePreview" src="" alt="Portada del evento" style="max-width: 220px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                <button type="button" id="coverRemoveBtn" class="btn-danger" style="display: none; padding: 6px 14px; font-size: 0.85rem; border-radius: 6px;">
+                  Eliminar
+                </button>
+              </div>
+            </div>
+
             <!-- Tipo de Evento -->
             <div class="form-group">
               <label for="eventType" class="form-label">Tipo de Evento *</label>
@@ -117,17 +140,27 @@
               </select>
             </div>
             
-            <!-- Comunidad -->
+            <!-- Regiones y Comunidades -->
             <div class="form-group">
-              <label for="comunidad" class="form-label">Comunidad *</label>
-              <select id="comunidad" name="comunidad_id" class="form-select" required>
-                <option value="">Seleccione una comunidad</option>
-                {% for comunidad in comunidades %}
-                  <option value="{{ comunidad.id }}">
-                    {{ comunidad.nombre }} {% if comunidad.region %}({{ comunidad.region.nombre }}){% endif %}
-                  </option>
-                {% endfor %}
-              </select>
+              <label class="form-label">Regiones y Comunidades *</label>
+              <div class="community-selector">
+                <button type="button" id="addCommunityBtn" class="beneficiary-label" style="display: inline-flex; align-items: center; gap: 8px;">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 5 17 10"/>
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                  </svg>
+                  <span>Agregar Región / Comunidad</span>
+                </button>
+
+                <div id="communitiesSection" style="margin-top: 16px; display: none;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <h4 style="margin: 0; font-size: 0.95rem; color: #ffffff; font-weight: 600;">Comunidades seleccionadas</h4>
+                    <div id="communityCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                  </div>
+                  <div id="communitiesContainer"></div>
+                </div>
+              </div>
             </div>
             
             <!-- Fecha -->
@@ -172,7 +205,29 @@
               <label for="eventDescription" class="form-label">Descripción del Evento *</label>
               <textarea id="eventDescription" name="descripcion" class="form-textarea" rows="5" placeholder="Describa los detalles del evento, objetivos, metodología, etc." required></textarea>
             </div>
-            
+
+            <!-- Datos Rápidos del Proyecto -->
+            <div class="form-group">
+              <label class="form-label">Datos del Proyecto</label>
+              <div id="quickDataAddArea" class="file-upload" style="padding: 0;">
+                <button type="button" id="addQuickDataBtn" class="file-label" style="display: flex; align-items: center; gap: 14px; width: 100%; border: 1.6px dashed rgba(255,255,255,0.25); border-radius: 14px; background: rgba(255,255,255,0.02); padding: 16px 20px;">
+                  <span style="width: 40px; height: 40px; border-radius: 12px; background: rgba(13,110,253,0.18); color: #0d6efd; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">📋</span>
+                  <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+                    <span style="font-weight: 600; font-size: 0.95rem; letter-spacing: 0.02em; color: #f5f7fa;">Agregar dato del proyecto</span>
+                    <small style="color: #90a4bc; font-size: 0.82rem;">Registra métricas como inversión, beneficiarios, área construida u otros indicadores clave.</small>
+                  </span>
+                </button>
+              </div>
+
+              <div id="quickDataSection" style="display: none; margin-top: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                  <h4 style="margin: 0; color: #ffffff; font-size: 0.95rem; font-weight: 600;">Datos Registrados</h4>
+                  <span id="quickDataCount" style="color: #0d6efd; font-size: 0.85rem; font-weight: 600;"></span>
+                </div>
+                <div id="quickDataContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+              </div>
+            </div>
+ 
             <!-- Beneficiarios -->
             <div class="form-group">
               <label for="beneficiaries" class="form-label">Beneficiarios del Evento</label>
@@ -503,6 +558,38 @@
     </div>
   </div>
 
+  <!-- Modal para Agregar Comunidades -->
+  <div id="addCommunityModal" class="modal">
+    <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Comunidades</h3>
+        <button class="modal-close" id="closeCommunityModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
+        <div class="form-group">
+          <label for="community_region_select" class="form-label">Región</label>
+          <select id="community_region_select" class="form-select">
+            <option value="">Seleccione una región</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="community_search_input" class="form-label">Buscar comunidad</label>
+          <input type="text" id="community_search_input" class="form-input" placeholder="Buscar por nombre o código">
+        </div>
+        <div id="community_list_container" style="display: grid; gap: 8px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelCommunityBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmCommunityBtn" class="btn-primary">Agregar seleccionadas</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal para Agregar Beneficiario -->
   <div id="addBeneficiaryModal" class="modal">
     <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
@@ -516,7 +603,29 @@
         </button>
       </div>
       <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+        <div class="benef-mode-toggle" style="display:flex; gap:8px; margin-bottom:16px;">
+          <button type="button" class="benef-mode-btn active" data-mode="nuevo" style="flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(76, 175, 80, 0.2); color:#ffffff; font-weight:700; cursor:pointer;">Registrar nuevo</button>
+          <button type="button" class="benef-mode-btn" data-mode="existente" style="flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#ffffff; font-weight:700; cursor:pointer;">Buscar existente</button>
+        </div>
+
+        <div id="benef_nuevo_section">
         <form id="beneficiaryForm">
+          <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+              <label for="benef_region_select" class="form-label">Región *</label>
+              <select id="benef_region_select" class="form-select" required>
+                <option value="">Seleccione una región</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="benef_comunidad_select" class="form-label">Comunidad *</label>
+              <select id="benef_comunidad_select" class="form-select" required>
+                <option value="">Seleccione una comunidad</option>
+              </select>
+              <small style="color: #6c757d;">Selecciona la comunidad a la que pertenece el beneficiario.</small>
+            </div>
+          </div>
+
           <!-- Tipo de Beneficiario -->
           <div class="form-group">
             <label for="benef_tipo" class="form-label">Tipo de Beneficiario *</label>
@@ -650,6 +759,17 @@
             </div>
           </div>
         </form>
+        </div>
+
+        <div id="benef_existente_section" style="display:none;">
+          <div class="form-group">
+            <label for="benef_search_input" class="form-label">Buscar beneficiario</label>
+            <input type="text" id="benef_search_input" class="form-input" placeholder="Ingresa nombre, DPI, comunidad o tipo...">
+            <small style="color:#b8c5d1; display:block; margin-top:6px;">Escribe al menos 2 caracteres para buscar.</small>
+          </div>
+          <div id="benef_search_status" style="display:none; color:#b8c5d1; font-size:0.9rem; margin-bottom:10px;"></div>
+          <div id="benef_search_results" class="benef-search-results" style="display:grid; gap:10px;"></div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" id="cancelBeneficiaryBtn" class="btn-secondary">Cancelar</button>
@@ -705,8 +825,39 @@
     </div>
   </div>
 
+  <!-- Modal Datos del Proyecto -->
+  <div id="quickDataModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Dato del Proyecto</h3>
+        <button type="button" class="close-modal" id="closeQuickDataModal">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="quickDataForm" class="modal-form" autocomplete="off">
+          <div class="form-group">
+            <label for="quickDataEmoji" class="form-label">Emoji o Ícono</label>
+            <input type="text" id="quickDataEmoji" maxlength="4" class="form-input" placeholder="Ej: 😀, 📌, ⚙️">
+            <small style="color: #6c757d;">Puedes pegar un emoji o escribir un símbolo corto.</small>
+          </div>
+          <div class="form-group">
+            <label for="quickDataTitle" class="form-label">Título *</label>
+            <input type="text" id="quickDataTitle" class="form-input" maxlength="100" placeholder="Ej: Cantidad de participantes" required>
+          </div>
+          <div class="form-group">
+            <label for="quickDataDescription" class="form-label">Descripción / Valor *</label>
+            <input type="text" id="quickDataDescription" class="form-input" maxlength="255" placeholder="Ej: 150 personas" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="cancelQuickDataBtn">Cancelar</button>
+        <button type="button" class="btn-primary" id="saveQuickDataBtn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=35"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=39"></script>
 {% endblock %}

@@ -489,6 +489,47 @@ class ActividadBeneficiario(models.Model):
         return f"{self.beneficiario} - {self.actividad.nombre}"
 
 
+class ActividadComunidad(models.Model):
+    """Relación entre actividades y comunidades asociadas"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='comunidades_relacionadas', db_column='actividad_id')
+    comunidad = models.ForeignKey(Comunidad, on_delete=models.CASCADE, related_name='actividades_relacionadas', db_column='comunidad_id')
+    region = models.ForeignKey(Region, on_delete=models.SET_NULL, null=True, blank=True, related_name='actividades_relacionadas', db_column='region_id')
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'actividad_comunidades'
+        verbose_name = 'Comunidad de Actividad'
+        verbose_name_plural = 'Comunidades de Actividades'
+        managed = False
+        unique_together = [['actividad', 'comunidad']]
+
+    def __str__(self):
+        region_nombre = self.region.nombre if self.region else 'Sin región'
+        return f"{self.actividad.nombre} -> {self.comunidad.nombre} ({region_nombre})"
+
+
+class ActividadPortada(models.Model):
+    """Imagen de portada asociada a una actividad"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actividad = models.OneToOneField(Actividad, on_delete=models.CASCADE, related_name='portada', db_column='actividad_id')
+    archivo_nombre = models.CharField(max_length=255)
+    archivo_tipo = models.CharField(max_length=100, blank=True, null=True)
+    url_almacenamiento = models.TextField()
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'actividad_portadas'
+        verbose_name = 'Portada de Actividad'
+        verbose_name_plural = 'Portadas de Actividades'
+        managed = False
+
+    def __str__(self):
+        return f"Portada de {self.actividad.nombre}"
+
+
 class Evidencia(models.Model):
     """Evidencias multimedia de actividades"""
     

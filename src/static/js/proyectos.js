@@ -62,6 +62,7 @@ async function cargarProyectosPorTipo(tipo) {
         estado: proyecto.estado,
         estado_display: proyecto.estado_display,
         descripcion: proyecto.descripcion,
+        portada: proyecto.portada || null,
         imagen_principal: proyecto.imagen_principal,
         personal_count: proyecto.personal_count,
         personal_nombres: proyecto.personal_nombres,
@@ -234,7 +235,7 @@ function crearTarjetaProyecto(proyecto) {
   const anio = fecha.getFullYear();
   
   // Determinar la imagen a usar
-  const imagenUrl = proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
+  const imagenUrl = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
   
   card.innerHTML = `
     <div class="project-image">
@@ -314,7 +315,7 @@ function crearTarjetaProyectoDestacado(proyecto) {
   const anio = fecha.getFullYear();
   
   // Determinar la imagen a usar
-  const imagenUrl = proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+  const imagenUrl = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
   
   card.innerHTML = `
     <div class="project-image">
@@ -409,10 +410,17 @@ function mostrarDetalleProyecto(proyecto) {
   if (statusText) statusText.textContent = proyecto.estado_display || proyecto.estado;
   
   // Actualizar imagen principal
-  if (detailMainImage && proyecto.evidencias && proyecto.evidencias.length > 0) {
-    const primeraImagen = proyecto.evidencias.find(e => e.es_imagen);
-    if (primeraImagen) {
-      detailMainImage.src = primeraImagen.url;
+  if (detailMainImage) {
+    const portadaUrl = proyecto.portada && proyecto.portada.url ? proyecto.portada.url : null;
+    if (portadaUrl) {
+      detailMainImage.src = portadaUrl;
+    } else if (proyecto.evidencias && proyecto.evidencias.length > 0) {
+      const primeraImagen = proyecto.evidencias.find(e => e.es_imagen);
+      if (primeraImagen) {
+        detailMainImage.src = primeraImagen.url;
+      } else {
+        detailMainImage.src = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+      }
     } else {
       detailMainImage.src = 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
     }

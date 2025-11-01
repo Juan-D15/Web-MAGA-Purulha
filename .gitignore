@@ -33,7 +33,7 @@ db.sqlite3
 /staticfiles/
 /static_root/
 /media/
-migrations/ 
+/webmaga/migrations/ 
 
 # Cachés y herramientas
 .mypy_cache/

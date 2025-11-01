@@ -18,7 +18,8 @@ from .models import (
     Region, Comunidad, Actividad, TipoActividad, 
     Beneficiario, BeneficiarioIndividual, BeneficiarioFamilia, BeneficiarioInstitucion,
     TipoBeneficiario, Usuario, TipoComunidad, ActividadPersonal,
-    ActividadBeneficiario, Evidencia, ActividadCambio
+    Colaborador,
+    ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio
 )
 from .forms import LoginForm, RecuperarPasswordForm, ActividadForm
 from .decorators import (
@@ -28,6 +29,288 @@ from .decorators import (
     usuario_autenticado,
     get_usuario_maga
 )
+
+
+# =====================================================
+# Funciones utilitarias internas
+# =====================================================
+
+def obtener_detalle_beneficiario(beneficiario):
+    """Devuelve nombre para mostrar, info adicional, detalles y tipo efectivo del beneficiario."""
+    nombre_display = ''
+    info_adicional = ''
+    detalles = {}
+    tipo_envio = beneficiario.tipo.nombre if beneficiario.tipo else ''
+
+    if hasattr(beneficiario, 'individual'):
+        ind = beneficiario.individual
+        nombre_display = f"{ind.nombre} {ind.apellido}".strip()
+        info_adicional = ind.dpi or ''
+        detalles = {
+            'nombre': ind.nombre,
+            'apellido': ind.apellido,
+            'dpi': ind.dpi or '',
+            'fecha_nacimiento': str(ind.fecha_nacimiento) if ind.fecha_nacimiento else '',
+            'genero': ind.genero or '',
+            'telefono': ind.telefono or '',
+            'display_name': nombre_display
+        }
+    elif hasattr(beneficiario, 'familia'):
+        fam = beneficiario.familia
+        nombre_display = fam.nombre_familia
+        info_adicional = f"Jefe: {fam.jefe_familia}" if fam.jefe_familia else ''
+        detalles = {
+            'nombre_familia': fam.nombre_familia,
+            'jefe_familia': fam.jefe_familia,
+            'dpi_jefe_familia': fam.dpi_jefe_familia or '',
+            'telefono': fam.telefono or '',
+            'numero_miembros': fam.numero_miembros or '',
+            'display_name': nombre_display
+        }
+    elif hasattr(beneficiario, 'institucion'):
+        inst = beneficiario.institucion
+        nombre_display = inst.nombre_institucion
+        info_adicional = inst.tipo_institucion or ''
+        if (beneficiario.tipo and beneficiario.tipo.nombre.lower() == 'otro') or (inst.tipo_institucion or '').lower() == 'otro':
+            tipo_envio = 'otro'
+            detalles = {
+                'nombre': inst.nombre_institucion,
+                'tipo_descripcion': inst.email or inst.tipo_institucion,
+                'contacto': inst.representante_legal or '',
+                'telefono': inst.telefono or '',
+                'descripcion': '',
+                'display_name': nombre_display
+            }
+        else:
+            detalles = {
+                'nombre_institucion': inst.nombre_institucion,
+                'tipo_institucion': inst.tipo_institucion,
+                'representante_legal': inst.representante_legal or '',
+                'dpi_representante': inst.dpi_representante or '',
+                'telefono': inst.telefono or '',
+                'email': inst.email or '',
+                'numero_beneficiarios_directos': inst.numero_beneficiarios_directos or '',
+                'display_name': nombre_display
+            }
+    else:
+        nombre_display = f"Beneficiario {beneficiario.id}"
+
+    comunidad = beneficiario.comunidad
+    detalles['comunidad_id'] = str(comunidad.id) if comunidad else None
+    detalles['comunidad_nombre'] = comunidad.nombre if comunidad else None
+    detalles['region_id'] = str(comunidad.region_id) if comunidad and comunidad.region_id else None
+    detalles['region_nombre'] = comunidad.region.nombre if comunidad and comunidad.region else None
+    detalles['region_sede'] = comunidad.region.comunidad_sede if comunidad and comunidad.region and comunidad.region.comunidad_sede else None
+
+    return nombre_display, info_adicional, detalles, tipo_envio
+
+
+def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
+    """Actualiza registros existentes de beneficiarios y devuelve la cantidad de cambios aplicados."""
+    cambios_aplicados = 0
+
+    for benef_data in beneficiarios_modificados:
+        benef_id = benef_data.get('id')
+        if not benef_id:
+            continue
+
+        try:
+            beneficiario = Beneficiario.objects.get(id=benef_id)
+        except Beneficiario.DoesNotExist:
+            print(f"⚠️ Beneficiario {benef_id} no encontrado")
+            continue
+
+        tipo = benef_data.get('tipo')
+        try:
+            if tipo == 'individual':
+                benef_ind = BeneficiarioIndividual.objects.get(beneficiario=beneficiario)
+                benef_ind.nombre = benef_data.get('nombre', benef_ind.nombre)
+                benef_ind.apellido = benef_data.get('apellido', benef_ind.apellido)
+                benef_ind.dpi = benef_data.get('dpi')
+                benef_ind.fecha_nacimiento = benef_data.get('fecha_nacimiento')
+                benef_ind.genero = benef_data.get('genero')
+                benef_ind.telefono = benef_data.get('telefono')
+                benef_ind.save()
+                cambios_aplicados += 1
+                print(f"✅ Beneficiario individual actualizado: {benef_ind.nombre} {benef_ind.apellido}")
+
+            elif tipo == 'familia':
+                benef_fam = BeneficiarioFamilia.objects.get(beneficiario=beneficiario)
+                benef_fam.nombre_familia = benef_data.get('nombre_familia', benef_fam.nombre_familia)
+                benef_fam.jefe_familia = benef_data.get('jefe_familia', benef_fam.jefe_familia)
+                benef_fam.dpi_jefe_familia = benef_data.get('dpi_jefe_familia')
+                benef_fam.telefono = benef_data.get('telefono')
+                benef_fam.numero_miembros = benef_data.get('numero_miembros')
+                benef_fam.save()
+                cambios_aplicados += 1
+                print(f"✅ Beneficiario familia actualizado: {benef_fam.nombre_familia}")
+
+            elif tipo in ('institucion', 'institución'):
+                benef_inst = BeneficiarioInstitucion.objects.get(beneficiario=beneficiario)
+                benef_inst.nombre_institucion = benef_data.get('nombre_institucion', benef_inst.nombre_institucion)
+                benef_inst.tipo_institucion = benef_data.get('tipo_institucion', benef_inst.tipo_institucion)
+                benef_inst.representante_legal = benef_data.get('representante_legal')
+                benef_inst.dpi_representante = benef_data.get('dpi_representante')
+                benef_inst.telefono = benef_data.get('telefono')
+                benef_inst.email = benef_data.get('email')
+                benef_inst.numero_beneficiarios_directos = benef_data.get('numero_beneficiarios_directos')
+                benef_inst.save()
+                cambios_aplicados += 1
+                print(f"✅ Beneficiario institución actualizado: {benef_inst.nombre_institucion}")
+
+            elif tipo == 'otro':
+                benef_inst = BeneficiarioInstitucion.objects.get(beneficiario=beneficiario)
+                benef_inst.nombre_institucion = benef_data.get('nombre', benef_inst.nombre_institucion)
+                benef_inst.tipo_institucion = 'otro'
+                benef_inst.representante_legal = benef_data.get('contacto')
+                benef_inst.telefono = benef_data.get('telefono')
+                benef_inst.email = benef_data.get('tipo_descripcion')
+                benef_inst.save()
+                cambios_aplicados += 1
+                print(f"✅ Beneficiario tipo 'otro' actualizado: {benef_inst.nombre_institucion}")
+
+        except (BeneficiarioIndividual.DoesNotExist, BeneficiarioFamilia.DoesNotExist, BeneficiarioInstitucion.DoesNotExist):
+            print(f"⚠️ No se encontró el registro específico para el beneficiario {benef_id}")
+            continue
+
+        comunidad_id_nueva = benef_data.get('comunidad_id')
+        if comunidad_id_nueva and str(beneficiario.comunidad_id) != str(comunidad_id_nueva):
+            beneficiario.comunidad_id = comunidad_id_nueva
+            beneficiario.save(update_fields=['comunidad'])
+            cambios_aplicados += 1
+
+    return cambios_aplicados
+
+
+def obtener_comunidades_evento(evento):
+    """Devuelve un listado de comunidades asociadas a la actividad con información de región."""
+    comunidades_detalle = []
+
+    relaciones = []
+    if hasattr(evento, 'comunidades_relacionadas'):
+        relaciones = evento.comunidades_relacionadas.all()
+
+    for relacion in relaciones:
+        comunidad = relacion.comunidad
+        region = relacion.region or (comunidad.region if comunidad and comunidad.region else None)
+        comunidades_detalle.append({
+            'comunidad_id': str(comunidad.id) if comunidad else None,
+            'comunidad_nombre': comunidad.nombre if comunidad else None,
+            'region_id': str(region.id) if region else None,
+            'region_nombre': region.nombre if region else None,
+            'region_sede': region.comunidad_sede if getattr(region, 'comunidad_sede', None) else None
+        })
+
+    if not comunidades_detalle and evento.comunidad:
+        region = evento.comunidad.region
+        comunidades_detalle.append({
+            'comunidad_id': str(evento.comunidad.id),
+            'comunidad_nombre': evento.comunidad.nombre,
+            'region_id': str(region.id) if region else None,
+            'region_nombre': region.nombre if region else None,
+            'region_sede': region.comunidad_sede if region else None
+        })
+
+    return comunidades_detalle
+
+
+def obtener_tarjetas_datos(evento):
+    tarjetas = []
+    qs = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).order_by('orden', 'creado_en')
+    for tarjeta in qs:
+        tarjetas.append({
+            'id': str(tarjeta.id),
+            'titulo': tarjeta.titulo,
+            'valor': tarjeta.valor,
+            'icono': tarjeta.icono,
+            'orden': tarjeta.orden,
+            'es_favorita': tarjeta.es_favorita
+        })
+    return tarjetas
+
+
+def obtener_portada_evento(evento):
+    """Devuelve la información de la portada del evento, si existe."""
+    portada = getattr(evento, 'portada', None)
+    if not portada:
+        return None
+    return {
+        'id': str(portada.id),
+        'nombre': portada.archivo_nombre,
+        'tipo': portada.archivo_tipo or '',
+        'url': portada.url_almacenamiento
+    }
+
+
+def eliminar_portada_evento(portada_inst):
+    """Elimina la portada asociada al evento, incluyendo el archivo físico."""
+    try:
+        portada = ActividadPortada.objects.get(actividad=portada_inst)
+    except ActividadPortada.DoesNotExist:
+        return False
+
+    archivo_path = os.path.join(settings.MEDIA_ROOT, portada.url_almacenamiento.lstrip('/media/'))
+    if os.path.exists(archivo_path):
+        try:
+            os.remove(archivo_path)
+        except Exception as e:
+            print(f"⚠️ No se pudo eliminar el archivo de portada: {e}")
+
+    portada.delete()
+    return True
+
+
+def obtener_url_portada_o_evidencia(evento):
+    """Retorna la URL de la portada si existe; de lo contrario, la primera evidencia de imagen."""
+    portada = obtener_portada_evento(evento)
+    if portada and portada.get('url'):
+        return portada['url']
+
+    if hasattr(evento, 'evidencias'):
+        evidencia = evento.evidencias.filter(es_imagen=True).first()
+        if evidencia and evidencia.url_almacenamiento:
+            return evidencia.url_almacenamiento
+    return None
+
+
+def guardar_portada_evento(actividad, archivo):
+    if not archivo:
+        return None
+
+    content_type = getattr(archivo, 'content_type', '') or ''
+    if not content_type.startswith('image/'):
+        raise ValueError('El archivo de portada debe ser una imagen')
+
+    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'eventos_portada_img'))
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+    extension = os.path.splitext(archivo.name)[1]
+    filename = f"{timestamp}{extension}"
+    saved_name = fs.save(filename, archivo)
+    url = f"/media/eventos_portada_img/{saved_name}"
+
+    portada, _ = ActividadPortada.objects.update_or_create(
+        actividad=actividad,
+        defaults={
+            'archivo_nombre': archivo.name,
+            'archivo_tipo': content_type,
+            'url_almacenamiento': url
+        }
+    )
+    return portada
+
+
+def eliminar_portada_evento(portada_inst):
+    if not portada_inst:
+        return
+
+    try:
+        file_path = os.path.join(settings.MEDIA_ROOT, portada_inst.url_almacenamiento.lstrip('/media/'))
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as error:
+        print(f"⚠️ No se pudo eliminar el archivo de portada: {error}")
+
+    portada_inst.delete()
 
 # =====================================================
 # VISTAS DE PÁGINAS HTML
@@ -327,7 +610,7 @@ def api_crear_evento(request):
         data = request.POST
         
         # Validar campos requeridos
-        campos_requeridos = ['nombre', 'tipo_actividad_id', 'comunidad_id', 'fecha', 'descripcion']
+        campos_requeridos = ['nombre', 'tipo_actividad_id', 'fecha', 'descripcion']
         for campo in campos_requeridos:
             if not data.get(campo):
                 return JsonResponse({
@@ -335,13 +618,33 @@ def api_crear_evento(request):
                     'error': f'El campo {campo} es requerido'
                 }, status=400)
         
+        # Comunidades seleccionadas (principal + adicionales)
+        comunidades_payload = []
+        if data.get('comunidades_seleccionadas'):
+            try:
+                comunidades_payload = json.loads(data['comunidades_seleccionadas'])
+            except (json.JSONDecodeError, ValueError):
+                comunidades_payload = []
+
+        comunidad_principal_id = data.get('comunidad_id')
+        if not comunidad_principal_id and comunidades_payload:
+            comunidad_principal_id = comunidades_payload[0].get('comunidad_id')
+
+        portada_eliminar_flag = data.get('portada_eliminar') == 'true'
+
+        if not comunidad_principal_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Debe seleccionar al menos una comunidad asociada al evento'
+            }, status=400)
+        
         # Usar transacción para asegurar integridad de datos
         with transaction.atomic():
             # 1. Crear la actividad
             actividad = Actividad.objects.create(
                 nombre=data['nombre'],
                 tipo_id=data['tipo_actividad_id'],
-                comunidad_id=data['comunidad_id'],
+                comunidad_id=comunidad_principal_id,
                 responsable=usuario_maga,
                 fecha=data['fecha'],
                 descripcion=data['descripcion'],
@@ -353,29 +656,99 @@ def api_crear_evento(request):
             # 2. Asignar personal
             if data.get('personal_ids'):
                 try:
-                    personal_ids = json.loads(data['personal_ids'])
-                    for item in personal_ids:
-                        # Manejar tanto strings (IDs) como objetos {"id": "...", "rol": "..."}
-                        if isinstance(item, str):
-                            usuario_id = item
-                            rol = 'Colaborador'
-                        elif isinstance(item, dict):
-                            usuario_id = item.get('id')
-                            rol = item.get('rol', 'Colaborador')
-                        else:
-                            continue
-                        
-                        if usuario_id:
+                    personal_raw = json.loads(data['personal_ids'])
+                except (json.JSONDecodeError, ValueError):
+                    personal_raw = []
+
+                for item in personal_raw:
+                    if isinstance(item, dict):
+                        obj_id = item.get('id')
+                        tipo = item.get('tipo', 'colaborador')
+                        rol = item.get('rol', 'Colaborador')
+                    else:
+                        obj_id = item
+                        tipo = 'colaborador'
+                        rol = 'Colaborador'
+
+                    if not obj_id:
+                        continue
+
+                    if tipo == 'usuario':
+                        ActividadPersonal.objects.create(
+                            actividad=actividad,
+                            usuario_id=obj_id,
+                            rol_en_actividad=rol
+                        )
+                    else:
+                        colaborador = Colaborador.objects.filter(id=obj_id, activo=True).select_related('usuario').first()
+                        if colaborador:
                             ActividadPersonal.objects.create(
                                 actividad=actividad,
-                                usuario_id=usuario_id,
+                                colaborador=colaborador,
+                                usuario=colaborador.usuario if colaborador.usuario else None,
                                 rol_en_actividad=rol
                             )
-                except (json.JSONDecodeError, ValueError) as e:
-                    print(f"Error al asignar personal: {e}")
-                    pass  # Ignorar si no hay personal válido
             
-            # 3. Crear y asignar beneficiarios nuevos
+            # 3. Asociar comunidades seleccionadas (principal + adicionales)
+            comunidades_a_registrar = comunidades_payload.copy()
+            if comunidad_principal_id and not any(item.get('comunidad_id') == comunidad_principal_id for item in comunidades_a_registrar):
+                comunidades_a_registrar.insert(0, {'comunidad_id': comunidad_principal_id})
+
+            if comunidades_a_registrar:
+                comunidades_ids = [item.get('comunidad_id') for item in comunidades_a_registrar if item.get('comunidad_id')]
+                comunidades_map = {
+                    str(com.id): com for com in Comunidad.objects.filter(id__in=comunidades_ids).select_related('region')
+                }
+
+                for item in comunidades_a_registrar:
+                    comunidad_id = item.get('comunidad_id')
+                    if not comunidad_id:
+                        continue
+
+                    comunidad_obj = comunidades_map.get(str(comunidad_id))
+                    if comunidad_obj is None:
+                        raise Comunidad.DoesNotExist(f'Comunidad no válida: {comunidad_id}')
+
+                    region_id = item.get('region_id')
+                    if not region_id and comunidad_obj.region_id:
+                        region_id = comunidad_obj.region_id
+
+                    ActividadComunidad.objects.get_or_create(
+                        actividad=actividad,
+                        comunidad=comunidad_obj,
+                        defaults={'region_id': region_id}
+                    )
+
+            tarjetas_creadas = []
+            if data.get('tarjetas_datos_nuevas'):
+                try:
+                    tarjetas_payload = json.loads(data['tarjetas_datos_nuevas'])
+                except json.JSONDecodeError:
+                    tarjetas_payload = []
+
+                for idx, tarjeta in enumerate(tarjetas_payload):
+                    titulo = tarjeta.get('titulo')
+                    valor = tarjeta.get('valor')
+                    icono = tarjeta.get('icono')
+                    if not titulo or not valor:
+                        continue
+                    tarjeta_inst = TarjetaDato.objects.create(
+                        entidad_tipo='actividad',
+                        entidad_id=actividad.id,
+                        titulo=titulo,
+                        valor=valor,
+                        icono=icono,
+                        orden=idx
+                    )
+                    tarjetas_creadas.append({
+                        'id': str(tarjeta_inst.id),
+                        'titulo': tarjeta_inst.titulo,
+                        'valor': tarjeta_inst.valor,
+                        'icono': tarjeta_inst.icono,
+                        'orden': tarjeta_inst.orden
+                    })
+
+            # 4. Crear y asignar beneficiarios nuevos
             if data.get('beneficiarios_nuevos'):
                 try:
                     beneficiarios_nuevos = json.loads(data['beneficiarios_nuevos'])
@@ -385,7 +758,7 @@ def api_crear_evento(request):
                         tipo = benef_data.get('tipo')
                         print(f"🔍 Procesando beneficiario tipo: {tipo}")
                         print(f"🔍 Datos completos: {benef_data}")
-                        comunidad_id = data.get('comunidad_id')  # Usar la misma comunidad del evento
+                        comunidad_id = benef_data.get('comunidad_id') or data.get('comunidad_id')
                         
                         # Obtener el tipo de beneficiario (mapear "otro" a "institucion")
                         tipo_lookup = tipo if tipo != 'otro' else 'institución'
@@ -450,8 +823,42 @@ def api_crear_evento(request):
                 except (json.JSONDecodeError, ValueError, TipoBeneficiario.DoesNotExist) as e:
                     print(f"Error al crear beneficiarios: {e}")
                     pass  # Ignorar si hay errores en beneficiarios
+
+            # 3b. Asociar beneficiarios existentes seleccionados
+            if data.get('beneficiarios_existentes'):
+                try:
+                    beneficiarios_existentes_ids = json.loads(data['beneficiarios_existentes'])
+                    asociados = 0
+                    for benef_id in beneficiarios_existentes_ids:
+                        if not benef_id:
+                            continue
+                        beneficiario = Beneficiario.objects.filter(id=benef_id, activo=True).first()
+                        if not beneficiario:
+                            continue
+                        _, creado_rel = ActividadBeneficiario.objects.get_or_create(
+                            actividad=actividad,
+                            beneficiario=beneficiario
+                        )
+                        if creado_rel:
+                            asociados += 1
+                    if asociados:
+                        print(f"✅ Asociados {asociados} beneficiarios existentes al evento")
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(f"Error al asociar beneficiarios existentes: {e}")
+                    pass
+
+            # 3c. Aplicar modificaciones a beneficiarios existentes (si se editaron desde el formulario)
+            if data.get('beneficiarios_modificados'):
+                try:
+                    beneficiarios_modificados = json.loads(data['beneficiarios_modificados'])
+                    cambios_aplicados = aplicar_modificaciones_beneficiarios(beneficiarios_modificados)
+                    if cambios_aplicados:
+                        print(f"✏️ Beneficiarios existentes actualizados: {cambios_aplicados}")
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(f"Error al actualizar beneficiarios: {e}")
+                    pass
             
-            # 4. Guardar evidencias (archivos/imágenes)
+            # 5. Guardar evidencias (archivos/imágenes)
             archivos_guardados = []
             evidencias_guardadas = request.FILES.getlist('evidences')
             
@@ -491,7 +898,19 @@ def api_crear_evento(request):
                         'tamanio': file.size
                     })
             
-            # 5. Registrar cambio/creación
+            # 6. Guardar imagen de portada (si se envió)
+            portada_info = None
+            portada_file = request.FILES.get('portada_evento')
+            if portada_file:
+                try:
+                    portada_inst = guardar_portada_evento(actividad, portada_file)
+                    portada_info = obtener_portada_evento(portada_inst.actividad)
+                except ValueError as portada_error:
+                    raise ValueError(str(portada_error))
+            else:
+                portada_info = obtener_portada_evento(actividad)
+            
+            # 6. Registrar cambio/creación
             ActividadCambio.objects.create(
                 actividad=actividad,
                 responsable=usuario_maga,
@@ -499,6 +918,9 @@ def api_crear_evento(request):
             )
             
             # Respuesta exitosa
+            comunidades_evento = obtener_comunidades_evento(actividad)
+            comunidad_principal_nombre = comunidades_evento[0]['comunidad_nombre'] if comunidades_evento else (actividad.comunidad.nombre if actividad.comunidad else None)
+            
             return JsonResponse({
                 'success': True,
                 'message': 'Evento creado exitosamente',
@@ -507,8 +929,11 @@ def api_crear_evento(request):
                     'nombre': actividad.nombre,
                     'tipo': actividad.tipo.nombre,
                     'fecha': str(actividad.fecha),
-                    'comunidad': actividad.comunidad.nombre if actividad.comunidad else None,
-                    'estado': actividad.estado
+                    'comunidad': comunidad_principal_nombre,
+                    'comunidades': comunidades_evento,
+                    'estado': actividad.estado,
+                    'portada': portada_info,
+                    'tarjetas_datos': tarjetas_creadas or obtener_tarjetas_datos(actividad)
                 },
                 'archivos': archivos_guardados,
                 'total_archivos': len(archivos_guardados)
@@ -535,58 +960,81 @@ def api_crear_evento(request):
 
 @permiso_gestionar_eventos
 def api_listar_personal(request):
-    """API: Listar personal disponible para asignar a eventos"""
-    usuarios = Usuario.objects.filter(activo=True).select_related('puesto').order_by('username')
-    
+    """API: Listar colaboradores disponibles para asignar a eventos"""
+
+    colaboradores = (
+        Colaborador.objects.filter(activo=True)
+        .select_related('puesto', 'usuario')
+        .order_by('nombre')
+    )
+
     personal_list = []
-    for usuario in usuarios:
+    for colaborador in colaboradores:
         personal_list.append({
-            'id': str(usuario.id),
-            'username': usuario.username,
-            'nombre': usuario.nombre or '',  # Nombre completo (opcional)
-            'email': usuario.email,
-            'rol': usuario.rol,
-            'rol_display': usuario.get_rol_display(),
-            'puesto': usuario.puesto.nombre if usuario.puesto else None
+            'id': str(colaborador.id),
+            'nombre': colaborador.nombre,
+            'username': colaborador.usuario.username if colaborador.usuario else '',
+            'correo': colaborador.correo,
+            'telefono': colaborador.telefono,
+            'rol': 'Colaborador',
+            'rol_display': 'Personal Fijo' if colaborador.es_personal_fijo else 'Colaborador Externo',
+            'puesto': colaborador.puesto.nombre if colaborador.puesto else 'Sin puesto asignado',
+            'tipo': 'colaborador',
+            'es_personal_fijo': colaborador.es_personal_fijo,
+            'usuario_id': str(colaborador.usuario_id) if colaborador.usuario_id else None,
         })
-    
+
     return JsonResponse(personal_list, safe=False)
 
 
 @permiso_gestionar_eventos
 def api_listar_beneficiarios(request):
     """API: Listar beneficiarios disponibles"""
-    beneficiarios = Beneficiario.objects.filter(
-        activo=True
-    ).select_related('tipo', 'comunidad').prefetch_related(
-        'individual', 'familia', 'institucion'
-    )
-    
+    search = (request.GET.get('q') or '').strip()
+
+    beneficiarios = Beneficiario.objects.filter(activo=True).select_related(
+        'tipo', 'comunidad'
+    ).prefetch_related('individual', 'familia', 'institucion')
+
+    if search:
+        beneficiarios = beneficiarios.filter(
+            Q(individual__nombre__icontains=search) |
+            Q(individual__apellido__icontains=search) |
+            Q(individual__dpi__icontains=search) |
+            Q(familia__nombre_familia__icontains=search) |
+            Q(familia__jefe_familia__icontains=search) |
+            Q(familia__dpi_jefe_familia__icontains=search) |
+            Q(institucion__nombre_institucion__icontains=search) |
+            Q(institucion__representante_legal__icontains=search) |
+            Q(institucion__tipo_institucion__icontains=search) |
+            Q(comunidad__nombre__icontains=search)
+        )
+
+    beneficiarios = beneficiarios.order_by('tipo__nombre', 'comunidad__nombre', 'id')[:50]
+
     beneficiarios_list = []
     for ben in beneficiarios:
-        # Obtener nombre según tipo
-        if hasattr(ben, 'individual'):
-            nombre = f"{ben.individual.nombre} {ben.individual.apellido}"
-            info_adicional = ben.individual.dpi or ''
-        elif hasattr(ben, 'familia'):
-            nombre = ben.familia.nombre_familia
-            info_adicional = f"Jefe: {ben.familia.jefe_familia}"
-        elif hasattr(ben, 'institucion'):
-            nombre = ben.institucion.nombre_institucion
-            info_adicional = ben.institucion.tipo_institucion
+        nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(ben)
+        if ben.tipo and hasattr(ben.tipo, 'get_nombre_display'):
+            tipo_display = ben.tipo.get_nombre_display()
         else:
-            nombre = f"Beneficiario {ben.id}"
-            info_adicional = ''
-        
+            tipo_display = tipo_envio.title() if tipo_envio else ''
         beneficiarios_list.append({
             'id': str(ben.id),
-            'nombre': nombre,
-            'tipo': ben.tipo.nombre,
-            'tipo_display': ben.tipo.get_nombre_display(),
+            'nombre': nombre_display,
+            'display_name': nombre_display,
+            'tipo': tipo_envio,
+            'tipo_display': tipo_display,
+            'comunidad_id': str(ben.comunidad_id) if ben.comunidad_id else None,
+            'comunidad_nombre': ben.comunidad.nombre if ben.comunidad else None,
+            'region_id': str(ben.comunidad.region_id) if ben.comunidad and ben.comunidad.region_id else None,
+            'region_nombre': ben.comunidad.region.nombre if ben.comunidad and ben.comunidad.region else None,
+            'region_sede': ben.comunidad.region.comunidad_sede if ben.comunidad and ben.comunidad.region and ben.comunidad.region.comunidad_sede else None,
             'comunidad': ben.comunidad.nombre if ben.comunidad else None,
-            'info_adicional': info_adicional
+            'info_adicional': info_adicional,
+            'detalles': detalles
         })
-    
+
     return JsonResponse(beneficiarios_list, safe=False)
 
 
@@ -602,12 +1050,14 @@ def api_listar_eventos(request):
         eventos = Actividad.objects.filter(
             eliminado_en__isnull=True
         ).select_related(
-            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador'
+            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador', 'portada'
         ).prefetch_related(
             'personal__usuario__puesto',
             'personal__colaborador',
-            'beneficiarios__beneficiario'
-        ).order_by('-creado_en')
+            'beneficiarios__beneficiario',
+            'comunidades_relacionadas__comunidad__region',
+            'comunidades_relacionadas__region'
+         ).order_by('-creado_en')
         
         eventos_data = []
         for evento in eventos:
@@ -637,11 +1087,23 @@ def api_listar_eventos(request):
             
             creado_en_local = localtime(creado_en_aware)
             
+            comunidades_detalle = obtener_comunidades_evento(evento)
+            if comunidades_detalle:
+                comunidades_resumen = ', '.join([c['comunidad_nombre'] for c in comunidades_detalle if c['comunidad_nombre']])
+                comunidad_principal = comunidades_detalle[0]['comunidad_nombre']
+            else:
+                comunidades_resumen = evento.comunidad.nombre if evento.comunidad else 'Sin comunidades'
+                comunidad_principal = evento.comunidad.nombre if evento.comunidad else 'Sin comunidad'
+            
+            portada_evento = obtener_portada_evento(evento)
+             
             eventos_data.append({
                 'id': str(evento.id),
                 'nombre': evento.nombre,
                 'tipo': evento.tipo.nombre if evento.tipo else 'Sin tipo',
-                'comunidad': evento.comunidad.nombre if evento.comunidad else 'Sin comunidad',
+                'comunidad': comunidad_principal,
+                'comunidades': comunidades_detalle,
+                'comunidades_resumen': comunidades_resumen,
                 'fecha': str(evento.fecha),
                 'estado': evento.estado,
                 'descripcion': evento.descripcion[:100] + '...' if len(evento.descripcion) > 100 else evento.descripcion,
@@ -649,7 +1111,8 @@ def api_listar_eventos(request):
                 'personal_nombres': ', '.join(personal_nombres) if personal_nombres else 'Sin personal',
                 'beneficiarios_count': beneficiarios_count,
                 'responsable': (evento.responsable.nombre if evento.responsable.nombre else evento.responsable.username) if evento.responsable else 'Sin responsable',
-                'creado_en': creado_en_local.strftime('%d/%m/%Y %H:%M')
+                'creado_en': creado_en_local.strftime('%d/%m/%Y %H:%M'),
+                'portada': portada_evento
             })
         
         return JsonResponse({
@@ -671,14 +1134,16 @@ def api_obtener_evento(request, evento_id):
     """Obtiene los detalles completos de un evento"""
     try:
         evento = Actividad.objects.select_related(
-            'tipo', 'comunidad', 'responsable', 'colaborador'
+            'tipo', 'comunidad', 'responsable', 'colaborador', 'portada'
         ).prefetch_related(
             'personal__usuario__puesto',
             'personal__colaborador__puesto',
             'beneficiarios__beneficiario__individual',
             'beneficiarios__beneficiario__familia',
             'beneficiarios__beneficiario__institucion',
-            'evidencias'
+            'evidencias',
+            'comunidades_relacionadas__comunidad__region',
+            'comunidades_relacionadas__region'
         ).get(id=evento_id, eliminado_en__isnull=True)
         
         # Personal asignado
@@ -709,50 +1174,21 @@ def api_obtener_evento(request, evento_id):
         beneficiarios_data = []
         for ab in evento.beneficiarios.all():
             benef = ab.beneficiario
-            nombre_display = ''
-            detalles = {}
-            
-            if hasattr(benef, 'individual'):
-                ind = benef.individual
-                nombre_display = f"{ind.nombre} {ind.apellido}"
-                detalles = {
-                    'nombre': ind.nombre,
-                    'apellido': ind.apellido,
-                    'dpi': ind.dpi or '',
-                    'fecha_nacimiento': str(ind.fecha_nacimiento) if ind.fecha_nacimiento else '',
-                    'genero': ind.genero or '',
-                    'telefono': ind.telefono or '',
-                    'display_name': nombre_display
-                }
-            elif hasattr(benef, 'familia'):
-                fam = benef.familia
-                nombre_display = fam.nombre_familia
-                detalles = {
-                    'nombre_familia': fam.nombre_familia,
-                    'jefe_familia': fam.jefe_familia,
-                    'dpi_jefe_familia': fam.dpi_jefe_familia or '',
-                    'telefono': fam.telefono or '',
-                    'numero_miembros': fam.numero_miembros or '',
-                    'display_name': nombre_display
-                }
-            elif hasattr(benef, 'institucion'):
-                inst = benef.institucion
-                nombre_display = inst.nombre_institucion
-                detalles = {
-                    'nombre_institucion': inst.nombre_institucion,
-                    'tipo_institucion': inst.tipo_institucion,
-                    'representante_legal': inst.representante_legal or '',
-                    'dpi_representante': inst.dpi_representante or '',
-                    'telefono': inst.telefono or '',
-                    'email': inst.email or '',
-                    'numero_beneficiarios_directos': inst.numero_beneficiarios_directos or '',
-                    'display_name': nombre_display
-                }
-            
+            nombre_display, _, detalles, tipo_envio = obtener_detalle_beneficiario(benef)
+            if benef.tipo and hasattr(benef.tipo, 'get_nombre_display'):
+                tipo_display = benef.tipo.get_nombre_display()
+            else:
+                tipo_display = tipo_envio.title() if tipo_envio else ''
             beneficiarios_data.append({
                 'id': str(benef.id),
                 'nombre': nombre_display,
-                'tipo': benef.tipo.nombre,
+                'tipo': tipo_envio,
+                'tipo_display': tipo_display,
+                'comunidad_id': detalles.get('comunidad_id'),
+                'comunidad_nombre': detalles.get('comunidad_nombre'),
+                'region_id': detalles.get('region_id'),
+                'region_nombre': detalles.get('region_nombre'),
+                'region_sede': detalles.get('region_sede'),
                 'detalles': detalles
             })
         
@@ -767,11 +1203,15 @@ def api_obtener_evento(request, evento_id):
                 'es_imagen': evidencia.es_imagen
             })
         
+        comunidades_data = obtener_comunidades_evento(evento)
+        comunidad_principal_id = comunidades_data[0]['comunidad_id'] if comunidades_data else (str(evento.comunidad.id) if evento.comunidad else None)
+        portada_data = obtener_portada_evento(evento)
+        
         evento_data = {
             'id': str(evento.id),
             'nombre': evento.nombre,
             'tipo_id': str(evento.tipo.id) if evento.tipo else None,
-            'comunidad_id': str(evento.comunidad.id) if evento.comunidad else None,
+            'comunidad_id': comunidad_principal_id,
             'fecha': str(evento.fecha),
             'estado': evento.estado,
             'descripcion': evento.descripcion,
@@ -779,7 +1219,10 @@ def api_obtener_evento(request, evento_id):
             'longitud': float(evento.longitud) if evento.longitud else None,
             'personal': personal_data,
             'beneficiarios': beneficiarios_data,
-            'evidencias': evidencias_data
+            'evidencias': evidencias_data,
+            'comunidades': comunidades_data,
+            'portada': portada_data,
+            'tarjetas_datos': obtener_tarjetas_datos(evento)
         }
         
         return JsonResponse({
@@ -810,6 +1253,25 @@ def api_actualizar_evento(request, evento_id):
         data = request.POST
         cambios_realizados = []
         
+        comunidades_payload = []
+        if data.get('comunidades_seleccionadas'):
+            try:
+                comunidades_payload = json.loads(data['comunidades_seleccionadas'])
+            except (json.JSONDecodeError, ValueError):
+                comunidades_payload = []
+
+        comunidad_principal_id = data.get('comunidad_id')
+        if not comunidad_principal_id and comunidades_payload:
+            comunidad_principal_id = comunidades_payload[0].get('comunidad_id')
+
+        portada_eliminar_flag = data.get('portada_eliminar') == 'true'
+
+        if not comunidad_principal_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Debe seleccionar al menos una comunidad asociada al evento'
+            }, status=400)
+        
         with transaction.atomic():
             # Actualizar campos básicos
             if data.get('nombre') and data.get('nombre') != evento.nombre:
@@ -822,11 +1284,15 @@ def api_actualizar_evento(request, evento_id):
                     cambios_realizados.append(f"Tipo: '{evento.tipo.nombre}' → '{nuevo_tipo.nombre}'")
                     evento.tipo = nuevo_tipo
             
-            if data.get('comunidad_id'):
-                nueva_comunidad = Comunidad.objects.get(id=data.get('comunidad_id'))
+            if comunidad_principal_id:
+                nueva_comunidad = Comunidad.objects.get(id=comunidad_principal_id)
                 if nueva_comunidad != evento.comunidad:
                     cambios_realizados.append(f"Comunidad: '{evento.comunidad.nombre}' → '{nueva_comunidad.nombre}'")
                     evento.comunidad = nueva_comunidad
+            else:
+                if evento.comunidad is not None:
+                    cambios_realizados.append(f"Comunidad principal removida: '{evento.comunidad.nombre}'")
+                    evento.comunidad = None
             
             if data.get('fecha') and data.get('fecha') != str(evento.fecha):
                 cambios_realizados.append(f"Fecha: '{evento.fecha}' → '{data.get('fecha')}'")
@@ -850,31 +1316,151 @@ def api_actualizar_evento(request, evento_id):
             evento.save()
             
             # Actualizar personal
-            if data.get('personal_ids'):
-                personal_ids_nuevos = set(json.loads(data.get('personal_ids')))
-                personal_ids_actuales = {str(ap.usuario.id) for ap in evento.personal.all() if ap.usuario_id}
-                
-                # Eliminar personal que ya no está asignado
-                personal_a_eliminar = personal_ids_actuales - personal_ids_nuevos
-                if personal_a_eliminar:
-                    ActividadPersonal.objects.filter(
-                        actividad=evento,
-                        usuario_id__in=personal_a_eliminar
-                    ).delete()
-                    cambios_realizados.append(f"Removido {len(personal_a_eliminar)} personal")
-                
-                # Agregar nuevo personal
-                personal_a_agregar = personal_ids_nuevos - personal_ids_actuales
-                if personal_a_agregar:
-                    for usuario_id in personal_a_agregar:
-                        usuario = Usuario.objects.get(id=usuario_id)
+            if data.get('personal_ids') is not None:
+                try:
+                    personal_raw = json.loads(data.get('personal_ids'))
+                except (json.JSONDecodeError, ValueError):
+                    personal_raw = []
+
+                parsed_incoming = []
+                incoming_keys = set()
+                for item in personal_raw:
+                    if isinstance(item, dict):
+                        obj_id = item.get('id')
+                        tipo = item.get('tipo', 'colaborador')
+                        rol = item.get('rol', 'Colaborador')
+                    else:
+                        obj_id = item
+                        tipo = 'colaborador'
+                        rol = 'Colaborador'
+
+                    if not obj_id:
+                        continue
+
+                    key = f"{tipo}:{obj_id}"
+                    incoming_keys.add(key)
+                    parsed_incoming.append({'id': obj_id, 'tipo': tipo, 'rol': rol, 'key': key})
+
+                # Mapear personal actual
+                personal_actual = {}
+                for ap in evento.personal.all():
+                    if ap.colaborador_id:
+                        key = f"colaborador:{ap.colaborador_id}"
+                    elif ap.usuario_id:
+                        key = f"usuario:{ap.usuario_id}"
+                    else:
+                        continue
+                    personal_actual[key] = ap
+
+                actuales_keys = set(personal_actual.keys())
+
+                # Eliminar los que ya no están
+                keys_a_eliminar = actuales_keys - incoming_keys
+                if keys_a_eliminar:
+                    for key in keys_a_eliminar:
+                        personal_actual[key].delete()
+                    cambios_realizados.append(f"Removido {len(keys_a_eliminar)} personal")
+
+                # Agregar o actualizar
+                parsed_map = {item['key']: item for item in parsed_incoming}
+                for key, item in parsed_map.items():
+                    rol = item.get('rol', 'Colaborador')
+                    if key in personal_actual:
+                        ap = personal_actual[key]
+                        if ap.rol_en_actividad != rol:
+                            ap.rol_en_actividad = rol
+                            ap.save(update_fields=['rol_en_actividad'])
+                        continue
+
+                    if item['tipo'] == 'usuario':
+                        try:
+                            usuario = Usuario.objects.get(id=item['id'])
+                        except Usuario.DoesNotExist:
+                            continue
+
                         ActividadPersonal.objects.create(
                             actividad=evento,
                             usuario=usuario,
-                            rol_en_actividad='colaborador'
+                            rol_en_actividad=rol
                         )
-                    cambios_realizados.append(f"Agregado {len(personal_a_agregar)} personal")
+                    else:
+                        colaborador = Colaborador.objects.filter(id=item['id'], activo=True).select_related('usuario').first()
+                        if not colaborador:
+                            continue
+                        ActividadPersonal.objects.create(
+                            actividad=evento,
+                            colaborador=colaborador,
+                            usuario=colaborador.usuario if colaborador.usuario else None,
+                            rol_en_actividad=rol
+                        )
+
+                nuevos_agregados = max(len(incoming_keys - actuales_keys), 0)
+                if nuevos_agregados:
+                    cambios_realizados.append(f"Agregado {nuevos_agregados} personal")
             
+            # Actualizar comunidades asociadas
+            comunidades_a_registrar = comunidades_payload.copy()
+            if comunidad_principal_id and not any(item.get('comunidad_id') == comunidad_principal_id for item in comunidades_a_registrar):
+                comunidades_a_registrar.insert(0, {'comunidad_id': comunidad_principal_id})
+
+            comunidades_existentes_ids = set(
+                str(cid) for cid in ActividadComunidad.objects.filter(actividad=evento).values_list('comunidad_id', flat=True)
+            )
+
+            if comunidades_a_registrar:
+                comunidades_ids = [item.get('comunidad_id') for item in comunidades_a_registrar if item.get('comunidad_id')]
+                comunidades_map = {
+                    str(com.id): com for com in Comunidad.objects.filter(id__in=comunidades_ids).select_related('region')
+                }
+
+                for item in comunidades_a_registrar:
+                    comunidad_id = item.get('comunidad_id')
+                    if not comunidad_id:
+                        continue
+
+                    comunidad_obj = comunidades_map.get(str(comunidad_id))
+                    if comunidad_obj is None:
+                        raise Comunidad.DoesNotExist(f'Comunidad no válida: {comunidad_id}')
+
+                    region_id = item.get('region_id')
+                    if not region_id and comunidad_obj.region_id:
+                        region_id = comunidad_obj.region_id
+
+                    ActividadComunidad.objects.get_or_create(
+                        actividad=evento,
+                        comunidad=comunidad_obj,
+                        defaults={'region_id': region_id}
+                    )
+
+            tarjetas_creadas = []
+            if data.get('tarjetas_datos_nuevas'):
+                try:
+                    tarjetas_payload = json.loads(data['tarjetas_datos_nuevas'])
+                except json.JSONDecodeError:
+                    tarjetas_payload = []
+
+                for idx, tarjeta in enumerate(tarjetas_payload):
+                    titulo = tarjeta.get('titulo')
+                    valor = tarjeta.get('valor')
+                    icono = tarjeta.get('icono')
+                    if not titulo or not valor:
+                        continue
+                    tarjeta_inst = TarjetaDato.objects.create(
+                        entidad_tipo='actividad',
+                        entidad_id=evento.id,
+                        titulo=titulo,
+                        valor=valor,
+                        icono=icono,
+                        orden=idx
+                    )
+                    tarjetas_creadas.append({
+                        'id': str(tarjeta_inst.id),
+                        'titulo': tarjeta_inst.titulo,
+                        'valor': tarjeta_inst.valor,
+                        'icono': tarjeta_inst.icono,
+                        'orden': tarjeta_inst.orden
+                    })
+
             # Eliminar beneficiarios (si se marcaron)
             if data.get('beneficiarios_eliminados'):
                 try:
@@ -891,86 +1477,37 @@ def api_actualizar_evento(request, evento_id):
                     print(f"Error al eliminar beneficiarios: {e}")
                     pass
             
+            # Agregar beneficiarios existentes seleccionados durante la edición
+            if data.get('beneficiarios_existentes_agregar'):
+                try:
+                    beneficiarios_agregar = json.loads(data['beneficiarios_existentes_agregar'])
+                    agregados = 0
+                    for benef_id in beneficiarios_agregar:
+                        if not benef_id:
+                            continue
+                        beneficiario = Beneficiario.objects.filter(id=benef_id, activo=True).first()
+                        if not beneficiario:
+                            continue
+                        _, created_rel = ActividadBeneficiario.objects.get_or_create(
+                            actividad=evento,
+                            beneficiario=beneficiario
+                        )
+                        if created_rel:
+                            agregados += 1
+                    if agregados:
+                        cambios_realizados.append(f"Asociado {agregados} beneficiarios existentes")
+                        print(f"✅ Asociados {agregados} beneficiarios existentes al evento")
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(f"Error al agregar beneficiarios existentes: {e}")
+                    pass
+
             # Actualizar beneficiarios modificados (si hay)
             if data.get('beneficiarios_modificados'):
                 try:
                     beneficiarios_modificados = json.loads(data['beneficiarios_modificados'])
-                    for benef_data in beneficiarios_modificados:
-                        benef_id = benef_data.get('id')
-                        if not benef_id:
-                            continue
-                        
-                        # Obtener el beneficiario principal
-                        try:
-                            beneficiario = Beneficiario.objects.get(id=benef_id)
-                        except Beneficiario.DoesNotExist:
-                            print(f"⚠️ Beneficiario {benef_id} no encontrado")
-                            continue
-                        
-                        # Actualizar según el tipo
-                        tipo = benef_data.get('tipo')
-                        
-                        if tipo == 'individual':
-                            # Actualizar BeneficiarioIndividual
-                            try:
-                                benef_ind = BeneficiarioIndividual.objects.get(beneficiario=beneficiario)
-                                benef_ind.nombre = benef_data.get('nombre', benef_ind.nombre)
-                                benef_ind.apellido = benef_data.get('apellido', benef_ind.apellido)
-                                benef_ind.dpi = benef_data.get('dpi')
-                                benef_ind.fecha_nacimiento = benef_data.get('fecha_nacimiento')
-                                benef_ind.genero = benef_data.get('genero')
-                                benef_ind.telefono = benef_data.get('telefono')
-                                benef_ind.save()
-                                print(f"✅ Individual actualizado: {benef_ind.nombre} {benef_ind.apellido}")
-                            except BeneficiarioIndividual.DoesNotExist:
-                                print(f"⚠️ BeneficiarioIndividual no encontrado para {benef_id}")
-                        
-                        elif tipo == 'familia':
-                            # Actualizar BeneficiarioFamilia
-                            try:
-                                benef_fam = BeneficiarioFamilia.objects.get(beneficiario=beneficiario)
-                                benef_fam.nombre_familia = benef_data.get('nombre_familia', benef_fam.nombre_familia)
-                                benef_fam.jefe_familia = benef_data.get('jefe_familia', benef_fam.jefe_familia)
-                                benef_fam.dpi_jefe_familia = benef_data.get('dpi_jefe_familia')
-                                benef_fam.telefono = benef_data.get('telefono')
-                                benef_fam.numero_miembros = benef_data.get('numero_miembros')
-                                benef_fam.save()
-                                print(f"✅ Familia actualizada: {benef_fam.nombre_familia}")
-                            except BeneficiarioFamilia.DoesNotExist:
-                                print(f"⚠️ BeneficiarioFamilia no encontrado para {benef_id}")
-                        
-                        elif tipo == 'institucion' or tipo == 'institución':
-                            # Actualizar BeneficiarioInstitucion
-                            try:
-                                benef_inst = BeneficiarioInstitucion.objects.get(beneficiario=beneficiario)
-                                benef_inst.nombre_institucion = benef_data.get('nombre_institucion', benef_inst.nombre_institucion)
-                                benef_inst.tipo_institucion = benef_data.get('tipo_institucion', benef_inst.tipo_institucion)
-                                benef_inst.representante_legal = benef_data.get('representante_legal')
-                                benef_inst.dpi_representante = benef_data.get('dpi_representante')
-                                benef_inst.telefono = benef_data.get('telefono')
-                                benef_inst.email = benef_data.get('email')
-                                benef_inst.numero_beneficiarios_directos = benef_data.get('numero_beneficiarios_directos')
-                                benef_inst.save()
-                                print(f"✅ Institución actualizada: {benef_inst.nombre_institucion}")
-                            except BeneficiarioInstitucion.DoesNotExist:
-                                print(f"⚠️ BeneficiarioInstitucion no encontrado para {benef_id}")
-                        
-                        elif tipo == 'otro':
-                            # Actualizar como Institución con tipo 'otro'
-                            try:
-                                benef_inst = BeneficiarioInstitucion.objects.get(beneficiario=beneficiario)
-                                benef_inst.nombre_institucion = benef_data.get('nombre', benef_inst.nombre_institucion)
-                                benef_inst.tipo_institucion = 'otro'
-                                benef_inst.representante_legal = benef_data.get('contacto')
-                                benef_inst.telefono = benef_data.get('telefono')
-                                # Nota: El campo observaciones no existe en el modelo
-                                benef_inst.save()
-                                print(f"✅ Otro actualizado: {benef_inst.nombre_institucion}")
-                            except BeneficiarioInstitucion.DoesNotExist:
-                                print(f"⚠️ BeneficiarioInstitucion (otro) no encontrado para {benef_id}")
-                    
-                    if beneficiarios_modificados:
-                        cambios_realizados.append(f"Modificado {len(beneficiarios_modificados)} beneficiarios")
+                    cambios_aplicados = aplicar_modificaciones_beneficiarios(beneficiarios_modificados)
+                    if cambios_aplicados:
+                        cambios_realizados.append(f"Modificado {cambios_aplicados} beneficiarios")
                 except (json.JSONDecodeError, ValueError) as e:
                     print(f"Error al actualizar beneficiarios: {e}")
                     pass
@@ -1110,6 +1647,91 @@ def api_actualizar_evento(request, evento_id):
                     descripcion_cambio=descripcion[:500]
                 )
             
+            # Gestionar imagen de portada
+            portada_actual = getattr(evento, 'portada', None)
+            portada_file = request.FILES.get('portada_evento')
+            if portada_eliminar_flag and portada_actual and not portada_file:
+                eliminar_portada_evento(portada_actual)
+                cambios_realizados.append('Imagen de portada eliminada')
+
+            if portada_file:
+                if portada_actual:
+                    eliminar_portada_evento(portada_actual)
+                try:
+                    guardar_portada_evento(evento, portada_file)
+                    cambios_realizados.append('Imagen de portada actualizada')
+                except ValueError as portada_error:
+                    raise ValueError(str(portada_error))
+
+            if data.get('tarjetas_datos_nuevas'):
+                try:
+                    tarjetas_nuevas = json.loads(data['tarjetas_datos_nuevas'])
+                except json.JSONDecodeError:
+                    tarjetas_nuevas = []
+
+                if tarjetas_nuevas:
+                    orden_inicial = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).count()
+                    for idx, tarjeta in enumerate(tarjetas_nuevas):
+                        titulo = tarjeta.get('titulo')
+                        valor = tarjeta.get('valor')
+                        icono = tarjeta.get('icono')
+                        if not titulo or not valor:
+                            continue
+                        TarjetaDato.objects.create(
+                            entidad_tipo='actividad',
+                            entidad_id=evento.id,
+                            titulo=titulo,
+                            valor=valor,
+                            icono=icono,
+                            orden=orden_inicial + idx
+                        )
+                    cambios_realizados.append(f"Agregados {len(tarjetas_nuevas)} datos del proyecto")
+
+            if data.get('tarjetas_datos_actualizadas'):
+                try:
+                    tarjetas_actualizadas = json.loads(data['tarjetas_datos_actualizadas'])
+                except json.JSONDecodeError:
+                    tarjetas_actualizadas = []
+
+                actualizados = 0
+                for tarjeta in tarjetas_actualizadas:
+                    tarjeta_id = tarjeta.get('id')
+                    if not tarjeta_id:
+                        continue
+                    filas = TarjetaDato.objects.filter(id=tarjeta_id, entidad_tipo='actividad', entidad_id=evento.id)
+                    if filas.exists():
+                        filas.update(
+                            titulo=tarjeta.get('titulo', ''),
+                            valor=tarjeta.get('valor', ''),
+                            icono=tarjeta.get('icono')
+                        )
+                        actualizados += 1
+                if actualizados:
+                    cambios_realizados.append(f"Actualizados {actualizados} datos del proyecto")
+
+            if data.get('tarjetas_datos_eliminadas'):
+                try:
+                    tarjetas_eliminar = json.loads(data['tarjetas_datos_eliminadas'])
+                except json.JSONDecodeError:
+                    tarjetas_eliminar = []
+
+                if tarjetas_eliminar:
+                    eliminados, _ = TarjetaDato.objects.filter(
+                        entidad_tipo='actividad',
+                        entidad_id=evento.id,
+                        id__in=tarjetas_eliminar
+                    ).delete()
+                    if eliminados:
+                        cambios_realizados.append(f"Eliminados {eliminados} datos del proyecto")
+
+            if cambios_realizados:
+                descripcion = f"Evento actualizado por {usuario_maga.username}: " + "; ".join(cambios_realizados)
+                ActividadCambio.objects.create(
+                    actividad=evento,
+                    responsable=usuario_maga,
+                    descripcion_cambio=descripcion[:500]
+                )
+            
             return JsonResponse({
                 'success': True,
                 'message': 'Evento actualizado exitosamente',
@@ -1117,6 +1739,8 @@ def api_actualizar_evento(request, evento_id):
                     'id': str(evento.id),
                     'nombre': evento.nombre,
                     'fecha': str(evento.fecha),
+                    'portada': obtener_portada_evento(evento),
+                    'tarjetas_datos': obtener_tarjetas_datos(evento)
                 },
                 'cambios': cambios_realizados
             })
@@ -1135,6 +1759,11 @@ def api_actualizar_evento(request, evento_id):
         return JsonResponse({
             'success': False,
             'error': 'Comunidad no válida'
+        }, status=400)
+    except ValueError as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
         }, status=400)
     except Exception as e:
         return JsonResponse({
@@ -1215,7 +1844,7 @@ def api_cambios_recientes(request):
 def api_verificar_admin(request):
     """Verifica las credenciales del administrador antes de permitir acciones críticas"""
     try:
-        data = json.loads(request.body)
+        data = json.loads(request.body or '{}')
         username = data.get('username', '').strip()
         password = data.get('password', '')
         
@@ -1370,12 +1999,12 @@ def api_listar_proyectos_por_tipo(request, tipo_actividad):
             tipo__nombre=tipo_nombre,
             eliminado_en__isnull=True
         ).select_related(
-            'tipo', 'comunidad', 'comunidad__region', 'responsable'
-        ).prefetch_related(
-            'personal__usuario',
-            'beneficiarios__beneficiario',
-            'evidencias'
-        ).order_by('-actualizado_en')
+            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'portada'
+         ).prefetch_related(
+             'personal__usuario',
+             'beneficiarios__beneficiario',
+             'evidencias'
+         ).order_by('-actualizado_en')
         
         proyectos_data = []
         for evento in eventos:
@@ -1439,6 +2068,17 @@ def api_listar_proyectos_por_tipo(request, tipo_actividad):
                     else:
                         ubicacion = evento.comunidad.nombre
                 
+                portada_info = obtener_portada_evento(evento)
+                imagen_url = portada_info['url'] if portada_info else None
+                
+                if not imagen_url:
+                    primera_evidencia = evento.evidencias.filter(es_imagen=True).first()
+                    if primera_evidencia and primera_evidencia.url_almacenamiento:
+                        try:
+                            imagen_url = primera_evidencia.url_almacenamiento
+                        except Exception:
+                            imagen_url = None
+                
                 proyectos_data.append({
                     'id': str(evento.id),
                     'nombre': evento.nombre or 'Sin nombre',
@@ -1451,6 +2091,7 @@ def api_listar_proyectos_por_tipo(request, tipo_actividad):
                     'estado_display': evento.get_estado_display() if hasattr(evento, 'get_estado_display') else evento.estado,
                     'descripcion': evento.descripcion or '',
                     'imagen_principal': imagen_url,
+                    'tarjetas_datos': obtener_tarjetas_datos(evento),
                     'personal_count': personal_count,
                     'personal_nombres': ', '.join(personal_nombres) if personal_nombres else 'Sin personal',
                     'beneficiarios_count': evento.beneficiarios.count() if hasattr(evento, 'beneficiarios') else 0,
@@ -1496,7 +2137,7 @@ def api_ultimos_proyectos(request):
         eventos = Actividad.objects.filter(
             eliminado_en__isnull=True
         ).select_related(
-            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'portada'
         ).prefetch_related(
             'personal__usuario',
             'beneficiarios__beneficiario',
@@ -1558,6 +2199,7 @@ def api_ultimos_proyectos(request):
                     'estado': evento.estado or 'planificado',
                     'descripcion': evento.descripcion or '',
                     'imagen_principal': imagen_url,
+                    'tarjetas_datos': obtener_tarjetas_datos(evento),
                     'personal_count': personal_count,
                     'personal_nombres': ', '.join(personal_nombres) if personal_nombres else 'Sin personal',
                 })
@@ -1595,7 +2237,7 @@ def api_ultimos_eventos_inicio(request):
         eventos = Actividad.objects.filter(
             eliminado_en__isnull=True
         ).select_related(
-            'tipo', 'comunidad', 'comunidad__region', 'responsable'
+            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'portada'
         ).prefetch_related(
             'evidencias'
         ).order_by('-creado_en')[:6]
@@ -1603,17 +2245,14 @@ def api_ultimos_eventos_inicio(request):
         eventos_data = []
         for evento in eventos:
             try:
-                # Obtener la primera evidencia como imagen
-                primera_evidencia = evento.evidencias.filter(es_imagen=True).first()
-                imagen_url = None
-                if primera_evidencia and primera_evidencia.url_almacenamiento:
-                    imagen_url = primera_evidencia.url_almacenamiento
-                
-                # Si no hay evidencias, usar imagen por defecto
+                portada_info = obtener_portada_evento(evento)
+                imagen_url = portada_info['url'] if portada_info else None
+
                 if not imagen_url:
-                    imagen_url = None  # evitar rutas inexistentes para que el frontend use placeholder
-                
-                # Convertir fecha a zona horaria local
+                    primera_evidencia = evento.evidencias.filter(es_imagen=True).first()
+                    if primera_evidencia and primera_evidencia.url_almacenamiento:
+                        imagen_url = primera_evidencia.url_almacenamiento
+
                 try:
                     if evento.fecha:
                         fecha_obj = evento.fecha
@@ -1626,10 +2265,9 @@ def api_ultimos_eventos_inicio(request):
                         fecha_obj = fecha_local.date()
                     else:
                         fecha_obj = None
-                except:
+                except Exception:
                     fecha_obj = None
-                
-                # Formatear fecha
+
                 if fecha_obj:
                     meses = {
                         1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun',
@@ -1642,17 +2280,19 @@ def api_ultimos_eventos_inicio(request):
                     mes = ''
                     dia = ''
                     anio = ''
-                
+
                 eventos_data.append({
                     'id': str(evento.id),
                     'nombre': evento.nombre or 'Sin nombre',
                     'descripcion': evento.descripcion[:100] + '...' if evento.descripcion and len(evento.descripcion) > 100 else (evento.descripcion or 'Sin descripción'),
                     'imagen_url': imagen_url,
+                    'portada': portada_info,
                     'fecha_mes': mes,
                     'fecha_dia': dia,
                     'fecha_anio': anio,
                     'tipo': evento.tipo.nombre if evento.tipo else 'Sin tipo',
-                    'comunidad': evento.comunidad.nombre if evento.comunidad else 'Sin comunidad'
+                    'comunidad': evento.comunidad.nombre if evento.comunidad else 'Sin comunidad',
+                    'tarjetas_datos': obtener_tarjetas_datos(evento)
                 })
             except Exception as item_error:
                 print(f"Error procesando evento para inicio {evento.id}: {item_error}")
@@ -1742,7 +2382,7 @@ def api_calendar_events(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 @login_required
 def api_avances(request):
     """Obtiene avances/cambios de eventos para el calendario por fecha."""
@@ -2119,7 +2759,9 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'beneficiarios__beneficiario__individual',
             'beneficiarios__beneficiario__familia',
             'beneficiarios__beneficiario__institucion',
-            'evidencias'
+            'evidencias',
+            'comunidades_relacionadas__comunidad__region',
+            'comunidades_relacionadas__region'
         ).get(id=evento_id, eliminado_en__isnull=True)
         
         # Personal asignado
@@ -2150,21 +2792,23 @@ def api_obtener_detalle_proyecto(request, evento_id):
         beneficiarios_data = []
         for ab in evento.beneficiarios.all():
             benef = ab.beneficiario
-            nombre_display = ''
-            tipo_beneficiario = str(benef.tipo) if benef.tipo else 'individual'
-            
-            if benef.tipo == 'individual' and hasattr(benef, 'individual') and benef.individual:
-                nombre_display = f"{benef.individual.nombre} {benef.individual.apellido}"
-            elif benef.tipo == 'familia' and hasattr(benef, 'familia') and benef.familia:
-                nombre_display = f"Familia {benef.familia.apellido_familia}"
-            elif benef.tipo == 'institución' and hasattr(benef, 'institucion') and benef.institucion:
-                nombre_display = benef.institucion.nombre
-            
+            nombre_display, _, detalles, tipo_envio = obtener_detalle_beneficiario(benef)
+            if benef.tipo and hasattr(benef.tipo, 'get_nombre_display'):
+                tipo_display = benef.tipo.get_nombre_display()
+            else:
+                tipo_display = tipo_envio.title() if tipo_envio else ''
             beneficiarios_data.append({
                 'id': str(benef.id),
-                'tipo': tipo_beneficiario,
-                'nombre': nombre_display or 'Sin nombre',
-                'descripcion': ''  # Sin campo de descripción en el modelo
+                'tipo': tipo_envio,
+                'nombre': nombre_display,
+                'descripcion': '',  # Sin campo de descripción en el modelo
+                'tipo_display': tipo_display,
+                'comunidad_id': detalles.get('comunidad_id'),
+                'comunidad_nombre': detalles.get('comunidad_nombre'),
+                'region_id': detalles.get('region_id'),
+                'region_nombre': detalles.get('region_nombre'),
+                'region_sede': detalles.get('region_sede'),
+                'detalles': detalles
             })
         
         # Evidencias/Galería
@@ -2214,7 +2858,9 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'responsable': (evento.responsable.nombre if evento.responsable.nombre else evento.responsable.username) if evento.responsable else 'Sin responsable',
             'personal': personal_data,
             'beneficiarios': beneficiarios_data,
-            'evidencias': evidencias_data
+            'evidencias': evidencias_data,
+            'portada': obtener_portada_evento(evento),
+            'tarjetas_datos': obtener_tarjetas_datos(evento)
         }
         
         return JsonResponse({
