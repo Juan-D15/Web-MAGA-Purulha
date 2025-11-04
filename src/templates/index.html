@@ -827,8 +827,12 @@
   window.addEventListener('resize', hideTooltip);
 
   /* ================= CALENDARIO DE ACTIVIDADES ================ */
+  // API para eventos del calendario (tabla: actividades)
   const CAL_API = (window.DJANGO_URLS && window.DJANGO_URLS.calendarEvents) || '/api/calendar-events/';
+  // API para lista de eventos
   const EVENTS_LIST_API = (window.DJANGO_URLS && window.DJANGO_URLS.eventsList) || '/api/events-list/';
+  // API para avances de eventos (SOLO tabla: actividad_cambios)
+  // Esta API consulta exclusivamente la tabla actividad_cambios
   const AVANCES_API = (window.DJANGO_URLS && window.DJANGO_URLS.avances) || '/api/avances/';
   const calWeekdays = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   const calWeekdaysContainer = document.getElementById('calWeekdays');
@@ -909,8 +913,18 @@
       calendarDebugLog(`✅ ${events.length} eventos agregados al modal`);
     }
     
-    // Mostrar avances si se proporcionaron
+    // Mostrar avances si se proporcionaron (SOLO de actividad_cambios)
     if(avances && avances.length > 0){
+      // Eliminar duplicados por ID primero
+      const avancesSinDuplicados = eliminarDuplicadosAvances(avances);
+      
+      // Filtrar solo avances válidos de actividad_cambios
+      const avancesValidos = avancesSinDuplicados.filter(av => {
+        // Debe tener descripcion_cambio (descripcion) y fecha_cambio (fecha) de actividad_cambios
+        return (av.descripcion || av.descripcion_cambio) && (av.fecha || av.fecha_cambio);
+      });
+      
+      if(avancesValidos.length > 0){
       avancesSection = document.createElement('div');
       avancesSection.className = 'modal-section';
       const avancesHeader = document.createElement('h4');
@@ -918,7 +932,7 @@
       avancesHeader.style.cssText = 'margin:0 0 10px 0;color:#eef5ff;font-weight:800;font-size:1rem';
       avancesSection.appendChild(avancesHeader);
       
-      avances.forEach(av => {
+        avancesValidos.forEach(av => {
         const card = document.createElement('div');
         card.className = 'event-card';
         card.setAttribute('data-item-type', 'avance');
@@ -936,31 +950,49 @@
         card.style.overflowWrap = 'break-word';
         card.style.wordWrap = 'break-word';
         card.style.borderLeft = '3px solid #ffc107';
+          
+          // Asegurar que los campos estén correctamente mapeados desde actividad_cambios
+          const eventoNombre = av.evento_nombre || 'Sin evento';
+          const fecha = av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : '');
+          const hora = av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : '');
+          const descripcion = av.descripcion || av.descripcion_cambio || '';
+          const responsable = av.responsable || 'Sistema';
+          
         card.innerHTML = `
-          <h4 class="event-card__title">${av.evento_nombre || 'Sin evento'}</h4>
-          <div class="event-card__meta">${av.fecha || ''} ${av.hora ? '· ' + av.hora : ''}</div>
-          <div class="event-card__desc">${av.descripcion || ''}</div>
-          ${av.responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${av.responsable}</div>` : ''}
+            <h4 class="event-card__title">${eventoNombre}</h4>
+            <div class="event-card__meta">${fecha}${hora ? ' · ' + hora : ''}</div>
+            <div class="event-card__desc">${descripcion}</div>
+            ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${responsable}</div>` : ''}
         `;
         avancesSection.appendChild(card);
-        calendarDebugLog(`✅ Avance agregado: ${av.evento_nombre || 'Sin nombre'}`);
+          calendarDebugLog(`✅ Avance de actividad_cambios agregado: ${eventoNombre}`);
       });
       
       if(eventsSection){
         avancesSection.style.marginTop = '20px';
       }
       calModalBody.appendChild(avancesSection);
-      calendarDebugLog(`✅ ${avances.length} avances agregados al modal`);
+        calendarDebugLog(`✅ ${avancesValidos.length} avances de actividad_cambios agregados al modal`);
+      }
     }
     
-    // Cargar avances del día si no se proporcionaron
+    // Cargar avances del día si no se proporcionaron (SOLO de actividad_cambios)
     if(!avances){
       fetchDayAvances(dateLabel).then(avancesData => {
         if(avancesData && avancesData.length > 0){
           const dateISO = parseLabelToISO(dateLabel);
-          const dayAvances = avancesData.filter(av => {
-            if(!av.fecha) return false;
-            const avanceDate = av.fecha.split('T')[0];
+          
+          // Eliminar duplicados por ID primero
+          const avancesSinDuplicados = eliminarDuplicadosAvances(avancesData);
+          
+          // Filtrar solo avances válidos de actividad_cambios
+          const dayAvances = avancesSinDuplicados.filter(av => {
+            // Debe tener fecha y descripción (campos obligatorios de actividad_cambios)
+            if(!av.fecha && !av.fecha_cambio) return false;
+            if(!av.descripcion && !av.descripcion_cambio) return false;
+            
+            // Verificar que la fecha coincida con el día
+            const avanceDate = (av.fecha || av.fecha_cambio || '').split('T')[0];
             return avanceDate === dateISO;
           });
           
@@ -991,18 +1023,27 @@
               card.style.zIndex = 'auto';
               card.style.display = 'block';
               card.style.borderLeft = '3px solid #ffc107';
+              
+              // Asegurar que los campos estén correctamente mapeados desde actividad_cambios
+              const eventoNombre = av.evento_nombre || 'Sin evento';
+              const fecha = av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : '');
+              const hora = av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : '');
+              const descripcion = av.descripcion || av.descripcion_cambio || '';
+              const responsable = av.responsable || 'Sistema';
+              
       card.innerHTML = `
-                <h4 class="event-card__title">${av.evento_nombre || 'Sin evento'}</h4>
-                <div class="event-card__meta">${av.fecha || ''} ${av.hora ? '· ' + av.hora : ''}</div>
-                <div class="event-card__desc">${av.descripcion || ''}</div>
-                ${av.responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${av.responsable}</div>` : ''}
+                <h4 class="event-card__title">${eventoNombre}</h4>
+                <div class="event-card__meta">${fecha}${hora ? ' · ' + hora : ''}</div>
+                <div class="event-card__desc">${descripcion}</div>
+                ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${responsable}</div>` : ''}
               `;
               avancesSection.appendChild(card);
+              calendarDebugLog(`✅ Avance de actividad_cambios agregado al modal: ${eventoNombre}`);
             });
           }
         }
       }).catch(error => {
-        console.error('❌ Error al cargar avances:', error);
+        console.error('❌ Error al cargar avances de actividad_cambios:', error);
       });
     }
     
@@ -1329,7 +1370,13 @@
       if(!res.ok) throw new Error('Error al cargar eventos');
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.results || []);
-      return list.map(normalizeEvent).filter(ev=>!!ev.date);
+      // Filtrar solo eventos con estado 'en_progreso' o 'completado'
+      return list.map(normalizeEvent).filter(ev => {
+        if(!ev.date) return false;
+        const status = ev.status?.toLowerCase();
+        // Solo mostrar eventos con estado 'en_progreso' o 'completado'
+        return status === 'en_progreso' || status === 'completado';
+      });
     }catch(e){
       console.warn('No se pudieron cargar eventos del calendario:', e);
       return [];
@@ -1391,17 +1438,30 @@
       cell.innerHTML = `<div class="cal-cell__date">${d}</div><div class="cal-cell__events"></div>`;
       const list = cell.querySelector('.cal-cell__events');
       
-      // Mostrar eventos del día
-      const dayEvents = byDate.get(key) || [];
+      // Mostrar eventos del día (solo con estado 'en_progreso' o 'completado')
+      const dayEvents = (byDate.get(key) || []).filter(ev => {
+        const status = ev.status?.toLowerCase();
+        return status === 'en_progreso' || status === 'completado';
+      });
       const itemsToShow = [];
       
-      // Agregar eventos (máximo 2)
+      // Agregar eventos (máximo 2) - solo los que pasaron el filtro
       dayEvents.slice(0, 2).forEach(ev => {
         itemsToShow.push({ type: 'event', data: ev });
       });
       
-      // Agregar avances del día (máximo 1 si ya hay 2 eventos)
-      const dayAvances = avancesByDate.get(key) || [];
+      // Agregar avances del día (SOLO de actividad_cambios)
+      // Máximo 1 si ya hay 2 eventos
+      // Los avances provienen exclusivamente de la tabla actividad_cambios
+      // Eliminar duplicados por ID antes de usar
+      const avancesDelDia = avancesByDate.get(key) || [];
+      const dayAvances = eliminarDuplicadosAvances(avancesDelDia).filter(av => {
+        // Validar que sea un avance válido de actividad_cambios
+        // Debe tener descripcion_cambio (descripcion) y fecha_cambio (fecha)
+        // Estos son campos obligatorios de la tabla actividad_cambios
+        return (av.descripcion || av.descripcion_cambio) && (av.fecha || av.fecha_cambio);
+      });
+      
       if(itemsToShow.length < 2){
         dayAvances.slice(0, 2 - itemsToShow.length).forEach(av => {
           itemsToShow.push({ type: 'avance', data: av });
@@ -1444,7 +1504,13 @@
         if(item.type === 'event'){
           const ev = item.data;
         const pill = document.createElement('div');
-        const typeDot = ev.status==='finalizado' ? 'cal-dot--finish' : (ev.status==='avance' ? 'cal-dot--update' : 'cal-dot--event');
+        // Determinar el tipo de punto según el estado
+        let typeDot = 'cal-dot--event'; // verde por defecto
+        if(ev.status === 'completado' || ev.status === 'finalizado'){
+          typeDot = 'cal-dot--finish'; // rojo para completados
+        } else if(ev.status === 'en_progreso'){
+          typeDot = 'cal-dot--event'; // verde para en progreso
+        }
         const mine = ev._involvesUser === true;
           pill.className = 'cal-pill cal-pill--event' + (mine ? ' cal-pill--mine' : '');
           const eventName = ev.name || 'Evento';
@@ -1559,6 +1625,8 @@
   }
   
   // Función para cargar avances de un mes (optimizada con llamadas en paralelo)
+  // IMPORTANTE: SOLO datos de la tabla actividad_cambios
+  // Esta función usa fetchDayAvances que consulta exclusivamente actividad_cambios
   async function fetchMonthAvances(startDate, endDate){
     const avancesMap = new Map();
     try{
@@ -1583,9 +1651,10 @@
         const dateKey = fmtISO(d);
         const dateLabel = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
         dateKeys.push(dateKey);
+        // fetchDayAvances consulta SOLO actividad_cambios
         promises.push(
           fetchDayAvances(dateLabel).catch(e => {
-            console.warn(`Error al cargar avances para ${dateKey}:`, e);
+            console.warn(`Error al cargar avances de actividad_cambios para ${dateKey}:`, e);
             return [];
           })
         );
@@ -1594,49 +1663,163 @@
       // Ejecutar todas las llamadas en paralelo
       const results = await Promise.all(promises);
       
-      // Mapear resultados - agrupar por fecha real del avance
+      // Mapear resultados - agrupar por fecha real del avance (SOLO de actividad_cambios)
+      // Usar Set para evitar duplicados por ID
+      const avancesIdsAgregados = new Set();
       results.forEach((avances, index) => {
         if(avances && avances.length > 0){
-          // Para cada avance, usar su fecha real para mapearlo
+          // Para cada avance, validar que sea de actividad_cambios y usar su fecha real
           avances.forEach(av => {
-            if(!av.fecha) return;
+            // Validar que tenga ID (requerido para evitar duplicados)
+            if(!av.id) return;
+            
+            // Validar que tenga los campos obligatorios de actividad_cambios
+            // descripcion_cambio es obligatorio en la tabla
+            if(!av.descripcion && !av.descripcion_cambio) return;
+            // fecha_cambio es obligatorio en la tabla
+            if(!av.fecha && !av.fecha_cambio) return;
+            
+            // Evitar duplicados: si ya se agregó este avance, saltarlo
+            if(avancesIdsAgregados.has(av.id)){
+              calendarDebugLog(`⚠️ Avance duplicado omitido (ID: ${av.id}):`, av.evento_nombre || 'Sin nombre');
+              return;
+            }
+            
             // Extraer solo la fecha (sin hora) del avance
-            const avanceDate = av.fecha.split('T')[0];
+            const avanceDate = (av.fecha || av.fecha_cambio || '').split('T')[0];
+            if(!avanceDate) return;
+            
+            // Marcar este avance como agregado
+            avancesIdsAgregados.add(av.id);
+            
             // Usar la fecha real del avance como clave
             if(!avancesMap.has(avanceDate)){
               avancesMap.set(avanceDate, []);
             }
+            
+            // Verificar que el avance no esté ya en el array de esa fecha (evitar duplicados)
+            const avancesDelDia = avancesMap.get(avanceDate);
+            const yaExiste = avancesDelDia.some(a => a.id === av.id);
+            if(!yaExiste){
             avancesMap.get(avanceDate).push(av);
-            calendarDebugLog(`📍 Avance mapeado: ${av.evento_nombre || 'Sin nombre'} → fecha ${avanceDate}`);
+              calendarDebugLog(`📍 Avance de actividad_cambios mapeado: ${av.evento_nombre || 'Sin nombre'} → fecha ${avanceDate}`);
+            } else {
+              calendarDebugLog(`⚠️ Avance duplicado omitido en mapeo mensual (ID: ${av.id}):`, av.evento_nombre || 'Sin nombre');
+            }
           });
         }
       });
       
-      calendarDebugLog(`✅ Avances del mes cargados: ${avancesMap.size} días con avances`);
+      // Eliminar duplicados finales en cada fecha del mapa
+      avancesMap.forEach((avances, fecha) => {
+        const avancesUnicos = eliminarDuplicadosAvances(avances);
+        if(avancesUnicos.length !== avances.length){
+          calendarDebugLog(`⚠️ Duplicados eliminados para fecha ${fecha}: ${avances.length - avancesUnicos.length} duplicado(s)`);
+          avancesMap.set(fecha, avancesUnicos);
+        }
+      });
+      
+      calendarDebugLog(`✅ Avances de actividad_cambios del mes cargados: ${avancesMap.size} días con avances`);
     }catch(e){
-      console.warn('Error al cargar avances del mes:', e);
+      console.warn('Error al cargar avances de actividad_cambios del mes:', e);
     }
     return avancesMap;
   }
   
+  // Función helper para eliminar duplicados de avances por ID
+  // IMPORTANTE: Esta función asegura que cada avance se muestre solo una vez
+  function eliminarDuplicadosAvances(avances){
+    if(!avances || avances.length === 0) return [];
+    const avancesUnicos = [];
+    const idsVistos = new Set();
+    
+    avances.forEach(av => {
+      if(!av || !av.id) return;
+      if(idsVistos.has(av.id)){
+        calendarDebugLog(`⚠️ Avance duplicado eliminado (ID: ${av.id}):`, av.evento_nombre || 'Sin nombre');
+        return;
+      }
+      idsVistos.add(av.id);
+      avancesUnicos.push(av);
+    });
+    
+    return avancesUnicos;
+  }
+  
   // Función para cargar avances de un día específico
+  // IMPORTANTE: SOLO datos de la tabla actividad_cambios
+  // Esta función consulta la API /api/avances/ que devuelve exclusivamente registros de actividad_cambios
+  // Estructura de actividad_cambios:
+  //   - id (UUID)
+  //   - actividad_id (UUID) → referencia a actividades
+  //   - responsable_id (UUID) → referencia a usuarios (opcional)
+  //   - colaborador_id (UUID) → referencia a colaboradores (opcional)
+  //   - descripcion_cambio (TEXT) → descripción del cambio
+  //   - fecha_cambio (TIMESTAMPTZ) → fecha y hora del cambio
+  //   - creado_en (TIMESTAMPTZ) → timestamp de creación
   async function fetchDayAvances(dateLabel){
     try{
       const dateISO = parseLabelToISO(dateLabel);
-      calendarDebugLog('🔍 Buscando avances para fecha:', dateLabel, '→ ISO:', dateISO);
+      calendarDebugLog('🔍 Buscando avances (SOLO actividad_cambios) para fecha:', dateLabel, '→ ISO:', dateISO);
+      
+      // Llamar a la API que consulta SOLO actividad_cambios
       const res = await fetch(`${AVANCES_API}?date=${dateISO}`);
       
       if(!res.ok){
-        console.warn('⚠️ Error al obtener avances:', res.status, res.statusText);
+        console.warn('⚠️ Error al obtener avances de actividad_cambios:', res.status, res.statusText);
         return [];
       }
       
       const data = await res.json();
       const avances = Array.isArray(data) ? data : (data.results || []);
-      calendarDebugLog('✅ Avances encontrados:', avances.length, avances);
-      return avances;
+      
+      calendarDebugLog('📥 Datos brutos recibidos de api_avances (actividad_cambios):', avances);
+      
+      // Validar que los avances tengan la estructura correcta de actividad_cambios
+      // La API devuelve campos mapeados: id, actividad_id, evento_nombre, fecha, hora, descripcion, responsable
+      // Estos campos provienen exclusivamente de actividad_cambios
+      const avancesValidados = avances.filter(av => {
+        // Validar que tenga los campos obligatorios de actividad_cambios
+        // El campo descripcion_cambio es obligatorio en la tabla
+        const tieneDescripcion = av.descripcion || av.descripcion_cambio;
+        // El campo fecha_cambio es obligatorio en la tabla
+        const tieneFecha = av.fecha || av.fecha_cambio;
+        const esValido = tieneDescripcion && tieneFecha;
+        
+        if(!esValido){
+          calendarDebugLog('⚠️ Avance filtrado (no tiene estructura de actividad_cambios):', av);
+        }
+        
+        return esValido;
+      }).map(av => {
+        // Asegurar que los campos estén correctamente mapeados desde actividad_cambios
+        // El backend ya devuelve: id, actividad_id, evento_nombre, fecha, hora, descripcion, responsable
+        return {
+          id: av.id, // id de actividad_cambios
+          actividad_id: av.actividad_id, // actividad_id de actividad_cambios
+          evento_nombre: av.evento_nombre || 'Sin evento', // nombre de la actividad relacionada
+          fecha: av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : null), // fecha_cambio convertida
+          hora: av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : ''), // hora de fecha_cambio
+          descripcion: av.descripcion || av.descripcion_cambio || '', // descripcion_cambio
+          responsable: av.responsable || 'Sistema' // responsable_nombre o colaborador_nombre
+        };
+      });
+      
+      calendarDebugLog(`✅ Avances de actividad_cambios validados: ${avancesValidados.length} de ${avances.length} totales`);
+      
+      // Eliminar duplicados por ID antes de retornar
+      const avancesSinDuplicados = eliminarDuplicadosAvances(avancesValidados);
+      
+      if(avancesSinDuplicados.length !== avancesValidados.length){
+        calendarDebugLog(`⚠️ Duplicados eliminados: ${avancesValidados.length - avancesSinDuplicados.length} avance(s) duplicado(s)`);
+      }
+      
+      if(avancesSinDuplicados.length > 0){
+        calendarDebugLog('📋 Estructura de avances validados (actividad_cambios):', avancesSinDuplicados[0]);
+      }
+      return avancesSinDuplicados;
     }catch(e){
-      console.error('❌ Error en fetchDayAvances:', e);
+      console.error('❌ Error en fetchDayAvances (actividad_cambios):', e);
       return [];
     }
   }
@@ -2123,4 +2306,5 @@
 <script src="{% static 'js/proyectos.js' %}?v=21"></script>
 {% endblock %}
 ```
+</script>
 </script>

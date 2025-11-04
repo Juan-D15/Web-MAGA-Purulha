@@ -2318,16 +2318,18 @@ def api_ultimos_eventos_inicio(request):
 
 @require_http_methods(["GET"])
 def api_calendar_events(request):
-    """Eventos para el calendario entre start y end (YYYY-MM-DD)."""
+    """Eventos para el calendario entre start y end (YYYY-MM-DD). Solo eventos con estado 'en_progreso' o 'completado'."""
     start = request.GET.get('start')
     end = request.GET.get('end')
     if not start or not end:
         return JsonResponse([], safe=False)
     try:
+        # Solo eventos con estado 'en_progreso' o 'completado'
         actividades = Actividad.objects.filter(
             eliminado_en__isnull=True,
             fecha__gte=start,
-            fecha__lte=end
+            fecha__lte=end,
+            estado__in=['en_progreso', 'completado']
         ).select_related('tipo', 'comunidad', 'responsable')
 
         # Obtener IDs de actividades para consultas optimizadas
@@ -2403,10 +2405,16 @@ def api_avances(request):
                 SELECT ac.id::text,
                        ac.actividad_id::text,
                        ac.responsable_id::text,
+                       ac.colaborador_id::text,
                        ac.descripcion_cambio,
-                       ac.fecha_cambio
+                       ac.fecha_cambio,
+                       a.nombre as evento_nombre,
+                       COALESCE(u.nombre, u.username) as responsable_nombre,
+                       c.nombre as colaborador_nombre
                 FROM actividad_cambios ac
                 INNER JOIN actividades a ON a.id = ac.actividad_id
+                LEFT JOIN usuarios u ON u.id = ac.responsable_id
+                LEFT JOIN colaboradores c ON c.id = ac.colaborador_id
                 WHERE (ac.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
                   AND a.eliminado_en IS NULL
                 ORDER BY ac.fecha_cambio ASC
@@ -2417,30 +2425,24 @@ def api_avances(request):
         
         results = []
         for row in rows:
-            cambio_id, actividad_id, responsable_id, descripcion, fecha_cambio = row
+            cambio_id, actividad_id, responsable_id, colaborador_id, descripcion, fecha_cambio, evento_nombre, responsable_nombre, colaborador_nombre = row
             
-            # Obtener nombre del evento
-            evento_nombre = None
-            try:
-                actividad = Actividad.objects.get(id=actividad_id)
-                evento_nombre = actividad.nombre
-            except Actividad.DoesNotExist:
-                continue
-            
-            # Obtener nombre del responsable
-            responsable_nombre = None
-            if responsable_id:
+            # Si no hay evento_nombre desde la consulta, obtenerlo manualmente (fallback)
+            if not evento_nombre:
                 try:
-                    with connection.cursor() as cur_resp:
-                        cur_resp.execute(
-                            "SELECT COALESCE(nombre, username) FROM usuarios WHERE id = %s LIMIT 1",
-                            [responsable_id]
-                        )
-                        resp_row = cur_resp.fetchone()
-                        if resp_row:
-                            responsable_nombre = resp_row[0]
-                except Exception:
-                    responsable_nombre = None
+                    actividad = Actividad.objects.get(id=actividad_id)
+                    evento_nombre = actividad.nombre
+                except Actividad.DoesNotExist:
+                    continue
+            
+            # Determinar el responsable/colaborador a mostrar
+            responsable_display = None
+            if colaborador_nombre:
+                responsable_display = colaborador_nombre
+            elif responsable_nombre:
+                responsable_display = responsable_nombre
+            else:
+                responsable_display = 'Sistema'
             
             # Convertir fecha_cambio a zona horaria de Guatemala
             if fecha_cambio:
@@ -2461,7 +2463,7 @@ def api_avances(request):
                 'evento_nombre': evento_nombre,
                 'fecha': fecha_iso,
                 'hora': hora_str,
-                'responsable': responsable_nombre or 'Sistema',
+                'responsable': responsable_display,
                 'descripcion': descripcion or ''
             })
         

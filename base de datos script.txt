@@ -1786,6 +1786,10 @@ CREATE INDEX idx_recordatorio_colab_colaborador  ON recordatorio_colaboradores(c
 
 COMMENT ON TABLE recordatorio_colaboradores IS 'Colaboradores involucrados en un recordatorio.';
 
+
+
+
+
 --TABLAS NUEVAS
 CREATE TABLE IF NOT EXISTS actividad_comunidades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
