@@ -648,9 +648,7 @@ def api_crear_evento(request):
                 responsable=usuario_maga,
                 fecha=data['fecha'],
                 descripcion=data['descripcion'],
-                estado=data.get('estado', 'planificado'),
-                latitud=data.get('latitud') if data.get('latitud') else None,
-                longitud=data.get('longitud') if data.get('longitud') else None
+                estado=data.get('estado', 'planificado')
             )
             
             # 2. Asignar personal
@@ -1038,6 +1036,57 @@ def api_listar_beneficiarios(request):
     return JsonResponse(beneficiarios_list, safe=False)
 
 
+@permiso_gestionar_eventos
+@require_http_methods(["GET"])
+def api_obtener_beneficiario(request, beneficiario_id):
+    """API: Obtener detalles completos de un beneficiario por ID"""
+    try:
+        beneficiario = Beneficiario.objects.filter(
+            id=beneficiario_id, activo=True
+        ).select_related(
+            'tipo', 'comunidad', 'comunidad__region'
+        ).prefetch_related('individual', 'familia', 'institucion').first()
+        
+        if not beneficiario:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(beneficiario)
+        
+        if beneficiario.tipo and hasattr(beneficiario.tipo, 'get_nombre_display'):
+            tipo_display = beneficiario.tipo.get_nombre_display()
+        else:
+            tipo_display = tipo_envio.title() if tipo_envio else ''
+        
+        return JsonResponse({
+            'success': True,
+            'beneficiario': {
+                'id': str(beneficiario.id),
+                'nombre': nombre_display,
+                'display_name': nombre_display,
+                'tipo': tipo_envio,
+                'tipo_display': tipo_display,
+                'comunidad_id': str(beneficiario.comunidad_id) if beneficiario.comunidad_id else None,
+                'comunidad_nombre': beneficiario.comunidad.nombre if beneficiario.comunidad else None,
+                'region_id': str(beneficiario.comunidad.region_id) if beneficiario.comunidad and beneficiario.comunidad.region_id else None,
+                'region_nombre': beneficiario.comunidad.region.nombre if beneficiario.comunidad and beneficiario.comunidad.region else None,
+                'region_sede': beneficiario.comunidad.region.comunidad_sede if beneficiario.comunidad and beneficiario.comunidad.region and beneficiario.comunidad.region.comunidad_sede else None,
+                'info_adicional': info_adicional,
+                'detalles': detalles,
+                'creado_en': beneficiario.creado_en.isoformat() if beneficiario.creado_en else None,
+                'actualizado_en': beneficiario.actualizado_en.isoformat() if beneficiario.actualizado_en else None
+            }
+        })
+    
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener beneficiario: {str(e)}'
+        }, status=500)
+
+
 # =====================================================
 # APIs PARA GESTIÓN DE EVENTOS (Listar, Editar, Eliminar)
 # =====================================================
@@ -1215,8 +1264,6 @@ def api_obtener_evento(request, evento_id):
             'fecha': str(evento.fecha),
             'estado': evento.estado,
             'descripcion': evento.descripcion,
-            'latitud': float(evento.latitud) if evento.latitud else None,
-            'longitud': float(evento.longitud) if evento.longitud else None,
             'personal': personal_data,
             'beneficiarios': beneficiarios_data,
             'evidencias': evidencias_data,
@@ -1305,12 +1352,6 @@ def api_actualizar_evento(request, evento_id):
             if data.get('descripcion') and data.get('descripcion') != evento.descripcion:
                 cambios_realizados.append("Descripción actualizada")
                 evento.descripcion = data.get('descripcion')
-            
-            if data.get('latitud'):
-                evento.latitud = float(data.get('latitud'))
-            
-            if data.get('longitud'):
-                evento.longitud = float(data.get('longitud'))
             
             evento.actualizado_en = timezone.now()
             evento.save()

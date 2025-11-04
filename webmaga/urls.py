@@ -32,6 +32,7 @@ urlpatterns = [
     path('api/cambios-recientes/', views.api_cambios_recientes, name='api-cambios-recientes'),
     path('api/personal/', views.api_listar_personal, name='api-personal'),
     path('api/beneficiarios/', views.api_listar_beneficiarios, name='api-beneficiarios'),
+    path('api/beneficiario/<uuid:beneficiario_id>/', views.api_obtener_beneficiario, name='api-obtener-beneficiario'),
     path('api/verificar-admin/', views.api_verificar_admin, name='api-verificar-admin'),
     
     # APIs de Proyectos

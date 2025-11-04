@@ -255,18 +255,6 @@
               </div>
             </div>
             
-            <!-- Coordenadas (Opcional) -->
-            <div class="form-row">
-              <div class="form-group">
-                <label for="latitud" class="form-label">Latitud (Opcional)</label>
-                <input type="number" step="0.00000001" id="latitud" name="latitud" class="form-input" placeholder="Ej: 15.12345678">
-              </div>
-              <div class="form-group">
-                <label for="longitud" class="form-label">Longitud (Opcional)</label>
-                <input type="number" step="0.00000001" id="longitud" name="longitud" class="form-input" placeholder="Ej: -90.12345678">
-              </div>
-            </div>
-
             <!-- Evidencias -->
             <div class="form-group">
               <label for="evidences" class="form-label">Evidencias (Fotos y Documentos)</label>
@@ -764,8 +752,8 @@
         <div id="benef_existente_section" style="display:none;">
           <div class="form-group">
             <label for="benef_search_input" class="form-label">Buscar beneficiario</label>
-            <input type="text" id="benef_search_input" class="form-input" placeholder="Ingresa nombre, DPI, comunidad o tipo...">
-            <small style="color:#b8c5d1; display:block; margin-top:6px;">Escribe al menos 2 caracteres para buscar.</small>
+            <input type="text" id="benef_search_input" class="form-input" placeholder="Ingresa nombre, DPI, comunidad o tipo... (opcional)">
+            <small style="color:#b8c5d1; display:block; margin-top:6px;">Se mostrarán todos los beneficiarios disponibles. Puedes filtrar escribiendo en el buscador.</small>
           </div>
           <div id="benef_search_status" style="display:none; color:#b8c5d1; font-size:0.9rem; margin-bottom:10px;"></div>
           <div id="benef_search_results" class="benef-search-results" style="display:grid; gap:10px;"></div>
@@ -774,6 +762,39 @@
       <div class="modal-footer">
         <button type="button" id="cancelBeneficiaryBtn" class="btn-secondary">Cancelar</button>
         <button type="button" id="saveBeneficiaryBtn" class="btn-primary">Agregar Beneficiario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Ver Detalles del Beneficiario -->
+  <div id="beneficiaryDetailsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Detalles del Beneficiario</h3>
+        <button class="modal-close" id="closeBeneficiaryDetailsModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <div id="beneficiaryDetailsContent">
+          <!-- El contenido se cargará dinámicamente -->
+          <div style="text-align: center; padding: 40px; color: #6c757d;">
+            <div style="margin-bottom: 16px;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.5;">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <p>Cargando detalles del beneficiario...</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="closeBeneficiaryDetailsBtn" class="btn-secondary">Cerrar</button>
       </div>
     </div>
   </div>
@@ -859,5 +880,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=41"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=43"></script>
 {% endblock %}
