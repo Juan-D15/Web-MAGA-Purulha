@@ -171,8 +171,8 @@
             
             <!-- Estado -->
             <div class="form-group">
-              <label for="estado" class="form-label">Estado</label>
-              <select id="estado" name="estado" class="form-select">
+              <label for="estado" class="form-label">Estado *</label>
+              <select id="estado" name="estado" class="form-select" required>
                 <option value="planificado" selected>Planificado</option>
                 <option value="en_progreso">En Progreso</option>
                 <option value="completado">Completado</option>
@@ -630,23 +630,26 @@
           <div id="campos_individual" style="display: none;">
             <div class="form-group">
               <label for="benef_ind_nombre" class="form-label">Nombre *</label>
-              <input type="text" id="benef_ind_nombre" class="form-input" placeholder="Ej: Juan">
+              <input type="text" id="benef_ind_nombre" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Juan" required>
+              <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
               <label for="benef_ind_apellido" class="form-label">Apellido *</label>
-              <input type="text" id="benef_ind_apellido" class="form-input" placeholder="Ej: Pérez García">
+              <input type="text" id="benef_ind_apellido" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Pérez García" required>
+              <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_ind_dpi" class="form-label">DPI</label>
-              <input type="text" id="benef_ind_dpi" class="form-input" maxlength="20" placeholder="Ej: 1234567890101">
+              <label for="benef_ind_dpi" class="form-label">DPI *</label>
+              <input type="text" id="benef_ind_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 1234567890101" required>
+              <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_ind_fecha_nac" class="form-label">Fecha de Nacimiento</label>
-              <input type="date" id="benef_ind_fecha_nac" class="form-input">
+              <label for="benef_ind_fecha_nac" class="form-label">Fecha de Nacimiento *</label>
+              <input type="date" id="benef_ind_fecha_nac" class="form-input" required>
             </div>
             <div class="form-group">
-              <label for="benef_ind_genero" class="form-label">Género</label>
-              <select id="benef_ind_genero" class="form-select">
+              <label for="benef_ind_genero" class="form-label">Género *</label>
+              <select id="benef_ind_genero" class="form-select" required>
                 <option value="">Seleccione</option>
                 <option value="masculino">Masculino</option>
                 <option value="femenino">Femenino</option>
@@ -654,8 +657,9 @@
               </select>
             </div>
             <div class="form-group">
-              <label for="benef_ind_telefono" class="form-label">Teléfono</label>
-              <input type="tel" id="benef_ind_telefono" class="form-input" placeholder="Ej: 5512-3456">
+              <label for="benef_ind_telefono" class="form-label">Teléfono *</label>
+              <input type="tel" id="benef_ind_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55123456" required>
+              <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
           </div>
 
@@ -663,23 +667,27 @@
           <div id="campos_familia" style="display: none;">
             <div class="form-group">
               <label for="benef_fam_nombre" class="form-label">Nombre de la Familia *</label>
-              <input type="text" id="benef_fam_nombre" class="form-input" placeholder="Ej: Familia González">
+              <input type="text" id="benef_fam_nombre" class="form-input" placeholder="Ej: Familia González" required>
             </div>
             <div class="form-group">
               <label for="benef_fam_jefe" class="form-label">Jefe de Familia *</label>
-              <input type="text" id="benef_fam_jefe" class="form-input" placeholder="Ej: Pedro González Ramírez">
+              <input type="text" id="benef_fam_jefe" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Pedro González Ramírez" required>
+              <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_fam_dpi" class="form-label">DPI del Jefe de Familia</label>
-              <input type="text" id="benef_fam_dpi" class="form-input" maxlength="20" placeholder="Ej: 4567890123104">
+              <label for="benef_fam_dpi" class="form-label">DPI del Jefe de Familia *</label>
+              <input type="text" id="benef_fam_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 4567890123104" required>
+              <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_fam_telefono" class="form-label">Teléfono</label>
-              <input type="tel" id="benef_fam_telefono" class="form-input" placeholder="Ej: 5545-6789">
+              <label for="benef_fam_telefono" class="form-label">Teléfono *</label>
+              <input type="tel" id="benef_fam_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55456789" required>
+              <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_fam_miembros" class="form-label">Número de Miembros</label>
-              <input type="number" id="benef_fam_miembros" class="form-input" min="1" placeholder="Ej: 5">
+              <label for="benef_fam_miembros" class="form-label">Número de Miembros *</label>
+              <input type="number" id="benef_fam_miembros" class="form-input" min="1" max="999" placeholder="Ej: 5" required>
+              <small style="color: #6c757d;">Número positivo (máximo 999)</small>
             </div>
           </div>
 
@@ -702,24 +710,29 @@
               </select>
             </div>
             <div class="form-group">
-              <label for="benef_inst_representante" class="form-label">Representante Legal</label>
-              <input type="text" id="benef_inst_representante" class="form-input" placeholder="Ej: Carmen Ramírez">
+              <label for="benef_inst_representante" class="form-label">Representante Legal *</label>
+              <input type="text" id="benef_inst_representante" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Carmen Ramírez" required>
+              <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_inst_dpi_rep" class="form-label">DPI del Representante</label>
-              <input type="text" id="benef_inst_dpi_rep" class="form-input" maxlength="20" placeholder="Ej: 7890123456107">
+              <label for="benef_inst_dpi_rep" class="form-label">DPI del Representante *</label>
+              <input type="text" id="benef_inst_dpi_rep" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 7890123456107" required>
+              <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_inst_telefono" class="form-label">Teléfono</label>
-              <input type="tel" id="benef_inst_telefono" class="form-input" placeholder="Ej: 5578-9012">
+              <label for="benef_inst_telefono" class="form-label">Teléfono *</label>
+              <input type="tel" id="benef_inst_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55789012" required>
+              <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_inst_email" class="form-label">Email</label>
-              <input type="email" id="benef_inst_email" class="form-input" placeholder="Ej: contacto@institucion.org">
+              <label for="benef_inst_email" class="form-label">Email *</label>
+              <input type="email" id="benef_inst_email" class="form-input" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" placeholder="Ej: contacto@institucion.org" required>
+              <small style="color: #6c757d;">Formato: ejemplo@dominio.com</small>
             </div>
             <div class="form-group">
-              <label for="benef_inst_num_beneficiarios" class="form-label">Número de Beneficiarios Directos</label>
-              <input type="number" id="benef_inst_num_beneficiarios" class="form-input" min="1" placeholder="Ej: 150">
+              <label for="benef_inst_num_beneficiarios" class="form-label">Número de Beneficiarios Directos *</label>
+              <input type="number" id="benef_inst_num_beneficiarios" class="form-input" min="1" max="99999" placeholder="Ej: 150" required>
+              <small style="color: #6c757d;">Número positivo (máximo 99999)</small>
             </div>
           </div>
 
@@ -727,23 +740,25 @@
           <div id="campos_otro" style="display: none;">
             <div class="form-group">
               <label for="benef_otro_nombre" class="form-label">Nombre/Descripción *</label>
-              <input type="text" id="benef_otro_nombre" class="form-input" placeholder="Ej: Grupo Comunitario">
+              <input type="text" id="benef_otro_nombre" class="form-input" placeholder="Ej: Grupo Comunitario" required>
             </div>
             <div class="form-group">
-              <label for="benef_otro_tipo_desc" class="form-label">Especifique el Tipo</label>
-              <input type="text" id="benef_otro_tipo_desc" class="form-input" placeholder="Ej: Grupo juvenil, Comité local, etc.">
+              <label for="benef_otro_tipo_desc" class="form-label">Especifique el Tipo *</label>
+              <input type="text" id="benef_otro_tipo_desc" class="form-input" placeholder="Ej: Grupo juvenil, Comité local, etc." required>
             </div>
             <div class="form-group">
-              <label for="benef_otro_contacto" class="form-label">Persona de Contacto</label>
-              <input type="text" id="benef_otro_contacto" class="form-input" placeholder="Ej: Nombre del responsable">
+              <label for="benef_otro_contacto" class="form-label">Persona de Contacto *</label>
+              <input type="text" id="benef_otro_contacto" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Nombre del responsable" required>
+              <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_otro_telefono" class="form-label">Teléfono</label>
-              <input type="tel" id="benef_otro_telefono" class="form-input" placeholder="Ej: 5590-1234">
+              <label for="benef_otro_telefono" class="form-label">Teléfono *</label>
+              <input type="tel" id="benef_otro_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55901234" required>
+              <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_otro_descripcion" class="form-label">Descripción Adicional</label>
-              <textarea id="benef_otro_descripcion" class="form-textarea" rows="3" placeholder="Información adicional sobre este beneficiario"></textarea>
+              <label for="benef_otro_descripcion" class="form-label">Descripción Adicional *</label>
+              <textarea id="benef_otro_descripcion" class="form-textarea" rows="3" placeholder="Información adicional sobre este beneficiario" required></textarea>
             </div>
           </div>
         </form>
@@ -880,5 +895,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=43"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=46"></script>
 {% endblock %}

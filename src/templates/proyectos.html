@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}?v=4">
+  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}?v=5">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -153,13 +153,6 @@
         <div class="detail-personnel-section">
           <div class="section-header">
             <h3 class="personnel-title">Personal a Cargo</h3>
-            <button class="btn-edit-item" id="addPersonnelBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Agregar Personal
-            </button>
           </div>
           <div class="personnel-info" id="detailPersonnelInfo">
             <!-- La información del personal se cargará dinámicamente -->
@@ -200,29 +193,13 @@
           </div>
         </div>
 
-        <!-- Ubicación -->
+        <!-- Comunidades Alcanzadas -->
         <div class="detail-location-section">
           <div class="section-header">
             <h3 class="location-title">Comunidades Alcanzadas</h3>
-            <div class="section-actions">
-              <button class="btn-remove-section" id="removeCommunityBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-                Quitar Comunidad
-              </button>
-              <button class="btn-edit-item" id="addCommunityBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                Agregar Comunidad
-              </button>
-            </div>
           </div>
-          <div class="location-info" id="detailLocationInfo">
-            <!-- La información de ubicación se cargará dinámicamente -->
+          <div class="location-info" id="detailCommunities">
+            <!-- Las comunidades se cargarán dinámicamente -->
           </div>
         </div>
 
@@ -248,13 +225,6 @@
           <div class="section-header">
             <h3 class="changes-title">Cambios Realizados</h3>
             <div class="section-actions">
-              <button class="btn-remove-section" id="removeChangeBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-                Quitar Cambio
-              </button>
               <button class="btn-edit-item" id="addChangeBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -274,13 +244,6 @@
           <div class="section-header">
             <h3 class="files-title">Archivos del Proyecto</h3>
             <div class="section-actions">
-              <button class="btn-remove-section" id="removeFileBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-                Eliminar Archivo
-              </button>
               <button class="btn-edit-item" id="addFileBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -298,7 +261,7 @@
         <!-- Botones de Acción Principal -->
         <div class="detail-actions-section">
           <div class="action-buttons">
-            <button class="btn-primary btn-edit-event" id="editEventBtn">
+            <button class="btn-primary btn-edit-event" id="editEventBtn" data-is-admin="{% if es_admin %}true{% else %}false{% endif %}">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -352,8 +315,8 @@
           <div class="image-preview" id="imagePreview"></div>
         </div>
         <div class="form-group">
-          <label for="imageDescription" class="form-label">Descripción de la Imagen</label>
-          <textarea id="imageDescription" class="form-textarea" rows="3" placeholder="Describe la imagen..."></textarea>
+          <label for="imageDescription" class="form-label">Descripción de la Imagen <span style="color: #6c757d; font-size: 0.85rem;">(Opcional)</span></label>
+          <textarea id="imageDescription" class="form-textarea" rows="3" placeholder="Describe la imagen (opcional)..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -536,7 +499,7 @@
   <div id="addChangeModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 class="modal-title">Agregar Cambio</h3>
+        <h3 class="modal-title" id="changeModalTitle">Agregar Cambio</h3>
         <button class="modal-close" id="closeChangeModal">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -557,6 +520,22 @@
           <div class="personnel-list" id="changePersonnelList">
             <!-- Los colaboradores se cargarán dinámicamente -->
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Evidencias (Archivos)</label>
+          <div class="file-upload">
+            <input type="file" id="changeEvidencesInput" class="file-input" multiple>
+            <label for="changeEvidencesInput" class="file-label">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14,2 14,8 20,8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <span>Seleccionar archivos (múltiples)</span>
+            </label>
+          </div>
+          <div class="file-preview" id="changeEvidencesPreview"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -582,7 +561,7 @@
         <div class="form-group">
           <label class="form-label">Seleccionar Archivo</label>
           <div class="file-upload">
-            <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" class="file-input">
+            <input type="file" id="fileInput" class="file-input">
             <label for="fileInput" class="file-label">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -596,12 +575,8 @@
           <div class="file-preview" id="filePreview"></div>
         </div>
         <div class="form-group">
-          <label for="fileName" class="form-label">Nombre del Archivo</label>
-          <input type="text" id="fileName" class="form-input" placeholder="Ingresa un nombre descriptivo para el archivo">
-        </div>
-        <div class="form-group">
-          <label for="fileDescription" class="form-label">Descripción del Archivo</label>
-          <textarea id="fileDescription" class="form-textarea" rows="3" placeholder="Describe el contenido del archivo..."></textarea>
+          <label for="fileDescription" class="form-label">Descripción del Archivo <span style="color: #6c757d; font-size: 0.85rem;">(Opcional)</span></label>
+          <textarea id="fileDescription" class="form-textarea" rows="3" placeholder="Describe el contenido del archivo (opcional)..."></textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -803,5 +778,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/proyectos.js' %}?v=11"></script>
+  <script src="{% static 'js/proyectos.js' %}?v=42"></script>
 {% endblock %}

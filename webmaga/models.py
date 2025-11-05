@@ -598,6 +598,29 @@ class CambioEvidencia(models.Model):
         return self.archivo_nombre
 
 
+class EventosEvidenciasCambios(models.Model):
+    """Evidencias (archivos) asociadas a cambios realizados en eventos/actividades"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='evidencias_cambios', db_column='actividad_id')
+    cambio = models.ForeignKey(ActividadCambio, on_delete=models.CASCADE, related_name='evidencias_eventos', db_column='cambio_id')
+    archivo_nombre = models.CharField(max_length=255)
+    archivo_tipo = models.CharField(max_length=50, blank=True, null=True)
+    archivo_tamanio = models.BigIntegerField(blank=True, null=True)
+    url_almacenamiento = models.TextField()
+    descripcion = models.TextField(blank=True, null=True)
+    creado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, db_column='creado_por')
+    creado_en = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'eventos_evidencias_cambios'
+        verbose_name = 'Evidencia de Cambio de Evento'
+        verbose_name_plural = 'Evidencias de Cambios de Eventos'
+    
+    def __str__(self):
+        return self.archivo_nombre
+
+
 # =====================================================
 # MODELOS DE ARCHIVOS Y GALERÍAS
 # =====================================================
@@ -622,6 +645,29 @@ class ActividadArchivo(models.Model):
     
     def __str__(self):
         return self.nombre_archivo
+
+
+class EventosGaleria(models.Model):
+    """Galería de imágenes de eventos/actividades"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='galeria_imagenes', db_column='actividad_id')
+    archivo_nombre = models.CharField(max_length=255)
+    archivo_tipo = models.CharField(max_length=50, blank=True, null=True)
+    archivo_tamanio = models.BigIntegerField(blank=True, null=True)
+    url_almacenamiento = models.TextField()
+    descripcion = models.TextField(blank=True, null=True)
+    creado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='imagenes_galeria_creadas', db_column='creado_por')
+    creado_en = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'eventos_galeria'
+        verbose_name = 'Imagen de Galería'
+        verbose_name_plural = 'Imágenes de Galería'
+        ordering = ['-creado_en']
+    
+    def __str__(self):
+        return f"{self.archivo_nombre} - {self.actividad.nombre}"
 
 
 class ComunidadGaleria(models.Model):
