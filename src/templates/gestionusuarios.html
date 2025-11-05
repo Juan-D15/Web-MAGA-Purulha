@@ -1,0 +1,777 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Gestión de Usuarios y Personal — MAGA Purulhá{% endblock %}
+{% block extra_css %}
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/gestionusuarios.css' %}">
+  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
+{% endblock %}
+{% block content %}
+  <!-- ======= MAIN CONTENT ======= -->
+  <main class="gestiones-main">
+    <div class="gestiones-container">
+      <!-- Vista Principal con Tarjetas -->
+      <div id="mainView" class="main-view">
+        <!-- Tarjetas Principales -->
+        <div class="main-cards">
+          <div class="main-card" id="manageUsersCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h3 class="card-title">Gestionar Usuarios del Software</h3>
+            <p class="card-description">Administrar usuarios del sistema con roles de administrador o personal</p>
+            <button class="card-button" id="openManageUsersBtn">
+              <span>Gestionar Usuarios</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="main-card" id="managePersonnelCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.91" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6.27,22.5h7.57a4.77,4.77,0,0,0,3.38-1.4l4.71-4.71a2,2,0,0,0-2.86-2.87l-5.16,5.16H13a1.91,1.91,0,0,0,1.88-2.23,2,2,0,0,0-2-1.59H9.14l-.93-.46a4.66,4.66,0,0,0-5,.55A4.57,4.57,0,0,0,1.5,18.57v.11"/>
+                <line x1="12.96" y1="18.68" x2="8.18" y2="18.68"/>
+                <path d="M5.32,1.5H7.23A4.77,4.77,0,0,1,12,6.27v0a0,0,0,0,1,0,0H10.09A4.77,4.77,0,0,1,5.32,1.5v0a0,0,0,0,1,0,0Z"/>
+                <path d="M16.77,2.45h1.91a0,0,0,0,1,0,0v0a4.77,4.77,0,0,1-4.77,4.77H12a0,0,0,0,1,0,0v0A4.77,4.77,0,0,1,16.77,2.45Z" transform="translate(30.68 9.68) rotate(-180)"/>
+                <line x1="12" y1="10.09" x2="12" y2="6.27"/>
+                <path d="M7.3,14.06a4.77,4.77,0,0,1,9.47.8,4.21,4.21,0,0,1-.12,1.08"/>
+              </svg>
+            </div>
+            <h3 class="card-title">Gestionar Personal</h3>
+            <p class="card-description">Administrar personal involucrado en trabajos de la oficina o externos (gerente, capacitador, etc.)</p>
+            <button class="card-button" id="openManagePersonnelBtn">
+              <span>Gestionar Personal</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista de Gestionar Usuarios del Software -->
+      <div id="manageUsersView" class="manage-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromUsersBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Gestionar Usuarios del Software</h2>
+        </div>
+
+        <div class="view-content">
+          <!-- Botón para crear nuevo usuario -->
+          <div style="margin-bottom: 24px;">
+            <button type="button" id="createUserBtn" class="btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Crear Nuevo Usuario
+            </button>
+          </div>
+
+          <!-- Lista de Usuarios -->
+          <div id="usersListContainer">
+            <h3 style="color: var(--text-primary); margin-bottom: 20px;">Usuarios Existentes</h3>
+            <div id="usersList" style="display: grid; gap: 16px;">
+              <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+                <p>Cargando usuarios...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista de Gestionar Personal -->
+      <div id="managePersonnelView" class="manage-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromPersonnelBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Gestionar Personal</h2>
+        </div>
+
+        <div class="view-content">
+          <!-- Botón para crear nuevo colaborador -->
+          <div style="margin-bottom: 24px;">
+            <button type="button" id="createColaboradorBtn" class="btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Crear Nuevo Colaborador
+            </button>
+          </div>
+
+          <!-- Lista de Colaboradores -->
+          <div id="colaboradoresListContainer">
+            <h3 style="color: var(--text-primary); margin-bottom: 20px;">Colaboradores Existentes</h3>
+            <div id="colaboradoresList" style="display: grid; gap: 16px;">
+              <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
+                <p>Cargando colaboradores...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal para Crear Puesto -->
+  <div id="createPuestoModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Crear Nuevo Puesto</h3>
+        <button class="modal-close" id="closePuestoModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="puestoForm" class="modal-form">
+          <div class="form-group">
+            <label for="puestoCodigo" class="form-label">Código *</label>
+            <input type="text" id="puestoCodigo" name="codigo" class="form-input" required placeholder="Ej: GER, CAP, COORD" maxlength="20">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Código único para identificar el puesto (máx. 20 caracteres)
+            </small>
+          </div>
+          <div class="form-group">
+            <label for="puestoNombre" class="form-label">Nombre *</label>
+            <input type="text" id="puestoNombre" name="nombre" class="form-input" required placeholder="Ej: Gerente, Capacitador, Coordinador" maxlength="100">
+          </div>
+          <div class="form-group">
+            <label for="puestoDescripcion" class="form-label">Descripción</label>
+            <textarea id="puestoDescripcion" name="descripcion" class="form-textarea" rows="3" placeholder="Descripción del puesto..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelPuestoBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="savePuestoBtn" class="btn-primary">Crear Puesto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación de Eliminación de Usuario -->
+  <div id="deleteUsuarioModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ Confirmar Eliminación de Usuario</h3>
+        <button class="modal-close" id="closeDeleteUsuarioModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-primary); margin-bottom: 1.5rem; font-size: 1rem;">
+          Estás a punto de eliminar el usuario: <strong id="deleteUsuarioName"></strong>
+        </p>
+        <p style="color: var(--danger-color); margin-bottom: 1.5rem; font-size: 0.95rem;">
+          Esta acción requiere autorización de administrador. Por favor, ingresa tus credenciales:
+        </p>
+        
+        <form id="confirmDeleteUsuarioForm">
+          <div class="form-group">
+            <label for="delete_usuario_username" class="form-label">Usuario *</label>
+            <input type="text" id="delete_usuario_username" class="form-input" placeholder="Tu usuario" required autocomplete="username">
+          </div>
+          
+          <div class="form-group">
+            <label for="delete_usuario_password" class="form-label">Contraseña *</label>
+            <input type="password" id="delete_usuario_password" class="form-input" placeholder="Tu contraseña" required autocomplete="current-password">
+          </div>
+          
+          <div id="deleteUsuarioErrorMessage" style="display: none; color: var(--danger-color); padding: 0.75rem; background: rgba(244, 67, 54, 0.1); border-radius: 6px; margin-top: 1rem; font-size: 0.9rem;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteUsuarioBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="executeDeleteUsuarioBtn" class="btn-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Eliminar Usuario
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Edición de Usuario -->
+  <div id="editUsuarioModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Usuario del Sistema</h3>
+        <button class="modal-close" id="closeEditUsuarioModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="editUserForm" class="modal-form">
+          <!-- Vincular con Colaborador Existente -->
+          <div class="form-group">
+            <label for="editColaboradorSelect" class="form-label">Vincular con Colaborador Existente</label>
+            <select id="editColaboradorSelect" class="form-select" disabled>
+              <option value="">Seleccione un colaborador...</option>
+            </select>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              La vinculación no se puede cambiar al editar un usuario existente.
+            </small>
+          </div>
+
+          <!-- Username -->
+          <div class="form-group">
+            <label for="editUserUsername" class="form-label">Usuario *</label>
+            <input type="text" id="editUserUsername" name="username" class="form-input" required placeholder="Ej: jperez" maxlength="50" disabled>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              El nombre de usuario no se puede cambiar.
+            </small>
+          </div>
+
+          <!-- Nombre -->
+          <div class="form-group">
+            <label for="editUserNombre" class="form-label">Nombre Completo</label>
+            <input type="text" id="editUserNombre" name="nombre" class="form-input" placeholder="Ej: Juan Pérez García" maxlength="150" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" title="Solo se permiten letras y espacios">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo letras y espacios
+            </small>
+          </div>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label for="editUserEmail" class="form-label">Email *</label>
+            <input type="email" id="editUserEmail" name="email" class="form-input" required placeholder="Ej: juan@example.com" maxlength="100" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" title="Ingrese un correo electrónico válido">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Formato: usuario@dominio.com
+            </small>
+          </div>
+
+          <!-- Teléfono -->
+          <div class="form-group">
+            <label for="editUserTelefono" class="form-label">Teléfono</label>
+            <input type="tel" id="editUserTelefono" name="telefono" class="form-input" placeholder="Ej: 12345678" maxlength="8" pattern="[0-9]{8}" title="Debe contener exactamente 8 dígitos">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo números, 8 dígitos
+            </small>
+          </div>
+
+          <!-- Contraseña -->
+          <div class="form-group">
+            <label for="editUserPassword" class="form-label">Contraseña</label>
+            <div style="position: relative;">
+              <input type="password" id="editUserPassword" name="password" class="form-input" placeholder="Dejar en blanco para no cambiar" minlength="8" style="padding-right: 45px;">
+              <button type="button" class="password-toggle-btn" data-target="editUserPassword" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-icon">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-off-icon" style="display: none;">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Dejar en blanco si no desea cambiar la contraseña. Mínimo 8 caracteres si se proporciona.
+            </small>
+            <div id="editUserPasswordStrength" style="margin-top: 8px; font-size: 0.85rem; display: none;">
+              <div id="editPasswordLength" style="color: var(--text-muted);">✓ Mínimo 8 caracteres</div>
+              <div id="editPasswordNumber" style="color: var(--text-muted);">✓ Al menos un número</div>
+              <div id="editPasswordUppercase" style="color: var(--text-muted);">💡 Recomendado: una mayúscula</div>
+            </div>
+          </div>
+
+          <!-- Confirmar Contraseña -->
+          <div class="form-group">
+            <label for="editUserPasswordConfirm" class="form-label">Confirmar Contraseña</label>
+            <div style="position: relative;">
+              <input type="password" id="editUserPasswordConfirm" name="password_confirm" class="form-input" placeholder="Repita la contraseña" style="padding-right: 45px;">
+              <button type="button" class="password-toggle-btn" data-target="editUserPasswordConfirm" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-icon">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-off-icon" style="display: none;">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
+            <div id="editUserPasswordMatch" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted);"></div>
+          </div>
+
+          <!-- Rol -->
+          <div class="form-group">
+            <label for="editUserRol" class="form-label">Rol *</label>
+            <select id="editUserRol" name="rol" class="form-select" required>
+              <option value="">Seleccione un rol...</option>
+              <option value="admin">Administrador</option>
+              <option value="personal">Personal</option>
+            </select>
+          </div>
+
+          <!-- Puesto (solo para personal) -->
+          <div class="form-group" id="editUserPuestoGroup" style="display: none;">
+            <label for="editUserPuesto" class="form-label">Puesto *</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="editUserPuesto" name="puesto_id" class="form-select" style="flex: 1;">
+                <option value="">Seleccione un puesto...</option>
+              </select>
+            </div>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              El puesto es requerido para usuarios con rol "Personal"
+            </small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelEditUsuarioBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveEditUsuarioBtn" class="btn-primary">Actualizar Usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Edición de Colaborador -->
+  <div id="editColaboradorModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar Colaborador</h3>
+        <button class="modal-close" id="closeEditColaboradorModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="editColaboradorForm" class="modal-form">
+          <!-- Nombre -->
+          <div class="form-group">
+            <label for="editColaboradorNombre" class="form-label">Nombre Completo *</label>
+            <input type="text" id="editColaboradorNombre" name="nombre" class="form-input" required placeholder="Ej: Juan Pérez García" maxlength="150" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" title="Solo se permiten letras y espacios">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo letras y espacios
+            </small>
+          </div>
+
+          <!-- Puesto -->
+          <div class="form-group">
+            <label for="editColaboradorPuesto" class="form-label">Puesto</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="editColaboradorPuesto" name="puesto_id" class="form-select" style="flex: 1;">
+                <option value="">Seleccione un puesto...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Descripción -->
+          <div class="form-group">
+            <label for="editColaboradorDescripcion" class="form-label">Descripción</label>
+            <textarea id="editColaboradorDescripcion" name="descripcion" class="form-textarea" rows="3" placeholder="Descripción del colaborador..."></textarea>
+          </div>
+
+          <!-- Teléfono -->
+          <div class="form-group">
+            <label for="editColaboradorTelefono" class="form-label">Teléfono</label>
+            <input type="tel" id="editColaboradorTelefono" name="telefono" class="form-input" placeholder="Ej: 12345678" maxlength="8" pattern="[0-9]{8}" title="Debe contener exactamente 8 dígitos">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo números, 8 dígitos
+            </small>
+          </div>
+
+          <!-- Correo -->
+          <div class="form-group">
+            <label for="editColaboradorCorreo" class="form-label">Correo Electrónico</label>
+            <input type="email" id="editColaboradorCorreo" name="correo" class="form-input" placeholder="Ej: juan@example.com" maxlength="100" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" title="Ingrese un correo electrónico válido">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Formato: usuario@dominio.com
+            </small>
+          </div>
+
+          <!-- DPI -->
+          <div class="form-group">
+            <label for="editColaboradorDpi" class="form-label">DPI</label>
+            <input type="text" id="editColaboradorDpi" name="dpi" class="form-input" placeholder="Ej: 1234567890101" maxlength="13" pattern="[0-9]{13}" title="Debe contener exactamente 13 dígitos">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo números, 13 dígitos
+            </small>
+          </div>
+
+          <!-- Personal Fijo -->
+          <div class="form-group">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+              <input type="checkbox" id="editColaboradorEsPersonalFijo" name="es_personal_fijo" style="margin-right: 8px;">
+              <span>Es Personal Fijo</span>
+            </label>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Los colaboradores con usuario asignado son automáticamente personal fijo.
+            </small>
+          </div>
+
+          <!-- Activo -->
+          <div class="form-group">
+            <label style="display: flex; align-items: center; cursor: pointer;">
+              <input type="checkbox" id="editColaboradorActivo" name="activo" checked style="margin-right: 8px;">
+              <span>Activo</span>
+            </label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelEditColaboradorBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveEditColaboradorBtn" class="btn-primary">Actualizar Colaborador</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación de Eliminación de Colaborador -->
+  <div id="deleteColaboradorModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ Confirmar Eliminación de Colaborador</h3>
+        <button class="modal-close" id="closeDeleteColaboradorModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-primary); margin-bottom: 1.5rem; font-size: 1rem;">
+          Estás a punto de eliminar el colaborador: <strong id="deleteColaboradorName"></strong>
+        </p>
+        <p style="color: var(--danger-color); margin-bottom: 1.5rem; font-size: 0.95rem;">
+          Esta acción requiere autorización de administrador. Por favor, ingresa tus credenciales:
+        </p>
+        
+        <form id="confirmDeleteColaboradorForm">
+          <div class="form-group">
+            <label for="delete_colaborador_username" class="form-label">Usuario *</label>
+            <input type="text" id="delete_colaborador_username" class="form-input" placeholder="Tu usuario" required autocomplete="username">
+          </div>
+          
+          <div class="form-group">
+            <label for="delete_colaborador_password" class="form-label">Contraseña *</label>
+            <input type="password" id="delete_colaborador_password" class="form-input" placeholder="Tu contraseña" required autocomplete="current-password">
+          </div>
+          
+          <div id="deleteColaboradorErrorMessage" style="display: none; color: var(--danger-color); padding: 0.75rem; background: rgba(244, 67, 54, 0.1); border-radius: 6px; margin-top: 1rem; font-size: 0.9rem;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteColaboradorBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="executeDeleteColaboradorBtn" class="btn-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Eliminar Colaborador
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Creación de Usuario -->
+  <div id="createUsuarioModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Crear Usuario del Sistema</h3>
+        <button class="modal-close" id="closeCreateUsuarioModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="userForm" class="modal-form">
+          <!-- Selección de Colaborador Existente -->
+          <div class="form-group">
+            <label for="colaboradorSelect" class="form-label">Vincular con Colaborador Existente (Opcional)</label>
+            <select id="colaboradorSelect" class="form-select">
+              <option value="">Seleccione un colaborador...</option>
+            </select>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Si selecciona un colaborador, algunos campos se autocompletarán. Los colaboradores que ya tienen usuario asignado aparecerán marcados.
+            </small>
+            <div id="colaboradorVinculadoMsg" style="display: none; margin-top: 8px; padding: 8px; background: rgba(255, 193, 7, 0.1); border-radius: 6px; color: #ffc107; font-size: 0.9rem;">
+              ⚠️ Este colaborador ya tiene un usuario asignado. Los campos relacionados no son editables.
+            </div>
+          </div>
+
+          <!-- Username -->
+          <div class="form-group">
+            <label for="userUsername" class="form-label">Usuario *</label>
+            <input type="text" id="userUsername" name="username" class="form-input" required placeholder="Ej: jperez" maxlength="50">
+          </div>
+
+          <!-- Nombre -->
+          <div class="form-group">
+            <label for="userNombre" class="form-label">Nombre Completo</label>
+            <input type="text" id="userNombre" name="nombre" class="form-input" placeholder="Ej: Juan Pérez García" maxlength="150" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" title="Solo se permiten letras y espacios">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo letras y espacios
+            </small>
+          </div>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label for="userEmail" class="form-label">Email *</label>
+            <input type="email" id="userEmail" name="email" class="form-input" required placeholder="Ej: juan@example.com" maxlength="100" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" title="Ingrese un correo electrónico válido">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Formato: usuario@dominio.com
+            </small>
+          </div>
+
+          <!-- Teléfono -->
+          <div class="form-group">
+            <label for="userTelefono" class="form-label">Teléfono</label>
+            <input type="tel" id="userTelefono" name="telefono" class="form-input" placeholder="Ej: 12345678" maxlength="8" pattern="[0-9]{8}" title="Debe contener exactamente 8 dígitos">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo números, 8 dígitos
+            </small>
+          </div>
+
+          <!-- Contraseña -->
+          <div class="form-group">
+            <label for="userPassword" class="form-label">Contraseña *</label>
+            <div style="position: relative;">
+              <input type="password" id="userPassword" name="password" class="form-input" required placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right: 45px;">
+              <button type="button" class="password-toggle-btn" data-target="userPassword" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-icon">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-off-icon" style="display: none;">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
+            <div id="userPasswordStrength" style="margin-top: 8px; font-size: 0.85rem;">
+              <div id="passwordLength" style="color: var(--text-muted);">✓ Mínimo 8 caracteres</div>
+              <div id="passwordNumber" style="color: var(--text-muted);">✓ Al menos un número</div>
+              <div id="passwordUppercase" style="color: var(--text-muted);">💡 Recomendado: una mayúscula</div>
+            </div>
+          </div>
+
+          <!-- Confirmar Contraseña -->
+          <div class="form-group">
+            <label for="userPasswordConfirm" class="form-label">Confirmar Contraseña *</label>
+            <div style="position: relative;">
+              <input type="password" id="userPasswordConfirm" name="password_confirm" class="form-input" required placeholder="Repita la contraseña" style="padding-right: 45px;">
+              <button type="button" class="password-toggle-btn" data-target="userPasswordConfirm" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-icon">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="eye-off-icon" style="display: none;">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
+            <div id="userPasswordMatch" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted);"></div>
+          </div>
+
+          <!-- Rol -->
+          <div class="form-group">
+            <label for="userRol" class="form-label">Rol *</label>
+            <select id="userRol" name="rol" class="form-select" required>
+              <option value="">Seleccione un rol...</option>
+              <option value="admin">Administrador</option>
+              <option value="personal">Personal</option>
+            </select>
+          </div>
+
+          <!-- Puesto (solo para personal) -->
+          <div class="form-group" id="userPuestoGroup" style="display: none;">
+            <label for="userPuesto" class="form-label">Puesto *</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="userPuesto" name="puesto_id" class="form-select" style="flex: 1;">
+                <option value="">Seleccione un puesto...</option>
+              </select>
+              <button type="button" id="createPuestoFromUserBtn" class="btn-secondary" style="padding: 12px 16px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Nuevo
+              </button>
+            </div>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              El puesto es requerido para usuarios con rol "Personal"
+            </small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelCreateUsuarioBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveCreateUsuarioBtn" class="btn-primary">Crear Usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Creación de Colaborador -->
+  <div id="createColaboradorModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Crear Colaborador</h3>
+        <button class="modal-close" id="closeCreateColaboradorModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="colaboradorForm" class="modal-form">
+          <!-- Nombre -->
+          <div class="form-group">
+            <label for="colaboradorNombre" class="form-label">Nombre Completo *</label>
+            <input type="text" id="colaboradorNombre" name="nombre" class="form-input" required placeholder="Ej: Juan Pérez García" maxlength="150" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" title="Solo se permiten letras y espacios">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo letras y espacios
+            </small>
+          </div>
+
+          <!-- Puesto -->
+          <div class="form-group">
+            <label for="colaboradorPuesto" class="form-label">Puesto</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="colaboradorPuesto" name="puesto_id" class="form-select" style="flex: 1;">
+                <option value="">Seleccione un puesto...</option>
+              </select>
+              <button type="button" id="createPuestoFromColaboradorBtn" class="btn-secondary" style="padding: 12px 16px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Nuevo
+              </button>
+            </div>
+          </div>
+
+          <!-- Descripción -->
+          <div class="form-group">
+            <label for="colaboradorDescripcion" class="form-label">Descripción</label>
+            <textarea id="colaboradorDescripcion" name="descripcion" class="form-textarea" rows="3" placeholder="Descripción del colaborador..."></textarea>
+          </div>
+
+          <!-- Teléfono -->
+          <div class="form-group">
+            <label for="colaboradorTelefono" class="form-label">Teléfono</label>
+            <input type="tel" id="colaboradorTelefono" name="telefono" class="form-input" placeholder="Ej: 12345678" maxlength="8" pattern="[0-9]{8}" title="Debe contener exactamente 8 dígitos">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo números, 8 dígitos
+            </small>
+          </div>
+
+          <!-- Correo -->
+          <div class="form-group">
+            <label for="colaboradorCorreo" class="form-label">Correo Electrónico</label>
+            <input type="email" id="colaboradorCorreo" name="correo" class="form-input" placeholder="Ej: juan@example.com" maxlength="100" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" title="Ingrese un correo electrónico válido">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Formato: usuario@dominio.com
+            </small>
+          </div>
+
+          <!-- DPI -->
+          <div class="form-group">
+            <label for="colaboradorDpi" class="form-label">DPI</label>
+            <input type="text" id="colaboradorDpi" name="dpi" class="form-input" placeholder="Ej: 1234567890101" maxlength="13" pattern="[0-9]{13}" title="Debe contener exactamente 13 dígitos">
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Solo números, 13 dígitos
+            </small>
+          </div>
+
+          <!-- Es Personal Fijo -->
+          <div class="form-group">
+            <label class="form-label" style="display: flex; align-items: center; cursor: not-allowed; opacity: 0.6;">
+              <input type="checkbox" id="colaboradorEsPersonalFijo" name="es_personal_fijo" disabled style="margin-right: 8px;">
+              Es Personal Fijo de Oficina
+            </label>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Un colaborador solo puede ser marcado como "Personal Fijo" cuando se vincula con un usuario del sistema. Para hacerlo, cree primero el usuario y vincúlelo al colaborador.
+            </small>
+          </div>
+
+          <!-- Estado -->
+          <div class="form-group">
+            <label class="form-label">
+              <input type="checkbox" id="colaboradorActivo" name="activo" checked style="margin-right: 8px;">
+              Activo
+            </label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelCreateColaboradorBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveCreateColaboradorBtn" class="btn-primary">Crear Colaborador</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Animación de spinner -->
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .btn-edit-user:hover,
+    .btn-edit-colaborador:hover {
+      background: rgba(0, 123, 255, 0.2) !important;
+      border-color: #007bff !important;
+      transform: translateY(-1px);
+    }
+    
+    .btn-delete-user:hover,
+    .btn-delete-colaborador:hover {
+      background: rgba(220, 53, 69, 0.2) !important;
+      border-color: #dc3545 !important;
+      transform: translateY(-1px);
+    }
+    
+    .btn-danger {
+      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+    }
+    
+    .btn-danger:hover {
+      background: linear-gradient(135deg, #c82333 0%, #dc3545 100%);
+      box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+      transform: translateY(-2px);
+    }
+  </style>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/gestionusuarios.js' %}"></script>
+{% endblock %}

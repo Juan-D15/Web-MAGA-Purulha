@@ -18,7 +18,7 @@ from .models import (
     Region, Comunidad, Actividad, TipoActividad, 
     Beneficiario, BeneficiarioIndividual, BeneficiarioFamilia, BeneficiarioInstitucion,
     TipoBeneficiario, Usuario, TipoComunidad, ActividadPersonal,
-    Colaborador,
+    Colaborador, Puesto,
     ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
     ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios
 )
@@ -511,6 +511,21 @@ def generarreportes(request):
         'usuario_actual': usuario_maga,
     }
     return render(request, 'generarreportes.html', context)
+
+
+@solo_administrador
+def gestionusuarios(request):
+    """Vista de gestión de usuarios y personal - REQUIERE: Administrador"""
+    usuario_maga = get_usuario_maga(request.user)
+    
+    # Obtener puestos activos para los formularios
+    puestos = Puesto.objects.filter(activo=True).order_by('nombre')
+    
+    context = {
+        'usuario_actual': usuario_maga,
+        'puestos': puestos,
+    }
+    return render(request, 'gestionusuarios.html', context)
 
 
 def mapa_completo(request):
@@ -3199,6 +3214,7 @@ def api_obtener_detalle_proyecto(request, evento_id):
         }, status=500)
 
 
+<<<<<<< HEAD
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_agregar_imagen_galeria(request, evento_id):
@@ -3493,6 +3509,299 @@ def api_crear_cambio(request, evento_id):
             }, status=400)
         
         # Obtener colaborador responsable (si se envió)
+        colaborador_id = request.POST.get('colaborador_id')
+        colaborador = None
+        if colaborador_id:
+            try:
+                colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
+                # Verificar que el colaborador esté asignado al evento
+                if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'El colaborador seleccionado no está asignado a este evento'
+                    }, status=400)
+                cambio.colaborador = colaborador
+                cambio.responsable = None
+            except Colaborador.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Colaborador no encontrado'
+                }, status=404)
+        elif colaborador_id == '':
+            # Si se envía vacío, usar el usuario actual como responsable
+            cambio.colaborador = None
+            cambio.responsable = usuario_maga
+        
+        cambio.descripcion_cambio = descripcion
+        cambio.save()
+        
+        # Obtener nombre del responsable
+        responsable_nombre = ''
+        if cambio.colaborador:
+            responsable_nombre = cambio.colaborador.nombre
+        elif cambio.responsable:
+            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
+        
+        # Formatear fecha en zona horaria de Guatemala
+        fecha_display = ''
+        if cambio.fecha_cambio:
+            from django.utils import timezone
+            import pytz
+            guatemala_tz = pytz.timezone('America/Guatemala')
+            if timezone.is_aware(cambio.fecha_cambio):
+                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+            else:
+                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+            fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Cambio actualizado exitosamente',
+            'cambio': {
+                'id': str(cambio.id),
+                'descripcion': cambio.descripcion_cambio,
+                'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                'fecha_display': fecha_display,
+                'responsable': responsable_nombre,
+                'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None
+            }
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except ActividadCambio.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cambio no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar cambio: {str(e)}'
+        }, status=500)
+
+
+# =====================================================
+# APIs DE GESTIÓN DE USUARIOS Y COLABORADORES
+# =====================================================
+
+@solo_administrador
+@require_http_methods(["GET"])
+def api_listar_usuarios(request):
+    """API: Listar todos los usuarios del sistema"""
+    try:
+        usuarios = Usuario.objects.select_related('puesto', 'colaborador__puesto').order_by('username')
+        
+        usuarios_list = []
+        for usuario in usuarios:
+            # Obtener colaborador vinculado si existe (usando la relación inversa OneToOne)
+            colaborador = usuario.colaborador if hasattr(usuario, 'colaborador') else None
+            
+            # Determinar el puesto a mostrar: primero del usuario, luego del colaborador
+            puesto_nombre = None
+            puesto_id = None
+            
+            if usuario.puesto:
+                puesto_nombre = usuario.puesto.nombre
+                puesto_id = str(usuario.puesto.id)
+            elif colaborador and colaborador.puesto:
+                puesto_nombre = colaborador.puesto.nombre
+                puesto_id = str(colaborador.puesto.id)
+            
+            usuarios_list.append({
+                'id': str(usuario.id),
+                'username': usuario.username,
+                'nombre': usuario.nombre or '',
+                'email': usuario.email,
+                'telefono': usuario.telefono or '',
+                'rol': usuario.rol,
+                'rol_display': usuario.get_rol_display(),
+                'puesto_id': puesto_id,
+                'puesto_nombre': puesto_nombre,
+                'activo': usuario.activo,
+                'tiene_colaborador': colaborador is not None,
+                'colaborador_id': str(colaborador.id) if colaborador else None,
+                'colaborador_nombre': colaborador.nombre if colaborador else None,
+                'colaborador_puesto_id': str(colaborador.puesto.id) if colaborador and colaborador.puesto else None,
+                'creado_en': usuario.creado_en.isoformat() if usuario.creado_en else None,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'usuarios': usuarios_list
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al listar usuarios: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["POST"])
+def api_crear_usuario(request):
+    """API: Crear un nuevo usuario del sistema"""
+    try:
+        data = json.loads(request.body or '{}')
+        
+        username = data.get('username', '').strip()
+        nombre = data.get('nombre', '').strip()
+        email = data.get('email', '').strip()
+        telefono = data.get('telefono', '').strip()
+        password = data.get('password', '')
+        password_confirm = data.get('password_confirm', '')
+        rol = data.get('rol', '').strip()
+        puesto_id = data.get('puesto_id', '').strip()
+        colaborador_id = data.get('colaborador_id', '').strip()
+        
+        # Validaciones
+        if not username or not email or not password:
+            return JsonResponse({
+                'success': False,
+                'error': 'Username, email y contraseña son requeridos'
+            }, status=400)
+        
+        if password != password_confirm:
+            return JsonResponse({
+                'success': False,
+                'error': 'Las contraseñas no coinciden'
+            }, status=400)
+        
+        if len(password) < 8:
+            return JsonResponse({
+                'success': False,
+                'error': 'La contraseña debe tener al menos 8 caracteres'
+            }, status=400)
+        
+        if rol not in ['admin', 'personal']:
+            return JsonResponse({
+                'success': False,
+                'error': 'Rol inválido'
+            }, status=400)
+        
+        # Validar puesto si es personal
+        puesto = None
+        if rol == 'personal':
+            if not puesto_id:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El puesto es requerido para usuarios con rol "Personal"'
+                }, status=400)
+            try:
+                puesto = Puesto.objects.get(id=puesto_id, activo=True)
+            except Puesto.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Puesto no encontrado'
+                }, status=404)
+        
+        # Validar colaborador si se proporciona
+        colaborador = None
+        if colaborador_id:
+            try:
+                colaborador = Colaborador.objects.get(id=colaborador_id)
+                if colaborador.usuario_id:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Este colaborador ya tiene un usuario asignado'
+                    }, status=400)
+            except Colaborador.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Colaborador no encontrado'
+                }, status=404)
+        
+        # Verificar username único
+        if Usuario.objects.filter(username=username).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'El username ya existe'
+            }, status=400)
+        
+        # Verificar email único
+        if Usuario.objects.filter(email=email).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'El email ya existe'
+            }, status=400)
+        
+        # Hashear contraseña usando Django
+        from django.contrib.auth.hashers import make_password
+        password_hash = make_password(password)
+        
+        # Crear usuario
+        usuario = Usuario.objects.create(
+            username=username,
+            nombre=nombre if nombre else None,
+            email=email,
+            telefono=telefono if telefono else None,
+            password_hash=password_hash,
+            rol=rol,
+            puesto=puesto,
+            activo=True
+        )
+        
+        # Vincular con colaborador si se proporciona
+        if colaborador:
+            colaborador.usuario = usuario
+            colaborador.es_personal_fijo = True
+            colaborador.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Usuario creado exitosamente',
+            'usuario': {
+                'id': str(usuario.id),
+                'username': usuario.username,
+                'nombre': usuario.nombre or '',
+                'email': usuario.email,
+                'rol': usuario.rol,
+                'rol_display': usuario.get_rol_display(),
+                'puesto_id': str(usuario.puesto.id) if usuario.puesto else None,
+                'puesto_nombre': usuario.puesto.nombre if usuario.puesto else None,
+                'colaborador_id': str(colaborador.id) if colaborador else None,
+                'colaborador_nombre': colaborador.nombre if colaborador else None
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al crear usuario: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_crear_cambio(request, evento_id):
+    """API: Crear un cambio en un evento"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        descripcion = request.POST.get('descripcion', '').strip()
+        if not descripcion:
+            return JsonResponse({
+                'success': False,
+                'error': 'La descripción del cambio es obligatoria'
+            }, status=400)
+        
+        # Obtener colaborador responsable si se envía
         colaborador_id = request.POST.get('colaborador_id')
         colaborador = None
         if colaborador_id:
@@ -3840,6 +4149,463 @@ def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
         }, status=500)
 
 
+@solo_administrador
+@require_http_methods(["GET"])
+def api_listar_colaboradores(request):
+    """API: Listar todos los colaboradores para vincular con usuarios"""
+    try:
+        colaboradores = Colaborador.objects.select_related('puesto', 'usuario').order_by('nombre')
+        
+        colaboradores_list = []
+        for colaborador in colaboradores:
+            colaboradores_list.append({
+                'id': str(colaborador.id),
+                'nombre': colaborador.nombre,
+                'puesto_id': str(colaborador.puesto.id) if colaborador.puesto else None,
+                'puesto_nombre': colaborador.puesto.nombre if colaborador.puesto else None,
+                'puesto_codigo': colaborador.puesto.codigo if colaborador.puesto else None,
+                'descripcion': colaborador.descripcion or '',
+                'telefono': colaborador.telefono or '',
+                'correo': colaborador.correo or '',
+                'dpi': colaborador.dpi or '',
+                'es_personal_fijo': colaborador.es_personal_fijo,
+                'activo': colaborador.activo,
+                'tiene_usuario': colaborador.usuario_id is not None,
+                'usuario_id': str(colaborador.usuario.id) if colaborador.usuario else None,
+                'usuario_username': colaborador.usuario.username if colaborador.usuario else None,
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'colaboradores': colaboradores_list
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al listar colaboradores: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["GET"])
+def api_obtener_colaborador(request, colaborador_id):
+    """API: Obtener información de un colaborador específico"""
+    try:
+        colaborador = Colaborador.objects.select_related('puesto', 'usuario').get(id=colaborador_id)
+        
+        return JsonResponse({
+            'success': True,
+            'colaborador': {
+                'id': str(colaborador.id),
+                'nombre': colaborador.nombre,
+                'puesto_id': str(colaborador.puesto.id) if colaborador.puesto else None,
+                'puesto_nombre': colaborador.puesto.nombre if colaborador.puesto else None,
+                'puesto_codigo': colaborador.puesto.codigo if colaborador.puesto else None,
+                'descripcion': colaborador.descripcion or '',
+                'telefono': colaborador.telefono or '',
+                'correo': colaborador.correo or '',
+                'dpi': colaborador.dpi or '',
+                'es_personal_fijo': colaborador.es_personal_fijo,
+                'activo': colaborador.activo,
+                'tiene_usuario': colaborador.usuario_id is not None,
+                'usuario_id': str(colaborador.usuario.id) if colaborador.usuario else None,
+                'usuario_username': colaborador.usuario.username if colaborador.usuario else None,
+            }
+        })
+    except Colaborador.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Colaborador no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener colaborador: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["POST"])
+def api_crear_colaborador(request):
+    """API: Crear un nuevo colaborador"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        data = json.loads(request.body or '{}')
+        
+        nombre = data.get('nombre', '').strip()
+        puesto_id = data.get('puesto_id', '').strip()
+        descripcion = data.get('descripcion', '').strip()
+        telefono = data.get('telefono', '').strip()
+        correo = data.get('correo', '').strip()
+        dpi = data.get('dpi', '').strip()
+        es_personal_fijo = data.get('es_personal_fijo', False)
+        activo = data.get('activo', True)
+        
+        # Validaciones
+        if not nombre:
+            return JsonResponse({
+                'success': False,
+                'error': 'El nombre es requerido'
+            }, status=400)
+        
+        # Validar puesto si se proporciona
+        puesto = None
+        if puesto_id:
+            try:
+                puesto = Puesto.objects.get(id=puesto_id, activo=True)
+            except Puesto.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Puesto no encontrado'
+                }, status=404)
+        
+        # Validar restricción de personal fijo
+        # Si es_personal_fijo es True, debe tener usuario_id asignado
+        # Si no tiene usuario_id, no puede ser personal fijo
+        if es_personal_fijo:
+            # No se puede crear un colaborador como personal fijo sin usuario asignado
+            # Esto solo se puede hacer cuando se vincula con un usuario existente o se crea primero el usuario
+            return JsonResponse({
+                'success': False,
+                'error': 'No se puede crear un colaborador como personal fijo sin usuario asignado. Primero cree el usuario del sistema y luego vincúlelo.'
+            }, status=400)
+        
+        # Crear colaborador (siempre como no personal fijo al inicio)
+        colaborador = Colaborador.objects.create(
+            nombre=nombre,
+            puesto=puesto,
+            descripcion=descripcion if descripcion else None,
+            telefono=telefono if telefono else None,
+            correo=correo if correo else None,
+            dpi=dpi if dpi else None,
+            es_personal_fijo=False,  # Siempre False al crear, solo se cambia cuando se vincula con usuario
+            activo=activo,
+            creado_por=usuario_maga if usuario_maga else None
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Colaborador creado exitosamente',
+            'colaborador': {
+                'id': str(colaborador.id),
+                'nombre': colaborador.nombre,
+                'puesto_nombre': colaborador.puesto.nombre if colaborador.puesto else None,
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Datos inválidos'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al crear colaborador: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def api_listar_puestos(request):
+    """API: Listar todos los puestos activos"""
+    try:
+        puestos = Puesto.objects.filter(activo=True).order_by('nombre')
+        
+        puestos_list = []
+        for puesto in puestos:
+            puestos_list.append({
+                'id': str(puesto.id),
+                'codigo': puesto.codigo,
+                'nombre': puesto.nombre,
+                'descripcion': puesto.descripcion or '',
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'puestos': puestos_list
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al listar puestos: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["POST"])
+def api_crear_puesto(request):
+    """API: Crear un nuevo puesto"""
+    try:
+        data = json.loads(request.body or '{}')
+        
+        codigo = data.get('codigo', '').strip().upper()
+        nombre = data.get('nombre', '').strip()
+        descripcion = data.get('descripcion', '').strip()
+        
+        # Validaciones
+        if not codigo or not nombre:
+            return JsonResponse({
+                'success': False,
+                'error': 'Código y nombre son requeridos'
+            }, status=400)
+        
+        # Verificar código único
+        if Puesto.objects.filter(codigo=codigo).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'El código del puesto ya existe'
+            }, status=400)
+        
+        # Crear puesto
+        puesto = Puesto.objects.create(
+            codigo=codigo,
+            nombre=nombre,
+            descripcion=descripcion if descripcion else None,
+            activo=True
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Puesto creado exitosamente',
+            'puesto': {
+                'id': str(puesto.id),
+                'codigo': puesto.codigo,
+                'nombre': puesto.nombre,
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Datos inválidos'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al crear puesto: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["GET"])
+def api_obtener_usuario(request, usuario_id):
+    """API: Obtener un usuario específico"""
+    try:
+        usuario = Usuario.objects.select_related('puesto', 'colaborador__puesto').get(id=usuario_id)
+        
+        # Obtener colaborador vinculado si existe (usando la relación inversa OneToOne)
+        colaborador = usuario.colaborador if hasattr(usuario, 'colaborador') else None
+        colaborador_id = str(colaborador.id) if colaborador else None
+        colaborador_nombre = colaborador.nombre if colaborador else None
+        tiene_colaborador = colaborador is not None
+        colaborador_puesto_id = str(colaborador.puesto.id) if colaborador and colaborador.puesto else None
+        
+        # Determinar el puesto a mostrar: primero del usuario, luego del colaborador
+        puesto_id = None
+        puesto_nombre = None
+        
+        if usuario.puesto:
+            puesto_id = str(usuario.puesto.id)
+            puesto_nombre = usuario.puesto.nombre
+        elif colaborador and colaborador.puesto:
+            puesto_id = str(colaborador.puesto.id)
+            puesto_nombre = colaborador.puesto.nombre
+        
+        return JsonResponse({
+            'success': True,
+            'usuario': {
+                'id': str(usuario.id),
+                'username': usuario.username,
+                'nombre': usuario.nombre,
+                'email': usuario.email,
+                'telefono': usuario.telefono,
+                'rol': usuario.rol,
+                'rol_display': 'Administrador' if usuario.rol == 'admin' else 'Personal',
+                'puesto_id': puesto_id,
+                'puesto_nombre': puesto_nombre,
+                'activo': usuario.activo,
+                'tiene_colaborador': tiene_colaborador,
+                'colaborador_id': colaborador_id,
+                'colaborador_nombre': colaborador_nombre,
+                'colaborador_puesto_id': colaborador_puesto_id,
+            }
+        })
+    except Usuario.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener usuario: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["POST"])
+def api_actualizar_usuario(request, usuario_id):
+    """API: Actualizar un usuario existente"""
+    try:
+        usuario = Usuario.objects.get(id=usuario_id)
+        data = json.loads(request.body or '{}')
+        
+        nombre = data.get('nombre', '').strip()
+        email = data.get('email', '').strip()
+        telefono = data.get('telefono', '').strip()
+        password = data.get('password', '')
+        password_confirm = data.get('password_confirm', '')
+        rol = data.get('rol', '').strip()
+        puesto_id = data.get('puesto_id', '').strip()
+        
+        # Validaciones
+        if not email:
+            return JsonResponse({
+                'success': False,
+                'error': 'El email es requerido'
+            }, status=400)
+        
+        # Validar email único (excepto el mismo usuario)
+        if Usuario.objects.filter(email=email).exclude(id=usuario_id).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'El email ya está en uso'
+            }, status=400)
+        
+        # Validar contraseña si se proporciona
+        if password:
+            if password != password_confirm:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Las contraseñas no coinciden'
+                }, status=400)
+            
+            if len(password) < 8:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'La contraseña debe tener al menos 8 caracteres'
+                }, status=400)
+        
+        # Validar rol
+        if rol not in ['admin', 'personal']:
+            return JsonResponse({
+                'success': False,
+                'error': 'Rol inválido'
+            }, status=400)
+        
+        # Obtener colaborador vinculado si existe (usando la relación inversa OneToOne)
+        colaborador = usuario.colaborador if hasattr(usuario, 'colaborador') else None
+        tiene_colaborador = colaborador is not None
+        
+        # Validar y asignar puesto según la restricción de base de datos:
+        # - Si rol es 'admin': puesto del usuario DEBE ser NULL
+        # - Si rol es 'personal': puesto del usuario DEBE tener un valor
+        puesto = None
+        puesto_colaborador = None
+        
+        if rol == 'personal':
+            # Para rol personal, el puesto es requerido
+            if puesto_id:
+                try:
+                    puesto = Puesto.objects.get(id=puesto_id, activo=True)
+                except Puesto.DoesNotExist:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Puesto no encontrado'
+                    }, status=404)
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El puesto es requerido para el rol personal'
+                }, status=400)
+        elif rol == 'admin':
+            # Para rol admin, el puesto del usuario DEBE ser NULL
+            # Si tiene colaborador vinculado y se proporciona puesto, actualizar solo el colaborador
+            if puesto_id:
+                try:
+                    puesto_colaborador = Puesto.objects.get(id=puesto_id, activo=True)
+                except Puesto.DoesNotExist:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Puesto no encontrado'
+                    }, status=404)
+            # puesto sigue siendo None para el usuario (cumple la restricción)
+        
+        # Actualizar usuario
+        usuario.nombre = nombre if nombre else None
+        usuario.email = email
+        usuario.telefono = telefono if telefono else None
+        usuario.rol = rol
+        usuario.puesto = puesto  # None para admin, valor para personal
+        
+        # Actualizar contraseña si se proporciona
+        if password:
+            from django.contrib.auth.hashers import make_password
+            usuario.password_hash = make_password(password)
+        
+        usuario.save()
+        
+        # Si el usuario tiene colaborador vinculado, también actualizar campos comunes
+        if colaborador:
+            # Actualizar puesto del colaborador si se proporcionó
+            if puesto_id:
+                puesto_a_asignar = puesto if puesto else puesto_colaborador
+                if puesto_a_asignar:
+                    colaborador.puesto = puesto_a_asignar
+            
+            # Sincronizar campos comunes: nombre, email, teléfono
+            # Solo actualizar si el valor no está vacío
+            if nombre:
+                colaborador.nombre = nombre
+            if email:
+                colaborador.correo = email
+            if telefono:
+                colaborador.telefono = telefono
+            
+            colaborador.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Usuario actualizado exitosamente',
+            'usuario': {
+                'id': str(usuario.id),
+                'username': usuario.username,
+                'email': usuario.email,
+                'rol': usuario.rol
+            }
+        })
+        
+    except Usuario.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Datos inválidos'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar usuario: {str(e)}'
+        }, status=500)
+
+
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
@@ -3896,6 +4662,48 @@ def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id)
         }, status=500)
 
 
+@solo_administrador
+@require_http_methods(["POST"])
+def api_eliminar_usuario(request, usuario_id):
+    """API: Eliminar (desactivar) un usuario"""
+    try:
+        usuario = Usuario.objects.get(id=usuario_id)
+        
+        # Verificar si tiene colaborador vinculado
+        try:
+            colaborador = Colaborador.objects.get(usuario=usuario)
+            # Desvincular colaborador
+            colaborador.usuario = None
+            colaborador.es_personal_fijo = False
+            colaborador.save()
+        except Colaborador.DoesNotExist:
+            pass
+        
+        # Desactivar usuario en lugar de eliminarlo
+        usuario.activo = False
+        usuario.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Usuario eliminado exitosamente'
+        })
+        
+    except Usuario.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado'
+>>>>>>> dd1d451766b35649fd3ed7fc07041e84e028a1bf
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+<<<<<<< HEAD
+            'error': f'Error al actualizar evidencia: {str(e)}'
+        }, status=500)
+
+
 @permiso_gestionar_eventos
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
@@ -3948,4 +4756,205 @@ def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
         return JsonResponse({
             'success': False,
             'error': f'Error al eliminar evidencia: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["POST"])
+def api_actualizar_colaborador(request, colaborador_id):
+    """API: Actualizar un colaborador existente"""
+    try:
+        colaborador = Colaborador.objects.get(id=colaborador_id)
+        data = json.loads(request.body or '{}')
+        
+        nombre = data.get('nombre', '').strip()
+        puesto_id = data.get('puesto_id', '').strip()
+        descripcion = data.get('descripcion', '').strip()
+        telefono = data.get('telefono', '').strip()
+        correo = data.get('correo', '').strip()
+        dpi = data.get('dpi', '').strip()
+        es_personal_fijo = data.get('es_personal_fijo', False)
+        activo = data.get('activo', True)
+        
+        # Validaciones
+        if not nombre:
+            return JsonResponse({
+                'success': False,
+                'error': 'El nombre es requerido'
+            }, status=400)
+        
+        # Validar puesto si se proporciona
+        puesto = None
+        if puesto_id:
+            try:
+                puesto = Puesto.objects.get(id=puesto_id, activo=True)
+            except Puesto.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Puesto no encontrado'
+                }, status=404)
+        
+        # Validar que si tiene usuario, no se puede cambiar es_personal_fijo a False
+        if colaborador.usuario and not es_personal_fijo:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se puede desmarcar como personal fijo si tiene usuario asignado'
+            }, status=400)
+        
+        # Actualizar colaborador
+        colaborador.nombre = nombre
+        colaborador.puesto = puesto
+        colaborador.descripcion = descripcion if descripcion else None
+        colaborador.telefono = telefono if telefono else None
+        colaborador.correo = correo if correo else None
+        colaborador.dpi = dpi if dpi else None
+        colaborador.es_personal_fijo = es_personal_fijo
+        colaborador.activo = activo
+        colaborador.save()
+        
+        # Si el colaborador tiene usuario vinculado, también actualizar campos comunes
+        if colaborador.usuario:
+            usuario = colaborador.usuario
+            
+            # Sincronizar campos comunes: nombre, email, teléfono
+            # Solo actualizar si el valor no está vacío
+            if nombre:
+                usuario.nombre = nombre
+            if correo:
+                usuario.email = correo
+            if telefono:
+                usuario.telefono = telefono
+            
+            # Actualizar puesto del usuario solo si el rol es 'personal'
+            # (Los administradores no pueden tener puesto según la restricción)
+            if puesto and usuario.rol == 'personal':
+                usuario.puesto = puesto
+            
+            usuario.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Colaborador actualizado exitosamente',
+            'colaborador': {
+                'id': str(colaborador.id),
+                'nombre': colaborador.nombre,
+                'puesto_nombre': colaborador.puesto.nombre if colaborador.puesto else None,
+            }
+        })
+        
+    except Colaborador.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Colaborador no encontrado'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Datos inválidos'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar colaborador: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["POST"])
+def api_eliminar_colaborador(request, colaborador_id):
+    """API: Eliminar (desactivar) un colaborador"""
+    try:
+        colaborador = Colaborador.objects.get(id=colaborador_id)
+        
+        # Verificar si tiene usuario vinculado
+        if colaborador.usuario:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se puede eliminar un colaborador que tiene usuario asignado. Primero elimine el usuario.'
+            }, status=400)
+        
+        # Desactivar colaborador en lugar de eliminarlo
+        colaborador.activo = False
+        colaborador.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Colaborador eliminado exitosamente'
+        })
+        
+    except Colaborador.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Colaborador no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al eliminar colaborador: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+def api_verificar_admin(request):
+    """API: Verificar credenciales de administrador"""
+    try:
+        data = json.loads(request.body or '{}')
+        
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        
+        if not username or not password:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario y contraseña son requeridos'
+            }, status=400)
+        
+        # Obtener usuario
+        try:
+            usuario = Usuario.objects.get(username=username, activo=True)
+        except Usuario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Credenciales incorrectas'
+            }, status=401)
+        
+        # Verificar que sea administrador
+        if usuario.rol != 'admin':
+            return JsonResponse({
+                'success': False,
+                'error': 'Solo los administradores pueden realizar esta acción'
+            }, status=403)
+        
+        # Verificar contraseña usando el backend personalizado
+        # Esto maneja diferentes tipos de hash (pgcrypto, Django hashers, etc.)
+        from webmaga.authentication import UsuarioMAGABackend
+        backend = UsuarioMAGABackend()
+        
+        if not backend._check_password(password, usuario.password_hash):
+            return JsonResponse({
+                'success': False,
+                'error': 'Credenciales incorrectas'
+            }, status=401)
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Credenciales verificadas'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Datos inválidos'
+        }, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al verificar credenciales: {str(e)}'
+>>>>>>> dd1d451766b35649fd3ed7fc07041e84e028a1bf
         }, status=500)

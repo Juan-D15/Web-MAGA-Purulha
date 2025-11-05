@@ -14,6 +14,7 @@ urlpatterns = [
     path('regiones/', views.regiones, name='regiones'),
     path('proyectos/', views.proyectos, name='proyectos'),
     path('gestioneseventos/', views.gestioneseventos, name='gestioneseventos'),
+    path('gestionusuarios/', views.gestionusuarios, name='gestionusuarios'),
     path('generarreportes/', views.generarreportes, name='generarreportes'),
     path('mapa-completo/', views.mapa_completo, name='mapa-completo'),
     
@@ -44,6 +45,20 @@ urlpatterns = [
     path('api/beneficiarios/', views.api_listar_beneficiarios, name='api-beneficiarios'),
     path('api/beneficiario/<uuid:beneficiario_id>/', views.api_obtener_beneficiario, name='api-obtener-beneficiario'),
     path('api/verificar-admin/', views.api_verificar_admin, name='api-verificar-admin'),
+    
+    # APIs de Gestión de Usuarios y Colaboradores
+    path('api/usuarios/', views.api_listar_usuarios, name='api-listar-usuarios'),
+    path('api/usuario/<uuid:usuario_id>/', views.api_obtener_usuario, name='api-obtener-usuario'),
+    path('api/usuario/crear/', views.api_crear_usuario, name='api-crear-usuario'),
+    path('api/usuario/<uuid:usuario_id>/actualizar/', views.api_actualizar_usuario, name='api-actualizar-usuario'),
+    path('api/usuario/<uuid:usuario_id>/eliminar/', views.api_eliminar_usuario, name='api-eliminar-usuario'),
+    path('api/colaboradores/', views.api_listar_colaboradores, name='api-listar-colaboradores'),
+    path('api/colaborador/<uuid:colaborador_id>/', views.api_obtener_colaborador, name='api-obtener-colaborador'),
+    path('api/colaborador/crear/', views.api_crear_colaborador, name='api-crear-colaborador'),
+    path('api/colaborador/<uuid:colaborador_id>/actualizar/', views.api_actualizar_colaborador, name='api-actualizar-colaborador'),
+    path('api/colaborador/<uuid:colaborador_id>/eliminar/', views.api_eliminar_colaborador, name='api-eliminar-colaborador'),
+    path('api/puestos/', views.api_listar_puestos, name='api-listar-puestos'),
+    path('api/puesto/crear/', views.api_crear_puesto, name='api-crear-puesto'),
     
     # APIs de Proyectos
     path('api/proyectos/<str:tipo_actividad>/', views.api_listar_proyectos_por_tipo, name='api-proyectos-por-tipo'),
