@@ -79,6 +79,7 @@
                 <div class="dd__grid">
                   <a class="dd__item" href="#" onclick="handleGestionesAction('createEventView'); return false;" role="menuitem" tabindex="0">Agregar Evento</a>
                   <a class="dd__item" href="#" onclick="handleGestionesAction('manageEventView'); return false;" role="menuitem" tabindex="0">Editar Evento</a>
+                  <a class="dd__item" href="{% url 'webmaga:gestionusuarios' %}" role="menuitem" tabindex="0">Gestión Usuarios</a>
                   <a class="dd__item" href="#" onclick="handleGestionesAction('createReport'); return false;" role="menuitem" tabindex="0">Crear Reporte</a>
                 </div>
               </div>
@@ -239,6 +240,7 @@
           <div class="ddm__panel">
             <a href="#" onclick="handleGestionesAction('createEventView'); return false;" class="ddm__item">Agregar Evento</a>
             <a href="#" onclick="handleGestionesAction('manageEventView'); return false;" class="ddm__item">Editar Evento</a>
+            <a href="{% url 'webmaga:gestionusuarios' %}" class="ddm__item">Gestión Usuarios</a>
             <a href="#" onclick="handleGestionesAction('createReport'); return false;" class="ddm__item">Crear Reporte</a>
           </div>
         </div>
