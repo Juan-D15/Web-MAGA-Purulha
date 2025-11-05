@@ -1,0 +1,826 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Reportes — MAGA Purulhá{% endblock %}
+
+{% block header_subtitle %}Reportes y Estadísticas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reportes.css' %}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- ======= MAIN CONTENT ======= -->
+<main class="reportes-main">
+  <div class="reportes-container">
+    
+    <!-- ======= SECCIÓN 1: DASHBOARD EJECUTIVO ======= -->
+    <section class="dashboard-section" id="dashboardSection">
+      <h2 class="section-title">Dashboard Ejecutivo</h2>
+      
+      <!-- Tarjetas de Métricas Principales -->
+      <div class="metrics-grid" id="metricsGrid">
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricTotalActividades">-</h3>
+            <p class="metric-label">Total de Actividades</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricComunidades">-</h3>
+            <p class="metric-label">Comunidades Alcanzadas</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricTrabajadores">-</h3>
+            <p class="metric-label">Trabajadores Activos</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricBeneficiarios">-</h3>
+            <p class="metric-label">Beneficiarios Alcanzados</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricCompletadasMes">-</h3>
+            <p class="metric-label">Completadas este Mes</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricPendientes">-</h3>
+            <p class="metric-label">Actividades Pendientes</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficos Principales -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3 class="chart-title">Actividades por Mes</h3>
+          <div class="chart-container">
+            <canvas id="chartActividadesMes"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3 class="chart-title">Distribución por Tipo</h3>
+          <div class="chart-container">
+            <canvas id="chartPorTipo"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3 class="chart-title">Actividades por Región (Top 5)</h3>
+          <div class="chart-container">
+            <canvas id="chartPorRegion"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3 class="chart-title">Estado de Actividades</h3>
+          <div class="chart-container">
+            <canvas id="chartEstado"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tablas Resumen -->
+      <div class="tables-grid">
+        <div class="table-card">
+          <h3 class="table-title">Top 5 Comunidades Más Activas</h3>
+          <div class="table-container">
+            <table class="results-table" id="tableComunidadesActivas">
+              <thead>
+                <tr>
+                  <th>Comunidad</th>
+                  <th>Región</th>
+                  <th>Total Actividades</th>
+                  <th>Última Actividad</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="4" class="loading-cell">Cargando datos...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <h3 class="table-title">Top 5 Responsables Más Productivos</h3>
+          <div class="table-container">
+            <table class="results-table" id="tableResponsables">
+              <thead>
+                <tr>
+                  <th>Responsable</th>
+                  <th>Puesto</th>
+                  <th>Completadas</th>
+                  <th>En Progreso</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="4" class="loading-cell">Cargando datos...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <h3 class="table-title">Próximas Actividades (7 días)</h3>
+          <div class="table-container">
+            <table class="results-table" id="tableProximas">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Fecha</th>
+                  <th>Comunidad</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="4" class="loading-cell">Cargando datos...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN 2: TARJETAS DE REPORTES ======= -->
+    <section class="reports-section" id="reportsSection">
+      <h2 class="section-title">Reportes Disponibles</h2>
+
+      <!-- Categoría 1: Reportes por Ubicación -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes por Ubicación</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="actividades-por-region-comunidad">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </div>
+            <h4 class="card-title">Actividades por Región o Comunidad</h4>
+            <p class="card-description">Reporte detallado de actividades agrupadas por región o comunidad</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="beneficiarios-por-region-comunidad">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h4 class="card-title">Beneficiarios por Región o Comunidad</h4>
+            <p class="card-description">Reporte detallado de beneficiarios agrupados por región o comunidad</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categoría 2: Reportes de Personal -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes de Personal</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="actividades-por-responsable">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h4 class="card-title">Actividades por Responsable</h4>
+            <p class="card-description">Actividades asignadas a cada responsable/usuario</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="participacion-colaboradores">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h4 class="card-title">Participación de Colaboradores</h4>
+            <p class="card-description">Participación de colaboradores en actividades</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categoría 3: Reportes de Tipos de Actividad -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes de Tipos de Actividad</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="distribucion-por-tipo">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="2" x2="12" y2="6"></line>
+                <line x1="12" y1="18" x2="12" y2="22"></line>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                <line x1="2" y1="12" x2="6" y2="12"></line>
+                <line x1="18" y1="12" x2="22" y2="12"></line>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+              </svg>
+            </div>
+            <h4 class="card-title">Distribución por Tipo</h4>
+            <p class="card-description">Análisis de distribución de actividades por tipo</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="beneficiarios-por-tipo-actividad">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h4 class="card-title">Beneficiarios por Tipo de Actividad</h4>
+            <p class="card-description">Beneficiarios alcanzados por cada tipo de actividad</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categoría 4: Reportes de Beneficiarios -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes de Beneficiarios</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="beneficiarios-por-tipo">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h4 class="card-title">Beneficiarios por Tipo</h4>
+            <p class="card-description">Distribución de beneficiarios: Individual, Familia, Institución</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="distribucion-por-genero">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h4 class="card-title">Distribución por Género</h4>
+            <p class="card-description">Distribución de beneficiarios individuales por género</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="comunidades-mas-beneficiarios">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </div>
+            <h4 class="card-title">Comunidades con Más Beneficiarios</h4>
+            <p class="card-description">Ranking de comunidades con mayor número de beneficiarios</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="eventos-mas-beneficiarios">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Eventos con Más Beneficiarios</h4>
+            <p class="card-description">Eventos con mayor número de beneficiarios participantes</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categoría 5: Reportes Temporales -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes Temporales</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="actividades-por-periodo">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Actividades por Período</h4>
+            <p class="card-description">Actividades agrupadas por período (semanal, mensual, trimestral, anual)</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="tendencia-eventos">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Tendencia de Eventos</h4>
+            <p class="card-description">Análisis de tendencias de eventos en el tiempo</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="eventos-proximos">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Eventos Próximos</h4>
+            <p class="card-description">Eventos programados para los próximos 7 o 30 días</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categoría 6: Reportes de Evidencia -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes de Evidencia</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="actividades-con-evidencias">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Actividades con/sin Evidencias</h4>
+            <p class="card-description">Estado de evidencias en actividades</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="evidencias-por-actividad">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Evidencias por Actividad</h4>
+            <p class="card-description">Cantidad de evidencias por actividad</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="avances-con-evidencias">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Avances de Proyectos con Evidencias</h4>
+            <p class="card-description">Proyectos con evidencias y sus avances</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categoría 7: Reportes de Comunidades -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes de Comunidades</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="comunidades-mas-activas">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </div>
+            <h4 class="card-title">Comunidades Más Activas</h4>
+            <p class="card-description">Ranking de comunidades con mayor actividad</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="comunidades-sin-actividades">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </div>
+            <h4 class="card-title">Comunidades sin Actividades</h4>
+            <p class="card-description">Comunidades que no tienen actividades registradas</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="distribucion-por-tipo-comunidad">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+              </svg>
+            </div>
+            <h4 class="card-title">Distribución por Tipo</h4>
+            <p class="card-description">Distribución de comunidades por tipo (barrio, caserío, aldea, municipio)</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="comunidades-por-region">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+            </div>
+            <h4 class="card-title">Comunidades por Región</h4>
+            <p class="card-description">Distribución de comunidades agrupadas por región</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Categoría 8: Reportes de Auditoría -->
+      <div class="category-section">
+        <h3 class="category-title">Reportes de Auditoría</h3>
+        <div class="reports-grid">
+          <div class="report-card" data-report-type="cambios-actividades">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Cambios en Actividades</h4>
+            <p class="card-description">Historial de cambios realizados en actividades</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="actividad-usuarios">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h4 class="card-title">Actividad de Usuarios</h4>
+            <p class="card-description">Registro de actividad de usuarios en el sistema</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="operaciones-por-usuario">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <h4 class="card-title">Operaciones por Usuario</h4>
+            <p class="card-description">Registro de operaciones realizadas por cada usuario</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN 3: PANEL DE FILTROS Y RESULTADOS ======= -->
+    <section class="results-section" id="resultsSection" style="display: none;">
+      <div class="results-header">
+        <button class="btn-back" id="backFromResultsBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"></path>
+          </svg>
+          Volver
+        </button>
+        <h2 class="results-title" id="resultsTitle">Resultados del Reporte</h2>
+      </div>
+
+      <!-- Panel de Filtros - Formularios específicos por tipo de reporte -->
+      <div class="filters-panel" id="filtersPanel">
+        <div class="filters-header">
+          <h3 class="filters-title">Filtros</h3>
+          <button class="filters-toggle" id="filtersToggle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div class="filters-content" id="filtersContent">
+          <!-- Formulario: Actividades por Región o Comunidad -->
+          <div class="report-form" id="form-actividades-por-region-comunidad" style="display: none;">
+            <div class="filters-grid">
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Agrupar por</label>
+                <div class="switch-container">
+                  <label class="switch">
+                    <input type="checkbox" id="switchAgruparActividades">
+                    <span class="switch-slider"></span>
+                  </label>
+                  <span class="switch-label" id="switchLabelActividades">Región</span>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Período de Fechas</label>
+                <div class="date-selector">
+                  <select class="filter-select" id="filterPeriodoActividades">
+                    <option value="ultimo_mes">Último mes</option>
+                    <option value="ultima_semana">Esta última semana</option>
+                    <option value="rango">Rango de fechas</option>
+                  </select>
+                </div>
+                <div class="date-range-container" id="dateRangeActividades" style="display: none;">
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Inicio</label>
+                    <input type="date" class="filter-input" id="filterFechaInicioActividades">
+                  </div>
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Fin</label>
+                    <input type="date" class="filter-input" id="filterFechaFinActividades">
+                  </div>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Estado del Evento</label>
+                <div class="filter-checkboxes" id="filterEstadoActividades">
+                  <label><input type="checkbox" value="planificado" checked> Planificado</label>
+                  <label><input type="checkbox" value="en_progreso" checked> En Progreso</label>
+                  <label><input type="checkbox" value="completado" checked> Completado</label>
+                  <label><input type="checkbox" value="cancelado" checked> Cancelado</label>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Actividad</label>
+                <select class="filter-select" id="filterTipoActividadActividades" multiple>
+                  <option value="">Cargando...</option>
+                </select>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Buscar Comunidad</label>
+                <div class="search-input-container">
+                  <input type="text" class="filter-input filter-search" id="searchComunidadActividades" placeholder="Buscar comunidades...">
+                  <div class="search-results" id="searchResultsActividades" style="display: none;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('actividades-por-region-comunidad')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('actividades-por-region-comunidad')">Aplicar Filtros</button>
+            </div>
+          </div>
+          
+          <!-- Formulario: Beneficiarios por Región o Comunidad -->
+          <div class="report-form" id="form-beneficiarios-por-region-comunidad" style="display: none;">
+            <div class="filters-grid">
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Agrupar por</label>
+                <div class="switch-container">
+                  <label class="switch">
+                    <input type="checkbox" id="switchAgruparBeneficiarios">
+                    <span class="switch-slider"></span>
+                  </label>
+                  <span class="switch-label" id="switchLabelBeneficiarios">Región</span>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Período de Fechas</label>
+                <div class="date-selector">
+                  <select class="filter-select" id="filterPeriodoBeneficiarios">
+                    <option value="ultimo_mes">Último mes</option>
+                    <option value="ultima_semana">Esta última semana</option>
+                    <option value="rango">Rango de fechas</option>
+                  </select>
+                </div>
+                <div class="date-range-container" id="dateRangeBeneficiarios" style="display: none;">
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Inicio</label>
+                    <input type="date" class="filter-input" id="filterFechaInicioBeneficiarios">
+                  </div>
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Fin</label>
+                    <input type="date" class="filter-input" id="filterFechaFinBeneficiarios">
+                  </div>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Actividad</label>
+                <select class="filter-select" id="filterTipoActividadBeneficiarios" multiple>
+                  <option value="">Cargando...</option>
+                </select>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Beneficiario</label>
+                <div class="filter-checkboxes" id="filterTipoBeneficiarioBeneficiarios">
+                  <label><input type="checkbox" value="individual" checked> Individual</label>
+                  <label><input type="checkbox" value="familia" checked> Familia</label>
+                  <label><input type="checkbox" value="institución" checked> Institución</label>
+                  <label><input type="checkbox" value="otro" checked> Otro</label>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Buscar Comunidad</label>
+                <div class="search-input-container">
+                  <input type="text" class="filter-input filter-search" id="searchComunidadBeneficiarios" placeholder="Buscar comunidades...">
+                  <div class="search-results" id="searchResultsBeneficiarios" style="display: none;"></div>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Filtrar por Evento</label>
+                <select class="filter-select" id="filterEventoBeneficiarios">
+                  <option value="">Todos los eventos</option>
+                </select>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('beneficiarios-por-region-comunidad')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('beneficiarios-por-region-comunidad')">Aplicar Filtros</button>
+            </div>
+          </div>
+          
+          <!-- Formulario genérico para otros reportes -->
+          <div class="report-form" id="form-generic" style="display: none;">
+            <div class="filters-grid">
+              <div class="filter-group">
+                <label class="filter-label">Fecha Inicio</label>
+                <input type="date" class="filter-input" id="filterFechaInicio">
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Fecha Fin</label>
+                <input type="date" class="filter-input" id="filterFechaFin">
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Región</label>
+                <select class="filter-select" id="filterRegion" multiple>
+                  <option value="">Cargando...</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Comunidad</label>
+                <select class="filter-select" id="filterComunidad" multiple>
+                  <option value="">Seleccione primero una región</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Estado</label>
+                <div class="filter-checkboxes" id="filterEstadoCheckboxes">
+                  <label><input type="checkbox" value="planificado" checked> Planificado</label>
+                  <label><input type="checkbox" value="en_progreso" checked> En Progreso</label>
+                  <label><input type="checkbox" value="completado" checked> Completado</label>
+                  <label><input type="checkbox" value="cancelado" checked> Cancelado</label>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Tipo de Actividad</label>
+                <select class="filter-select" id="filterTipoActividad" multiple>
+                  <option value="">Cargando...</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Responsable</label>
+                <select class="filter-select" id="filterResponsable">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Tipo de Beneficiario</label>
+                <div class="filter-checkboxes" id="filterTipoBeneficiarioCheckboxes">
+                  <label><input type="checkbox" value="individual" checked> Individual</label>
+                  <label><input type="checkbox" value="familia" checked> Familia</label>
+                  <label><input type="checkbox" value="institución" checked> Institución</label>
+                </div>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" id="resetFiltersBtn">Limpiar Filtros</button>
+              <button class="btn-primary" id="applyFiltersBtn">Aplicar Filtros</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultados -->
+      <div class="results-content" id="resultsContent">
+        <div class="export-buttons">
+          <button class="btn-export" data-format="pdf" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Exportar PDF
+          </button>
+          <button class="btn-export" data-format="excel" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Exportar Excel
+          </button>
+          <button class="btn-export" data-format="word" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Exportar Word
+          </button>
+        </div>
+
+        <div class="results-container" id="resultsContainer">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Generando reporte...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/reportes.js' %}"></script>
+{% endblock %}
+

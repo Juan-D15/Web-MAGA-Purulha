@@ -6,7 +6,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum, Avg, Max, Min, F
+from django.db.models.functions import TruncMonth, TruncYear, Extract
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 from django.db import transaction
@@ -534,8 +535,14 @@ def api_regiones(request):
     ).values(
         'id', 'codigo', 'nombre', 'descripcion', 'comunidad_sede', 
         'poblacion_aprox', 'num_comunidades'
-    )
+    ).order_by('codigo')
     return JsonResponse(list(regiones), safe=False)
+
+
+def api_tipos_actividad(request):
+    """API: Listar todos los tipos de actividad activos"""
+    tipos = TipoActividad.objects.filter(activo=True).values('id', 'nombre', 'descripcion').order_by('nombre')
+    return JsonResponse(list(tipos), safe=False)
 
 
 def api_comunidades(request):
@@ -3788,3 +3795,578 @@ def api_verificar_admin(request):
             'success': False,
             'error': f'Error al verificar credenciales: {str(e)}'
         }, status=500)
+
+
+# =====================================================
+# VISTAS DE REPORTES
+# =====================================================
+
+@solo_administrador
+def reportes_index(request):
+    """Vista principal del módulo de reportes"""
+    context = {
+        'es_admin': True,  # Ya viene del context_processor
+    }
+    return render(request, 'reportes.html', context)
+
+
+@solo_administrador
+def api_dashboard_stats(request):
+    """API para obtener estadísticas del dashboard ejecutivo"""
+    try:
+        from datetime import datetime, timedelta
+        from django.utils import timezone as tz
+        
+        # Obtener fecha actual y mes actual
+        ahora = tz.now()
+        inicio_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Filtro base para actividades no eliminadas
+        actividades_base = Actividad.objects.filter(eliminado_en__isnull=True)
+        
+        # Total de actividades
+        total_actividades = actividades_base.count()
+        
+        # Comunidades alcanzadas (distintas)
+        comunidades_alcanzadas = actividades_base.values('comunidad_id').distinct().count()
+        
+        # Trabajadores activos (usuarios activos + colaboradores activos)
+        trabajadores_activos = Usuario.objects.filter(activo=True).count() + \
+                              Colaborador.objects.filter(activo=True).count()
+        
+        # Beneficiarios alcanzados (distintos)
+        beneficiarios_alcanzados = ActividadBeneficiario.objects.values('beneficiario_id').distinct().count()
+        
+        # Actividades completadas este mes
+        actividades_completadas_mes = actividades_base.filter(
+            estado='completado',
+            fecha__gte=inicio_mes
+        ).count()
+        
+        # Actividades pendientes (planificadas o en progreso)
+        actividades_pendientes = actividades_base.filter(
+            estado__in=['planificado', 'en_progreso']
+        ).count()
+        
+        # Actividades por mes (últimos 12 meses)
+        actividades_por_mes = actividades_base.filter(
+            fecha__gte=ahora - timedelta(days=365)
+        ).annotate(
+            mes=TruncMonth('fecha')
+        ).values('mes').annotate(
+            total=Count('id')
+        ).order_by('mes')
+        
+        actividades_por_mes_list = []
+        for item in actividades_por_mes:
+            if item['mes']:
+                fecha = item['mes']
+                actividades_por_mes_list.append({
+                    'mes': fecha.strftime('%Y-%m'),
+                    'total': item['total']
+                })
+        
+        # Distribución por tipo
+        distribucion_por_tipo = {}
+        tipos_actividad = TipoActividad.objects.filter(activo=True)
+        for tipo in tipos_actividad:
+            count = actividades_base.filter(tipo_id=tipo.id).count()
+            if count > 0:
+                distribucion_por_tipo[tipo.nombre] = count
+        
+        # Actividades por región (Top 5)
+        actividades_por_region = actividades_base.select_related('comunidad__region').values(
+            'comunidad__region__nombre'
+        ).annotate(
+            total=Count('id')
+        ).order_by('-total')[:5]
+        
+        actividades_por_region_list = [
+            {
+                'region': item['comunidad__region__nombre'] or 'Sin región',
+                'total': item['total']
+            }
+            for item in actividades_por_region
+        ]
+        
+        # Estado de actividades
+        estado_actividades = {}
+        estados = ['planificado', 'en_progreso', 'completado', 'cancelado']
+        for estado in estados:
+            estado_actividades[estado] = actividades_base.filter(estado=estado).count()
+        
+        # Top 5 comunidades más activas
+        top_comunidades = actividades_base.select_related('comunidad__region').values(
+            'comunidad__nombre',
+            'comunidad__region__nombre'
+        ).annotate(
+            total_actividades=Count('id'),
+            ultima_actividad=Max('fecha')
+        ).order_by('-total_actividades')[:5]
+        
+        top_comunidades_list = [
+            {
+                'comunidad': item['comunidad__nombre'] or 'Sin comunidad',
+                'region': item['comunidad__region__nombre'] or 'Sin región',
+                'total_actividades': item['total_actividades'],
+                'ultima_actividad': item['ultima_actividad'].strftime('%Y-%m-%d') if item['ultima_actividad'] else '-'
+            }
+            for item in top_comunidades
+        ]
+        
+        # Top 5 responsables más productivos
+        top_responsables = actividades_base.select_related('responsable__puesto').filter(
+            responsable__isnull=False
+        ).values(
+            'responsable__username',
+            'responsable__puesto__nombre'
+        ).annotate(
+            completadas=Count('id', filter=Q(estado='completado')),
+            en_progreso=Count('id', filter=Q(estado='en_progreso'))
+        ).order_by('-completadas')[:5]
+        
+        top_responsables_list = [
+            {
+                'responsable': item['responsable__username'] or 'Sin responsable',
+                'puesto': item['responsable__puesto__nombre'] or '-',
+                'completadas': item['completadas'],
+                'en_progreso': item['en_progreso']
+            }
+            for item in top_responsables
+        ]
+        
+        # Próximas actividades (7 días)
+        proximas = actividades_base.filter(
+            fecha__gte=ahora,
+            fecha__lte=ahora + timedelta(days=7)
+        ).select_related('comunidad').order_by('fecha')[:10]
+        
+        proximas_list = [
+            {
+                'nombre': act.nombre,
+                'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
+                'comunidad': act.comunidad.nombre if act.comunidad else 'Sin comunidad',
+                'estado': act.estado
+            }
+            for act in proximas
+        ]
+        
+        return JsonResponse({
+            'total_actividades': total_actividades,
+            'comunidades_alcanzadas': comunidades_alcanzadas,
+            'trabajadores_activos': trabajadores_activos,
+            'beneficiarios_alcanzados': beneficiarios_alcanzados,
+            'actividades_completadas_mes': actividades_completadas_mes,
+            'actividades_pendientes': actividades_pendientes,
+            'actividades_por_mes': actividades_por_mes_list,
+            'distribucion_por_tipo': distribucion_por_tipo,
+            'actividades_por_region': actividades_por_region_list,
+            'estado_actividades': estado_actividades,
+            'top_comunidades': top_comunidades_list,
+            'top_responsables': top_responsables_list,
+            'proximas_actividades': proximas_list
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'error': f'Error al obtener estadísticas: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+def api_generar_reporte(request, report_type):
+    """API para generar reporte según tipo"""
+    try:
+        from datetime import datetime
+        
+        # Obtener filtros de la request
+        fecha_inicio = request.GET.get('fecha_inicio')
+        fecha_fin = request.GET.get('fecha_fin')
+        region_ids = request.GET.get('region', '').split(',') if request.GET.get('region') else []
+        comunidad_ids = request.GET.get('comunidad', '').split(',') if request.GET.get('comunidad') else []
+        estados = request.GET.get('estado', '').split(',') if request.GET.get('estado') else []
+        tipo_actividad = request.GET.get('tipo_actividad', '').split(',') if request.GET.get('tipo_actividad') else []
+        responsable_id = request.GET.get('responsable')
+        tipo_beneficiario = request.GET.get('tipo_beneficiario', '').split(',') if request.GET.get('tipo_beneficiario') else []
+        
+        # Nuevos filtros para reportes unificados
+        agrupar_por = request.GET.get('agrupar_por', 'region')  # 'region' o 'comunidad'
+        comunidades_filtro = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
+        evento_filtro = request.GET.get('evento')
+        
+        # Construir query base
+        actividades_query = Actividad.objects.filter(eliminado_en__isnull=True)
+        
+        # Aplicar filtros básicos
+        if fecha_inicio:
+            actividades_query = actividades_query.filter(fecha__gte=fecha_inicio)
+        if fecha_fin:
+            actividades_query = actividades_query.filter(fecha__lte=fecha_fin)
+        if region_ids and region_ids[0]:
+            actividades_query = actividades_query.filter(comunidad__region_id__in=region_ids)
+        if comunidad_ids and comunidad_ids[0]:
+            actividades_query = actividades_query.filter(comunidad_id__in=comunidad_ids)
+        if comunidades_filtro and comunidades_filtro[0]:
+            actividades_query = actividades_query.filter(comunidad_id__in=comunidades_filtro)
+        if estados and estados[0]:
+            actividades_query = actividades_query.filter(estado__in=estados)
+        if tipo_actividad and tipo_actividad[0]:
+            tipos = TipoActividad.objects.filter(nombre__in=tipo_actividad, activo=True)
+            actividades_query = actividades_query.filter(tipo_id__in=[t.id for t in tipos])
+        if responsable_id:
+            actividades_query = actividades_query.filter(responsable_id=responsable_id)
+        if evento_filtro:
+            actividades_query = actividades_query.filter(id=evento_filtro)
+        
+        # Generar reporte según tipo
+        data = []
+        
+        # NUEVO: Actividades por Región o Comunidad (unificado)
+        if report_type == 'actividades-por-region-comunidad':
+            if agrupar_por == 'comunidad':
+                # Agrupar por comunidad
+                # Si hay filtro de comunidades, usar solo esas; si no, todas las comunidades
+                if comunidades_filtro and comunidades_filtro[0]:
+                    actividades_filtradas = actividades_query.filter(comunidad_id__in=comunidades_filtro)
+                else:
+                    actividades_filtradas = actividades_query
+                
+                resultado = actividades_filtradas.select_related('comunidad', 'comunidad__region').values(
+                    'comunidad__id',
+                    'comunidad__nombre',
+                    'comunidad__region__nombre'
+                ).annotate(
+                    total_actividades=Count('id', distinct=True)
+                ).order_by('-total_actividades')
+                
+                for item in resultado:
+                    comunidad_id = item['comunidad__id']
+                    if not comunidad_id:
+                        continue
+                    
+                    # Obtener beneficiarios por tipo para esta comunidad
+                    actividades_comunidad = actividades_filtradas.filter(comunidad_id=comunidad_id)
+                    beneficiarios_query = ActividadBeneficiario.objects.filter(
+                        actividad_id__in=actividades_comunidad.values_list('id', flat=True)
+                    ).select_related('beneficiario__tipo')
+                    
+                    total_benef = beneficiarios_query.values('beneficiario_id').distinct().count()
+                    benef_ind = beneficiarios_query.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
+                    benef_fam = beneficiarios_query.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
+                    benef_inst = beneficiarios_query.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                    
+                    # Obtener responsables únicos
+                    responsables = actividades_comunidad.filter(responsable__isnull=False).values_list(
+                        'responsable__username', flat=True
+                    ).distinct()
+                    
+                    # Obtener actividades con detalles
+                    actividades_detalle = []
+                    for act in actividades_comunidad.select_related('comunidad', 'responsable')[:50]:
+                        ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
+                        actividades_detalle.append({
+                            'nombre': act.nombre,
+                            'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
+                            'estado': act.estado,
+                            'comunidad': act.comunidad.nombre if act.comunidad else '-',
+                            'responsable': act.responsable.username if act.responsable else '-',
+                            'total_beneficiarios': ben_count
+                        })
+                    
+                    data.append({
+                        'nombre': item['comunidad__nombre'] or 'Sin comunidad',
+                        'region': item['comunidad__region__nombre'] or 'Sin región',
+                        'total_actividades': item['total_actividades'],
+                        'total_beneficiarios': total_benef,
+                        'beneficiarios_individuales': benef_ind,
+                        'beneficiarios_familias': benef_fam,
+                        'beneficiarios_instituciones': benef_inst,
+                        'responsables': ', '.join(responsables) if responsables else '-',
+                        'actividades': actividades_detalle
+                    })
+            else:
+                # Agrupar por región
+                # Si hay filtro de comunidades, filtrar por esas comunidades primero
+                if comunidades_filtro and comunidades_filtro[0]:
+                    actividades_filtradas = actividades_query.filter(comunidad_id__in=comunidades_filtro)
+                else:
+                    actividades_filtradas = actividades_query
+                
+                resultado = actividades_filtradas.select_related('comunidad__region').values(
+                    'comunidad__region__id',
+                    'comunidad__region__nombre'
+                ).annotate(
+                    total_actividades=Count('id', distinct=True)
+                ).order_by('-total_actividades')
+                
+                for item in resultado:
+                    region_id = item['comunidad__region__id']
+                    if not region_id:
+                        continue
+                    
+                    # Obtener beneficiarios por tipo para esta región
+                    actividades_region = actividades_filtradas.filter(comunidad__region_id=region_id)
+                    beneficiarios_query = ActividadBeneficiario.objects.filter(
+                        actividad_id__in=actividades_region.values_list('id', flat=True)
+                    ).select_related('beneficiario__tipo')
+                    
+                    total_benef = beneficiarios_query.values('beneficiario_id').distinct().count()
+                    benef_ind = beneficiarios_query.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
+                    benef_fam = beneficiarios_query.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
+                    benef_inst = beneficiarios_query.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                    
+                    # Obtener responsables únicos
+                    responsables = actividades_region.filter(responsable__isnull=False).values_list(
+                        'responsable__username', flat=True
+                    ).distinct()
+                    
+                    # Obtener actividades con detalles (limitado)
+                    actividades_detalle = []
+                    for act in actividades_region.select_related('comunidad', 'responsable')[:50]:
+                        ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
+                        actividades_detalle.append({
+                            'nombre': act.nombre,
+                            'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
+                            'estado': act.estado,
+                            'comunidad': act.comunidad.nombre if act.comunidad else '-',
+                            'responsable': act.responsable.username if act.responsable else '-',
+                            'total_beneficiarios': ben_count
+                        })
+                    
+                    data.append({
+                        'nombre': item['comunidad__region__nombre'] or 'Sin región',
+                        'region': item['comunidad__region__nombre'] or 'Sin región',
+                        'total_actividades': item['total_actividades'],
+                        'total_beneficiarios': total_benef,
+                        'beneficiarios_individuales': benef_ind,
+                        'beneficiarios_familias': benef_fam,
+                        'beneficiarios_instituciones': benef_inst,
+                        'responsables': ', '.join(responsables) if responsables else '-',
+                        'actividades': actividades_detalle
+                    })
+        
+        # NUEVO: Beneficiarios por Región o Comunidad (unificado)
+        elif report_type == 'beneficiarios-por-region-comunidad':
+            # Obtener beneficiarios de las actividades filtradas
+            actividad_ids = actividades_query.values_list('id', flat=True)
+            beneficiarios_query = ActividadBeneficiario.objects.filter(
+                actividad_id__in=actividad_ids
+            ).select_related('beneficiario', 'beneficiario__tipo', 'beneficiario__comunidad', 
+                            'beneficiario__comunidad__region', 'actividad')
+            
+            # Aplicar filtro de tipo de beneficiario si está presente
+            if tipo_beneficiario and tipo_beneficiario[0]:
+                # Normalizar nombres de tipos (pueden venir como "individual", "Individual", etc.)
+                tipos_normalizados = [t.lower() for t in tipo_beneficiario]
+                beneficiarios_query = beneficiarios_query.filter(
+                    beneficiario__tipo__nombre__in=tipos_normalizados
+                )
+            
+            # Agrupar beneficiarios por ID y obtener todas sus actividades
+            beneficiarios_dict = {}
+            
+            for ab in beneficiarios_query:
+                benef = ab.beneficiario
+                benef_id = str(benef.id)
+                
+                if benef_id not in beneficiarios_dict:
+                    # Obtener datos del beneficiario según tipo
+                    nombre = ''
+                    dpi = ''
+                    telefono = ''
+                    email = ''
+                    tipo_nombre = benef.tipo.nombre if benef.tipo else ''
+                    
+                    if tipo_nombre == 'individual' and hasattr(benef, 'individual'):
+                        ind = benef.individual
+                        nombre = f"{ind.nombre} {ind.apellido}".strip()
+                        dpi = ind.dpi or ''
+                        telefono = ind.telefono or ''
+                    elif tipo_nombre == 'familia' and hasattr(benef, 'familia'):
+                        fam = benef.familia
+                        nombre = fam.nombre_familia
+                        dpi = fam.dpi_jefe_familia or ''
+                        telefono = fam.telefono or ''
+                    elif tipo_nombre == 'institución' and hasattr(benef, 'institucion'):
+                        inst = benef.institucion
+                        nombre = inst.nombre_institucion
+                        dpi = inst.dpi_representante or ''
+                        telefono = inst.telefono or ''
+                        email = inst.email or ''
+                    
+                    beneficiarios_dict[benef_id] = {
+                        'nombre': nombre or 'Sin nombre',
+                        'tipo': tipo_nombre.capitalize() if tipo_nombre else '-',
+                        'comunidad': benef.comunidad.nombre if benef.comunidad else '-',
+                        'region': benef.comunidad.region.nombre if benef.comunidad and benef.comunidad.region else '-',
+                        'dpi': dpi,
+                        'documento': dpi,
+                        'telefono': telefono,
+                        'email': email,
+                        'eventos': []
+                    }
+                
+                # Agregar evento si existe
+                if ab.actividad:
+                    evento_nombre = ab.actividad.nombre
+                    if evento_nombre and evento_nombre not in beneficiarios_dict[benef_id]['eventos']:
+                        beneficiarios_dict[benef_id]['eventos'].append(evento_nombre)
+            
+            # Convertir a lista y formatear eventos
+            beneficiarios_data = []
+            for benef_data in beneficiarios_dict.values():
+                benef_data['evento'] = ', '.join(benef_data['eventos']) if benef_data['eventos'] else '-'
+                del benef_data['eventos']  # Remover la lista temporal
+                beneficiarios_data.append(benef_data)
+            
+            data = beneficiarios_data
+        
+        elif report_type == 'actividades-por-region':
+            resultado = actividades_query.select_related('comunidad__region').values(
+                'comunidad__region__nombre'
+            ).annotate(
+                total=Count('id')
+            ).order_by('-total')
+            
+            data = [
+                {
+                    'region': item['comunidad__region__nombre'] or 'Sin región',
+                    'total_actividades': item['total']
+                }
+                for item in resultado
+            ]
+        
+        elif report_type == 'actividades-por-comunidad':
+            resultado = actividades_query.select_related('comunidad', 'comunidad__region').values(
+                'comunidad__nombre',
+                'comunidad__region__nombre'
+            ).annotate(
+                total=Count('id')
+            ).order_by('-total')
+            
+            data = [
+                {
+                    'comunidad': item['comunidad__nombre'] or 'Sin comunidad',
+                    'region': item['comunidad__region__nombre'] or 'Sin región',
+                    'total_actividades': item['total']
+                }
+                for item in resultado
+            ]
+        
+        elif report_type == 'actividades-por-responsable':
+            resultado = actividades_query.select_related('responsable__puesto').filter(
+                responsable__isnull=False
+            ).values(
+                'responsable__username',
+                'responsable__nombre',
+                'responsable__puesto__nombre'
+            ).annotate(
+                total=Count('id'),
+                completadas=Count('id', filter=Q(estado='completado')),
+                en_progreso=Count('id', filter=Q(estado='en_progreso'))
+            ).order_by('-total')
+            
+            data = [
+                {
+                    'responsable': item['responsable__username'] or 'Sin responsable',
+                    'nombre': item['responsable__nombre'] or '',
+                    'puesto': item['responsable__puesto__nombre'] or '-',
+                    'total_actividades': item['total'],
+                    'completadas': item['completadas'],
+                    'en_progreso': item['en_progreso']
+                }
+                for item in resultado
+            ]
+        
+        elif report_type == 'distribucion-por-tipo':
+            resultado = actividades_query.select_related('tipo').values(
+                'tipo__nombre'
+            ).annotate(
+                total=Count('id')
+            ).order_by('-total')
+            
+            data = [
+                {
+                    'tipo_actividad': item['tipo__nombre'] or 'Sin tipo',
+                    'total': item['total']
+                }
+                for item in resultado
+            ]
+        
+        elif report_type == 'beneficiarios-por-tipo':
+            beneficiarios_query = Beneficiario.objects.filter(activo=True)
+            
+            if tipo_beneficiario and tipo_beneficiario[0]:
+                tipos = TipoBeneficiario.objects.filter(nombre__in=tipo_beneficiario)
+                beneficiarios_query = beneficiarios_query.filter(tipo_id__in=[t.id for t in tipos])
+            
+            resultado = beneficiarios_query.select_related('tipo').values(
+                'tipo__nombre'
+            ).annotate(
+                total=Count('id')
+            )
+            
+            data = [
+                {
+                    'tipo_beneficiario': item['tipo__nombre'] or 'Sin tipo',
+                    'total': item['total']
+                }
+                for item in resultado
+            ]
+        
+        elif report_type == 'actividades-por-periodo':
+            # Agrupar por mes
+            resultado = actividades_query.annotate(
+                mes=TruncMonth('fecha')
+            ).values('mes').annotate(
+                total=Count('id')
+            ).order_by('mes')
+            
+            data = [
+                {
+                    'periodo': item['mes'].strftime('%Y-%m') if item['mes'] else '-',
+                    'total': item['total']
+                }
+                for item in resultado
+            ]
+        
+        else:
+            # Reporte genérico: lista de actividades
+            actividades = actividades_query.select_related(
+                'comunidad', 'comunidad__region', 'tipo', 'responsable'
+            )[:100]  # Limitar a 100 resultados
+            
+            data = [
+                {
+                    'nombre': act.nombre,
+                    'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
+                    'estado': act.estado,
+                    'tipo': act.tipo.nombre if act.tipo else '-',
+                    'comunidad': act.comunidad.nombre if act.comunidad else '-',
+                    'region': act.comunidad.region.nombre if act.comunidad and act.comunidad.region else '-',
+                    'responsable': act.responsable.username if act.responsable else '-'
+                }
+                for act in actividades
+            ]
+        
+        return JsonResponse({
+            'data': data,
+            'total': len(data)
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'error': f'Error al generar reporte: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+def api_exportar_reporte(request, report_type):
+    """API para exportar reporte (placeholder - funcionalidad futura)"""
+    return JsonResponse({
+        'error': 'Funcionalidad de exportación aún no implementada'
+    }, status=501)

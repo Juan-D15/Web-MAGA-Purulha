@@ -16,6 +16,7 @@ urlpatterns = [
     path('gestioneseventos/', views.gestioneseventos, name='gestioneseventos'),
     path('gestionusuarios/', views.gestionusuarios, name='gestionusuarios'),
     path('generarreportes/', views.generarreportes, name='generarreportes'),
+    path('reportes/', views.reportes_index, name='reportes-index'),
     path('mapa-completo/', views.mapa_completo, name='mapa-completo'),
     
     # APIs JSON (para AJAX)
@@ -23,6 +24,7 @@ urlpatterns = [
     path('api/regiones/', views.api_regiones, name='api-regiones'),
     path('api/comunidades/', views.api_comunidades, name='api-comunidades'),
     path('api/actividades/', views.api_actividades, name='api-actividades'),
+    path('api/tipos-actividad/', views.api_tipos_actividad, name='api-tipos-actividad'),
     
     # APIs de Gestión de Eventos
     path('api/evento/crear/', views.api_crear_evento, name='api-crear-evento'),
@@ -63,5 +65,10 @@ urlpatterns = [
     path('api/reminders/<uuid:reminder_id>/', views.api_reminder_detail, name='api-reminder-detail'),
     path('api/events-list/', views.api_events_list, name='api-events-list'),
     path('api/collaborators/', views.api_collaborators, name='api-collaborators'),
+    
+    # APIs de Reportes
+    path('reportes/dashboard/stats/', views.api_dashboard_stats, name='api-dashboard-stats'),
+    path('api/reportes/<str:report_type>/', views.api_generar_reporte, name='api-generar-reporte'),
+    path('api/reportes/exportar/<str:report_type>/', views.api_exportar_reporte, name='api-exportar-reporte'),
 ]
 

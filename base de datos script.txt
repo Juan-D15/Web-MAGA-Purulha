@@ -1812,3 +1812,96 @@ CREATE TABLE IF NOT EXISTS actividad_portadas (
     UNIQUE (actividad_id)
 );
 CREATE INDEX IF NOT EXISTS idx_actividad_portadas_actividad ON actividad_portadas(actividad_id);
+
+
+
+
+-- =====================================================
+-- ÍNDICES PARA MÓDULO DE REPORTES
+-- Prioridad: ALTA
+-- =====================================================
+
+-- Reportes temporales
+CREATE INDEX IF NOT EXISTS idx_actividades_fecha_estado_eliminado 
+ON actividades(fecha, estado, eliminado_en) 
+WHERE eliminado_en IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_actividades_tipo_fecha 
+ON actividades(tipo_id, fecha, eliminado_en) 
+WHERE eliminado_en IS NULL;
+
+-- Versión CORREGIDA: Sin CURRENT_DATE en el índice
+CREATE INDEX IF NOT EXISTS idx_actividades_proximos 
+ON actividades(fecha, estado) 
+WHERE eliminado_en IS NULL 
+  AND estado IN ('planificado', 'en_progreso');
+
+-- Reportes por ubicación
+CREATE INDEX IF NOT EXISTS idx_actividades_comunidad_fecha_estado 
+ON actividades(comunidad_id, fecha, estado) 
+WHERE eliminado_en IS NULL;
+
+-- Reportes de personal
+CREATE INDEX IF NOT EXISTS idx_actividades_responsable_fecha 
+ON actividades(responsable_id, fecha, estado) 
+WHERE eliminado_en IS NULL AND responsable_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_actividades_colaborador_fecha 
+ON actividades(colaborador_id, fecha, estado) 
+WHERE eliminado_en IS NULL AND colaborador_id IS NOT NULL;
+
+-- Reportes de beneficiarios
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_comunidad_tipo_activo 
+ON beneficiarios(comunidad_id, tipo_id, activo) 
+WHERE activo = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_genero 
+ON beneficiarios_individuales(genero) 
+WHERE genero IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_actividad_beneficiarios_actividad_beneficiario 
+ON actividad_beneficiarios(actividad_id, beneficiario_id);
+
+-- Reportes de comunidades
+CREATE INDEX IF NOT EXISTS idx_comunidades_region_tipo_activo 
+ON comunidades(region_id, tipo_id, activo) 
+WHERE activo = TRUE;
+
+-- Reportes de evidencia
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad_creado_en 
+ON evidencias(actividad_id, creado_en DESC);
+
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad_count 
+ON evidencias(actividad_id) 
+WHERE actividad_id IS NOT NULL;
+
+-- Reportes de auditoría
+CREATE INDEX IF NOT EXISTS idx_bitacora_usuario_fecha 
+ON bitacora_transacciones(usuario_id, creado_en DESC) 
+WHERE usuario_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_bitacora_tabla_fecha 
+ON bitacora_transacciones(tabla_afectada, creado_en DESC);
+
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_actividad_fecha 
+ON actividad_cambios(actividad_id, fecha_cambio DESC);
+
+-- =====================================================
+-- ÍNDICES ADICIONALES (Prioridad: MEDIA)
+-- =====================================================
+
+CREATE INDEX IF NOT EXISTS idx_actividades_comunidad_tipo_fecha 
+ON actividades(comunidad_id, tipo_id, fecha DESC) 
+WHERE eliminado_en IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_tipo_comunidad_activo 
+ON beneficiarios(tipo_id, comunidad_id) 
+WHERE activo = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_actividad_comunidades_region 
+ON actividad_comunidades(actividad_id, region_id) 
+WHERE region_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_bitacora_resultado_fecha 
+ON bitacora_transacciones(resultado, creado_en DESC);
+
