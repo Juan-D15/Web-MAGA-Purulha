@@ -3214,7 +3214,6 @@ def api_obtener_detalle_proyecto(request, evento_id):
         }, status=500)
 
 
-<<<<<<< HEAD
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_agregar_imagen_galeria(request, evento_id):
@@ -3485,109 +3484,6 @@ def api_eliminar_archivo(request, evento_id, archivo_id):
 
 # =====================================================
 # APIs PARA GESTIÓN DE CAMBIOS
-# =====================================================
-
-@permiso_gestionar_eventos
-@require_http_methods(["POST"])
-def api_crear_cambio(request, evento_id):
-    """API: Crear un cambio en un evento"""
-    try:
-        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
-        usuario_maga = get_usuario_maga(request.user)
-        
-        if not usuario_maga:
-            return JsonResponse({
-                'success': False,
-                'error': 'Usuario no autenticado'
-            }, status=401)
-        
-        descripcion = request.POST.get('descripcion', '').strip()
-        if not descripcion:
-            return JsonResponse({
-                'success': False,
-                'error': 'La descripción del cambio es obligatoria'
-            }, status=400)
-        
-        # Obtener colaborador responsable (si se envió)
-        colaborador_id = request.POST.get('colaborador_id')
-        colaborador = None
-        if colaborador_id:
-            try:
-                colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
-                # Verificar que el colaborador esté asignado al evento
-                if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'El colaborador seleccionado no está asignado a este evento'
-                    }, status=400)
-                cambio.colaborador = colaborador
-                cambio.responsable = None
-            except Colaborador.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Colaborador no encontrado'
-                }, status=404)
-        elif colaborador_id == '':
-            # Si se envía vacío, usar el usuario actual como responsable
-            cambio.colaborador = None
-            cambio.responsable = usuario_maga
-        
-        cambio.descripcion_cambio = descripcion
-        cambio.save()
-        
-        # Obtener nombre del responsable
-        responsable_nombre = ''
-        if cambio.colaborador:
-            responsable_nombre = cambio.colaborador.nombre
-        elif cambio.responsable:
-            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
-        
-        # Formatear fecha en zona horaria de Guatemala
-        fecha_display = ''
-        if cambio.fecha_cambio:
-            from django.utils import timezone
-            import pytz
-            guatemala_tz = pytz.timezone('America/Guatemala')
-            if timezone.is_aware(cambio.fecha_cambio):
-                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
-            else:
-                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
-            fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Cambio actualizado exitosamente',
-            'cambio': {
-                'id': str(cambio.id),
-                'descripcion': cambio.descripcion_cambio,
-                'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
-                'fecha_display': fecha_display,
-                'responsable': responsable_nombre,
-                'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None
-            }
-        })
-        
-    except Actividad.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Evento no encontrado'
-        }, status=404)
-    except ActividadCambio.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Cambio no encontrado'
-        }, status=404)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'success': False,
-            'error': f'Error al actualizar cambio: {str(e)}'
-        }, status=500)
-
-
-# =====================================================
-# APIs DE GESTIÓN DE USUARIOS Y COLABORADORES
 # =====================================================
 
 @solo_administrador
@@ -4692,15 +4588,13 @@ def api_eliminar_usuario(request, usuario_id):
         return JsonResponse({
             'success': False,
             'error': 'Usuario no encontrado'
->>>>>>> dd1d451766b35649fd3ed7fc07041e84e028a1bf
         }, status=404)
     except Exception as e:
         import traceback
         traceback.print_exc()
         return JsonResponse({
             'success': False,
-<<<<<<< HEAD
-            'error': f'Error al actualizar evidencia: {str(e)}'
+            'error': f'Error al eliminar usuario: {str(e)}'
         }, status=500)
 
 
@@ -4956,5 +4850,4 @@ def api_verificar_admin(request):
         return JsonResponse({
             'success': False,
             'error': f'Error al verificar credenciales: {str(e)}'
->>>>>>> dd1d451766b35649fd3ed7fc07041e84e028a1bf
         }, status=500)
