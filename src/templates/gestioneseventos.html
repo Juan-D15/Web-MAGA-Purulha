@@ -5,7 +5,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=35">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=45">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
 {% endblock %}
 {% block nav_gestioneseventos %}active{% endblock %}
@@ -140,7 +140,7 @@
               </div>
               <div id="coverPreviewWrapper" style="display: none; align-items: center; gap: 16px; margin-top: 12px;">
                 <img id="coverImagePreview" src="" alt="Portada del evento" style="max-width: 220px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                <button type="button" id="coverRemoveBtn" class="btn-danger" style="display: none; padding: 6px 14px; font-size: 0.85rem; border-radius: 6px;">
+                <button type="button" id="coverRemoveBtn" class="btn-danger btn-cover-remove" style="display: none;">
                   Eliminar
                 </button>
               </div>
@@ -226,13 +226,15 @@
             <!-- Datos Rápidos del Proyecto -->
             <div class="form-group">
               <label class="form-label">Datos del Proyecto</label>
-              <div id="quickDataAddArea" class="file-upload" style="padding: 0;">
-                <button type="button" id="addQuickDataBtn" class="file-label" style="display: flex; align-items: center; gap: 14px; width: 100%; border: 1.6px dashed rgba(255,255,255,0.25); border-radius: 14px; background: rgba(255,255,255,0.02); padding: 16px 20px;">
-                  <span style="width: 40px; height: 40px; border-radius: 12px; background: rgba(13,110,253,0.18); color: #0d6efd; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">📋</span>
-                  <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
-                    <span style="font-weight: 600; font-size: 0.95rem; letter-spacing: 0.02em; color: #f5f7fa;">Agregar dato del proyecto</span>
-                    <small style="color: #90a4bc; font-size: 0.82rem;">Registra métricas como inversión, beneficiarios, área construida u otros indicadores clave.</small>
-                  </span>
+              <div class="beneficiary-upload">
+                <button type="button" id="addQuickDataBtn" class="beneficiary-label">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                  </svg>
+                  <span>Agregar dato del proyecto</span>
                 </button>
               </div>
 
@@ -912,5 +914,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=48"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=50"></script>
 {% endblock %}

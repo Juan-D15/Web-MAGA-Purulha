@@ -6,12 +6,74 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generar Reportes - MAGA Purulhá</title>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <style>
+        .reportes-container {
+            padding: 40px 24px;
+            text-align: center;
+            min-height: 60vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        
+        .reportes-container h1 {
+            font-size: clamp(24px, 5vw, 36px);
+            margin-bottom: 16px;
+            color: #ffffff;
+        }
+        
+        .reportes-container p {
+            font-size: clamp(16px, 3vw, 18px);
+            color: #b8c5d1;
+            margin-bottom: 24px;
+        }
+        
+        .reportes-container a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #0772d2;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        
+        .reportes-container a:hover {
+            background: #065aaf;
+            transform: translateY(-2px);
+        }
+        
+        @media (max-width: 768px) {
+            .reportes-container {
+                padding: 30px 16px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .reportes-container {
+                padding: 20px 12px;
+            }
+            
+            .reportes-container a {
+                width: 100%;
+                max-width: 280px;
+                padding: 14px 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div style="padding: 40px; text-align: center;">
+    <div class="reportes-container">
         <h1>Generar Reportes</h1>
         <p>Esta página está en desarrollo</p>
-        <a href="{% url 'webmaga:index' %}" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #0772d2; color: white; text-decoration: none; border-radius: 5px;">Volver al inicio</a>
+        <a href="{% url 'webmaga:index' %}">Volver al inicio</a>
     </div>
 </body>
 </html>

@@ -540,21 +540,15 @@ label {
 .file-preview-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   background: rgba(255, 255, 255, 0.05);
   padding: 8px 12px;
   border-radius: var(--border-radius);
   font-size: 14px;
   color: var(--text-secondary);
-  flex: 1;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
-  word-wrap: break-word;
-  word-break: break-word;
   margin-bottom: 8px;
-  flex-wrap: wrap;
+  box-sizing: border-box;
 }
 
 .file-preview-item-file-info {
@@ -563,19 +557,16 @@ label {
   gap: 8px;
   flex: 1;
   min-width: 0;
-  max-width: 100%;
   overflow-x: hidden;
-  word-wrap: break-word;
-  word-break: break-word;
 }
 
 .file-preview-item-file-name {
   flex: 1;
   min-width: 0;
   color: #b8c5d1;
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-preview-item-file-size {
@@ -606,18 +597,18 @@ label {
 
 .evidence-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  justify-content: space-between;
   align-items: center;
-  padding: 10px;
+  gap: 12px;
+  padding: 10px 12px;
   margin-bottom: 8px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .evidence-item-info {
@@ -626,10 +617,7 @@ label {
   align-items: center;
   flex: 1;
   min-width: 0;
-  max-width: 100%;
   overflow-x: hidden;
-  word-wrap: break-word;
-  word-break: break-word;
 }
 
 .evidence-item-icon {
@@ -641,8 +629,6 @@ label {
   flex: 1;
   min-width: 0;
   overflow-x: hidden;
-  word-wrap: break-word;
-  word-break: break-word;
 }
 
 .evidence-item-name {
@@ -650,25 +636,24 @@ label {
   color: #b8c5d1;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: normal;
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  white-space: nowrap;
   margin-bottom: 2px;
 }
 
 .evidence-item-type {
   font-size: 0.8rem;
   color: #6c757d;
-  word-wrap: break-word;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .evidence-item-actions {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
 }
 
 .evidence-header {
@@ -707,27 +692,54 @@ label {
   color: #4CAF50;
 }
 
-.btn-remove-file,
-.btn-remove-file-nuevo,
-.btn-remove-evidencia-existente {
-  background: none;
-  border: none;
+.btn-remove-file {
+  background: rgba(220, 53, 69, 0.1);
   color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   font-size: 1.2rem;
   font-weight: bold;
-  padding: 6px 12px;
-  line-height: 1;
-  transition: color 0.2s, transform 0.2s;
-  border-radius: 4px;
+  transition: var(--transition);
   flex-shrink: 0;
 }
 
-.btn-remove-file:hover,
-.btn-remove-file-nuevo:hover,
-.btn-remove-evidencia-existente:hover {
-  color: #ff0000;
+.btn-remove-file:hover {
+  background: rgba(220, 53, 69, 0.2);
+  border-color: #dc3545;
   transform: scale(1.1);
+}
+
+.btn-remove-evidencia-existente,
+.btn-remove-file-nuevo {
+  background: #dc3545;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: var(--transition);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  min-width: auto;
+  max-width: none;
+  flex: 0 0 auto;
+}
+
+.btn-remove-evidencia-existente:hover,
+.btn-remove-file-nuevo:hover {
+  background: #c82333;
 }
 
 .btn-view-evidence {
@@ -833,6 +845,34 @@ label {
   background: rgba(255, 255, 255, 0.15);
   border-color: var(--primary-color);
   transform: translateY(-1px);
+}
+
+/* Botón de eliminar imagen de portada */
+#coverRemoveBtn,
+.btn-cover-remove {
+  background: #dc3545;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: var(--transition);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  min-width: auto;
+  max-width: none;
+}
+
+#coverRemoveBtn:hover,
+.btn-cover-remove:hover {
+  background: #c82333;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
 }
 
 .btn-danger {
@@ -1136,9 +1176,9 @@ label {
 .data-card,
 .beneficiary-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 16px;
-  padding: 16px;
+  padding: 14px 16px;
   margin-bottom: 12px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
@@ -1151,6 +1191,7 @@ label {
   box-sizing: border-box;
   overflow-x: visible;
   overflow-y: visible;
+  align-items: flex-start;
 }
 
 .data-card:hover,
@@ -1162,22 +1203,24 @@ label {
 /* Contenedor interno de la tarjeta */
 .card-content {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 16px;
   flex: 1;
   min-width: 0;
   width: 100%;
   overflow-x: visible;
   overflow-y: visible;
+  align-items: flex-start;
 }
 
 .card-header {
   display: flex;
+  flex-direction: row;
   align-items: flex-start;
   gap: 12px;
-  flex-wrap: wrap;
-  width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .card-icon-wrapper {
@@ -1187,8 +1230,8 @@ label {
 
 .card-fields {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-direction: row;
+  gap: 20px;
   flex: 1;
   min-width: 0;
   width: 100%;
@@ -1196,13 +1239,11 @@ label {
 
 .card-field-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  flex-direction: row;
+  gap: 20px;
   width: 100%;
-  max-width: 100%;
   box-sizing: border-box;
-  overflow-x: visible;
-  overflow-y: visible;
+  flex: 1;
 }
 
 .card-field {
@@ -1211,13 +1252,7 @@ label {
   gap: 4px;
   flex: 1;
   min-width: 0;
-  max-width: 100%;
   box-sizing: border-box;
-  overflow-x: visible;
-  overflow-y: visible;
-  word-wrap: break-word;
-  word-break: break-word;
-  width: 100%;
 }
 
 .card-field-label {
@@ -1230,42 +1265,34 @@ label {
 
 .card-field-value {
   color: #f5f7fa;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  hyphens: auto;
   line-height: 1.4;
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
-  max-width: 100%;
+  word-wrap: break-word;
 }
 
 .card-field-value-secondary {
   color: #b8c5d1;
   font-size: 0.85rem;
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  hyphens: auto;
   line-height: 1.4;
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
-  max-width: 100%;
+  word-wrap: break-word;
 }
 
 /* Acciones de la tarjeta */
 .card-actions {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 8px;
+  align-items: flex-end;
   flex-shrink: 0;
-  width: 100%;
-  margin-top: 8px;
+  min-width: auto;
+  margin-top: 0;
 }
 
 .card-badge {
@@ -1278,24 +1305,48 @@ label {
 
 .card-buttons {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  width: 100%;
 }
 
 .card-buttons button {
-  flex: 1;
-  min-width: 120px;
-  max-width: 100%;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
   white-space: nowrap;
-  word-wrap: normal;
-  box-sizing: border-box;
-  padding: 10px 16px;
-  font-size: 0.875rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+.card-buttons .btn-primary,
+.card-buttons .btn-benef-edit,
+.card-buttons .btn-quickdata-edit {
+  background: var(--primary-color);
+  color: white;
+}
+
+.card-buttons .btn-primary:hover,
+.card-buttons .btn-benef-edit:hover,
+.card-buttons .btn-quickdata-edit:hover {
+  background: var(--primary-dark);
+}
+
+.card-buttons .btn-danger,
+.card-buttons .btn-benef-remove,
+.card-buttons .btn-quickdata-delete {
+  background: #dc3545;
+  color: #ffffff;
+}
+
+.card-buttons .btn-danger:hover,
+.card-buttons .btn-benef-remove:hover,
+.card-buttons .btn-quickdata-delete:hover {
+  background: #c82333;
 }
 
 @media (max-width: 768px) {
@@ -1350,9 +1401,33 @@ label {
     word-break: break-word;
   }
 
+  .card-field-value,
+  .card-field-value-secondary {
+    white-space: normal;
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
   .evidence-item-actions {
     width: 100%;
     justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .btn-remove-evidencia-existente,
+  .btn-remove-file-nuevo {
+    width: auto;
+    min-width: auto;
+    max-width: none;
+    flex: 0 0 auto;
+  }
+
+  .btn-view-evidence {
+    width: auto;
+    min-width: auto;
+    flex: 0 0 auto;
   }
 
   .edit-event-container {
@@ -1363,9 +1438,79 @@ label {
     padding: 24px 16px;
   }
 
-  .data-card,
-  .beneficiary-card {
+  .data-card {
+    flex-direction: column;
     padding: 14px;
+  }
+
+  .data-card .card-content {
+    flex-direction: column;
+  }
+
+  .data-card .card-header {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .data-card .card-fields {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .data-card .card-field-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .data-card .card-field {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .data-card .card-actions {
+    width: 100%;
+    align-items: stretch;
+    margin-top: 12px;
+  }
+
+  .beneficiary-card {
+    flex-direction: column;
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .beneficiary-card .card-content {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .beneficiary-card .card-header {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: 0;
+  }
+
+  .beneficiary-card .card-fields {
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .beneficiary-card .card-field-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .beneficiary-card .card-field {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .beneficiary-card .card-actions {
+    width: 100%;
+    align-items: stretch;
+    margin-top: 0;
   }
 
   .form-row {
@@ -1380,15 +1525,23 @@ label {
   }
 
   .card-buttons {
-    flex-direction: row;
+    flex-direction: column;
+    width: 100%;
     gap: 8px;
   }
 
   .card-buttons button {
     flex: 1;
+    width: 100%;
     min-width: 100px;
     padding: 10px 12px;
     font-size: 0.8rem;
+  }
+
+  .evidence-item {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
   }
 
   .edit-event-header {
