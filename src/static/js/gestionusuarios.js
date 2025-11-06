@@ -1082,13 +1082,23 @@ function abrirModalPuesto(origen) {
     const modal = document.getElementById('createPuestoModal');
     const puestoForm = document.getElementById('puestoForm');
     
-    if (modal) modal.style.display = 'block';
+    if (modal) {
+        // Asegurar que el modal de puesto aparezca encima de otros modales
+        modal.style.zIndex = '2000';
+        modal.style.display = 'block';
+        // Hacer el backdrop más oscuro cuando está encima de otro modal
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
+    }
     if (puestoForm) puestoForm.reset();
 }
 
 function cerrarModalPuesto() {
     const modal = document.getElementById('createPuestoModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.style.display = 'none';
+        // Restaurar el backdrop original
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    }
     origenModalPuesto = null;
 }
 
