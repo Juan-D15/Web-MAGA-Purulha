@@ -516,40 +516,78 @@ function mostrarDetalleProyecto(proyecto) {
   const detailGallery = document.getElementById('detailGallery');
   if (detailGallery && proyecto.evidencias) {
     const imagenes = proyecto.evidencias.filter(e => e.es_imagen);
+    
+    // Verificar si el usuario tiene permisos (admin o personal)
+    const puedeGestionar = puedeGestionarGaleria();
+    
     if (imagenes.length === 0) {
       detailGallery.innerHTML = '<p style="color: #6c757d; grid-column: 1 / -1;">No hay imágenes disponibles.</p>';
     } else {
       detailGallery.innerHTML = imagenes.map(img => `
         <div class="gallery-item" style="position: relative; border-radius: 12px; overflow: hidden; width: 100%; max-width: 300px; height: 200px; background: rgba(255,255,255,0.05);">
-          <img src="${img.url}" alt="${img.nombre || img.archivo_nombre || 'Imagen'}" style="width: 100%; height: 100%; object-fit: cover; cursor: pointer;" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+          <img src="${img.url}" alt="${img.nombre || img.archivo_nombre || 'Imagen'}" data-image-url="${img.url}" data-image-description="${img.descripcion || ''}" style="width: 100%; height: 100%; object-fit: cover; cursor: pointer;" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
           ${img.descripcion ? `<div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 8px; color: white; font-size: 0.85rem;">${img.descripcion}</div>` : ''}
-          <button class="btn-remove-item" data-imagen-id="${img.id}" style="position: absolute; top: 8px; right: 8px; background: rgba(220, 53, 69, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;" title="Eliminar imagen" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
+          ${puedeGestionar ? `<button class="btn-remove-item" data-imagen-id="${img.id}" style="position: absolute; top: 8px; right: 8px; background: rgba(220, 53, 69, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;" title="Eliminar imagen" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
-          </button>
+          </button>` : ''}
         </div>
       `).join('');
       
-      // Agregar event listeners a los botones de eliminar
-      detailGallery.querySelectorAll('[data-imagen-id]').forEach(btn => {
-        btn.addEventListener('click', async function(e) {
-          e.stopPropagation();
-          const imagenId = this.getAttribute('data-imagen-id');
-          await eliminarImagenGaleria(imagenId);
+      // Agregar event listeners a las imágenes para mostrar en modal (todos los usuarios)
+      detailGallery.querySelectorAll('img[data-image-url]').forEach(imgElement => {
+        imgElement.addEventListener('click', function(e) {
+          // Evitar abrir el modal si se hizo clic en el botón de eliminar
+          if (e.target.closest('.btn-remove-item')) {
+            return;
+          }
+          const imageUrl = this.getAttribute('data-image-url');
+          const imageDescription = this.getAttribute('data-image-description') || '';
+          showImageViewModal(imageUrl, imageDescription);
         });
       });
+      
+      // Agregar event listeners a los botones de eliminar solo si el usuario tiene permisos
+      if (puedeGestionar) {
+        detailGallery.querySelectorAll('[data-imagen-id]').forEach(btn => {
+          btn.addEventListener('click', async function(e) {
+            e.stopPropagation();
+            const imagenId = this.getAttribute('data-imagen-id');
+            await eliminarImagenGaleria(imagenId);
+          });
+        });
+      }
     }
   }
   
   // Actualizar datos del proyecto (tarjetas_datos)
   const detailData = document.getElementById('detailData');
   if (detailData && proyecto.tarjetas_datos) {
-    if (proyecto.tarjetas_datos.length === 0) {
+    console.log('📊 Renderizando tarjetas de datos:', proyecto.tarjetas_datos.length);
+    console.log('📊 Tarjetas recibidas:', proyecto.tarjetas_datos);
+    
+    // Eliminar duplicados por ID antes de renderizar
+    const tarjetasUnicas = [];
+    const idsVistos = new Set();
+    
+    proyecto.tarjetas_datos.forEach(tarjeta => {
+      const tarjetaId = tarjeta.id || tarjeta.titulo;
+      if (!idsVistos.has(tarjetaId)) {
+        idsVistos.add(tarjetaId);
+        tarjetasUnicas.push(tarjeta);
+      } else {
+        console.warn('⚠️ Tarjeta duplicada detectada y omitida:', tarjeta.titulo, 'ID:', tarjetaId);
+      }
+    });
+    
+    console.log('📊 Tarjetas únicas después de filtrar:', tarjetasUnicas.length);
+    
+    if (tarjetasUnicas.length === 0) {
       detailData.innerHTML = '<p style="color: #6c757d; grid-column: 1 / -1;">No hay datos del proyecto registrados.</p>';
     } else {
-      detailData.innerHTML = proyecto.tarjetas_datos.map(tarjeta => `
+      detailData.innerHTML = tarjetasUnicas.map(tarjeta => `
         <div class="data-item" style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; border-left: 3px solid #007bff;">
           <div class="data-icon" style="font-size: 2rem; margin-bottom: 8px;">${tarjeta.icono || '📊'}</div>
           <div class="data-content">
@@ -592,13 +630,21 @@ function mostrarDetalleProyecto(proyecto) {
   // Actualizar archivos del proyecto
   const detailFiles = document.getElementById('detailFiles');
   if (detailFiles && proyecto.archivos) {
+    // Verificar si el usuario tiene permisos (admin o personal)
+    const puedeGestionar = puedeGestionarGaleria();
+    
     if (proyecto.archivos.length === 0) {
       detailFiles.innerHTML = '<p style="color: #6c757d;">No hay archivos adjuntos para este proyecto.</p>';
     } else {
       detailFiles.innerHTML = proyecto.archivos.map(archivo => {
         const extension = archivo.nombre.split('.').pop()?.toUpperCase() || 'FILE';
         const tamanioTexto = archivo.tamanio ? formatFileSize(archivo.tamanio) : '';
-        const puedeEliminar = !archivo.es_evidencia; // Solo se pueden eliminar archivos que NO sean evidencias
+        const puedeEliminar = puedeGestionar && !archivo.es_evidencia; // Solo se pueden eliminar archivos que NO sean evidencias Y si tiene permisos
+        
+        // Si puede gestionar, mostrar enlace clickeable, si no, solo texto
+        const nombreArchivo = puedeGestionar 
+          ? `<a href="${archivo.url}" target="_blank" style="color: #007bff; text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${archivo.nombre}</a>`
+          : `<span style="color: #6c757d; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar archivos">${archivo.nombre}</span>`;
         
         return `
           <div class="file-item" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 15px; border-left: 3px solid ${archivo.es_evidencia ? '#6c757d' : '#007bff'};">
@@ -607,9 +653,7 @@ function mostrarDetalleProyecto(proyecto) {
             </div>
             <div class="file-info" style="flex: 1;">
               <h4 style="margin: 0 0 4px 0; color: #ffffff; font-size: 0.95rem; font-weight: 600;">
-                <a href="${archivo.url}" target="_blank" style="color: #007bff; text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-                  ${archivo.nombre}
-                </a>
+                ${nombreArchivo}
               </h4>
               ${archivo.descripcion ? `<p style="margin: 0 0 4px 0; color: #b8c5d1; font-size: 0.85rem;">${archivo.descripcion}</p>` : ''}
               <div style="display: flex; gap: 12px; align-items: center; font-size: 0.8rem; color: #6c757d;">
@@ -618,7 +662,7 @@ function mostrarDetalleProyecto(proyecto) {
               </div>
             </div>
             ${puedeEliminar ? `
-              <button class="btn-remove-file" data-archivo-id="${archivo.id}" style="background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; transition: background 0.2s;" title="Eliminar archivo" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
+              <button class="btn-danger btn-cover-remove" data-archivo-id="${archivo.id}" title="Eliminar archivo">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6"></polyline>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -630,25 +674,28 @@ function mostrarDetalleProyecto(proyecto) {
         `;
       }).join('');
       
-      // Agregar event listeners a los botones de eliminar
-      detailFiles.querySelectorAll('[data-archivo-id]').forEach(btn => {
-        btn.addEventListener('click', async function(e) {
-          e.stopPropagation();
-          const archivoId = this.getAttribute('data-archivo-id');
-          
-          // Obtener el nombre del archivo para el mensaje de confirmación
-          const fileItem = this.closest('.file-item');
-          const fileName = fileItem ? fileItem.querySelector('.file-info h4 a')?.textContent || 'este archivo' : 'este archivo';
-          
-          // Mostrar modal de confirmación
-          showConfirmDeleteModal(
-            `¿Estás seguro de que deseas eliminar el archivo "${fileName}"? Esta acción no se puede deshacer.`,
-            async () => {
-              await eliminarArchivoProyecto(archivoId);
-            }
-          );
+      // Agregar event listeners a los botones de eliminar solo si el usuario tiene permisos
+      if (puedeGestionar) {
+        detailFiles.querySelectorAll('[data-archivo-id]').forEach(btn => {
+          btn.addEventListener('click', async function(e) {
+            e.stopPropagation();
+            const archivoId = this.getAttribute('data-archivo-id');
+            
+            // Obtener el nombre del archivo para el mensaje de confirmación
+            const fileItem = this.closest('.file-item');
+            const fileNameElement = fileItem ? fileItem.querySelector('.file-info h4 a, .file-info h4 span') : null;
+            const fileName = fileNameElement ? fileNameElement.textContent.trim() : 'este archivo';
+            
+            // Mostrar modal de confirmación
+            showConfirmDeleteModal(
+              `¿Estás seguro de que deseas eliminar el archivo "${fileName}"? Esta acción no se puede deshacer.`,
+              async () => {
+                await eliminarArchivoProyecto(archivoId);
+              }
+            );
+          });
         });
-      });
+      }
     }
   } else if (detailFiles) {
     detailFiles.innerHTML = '<p style="color: #6c757d;">No hay archivos adjuntos para este proyecto.</p>';
@@ -714,6 +761,41 @@ function generateListItems(projects, showType = false) {
   `).join('');
 }
 
+// Variable global para almacenar los proyectos originales de la vista actual
+let currentListViewProjects = [];
+let currentListViewCategory = null;
+
+// Función para filtrar proyectos por nombre
+function filterProjectsBySearch(searchTerm) {
+  if (!searchTerm || searchTerm.trim() === '') {
+    // Si no hay término de búsqueda, mostrar todos los proyectos
+    const projectsList = document.getElementById('projectsList');
+    if (projectsList) {
+      projectsList.innerHTML = generateListItems(currentListViewProjects, !currentListViewCategory);
+      setTimeout(() => {
+        addViewMoreListeners();
+      }, 100);
+    }
+    return;
+  }
+
+  // Filtrar proyectos que coincidan con el término de búsqueda
+  const searchLower = searchTerm.toLowerCase().trim();
+  const filteredProjects = currentListViewProjects.filter(project => {
+    const nombre = (project.nombre || project.name || '').toLowerCase();
+    return nombre.includes(searchLower);
+  });
+
+  // Actualizar la lista
+  const projectsList = document.getElementById('projectsList');
+  if (projectsList) {
+    projectsList.innerHTML = generateListItems(filteredProjects, !currentListViewCategory);
+    setTimeout(() => {
+      addViewMoreListeners();
+    }, 100);
+  }
+}
+
 // Función para mostrar vista de lista
 function showListView(category = null) {
   console.log('Intentando mostrar vista de lista, categoría:', category);
@@ -723,6 +805,8 @@ function showListView(category = null) {
   const listTitle = document.getElementById('listTitle');
   const listSubtitle = document.getElementById('listSubtitle');
   const projectsList = document.getElementById('projectsList');
+  const searchInput = document.getElementById('projectSearchInput');
+  const searchClearBtn = document.getElementById('searchClearBtn');
 
   console.log('Elementos encontrados:');
   console.log('- Vista principal:', mainView ? 'Sí' : 'No');
@@ -767,9 +851,21 @@ function showListView(category = null) {
     subtitle = 'Lista completa de proyectos y eventos';
   }
 
+  // Guardar los proyectos originales y la categoría actual
+  currentListViewProjects = projects;
+  currentListViewCategory = category;
+
   // Actualizar títulos
   listTitle.textContent = title;
   listSubtitle.textContent = subtitle;
+
+  // Limpiar el buscador
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  if (searchClearBtn) {
+    searchClearBtn.style.display = 'none';
+  }
 
   // Generar y mostrar lista
   projectsList.innerHTML = generateListItems(projects, !category);
@@ -1231,6 +1327,45 @@ let selectedPersonnel = null;
 let pendingDeleteAction = null;
 let pendingDeleteData = null;
 
+// Función para verificar si el usuario puede gestionar la galería (admin o personal)
+function puedeGestionarGaleria() {
+  // Primero verificar desde el elemento oculto de permisos (siempre presente para admin/personal)
+  const userPermissions = document.getElementById('userPermissions');
+  if (userPermissions) {
+    const isAdmin = userPermissions.dataset.isAdmin === 'true';
+    const isPersonal = userPermissions.dataset.isPersonal === 'true';
+    if (isAdmin || isPersonal) {
+      return true;
+    }
+  }
+  
+  // Verificar desde el botón editEventBtn que tiene los datos (fallback)
+  const editEventBtn = document.getElementById('editEventBtn');
+  if (editEventBtn) {
+    const isAdmin = editEventBtn.dataset.isAdmin === 'true';
+    const isPersonal = editEventBtn.dataset.isPersonal === 'true';
+    if (isAdmin || isPersonal) {
+      return true;
+    }
+  }
+  
+  // Verificar desde window.USER_AUTH si está disponible
+  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated) {
+    if (window.USER_AUTH.isAdmin || window.USER_AUTH.isPersonal) {
+      return true;
+    }
+  }
+  
+  // Verificar desde variable global usuario_maga si está disponible
+  if (typeof usuario_maga !== 'undefined' && usuario_maga) {
+    if (usuario_maga.es_admin || usuario_maga.es_personal) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 // Función para obtener el proyecto actual
 function getCurrentProject() {
   // Usar currentProjectData si está disponible y tiene id
@@ -1609,6 +1744,9 @@ function renderCambios(cambios) {
   
   console.log(`✅ Renderizando ${cambios.length} cambios`);
   
+  // Verificar si el usuario puede gestionar (admin o personal)
+  const puedeGestionar = puedeGestionarGaleria();
+  
   cambios.forEach((cambio, index) => {
     console.log(`🎨 Renderizando cambio ${index + 1}:`, cambio);
     console.log(`🎨 ID del cambio:`, cambio.id);
@@ -1629,6 +1767,7 @@ function renderCambios(cambios) {
           '<div class="change-evidences-count">Sin evidencias</div>'
         }
       </div>
+      ${puedeGestionar ? `
       <div style="display: flex; gap: 8px;">
         <button class="btn-edit-item" data-cambio-id="${cambio.id}" title="Editar cambio" style="background: rgba(0, 123, 255, 0.9); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1645,54 +1784,80 @@ function renderCambios(cambios) {
           Eliminar
         </button>
       </div>
+      ` : ''}
     `;
     container.appendChild(changeItem);
+    
+    // Agregar event listeners directamente a los botones si el usuario tiene permisos
+    if (puedeGestionar) {
+      const editBtn = changeItem.querySelector('.btn-edit-item');
+      const deleteBtn = changeItem.querySelector('.btn-delete-item');
+      
+      if (editBtn) {
+        editBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          e.preventDefault();
+          editarCambio(cambio.id, cambio);
+        });
+      }
+      
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          e.preventDefault();
+          confirmarEliminarCambio(cambio.id, cambio);
+        });
+      }
+      
+      // Event listener para mostrar detalles al hacer clic en el cambio (solo para usuarios autenticados)
+      changeItem.addEventListener('click', function(e) {
+        // Solo mostrar detalles si no se hizo clic en un botón
+        if (!e.target.closest('.btn-edit-item') && !e.target.closest('.btn-delete-item')) {
+          showChangeDetailsModal(cambio);
+        }
+      });
+    } else {
+      // Si no tiene permisos, NO agregar event listener de clic y remover clase clickable
+      changeItem.classList.remove('clickable');
+      changeItem.style.cursor = 'default';
+      changeItem.style.opacity = '0.9';
+      changeItem.title = 'Debes iniciar sesión como admin o personal para ver detalles del cambio';
+    }
+    
     console.log(`✅ Cambio ${index + 1} agregado al DOM`);
   });
   
   console.log('✅ Cambios renderizados correctamente. Total elementos en contenedor:', container.children.length);
+}
+
+// Función para mostrar modal de imagen en tamaño completo
+function showImageViewModal(imageUrl, imageDescription = '') {
+  const modal = document.getElementById('imageViewModal');
+  const fullSizeImage = document.getElementById('fullSizeImage');
+  const imageViewDescription = document.getElementById('imageViewDescription');
   
-  // Agregar event listeners para mostrar detalles y acciones
-  container.addEventListener('click', function(e) {
-    // Buscar el botón de eliminar o editar más cercano
-    const deleteBtn = e.target.closest('.btn-delete-item');
-    const editBtn = e.target.closest('.btn-edit-item');
-    const changeItem = e.target.closest('.change-item.clickable');
-    
-    if (deleteBtn) {
-      e.stopPropagation();
-      e.preventDefault();
-      const cambioId = deleteBtn.getAttribute('data-cambio-id');
-      if (cambioId) {
-        confirmarEliminarCambio(cambioId, cambios.find(c => c.id === cambioId));
-      }
-      return;
-    }
-    
-    if (editBtn) {
-      e.stopPropagation();
-      e.preventDefault();
-      const cambioId = editBtn.getAttribute('data-cambio-id');
-      if (cambioId) {
-        const cambio = cambios.find(c => c.id === cambioId);
-        if (cambio) {
-          editarCambio(cambioId, cambio);
-        }
-      }
-      return;
-    }
-    
-    if (changeItem) {
-      // Mostrar detalles del cambio solo si no se hizo clic en un botón
-      const cambioId = changeItem.getAttribute('data-cambio-id');
-      if (cambioId) {
-        const cambio = cambios.find(c => c.id === cambioId);
-        if (cambio) {
-          showChangeDetailsModal(cambio);
-        }
-      }
-    }
-  });
+  if (!modal || !fullSizeImage) {
+    console.error('Modal de imagen no encontrado');
+    return;
+  }
+  
+  // Establecer la imagen y descripción
+  fullSizeImage.src = imageUrl;
+  fullSizeImage.alt = imageDescription || 'Imagen en tamaño completo';
+  imageViewDescription.textContent = imageDescription || '';
+  
+  // Mostrar el modal
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+// Función para cerrar modal de imagen
+function closeImageViewModal() {
+  const modal = document.getElementById('imageViewModal');
+  if (modal) {
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+  }
 }
 
 // Función para mostrar modal de agregar imagen
@@ -1807,30 +1972,72 @@ async function addImageToProject() {
       formData.append('descripcion', description);
     }
     
+    // Obtener token CSRF
+    const csrfToken = getCookie('csrftoken');
+    if (!csrfToken) {
+      console.error('❌ No se encontró el token CSRF');
+      showErrorMessage('Error de autenticación. Por favor, recarga la página.');
+      return;
+    }
+    
+    console.log('📤 Enviando imagen al servidor...');
+    console.log('📋 ID del evento:', currentProject.id);
+    console.log('📎 Nombre del archivo:', file.name);
+    console.log('📏 Tamaño del archivo:', file.size);
+    
     // Llamar a la API
     const response = await fetch(`/api/evento/${currentProject.id}/galeria/agregar/`, {
       method: 'POST',
       headers: {
-        'X-CSRFToken': getCookie('csrftoken')
+        'X-CSRFToken': csrfToken
       },
       body: formData
     });
     
-    const result = await response.json();
+    console.log('📥 Respuesta recibida:', response.status, response.statusText);
+    
+    // Verificar si la respuesta es JSON válido
+    const contentType = response.headers.get('content-type');
+    let result;
+    
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Respuesta no es JSON:', text.substring(0, 500));
+      showErrorMessage('Error del servidor. Por favor, intenta de nuevo.');
+      return;
+    }
+    
+    // Parsear JSON
+    try {
+      result = await response.json();
+      console.log('📦 Resultado:', result);
+    } catch (jsonError) {
+      console.error('❌ Error al parsear JSON:', jsonError);
+      showErrorMessage('Error al procesar la respuesta del servidor. Por favor, intenta de nuevo.');
+      return;
+    }
+    
+    if (!response.ok) {
+      console.error('❌ Error en la respuesta:', result);
+      showErrorMessage(result.error || `Error ${response.status}: ${response.statusText}`);
+      return;
+    }
     
     if (result.success) {
+      console.log('✅ Imagen agregada exitosamente');
       // Recargar los detalles del proyecto para mostrar la nueva imagen
       await loadProjectDetails(currentProject.id);
       hideModal('addImageModal');
       clearImageForm();
-      alert('Imagen agregada exitosamente a la galería.');
+      showSuccessMessage('Imagen agregada exitosamente a la galería.');
     } else {
-      alert(result.error || 'Error al agregar imagen.');
+      console.error('❌ Error en resultado:', result.error);
+      showErrorMessage(result.error || 'Error al agregar imagen.');
     }
     
   } catch (error) {
-    console.error('Error al agregar imagen:', error);
-    alert('Error al agregar imagen. Por favor, intenta de nuevo.');
+    console.error('❌ Error al agregar imagen:', error);
+    showErrorMessage('Error al agregar imagen. Por favor, intenta de nuevo.');
   }
 }
 
@@ -2029,8 +2236,11 @@ function loadPredefinedCards() {
     cardElement.className = 'predefined-card';
     cardElement.dataset.cardId = card.id;
     
-    // Verificar si ya está seleccionada
-    const isSelected = selectedCards.some(selected => selected.label === card.label);
+    // Verificar si ya está seleccionada usando el ID de la tarjeta predefinida
+    const isSelected = selectedCards.some(selected => 
+      selected.predefinedCardId === card.id || 
+      (selected.label === card.label && !selected.isCustom && (!selected.id || selected.id?.startsWith('card_')))
+    );
     if (isSelected) {
       cardElement.classList.add('selected');
     }
@@ -2125,16 +2335,28 @@ function loadSelectedCards() {
 // Función para alternar selección de tarjeta predefinida
 function togglePredefinedCard(card) {
   const cardElement = document.querySelector(`[data-card-id="${card.id}"]`);
-  const isSelected = selectedCards.some(selected => selected.label === card.label);
   
-  if (isSelected) {
-    // Remover de seleccionadas
-    selectedCards = selectedCards.filter(selected => selected.label !== card.label);
+  // Verificar si ya está seleccionada usando el ID de la tarjeta predefinida
+  const existingIndex = selectedCards.findIndex(selected => 
+    selected.predefinedCardId === card.id
+  );
+  
+  if (existingIndex !== -1) {
+    // Remover de seleccionadas si ya existe
+    selectedCards.splice(existingIndex, 1);
     cardElement.classList.remove('selected');
   } else {
-    // Agregar a seleccionadas (con ID temporal para nuevas)
+    // Verificar si ya existe una tarjeta con el mismo label (evitar duplicados)
+    const duplicateLabel = selectedCards.some(selected => selected.label === card.label);
+    if (duplicateLabel) {
+      showErrorMessage(`Ya existe una tarjeta con el título "${card.label}"`);
+      return;
+    }
+    
+    // Agregar a seleccionadas (con ID temporal para nuevas y el ID de predefinida)
     selectedCards.push({
       id: generateCardId(), // ID temporal para nuevas tarjetas
+      predefinedCardId: card.id, // ID de la tarjeta predefinida para evitar duplicados
       icon: card.icon,
       label: card.label,
       value: '',
@@ -3068,6 +3290,38 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Configurar event listeners para el buscador
+  const searchInput = document.getElementById('projectSearchInput');
+  const searchClearBtn = document.getElementById('searchClearBtn');
+  
+  if (searchInput) {
+    // Event listener para filtrar mientras se escribe
+    searchInput.addEventListener('input', function(e) {
+      const searchTerm = e.target.value;
+      
+      // Mostrar/ocultar botón de limpiar
+      if (searchClearBtn) {
+        if (searchTerm.trim() !== '') {
+          searchClearBtn.style.display = 'flex';
+        } else {
+          searchClearBtn.style.display = 'none';
+        }
+      }
+      
+      // Filtrar proyectos
+      filterProjectsBySearch(searchTerm);
+    });
+    
+    // Event listener para limpiar búsqueda
+    if (searchClearBtn) {
+      searchClearBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        searchClearBtn.style.display = 'none';
+        filterProjectsBySearch('');
+      });
+    }
+  }
+
   // Botón de regreso
   const btnBack = document.getElementById('btnBack');
   if (btnBack) {
@@ -3154,9 +3408,9 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
         
-        // Redirigir a la página de gestión de eventos con el ID del evento para editarlo
+        // Redirigir a la página de gestión de eventos con el ID del evento para editarlo directamente
         const eventoId = currentProject.id;
-        window.location.href = `${window.DJANGO_URLS.gestioneseventos}#manageEventView&evento=${eventoId}`;
+        window.location.href = `${window.DJANGO_URLS.gestioneseventos}#createEventView&evento=${eventoId}`;
       });
     }
   }
@@ -3240,6 +3494,33 @@ document.addEventListener('DOMContentLoaded', function() {
   if (closeImageModal) {
     closeImageModal.addEventListener('click', () => hideModal('addImageModal'));
   }
+
+  // Event listener para cerrar modal de imagen en tamaño completo
+  const closeImageViewModalBtn = document.getElementById('closeImageViewModal');
+  if (closeImageViewModalBtn) {
+    closeImageViewModalBtn.addEventListener('click', closeImageViewModal);
+  }
+
+  // Event listener para cerrar modal de imagen al hacer clic fuera del contenido
+  const imageViewModal = document.getElementById('imageViewModal');
+  if (imageViewModal) {
+    imageViewModal.addEventListener('click', function(e) {
+      // Cerrar si se hace clic fuera del contenido del modal
+      if (e.target === imageViewModal) {
+        closeImageViewModal();
+      }
+    });
+  }
+
+  // Event listener para cerrar modal de imagen con tecla ESC
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const imageViewModal = document.getElementById('imageViewModal');
+      if (imageViewModal && imageViewModal.classList.contains('active')) {
+        closeImageViewModal();
+      }
+    }
+  });
 
   const closeDescriptionModal = document.getElementById('closeDescriptionModal');
   if (closeDescriptionModal) {
@@ -3829,28 +4110,76 @@ async function saveProjectData() {
   try {
     // Obtener tarjetas originales del proyecto
     const tarjetasOriginales = (proyecto.tarjetas_datos || []).map(t => t.id);
+    console.log('📋 Tarjetas originales del proyecto:', tarjetasOriginales);
+    
+    // Crear un mapa de tarjetas por título para detectar duplicados
+    const tarjetasPorTitulo = {};
+    (proyecto.tarjetas_datos || []).forEach(t => {
+      tarjetasPorTitulo[t.titulo.toLowerCase().trim()] = t.id;
+    });
     
     // Separar tarjetas nuevas, actualizadas y eliminadas
     const tarjetasNuevas = [];
     const tarjetasActualizadas = [];
+    const tarjetasTitulosNuevas = new Set(); // Para evitar duplicados en nuevas
     
     selectedCards.forEach(card => {
       const cardId = card.id || '';
+      const cardLabelNormalized = card.label.trim().toLowerCase();
+      console.log('🔍 Procesando tarjeta:', { id: cardId, label: card.label, isCustom: card.isCustom });
+      
       // Si el ID es undefined, null, vacío o empieza con 'card_', es una tarjeta nueva
       if (!cardId || (typeof cardId === 'string' && cardId.startsWith('card_'))) {
-        tarjetasNuevas.push({
-          titulo: card.label.trim(),
-          valor: card.value.trim(),
-          icono: card.icon || '📊'
-        });
+        // Verificar si ya existe una tarjeta con el mismo título en la BD
+        if (tarjetasPorTitulo[cardLabelNormalized]) {
+          console.log('⚠️ Tarjeta con título existente encontrada, actualizando en lugar de crear nueva:', card.label);
+          // Actualizar la tarjeta existente en lugar de crear una nueva
+          tarjetasActualizadas.push({
+            id: tarjetasPorTitulo[cardLabelNormalized],
+            titulo: card.label.trim(),
+            valor: card.value.trim(),
+            icono: card.icon || '📊'
+          });
+        } else if (!tarjetasTitulosNuevas.has(cardLabelNormalized)) {
+          // Solo agregar si no está duplicada en las nuevas
+          console.log('✅ Tarjeta nueva detectada:', card.label);
+          tarjetasNuevas.push({
+            titulo: card.label.trim(),
+            valor: card.value.trim(),
+            icono: card.icon || '📊'
+          });
+          tarjetasTitulosNuevas.add(cardLabelNormalized);
+        } else {
+          console.log('⚠️ Tarjeta duplicada detectada (mismo título en nuevas):', card.label);
+        }
       } else if (tarjetasOriginales.includes(cardId)) {
         // Si el ID existe en las tarjetas originales, es una actualización
+        console.log('✅ Tarjeta actualizada detectada:', card.label, 'ID:', cardId);
         tarjetasActualizadas.push({
           id: cardId,
           titulo: card.label.trim(),
           valor: card.value.trim(),
           icono: card.icon || '📊'
         });
+      } else {
+        // Si el ID no está en las originales pero tampoco es nuevo, verificar por título
+        if (tarjetasPorTitulo[cardLabelNormalized]) {
+          console.log('⚠️ Tarjeta con ID desconocido pero título existente, actualizando:', card.label);
+          tarjetasActualizadas.push({
+            id: tarjetasPorTitulo[cardLabelNormalized],
+            titulo: card.label.trim(),
+            valor: card.value.trim(),
+            icono: card.icon || '📊'
+          });
+        } else if (!tarjetasTitulosNuevas.has(cardLabelNormalized)) {
+          console.log('⚠️ Tarjeta con ID desconocido, tratando como nueva:', card.label);
+          tarjetasNuevas.push({
+            titulo: card.label.trim(),
+            valor: card.value.trim(),
+            icono: card.icon || '📊'
+          });
+          tarjetasTitulosNuevas.add(cardLabelNormalized);
+        }
       }
     });
     
@@ -3892,24 +4221,53 @@ async function saveProjectData() {
       body: formData
     });
     
-    const result = await response.json();
+    console.log('📥 Respuesta recibida:', response.status, response.statusText);
+    
+    // Verificar si la respuesta es JSON válido
+    const contentType = response.headers.get('content-type');
+    let result;
+    
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Respuesta no es JSON:', text.substring(0, 500));
+      showErrorMessage('Error del servidor. Por favor, intenta de nuevo.');
+      return;
+    }
+    
+    // Parsear JSON
+    try {
+      result = await response.json();
+      console.log('📦 Resultado:', result);
+    } catch (jsonError) {
+      console.error('❌ Error al parsear JSON:', jsonError);
+      showErrorMessage('Error al procesar la respuesta del servidor. Por favor, intenta de nuevo.');
+      return;
+    }
+    
+    if (!response.ok) {
+      console.error('❌ Error en la respuesta:', result);
+      showErrorMessage(result.error || `Error ${response.status}: ${response.statusText}`);
+      return;
+    }
     
     if (result.success) {
+      console.log('✅ Datos del proyecto actualizados exitosamente');
       // Recargar los detalles del proyecto para mostrar los cambios
       await loadProjectDetails(proyecto.id);
       hideModal('editDataModal');
-      alert('Datos del proyecto actualizados exitosamente.');
+      showSuccessMessage('Datos del proyecto actualizados exitosamente.');
       
       // Limpiar variables
       selectedCards = [];
       currentEditProject = null;
     } else {
-      alert(result.error || 'Error al actualizar los datos del proyecto.');
+      console.error('❌ Error en resultado:', result.error);
+      showErrorMessage(result.error || 'Error al actualizar los datos del proyecto.');
     }
     
   } catch (error) {
-    console.error('Error al guardar datos del proyecto:', error);
-    alert('Error al guardar los datos. Por favor, intenta de nuevo.');
+    console.error('❌ Error al guardar datos del proyecto:', error);
+    showErrorMessage('Error al guardar los datos. Por favor, intenta de nuevo.');
   }
 }
 
@@ -4512,6 +4870,13 @@ let currentChangeIndex = null;
 function showChangeDetailsModal(cambio) {
   if (!cambio) return;
   
+  // Verificar permisos antes de mostrar el modal
+  const puedeGestionar = puedeGestionarGaleria();
+  if (!puedeGestionar) {
+    console.log('⚠️ Usuario no autenticado intentó abrir modal de detalles del cambio');
+    return; // Bloquear acceso al modal para usuarios no autenticados
+  }
+  
   // Llenar información del cambio
   const fechaDisplay = cambio.fecha_display || cambio.fecha_cambio || 'Sin fecha';
   document.getElementById('changeDetailsDate').textContent = fechaDisplay;
@@ -4528,11 +4893,17 @@ function showChangeDetailsModal(cambio) {
   
   document.getElementById('changeDetailsPersonnel').textContent = cambio.responsable || 'Sin responsable';
   
-  // Cargar evidencias
-  loadEvidences(cambio.evidencias || []);
+  // Cargar evidencias (pasar permisos)
+  loadEvidences(cambio.evidencias || [], puedeGestionar);
   
   // Guardar el ID del cambio actual para agregar evidencias
   currentCambioId = cambio.id;
+  
+  // Mostrar/ocultar botón de agregar evidencia según permisos
+  const addEvidenceBtn = document.getElementById('addEvidenceBtn');
+  if (addEvidenceBtn) {
+    addEvidenceBtn.style.display = puedeGestionar ? 'flex' : 'none';
+  }
   
   showModal('changeDetailsModal');
 }
@@ -4642,7 +5013,7 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 }
 
 // Función para cargar evidencias
-function loadEvidences(evidences) {
+function loadEvidences(evidences, puedeGestionar = false) {
   const grid = document.getElementById('evidencesGrid');
   if (!grid) return;
   
@@ -4659,7 +5030,7 @@ function loadEvidences(evidences) {
           <polyline points="14,2 14,8 20,8"></polyline>
         </svg>
         <p style="margin: 8px 0; font-size: 1rem;">No hay evidencias para este cambio</p>
-        <p style="margin: 8px 0; font-size: 0.9rem; color: #6c757d;">Haz clic en "Agregar Evidencia" para comenzar</p>
+        ${puedeGestionar ? '<p style="margin: 8px 0; font-size: 0.9rem; color: #6c757d;">Haz clic en "Agregar Evidencia" para comenzar</p>' : ''}
       </div>
     `;
     return;
@@ -4681,6 +5052,21 @@ function loadEvidences(evidences) {
     const isImage = evidence.tipo && evidence.tipo.startsWith('image/');
     const nombreArchivo = evidence.nombre || evidence.archivo_nombre || 'Sin nombre';
     
+    // Si puede gestionar, mostrar enlace clickeable, si no, solo texto
+    const nombreArchivoHTML = puedeGestionar 
+      ? `<a href="${evidence.url}" target="_blank" style="color: #007bff; text-decoration: none; font-weight: 500; font-size: 0.9rem; flex: 1; min-width: 0; word-break: break-word;" title="${nombreArchivo}" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${nombreArchivo}</a>`
+      : `<span style="color: #6c757d; font-weight: 500; font-size: 0.9rem; flex: 1; min-width: 0; word-break: break-word; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar evidencias">${nombreArchivo}</span>`;
+    
+    // Botón de eliminar solo si tiene permisos
+    const botonEliminarHTML = puedeGestionar 
+      ? `<button class="evidence-remove" data-evidence-id="${evidence.id}" style="background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; transition: background 0.2s; flex-shrink: 0;" title="Eliminar evidencia" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>`
+      : '';
+    
     evidenceItem.innerHTML = `
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
         ${isImage ? 
@@ -4689,15 +5075,8 @@ function loadEvidences(evidences) {
         }
         <div style="flex: 1; min-width: 0;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-            <a href="${evidence.url}" target="_blank" style="color: #007bff; text-decoration: none; font-weight: 500; font-size: 0.9rem; flex: 1; min-width: 0; word-break: break-word;" title="${nombreArchivo}" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-              ${nombreArchivo}
-            </a>
-            <button class="evidence-remove" data-evidence-id="${evidence.id}" style="background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; transition: background 0.2s; flex-shrink: 0;" title="Eliminar evidencia" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
+            ${nombreArchivoHTML}
+            ${botonEliminarHTML}
           </div>
           <div style="color: #6c757d; font-size: 0.8rem; margin-bottom: 8px;">${evidence.tipo || 'Archivo'}</div>
         </div>

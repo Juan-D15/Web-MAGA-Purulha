@@ -6,7 +6,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}?v=5">
+  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}?v=6">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -99,6 +99,23 @@
                 Agregar nuevo
               </button>
             </div>
+            
+            <!-- Buscador -->
+            <div class="list-search-container">
+              <div class="search-input-wrapper">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" id="projectSearchInput" class="project-search-input" placeholder="Buscar proyecto por nombre..." autocomplete="off">
+                <button class="search-clear-btn" id="searchClearBtn" style="display: none;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
       <!-- Lista de proyectos -->
@@ -163,6 +180,7 @@
         <div class="detail-gallery">
           <div class="section-header">
             <h3 class="gallery-title">Galería de Imágenes</h3>
+            {% if es_admin or es_personal %}
             <button class="btn-edit-item" id="addImageBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -170,6 +188,7 @@
               </svg>
               Agregar Imagen
             </button>
+            {% endif %}
           </div>
           <div class="gallery-grid" id="detailGallery">
             <!-- Las imágenes se cargarán dinámicamente -->
@@ -180,6 +199,7 @@
         <div class="detail-data-section">
           <div class="section-header">
             <h3 class="data-title">Datos del Proyecto</h3>
+            {% if es_admin or es_personal %}
             <button class="btn-edit-item" id="editDataBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -187,6 +207,7 @@
               </svg>
               Editar Datos
             </button>
+            {% endif %}
           </div>
           <div class="data-grid" id="detailData">
             <!-- Los datos se cargarán dinámicamente -->
@@ -207,6 +228,7 @@
         <div class="detail-description-section">
           <div class="section-header">
             <h3 class="description-title">Descripción del Proyecto</h3>
+            {% if es_admin or es_personal %}
             <button class="btn-edit-item" id="editDescriptionBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -214,6 +236,7 @@
               </svg>
               Editar Descripción
             </button>
+            {% endif %}
           </div>
           <div class="description-content" id="detailDescription">
             <!-- La descripción se cargará dinámicamente -->
@@ -224,6 +247,7 @@
         <div class="detail-changes-section">
           <div class="section-header">
             <h3 class="changes-title">Cambios Realizados</h3>
+            {% if es_admin or es_personal %}
             <div class="section-actions">
               <button class="btn-edit-item" id="addChangeBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -233,6 +257,7 @@
                 Agregar Cambio
               </button>
             </div>
+            {% endif %}
           </div>
           <div class="changes-timeline" id="detailChanges">
             <!-- Los cambios se cargarán dinámicamente -->
@@ -243,6 +268,7 @@
         <div class="detail-files-section">
           <div class="section-header">
             <h3 class="files-title">Archivos del Proyecto</h3>
+            {% if es_admin or es_personal %}
             <div class="section-actions">
               <button class="btn-edit-item" id="addFileBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -252,22 +278,29 @@
                 Agregar Archivo
               </button>
             </div>
+            {% endif %}
           </div>
           <div class="files-list" id="detailFiles">
             <!-- Los archivos se cargarán dinámicamente -->
           </div>
         </div>
 
+        <!-- Datos de permisos del usuario (siempre presente, incluso para usuarios no autenticados) -->
+        <div id="userPermissions" data-is-admin="{% if es_admin %}true{% else %}false{% endif %}" data-is-personal="{% if es_personal %}true{% else %}false{% endif %}" style="display: none;"></div>
+
         <!-- Botones de Acción Principal -->
+        {% if es_admin or es_personal %}
         <div class="detail-actions-section">
           <div class="action-buttons">
-            <button class="btn-primary btn-edit-event" id="editEventBtn" data-is-admin="{% if es_admin %}true{% else %}false{% endif %}">
+            {% if es_admin %}
+            <button class="btn-primary btn-edit-event" id="editEventBtn" data-is-admin="{% if es_admin %}true{% else %}false{% endif %}" data-is-personal="{% if es_personal %}true{% else %}false{% endif %}">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
               </svg>
               Editar Evento
             </button>
+            {% endif %}
             <button class="btn-secondary btn-generate-report" id="generateReportBtn">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -280,11 +313,32 @@
             </button>
           </div>
         </div>
+        {% endif %}
       </div>
     </div>
   </main>
 
   <!-- ======= MODALES ======= -->
+
+  <!-- Modal para Ver Imagen en Tamaño Completo -->
+  <div id="imageViewModal" class="modal">
+    <div class="modal-content" style="max-width: 90vw; max-height: 90vh; padding: 0; background: rgba(0, 0, 0, 0.95);">
+      <div class="modal-header" style="position: absolute; top: 0; right: 0; z-index: 1000; background: transparent; padding: 15px;">
+        <button class="modal-close" id="closeImageViewModal" style="background: rgba(0, 0, 0, 0.7); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 0; display: flex; align-items: center; justify-content: center; min-height: 70vh;">
+        <img id="fullSizeImage" src="" alt="Imagen en tamaño completo" style="max-width: 100%; max-height: 90vh; object-fit: contain; display: block;">
+      </div>
+      <div class="modal-footer" style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.8); padding: 15px; text-align: center;">
+        <p id="imageViewDescription" style="color: white; margin: 0; font-size: 0.95rem;"></p>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal para Agregar Imagen -->
   <div id="addImageModal" class="modal">
@@ -778,5 +832,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/proyectos.js' %}?v=42"></script>
+  <script src="{% static 'js/proyectos.js' %}?v=54"></script>
 {% endblock %}

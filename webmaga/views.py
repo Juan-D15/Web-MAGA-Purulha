@@ -26,6 +26,7 @@ from .forms import LoginForm, RecuperarPasswordForm, ActividadForm
 from .decorators import (
     solo_administrador,
     permiso_gestionar_eventos,
+    permiso_gestionar_eventos_api,
     permiso_generar_reportes,
     usuario_autenticado,
     get_usuario_maga
@@ -247,16 +248,28 @@ def obtener_comunidades_evento(evento):
 
 def obtener_tarjetas_datos(evento):
     tarjetas = []
-    qs = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).order_by('orden', 'creado_en')
+    # Usar distinct() para evitar duplicados y ordenar por orden y fecha de creación
+    qs = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).order_by('orden', 'creado_en').distinct()
+    
+    # También usar un set para asegurar que no haya duplicados por ID
+    ids_vistos = set()
+    
     for tarjeta in qs:
-        tarjetas.append({
-            'id': str(tarjeta.id),
-            'titulo': tarjeta.titulo,
-            'valor': tarjeta.valor,
-            'icono': tarjeta.icono,
-            'orden': tarjeta.orden,
-            'es_favorita': tarjeta.es_favorita
-        })
+        tarjeta_id = str(tarjeta.id)
+        # Solo agregar si no hemos visto este ID antes
+        if tarjeta_id not in ids_vistos:
+            ids_vistos.add(tarjeta_id)
+            tarjetas.append({
+                'id': tarjeta_id,
+                'titulo': tarjeta.titulo,
+                'valor': tarjeta.valor,
+                'icono': tarjeta.icono,
+                'orden': tarjeta.orden,
+                'es_favorita': tarjeta.es_favorita
+            })
+        else:
+            print(f'⚠️ Tarjeta duplicada detectada en BD: {tarjeta.titulo} (ID: {tarjeta_id})')
+    
     return tarjetas
 
 
@@ -1470,7 +1483,7 @@ def api_obtener_evento(request, evento_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos
+@permiso_gestionar_eventos_api
 @require_http_methods(["POST"])
 def api_actualizar_evento(request, evento_id):
     """Actualiza un evento existente"""
@@ -1960,12 +1973,34 @@ def api_actualizar_evento(request, evento_id):
 
                 if tarjetas_nuevas:
                     orden_inicial = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).count()
+                    tarjetas_creadas_ids = set()  # Para evitar duplicados por título
+                    
                     for idx, tarjeta in enumerate(tarjetas_nuevas):
-                        titulo = tarjeta.get('titulo')
-                        valor = tarjeta.get('valor')
+                        titulo = tarjeta.get('titulo', '').strip()
+                        valor = tarjeta.get('valor', '').strip()
                         icono = tarjeta.get('icono')
+                        
                         if not titulo or not valor:
                             continue
+                        
+                        # Verificar si ya existe una tarjeta con el mismo título
+                        titulo_normalizado = titulo.lower().strip()
+                        existe = TarjetaDato.objects.filter(
+                            entidad_tipo='actividad',
+                            entidad_id=evento.id,
+                            titulo__iexact=titulo_normalizado
+                        ).exists()
+                        
+                        if existe:
+                            print(f'⚠️ Tarjeta con título "{titulo}" ya existe, omitiendo creación duplicada')
+                            continue
+                        
+                        # Verificar si ya se está creando una con el mismo título en esta misma operación
+                        if titulo_normalizado in tarjetas_creadas_ids:
+                            print(f'⚠️ Tarjeta con título "{titulo}" duplicada en la misma operación, omitiendo')
+                            continue
+                        
+                        tarjetas_creadas_ids.add(titulo_normalizado)
                         
                         TarjetaDato.objects.create(
                             entidad_tipo='actividad',
@@ -1975,7 +2010,7 @@ def api_actualizar_evento(request, evento_id):
                             icono=icono,
                             orden=orden_inicial + idx
                         )
-                    cambios_realizados.append(f"Agregados {len(tarjetas_nuevas)} datos del proyecto")
+                    cambios_realizados.append(f"Agregados {len(tarjetas_creadas_ids)} datos del proyecto")
 
             if data.get('tarjetas_datos_actualizadas'):
                 try:
@@ -3214,7 +3249,7 @@ def api_obtener_detalle_proyecto(request, evento_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos
+@permiso_gestionar_eventos_api
 @require_http_methods(["POST"])
 def api_agregar_imagen_galeria(request, evento_id):
     """API: Agregar imagen a la galería de un evento"""
@@ -3294,7 +3329,7 @@ def api_agregar_imagen_galeria(request, evento_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos
+@permiso_gestionar_eventos_api
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_imagen_galeria(request, evento_id, imagen_id):
     """API: Eliminar imagen de la galería de un evento"""
