@@ -366,6 +366,16 @@
   backdrop-filter: blur(4px);
 }
 
+/* Modal de crear puesto debe aparecer encima de otros modales */
+#createPuestoModal {
+  z-index: 2000 !important;
+}
+
+#createPuestoModal .modal-content {
+  position: relative;
+  z-index: 2001;
+}
+
 .modal-content {
   background: var(--background-secondary);
   margin: 5% auto;
@@ -374,6 +384,7 @@
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-heavy);
   animation: modalSlideIn 0.3s ease;
+  position: relative;
 }
 
 @keyframes modalSlideIn {
@@ -490,6 +501,124 @@
 
 .form-input:valid:not(:placeholder-shown) {
   border-color: var(--success-color);
+}
+
+/* Estilos mejorados para checkboxes - compactos */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  max-width: 18px;
+  max-height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  margin-right: 8px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+  margin-top: 2px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+input[type="checkbox"]:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  background-color: rgba(0, 123, 255, 0.1);
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  width: 3px;
+  height: 6px;
+  border: solid white;
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
+  display: block;
+  box-sizing: border-box;
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+input[type="checkbox"]:disabled:checked {
+  background-color: rgba(0, 123, 255, 0.3);
+  border-color: rgba(0, 123, 255, 0.3);
+}
+
+input[type="checkbox"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+}
+
+/* Estilos para labels con checkboxes - compactos */
+.form-label {
+  display: flex;
+  align-items: flex-start;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+  line-height: 1.4;
+  gap: 0;
+}
+
+.form-label input[type="checkbox"] {
+  margin-bottom: 0;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.form-label > span {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.form-label input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+/* Cuando el checkbox está deshabilitado, el label también debe verse deshabilitado */
+.form-label:has(input[type="checkbox"]:disabled) {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Reducir espacio en grupos de formulario con checkboxes */
+.form-group:has(input[type="checkbox"]) {
+  margin-bottom: 12px;
+}
+
+.form-group:has(input[type="checkbox"]) small {
+  margin-top: 4px;
+  margin-left: 26px;
+  display: block;
+  line-height: 1.35;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Reduce el margen superior del primer elemento después del label con checkbox */
+.form-group:has(input[type="checkbox"]) .form-label ~ small {
+  margin-left: 26px;
 }
 
 /* Responsive para tarjetas principales */

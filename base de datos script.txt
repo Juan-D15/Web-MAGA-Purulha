@@ -1786,10 +1786,6 @@ CREATE INDEX idx_recordatorio_colab_colaborador  ON recordatorio_colaboradores(c
 
 COMMENT ON TABLE recordatorio_colaboradores IS 'Colaboradores involucrados en un recordatorio.';
 
-
-
-
-
 --TABLAS NUEVAS
 CREATE TABLE IF NOT EXISTS actividad_comunidades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1812,9 +1808,6 @@ CREATE TABLE IF NOT EXISTS actividad_portadas (
     UNIQUE (actividad_id)
 );
 CREATE INDEX IF NOT EXISTS idx_actividad_portadas_actividad ON actividad_portadas(actividad_id);
-
-
-
 
 -- =====================================================
 -- ÍNDICES PARA MÓDULO DE REPORTES
@@ -1905,3 +1898,44 @@ WHERE region_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_bitacora_resultado_fecha 
 ON bitacora_transacciones(resultado, creado_en DESC);
 
+-- =====================================================
+-- TABLA: GALERÍA DE EVENTOS/ACTIVIDADES
+-- =====================================================
+CREATE TABLE eventos_galeria (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(50),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_eventos_galeria_actividad ON eventos_galeria(actividad_id);
+CREATE INDEX idx_eventos_galeria_creado_por ON eventos_galeria(creado_por);
+CREATE INDEX idx_eventos_galeria_creado_en ON eventos_galeria(creado_en DESC);
+
+-- =====================================================
+-- TABLA: EVIDENCIAS DE CAMBIOS DE EVENTOS
+-- =====================================================
+CREATE TABLE eventos_evidencias_cambios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    cambio_id UUID NOT NULL REFERENCES actividad_cambios(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(50),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_eventos_evidencias_cambios_actividad ON eventos_evidencias_cambios(actividad_id);
+CREATE INDEX idx_eventos_evidencias_cambios_cambio ON eventos_evidencias_cambios(cambio_id);
+CREATE INDEX idx_eventos_evidencias_cambios_creado_por ON eventos_evidencias_cambios(creado_por);
+CREATE INDEX idx_eventos_evidencias_cambios_creado_en ON eventos_evidencias_cambios(creado_en DESC);
+
+COMMENT ON TABLE eventos_evidencias_cambios IS 'Evidencias (archivos) asociadas a cambios realizados en eventos/actividades';

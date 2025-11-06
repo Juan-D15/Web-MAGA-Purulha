@@ -523,7 +523,16 @@
     if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
       debugLog('Redirecting to gestioneventos as admin');
       if (window.DJANGO_URLS && window.DJANGO_URLS.gestioneseventos) {
-        window.location.href = window.DJANGO_URLS.gestioneseventos;
+        // Determinar el hash según la acción
+        let hash = '';
+        if (action === 'createEventView') {
+          hash = '#createEventView';
+        } else if (action === 'manageEventView') {
+          hash = '#manageEventView';
+        } else if (action === 'createReport') {
+          hash = '#createReport';
+        }
+        window.location.href = window.DJANGO_URLS.gestioneseventos + hash;
       }
     } else if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && !window.USER_AUTH.isAdmin) {
       alert('No tienes permisos de administrador para acceder a esta sección.');

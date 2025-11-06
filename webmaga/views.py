@@ -20,12 +20,14 @@ from .models import (
     Beneficiario, BeneficiarioIndividual, BeneficiarioFamilia, BeneficiarioInstitucion,
     TipoBeneficiario, Usuario, TipoComunidad, ActividadPersonal,
     Colaborador, Puesto,
-    ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio
+    ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
+    ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios
 )
 from .forms import LoginForm, RecuperarPasswordForm, ActividadForm
 from .decorators import (
     solo_administrador,
     permiso_gestionar_eventos,
+    permiso_gestionar_eventos_api,
     permiso_generar_reportes,
     usuario_autenticado,
     get_usuario_maga
@@ -125,9 +127,19 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
         try:
             if tipo == 'individual':
                 benef_ind = BeneficiarioIndividual.objects.get(beneficiario=beneficiario)
+                nuevo_dpi = benef_data.get('dpi')
+                # Validar que no exista otro beneficiario individual con el mismo DPI (excluyendo el actual)
+                if nuevo_dpi and nuevo_dpi != benef_ind.dpi:
+                    dpi_existente = BeneficiarioIndividual.objects.filter(
+                        dpi=nuevo_dpi,
+                        beneficiario__activo=True
+                    ).exclude(beneficiario=beneficiario).first()
+                    if dpi_existente:
+                        raise ValueError(f'Ya existe un beneficiario individual con el DPI {nuevo_dpi}.')
+                
                 benef_ind.nombre = benef_data.get('nombre', benef_ind.nombre)
                 benef_ind.apellido = benef_data.get('apellido', benef_ind.apellido)
-                benef_ind.dpi = benef_data.get('dpi')
+                benef_ind.dpi = nuevo_dpi
                 benef_ind.fecha_nacimiento = benef_data.get('fecha_nacimiento')
                 benef_ind.genero = benef_data.get('genero')
                 benef_ind.telefono = benef_data.get('telefono')
@@ -137,9 +149,19 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
 
             elif tipo == 'familia':
                 benef_fam = BeneficiarioFamilia.objects.get(beneficiario=beneficiario)
+                nuevo_dpi_jefe = benef_data.get('dpi_jefe_familia')
+                # Validar que no exista otra familia con el mismo DPI del jefe (excluyendo la actual)
+                if nuevo_dpi_jefe and nuevo_dpi_jefe != benef_fam.dpi_jefe_familia:
+                    dpi_existente = BeneficiarioFamilia.objects.filter(
+                        dpi_jefe_familia=nuevo_dpi_jefe,
+                        beneficiario__activo=True
+                    ).exclude(beneficiario=beneficiario).first()
+                    if dpi_existente:
+                        raise ValueError(f'Ya existe una familia con el DPI del jefe {nuevo_dpi_jefe}.')
+                
                 benef_fam.nombre_familia = benef_data.get('nombre_familia', benef_fam.nombre_familia)
                 benef_fam.jefe_familia = benef_data.get('jefe_familia', benef_fam.jefe_familia)
-                benef_fam.dpi_jefe_familia = benef_data.get('dpi_jefe_familia')
+                benef_fam.dpi_jefe_familia = nuevo_dpi_jefe
                 benef_fam.telefono = benef_data.get('telefono')
                 benef_fam.numero_miembros = benef_data.get('numero_miembros')
                 benef_fam.save()
@@ -148,10 +170,20 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
 
             elif tipo in ('institucion', 'institución'):
                 benef_inst = BeneficiarioInstitucion.objects.get(beneficiario=beneficiario)
+                nuevo_dpi_rep = benef_data.get('dpi_representante')
+                # Validar que no exista otra institución con el mismo DPI del representante (excluyendo la actual)
+                if nuevo_dpi_rep and nuevo_dpi_rep != benef_inst.dpi_representante:
+                    dpi_existente = BeneficiarioInstitucion.objects.filter(
+                        dpi_representante=nuevo_dpi_rep,
+                        beneficiario__activo=True
+                    ).exclude(beneficiario=beneficiario).first()
+                    if dpi_existente:
+                        raise ValueError(f'Ya existe una institución con el DPI del representante {nuevo_dpi_rep}.')
+                
                 benef_inst.nombre_institucion = benef_data.get('nombre_institucion', benef_inst.nombre_institucion)
                 benef_inst.tipo_institucion = benef_data.get('tipo_institucion', benef_inst.tipo_institucion)
                 benef_inst.representante_legal = benef_data.get('representante_legal')
-                benef_inst.dpi_representante = benef_data.get('dpi_representante')
+                benef_inst.dpi_representante = nuevo_dpi_rep
                 benef_inst.telefono = benef_data.get('telefono')
                 benef_inst.email = benef_data.get('email')
                 benef_inst.numero_beneficiarios_directos = benef_data.get('numero_beneficiarios_directos')
@@ -217,17 +249,98 @@ def obtener_comunidades_evento(evento):
 
 def obtener_tarjetas_datos(evento):
     tarjetas = []
-    qs = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).order_by('orden', 'creado_en')
+    # Usar distinct() para evitar duplicados y ordenar por orden y fecha de creación
+    qs = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).order_by('orden', 'creado_en').distinct()
+    
+    # También usar un set para asegurar que no haya duplicados por ID
+    ids_vistos = set()
+    
     for tarjeta in qs:
-        tarjetas.append({
-            'id': str(tarjeta.id),
-            'titulo': tarjeta.titulo,
-            'valor': tarjeta.valor,
-            'icono': tarjeta.icono,
-            'orden': tarjeta.orden,
-            'es_favorita': tarjeta.es_favorita
-        })
+        tarjeta_id = str(tarjeta.id)
+        # Solo agregar si no hemos visto este ID antes
+        if tarjeta_id not in ids_vistos:
+            ids_vistos.add(tarjeta_id)
+            tarjetas.append({
+                'id': tarjeta_id,
+                'titulo': tarjeta.titulo,
+                'valor': tarjeta.valor,
+                'icono': tarjeta.icono,
+                'orden': tarjeta.orden,
+                'es_favorita': tarjeta.es_favorita
+            })
+        else:
+            print(f'⚠️ Tarjeta duplicada detectada en BD: {tarjeta.titulo} (ID: {tarjeta_id})')
+    
     return tarjetas
+
+
+def obtener_cambios_evento(evento):
+    """Obtiene los cambios realizados en un evento - SOLO los que tienen colaborador asignado"""
+    print(f'🔍 Buscando cambios para evento {evento.id}')
+    print(f'🔍 Nombre del evento: {evento.nombre}')
+    
+    # FILTRAR SOLO CAMBIOS CON COLABORADOR ASIGNADO
+    cambios = ActividadCambio.objects.filter(
+        actividad=evento,
+        colaborador__isnull=False  # SOLO cambios con colaborador asignado
+    ).select_related('colaborador', 'responsable').prefetch_related('evidencias_eventos').order_by('-fecha_cambio')
+    
+    cambios_count = cambios.count()
+    print(f'📊 Total de cambios encontrados CON colaborador: {cambios_count}')
+    
+    cambios_data = []
+    for cambio in cambios:
+        print(f'📝 Procesando cambio {cambio.id}: {cambio.descripcion_cambio[:50]}...')
+        print(f'🔍 Colaborador ID: {cambio.colaborador.id if cambio.colaborador else None}')
+        
+        # Obtener nombre del responsable (colaborador o usuario)
+        responsable_nombre = ''
+        if cambio.colaborador:
+            responsable_nombre = cambio.colaborador.nombre
+        elif cambio.responsable:
+            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
+        
+        # Obtener evidencias del cambio usando la nueva tabla eventos_evidencias_cambios
+        evidencias_data = []
+        evidencias_count = cambio.evidencias_eventos.count()
+        print(f'📎 Evidencias encontradas para cambio {cambio.id}: {evidencias_count}')
+        for evidencia in cambio.evidencias_eventos.all():
+            evidencias_data.append({
+                'id': str(evidencia.id),
+                'nombre': evidencia.archivo_nombre,
+                'url': evidencia.url_almacenamiento,
+                'tipo': evidencia.archivo_tipo or '',
+                'descripcion': evidencia.descripcion or ''
+            })
+        
+        # Formatear fecha en zona horaria de Guatemala
+        fecha_display = ''
+        if cambio.fecha_cambio:
+            # Convertir a zona horaria de Guatemala si es necesario
+            from django.utils import timezone
+            import pytz
+            guatemala_tz = pytz.timezone('America/Guatemala')
+            if timezone.is_aware(cambio.fecha_cambio):
+                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+            else:
+                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+            fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+        
+        cambio_data = {
+            'id': str(cambio.id),
+            'descripcion': cambio.descripcion_cambio,
+            'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+            'fecha_display': fecha_display,
+            'responsable': responsable_nombre,
+            'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None,
+            'responsable_id': str(cambio.responsable.id) if cambio.responsable else None,
+            'evidencias': evidencias_data
+        }
+        cambios_data.append(cambio_data)
+        print(f'✅ Cambio agregado a datos: {cambio_data["id"]} - Colaborador: {responsable_nombre}')
+    
+    print(f'📦 Total de cambios retornados: {len(cambios_data)}')
+    return cambios_data
 
 
 def obtener_portada_evento(evento):
@@ -640,6 +753,19 @@ def api_crear_evento(request):
                     'error': f'El campo {campo} es requerido'
                 }, status=400)
         
+        # Validar que no exista otro evento con el mismo nombre
+        nombre_evento = data.get('nombre', '').strip()
+        if nombre_evento:
+            evento_existente = Actividad.objects.filter(
+                nombre__iexact=nombre_evento,
+                eliminado_en__isnull=True
+            ).exclude(id=None).first()
+            if evento_existente:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Ya existe un evento con el nombre "{nombre_evento}". Por favor, elige un nombre diferente.'
+                }, status=400)
+        
         # Comunidades seleccionadas (principal + adicionales)
         comunidades_payload = []
         if data.get('comunidades_seleccionadas'):
@@ -670,9 +796,7 @@ def api_crear_evento(request):
                 responsable=usuario_maga,
                 fecha=data['fecha'],
                 descripcion=data['descripcion'],
-                estado=data.get('estado', 'planificado'),
-                latitud=data.get('latitud') if data.get('latitud') else None,
-                longitud=data.get('longitud') if data.get('longitud') else None
+                estado=data.get('estado', 'planificado')
             )
             
             # 2. Asignar personal
@@ -754,6 +878,7 @@ def api_crear_evento(request):
                     icono = tarjeta.get('icono')
                     if not titulo or not valor:
                         continue
+                    
                     tarjeta_inst = TarjetaDato.objects.create(
                         entidad_tipo='actividad',
                         entidad_id=actividad.id,
@@ -795,31 +920,61 @@ def api_crear_evento(request):
                         
                         # Crear registro específico según tipo
                         if tipo == 'individual':
+                            dpi_individual = benef_data.get('dpi')
+                            # Validar que no exista otro beneficiario individual con el mismo DPI
+                            if dpi_individual:
+                                dpi_existente = BeneficiarioIndividual.objects.filter(
+                                    dpi=dpi_individual,
+                                    beneficiario__activo=True
+                                ).exclude(beneficiario=beneficiario).first()
+                                if dpi_existente:
+                                    raise ValueError(f'Ya existe un beneficiario individual con el DPI {dpi_individual}.')
+                            
                             BeneficiarioIndividual.objects.create(
                                 beneficiario=beneficiario,
                                 nombre=benef_data.get('nombre', ''),
                                 apellido=benef_data.get('apellido', ''),
-                                dpi=benef_data.get('dpi'),
+                                dpi=dpi_individual,
                                 fecha_nacimiento=benef_data.get('fecha_nacimiento'),
                                 genero=benef_data.get('genero'),
                                 telefono=benef_data.get('telefono')
                             )
                         elif tipo == 'familia':
+                            dpi_jefe = benef_data.get('dpi_jefe_familia')
+                            # Validar que no exista otra familia con el mismo DPI del jefe
+                            if dpi_jefe:
+                                dpi_existente = BeneficiarioFamilia.objects.filter(
+                                    dpi_jefe_familia=dpi_jefe,
+                                    beneficiario__activo=True
+                                ).exclude(beneficiario=beneficiario).first()
+                                if dpi_existente:
+                                    raise ValueError(f'Ya existe una familia con el DPI del jefe {dpi_jefe}.')
+                            
                             BeneficiarioFamilia.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_familia=benef_data.get('nombre_familia', ''),
                                 jefe_familia=benef_data.get('jefe_familia', ''),
-                                dpi_jefe_familia=benef_data.get('dpi_jefe_familia'),
+                                dpi_jefe_familia=dpi_jefe,
                                 telefono=benef_data.get('telefono'),
                                 numero_miembros=benef_data.get('numero_miembros')
                             )
                         elif tipo == 'institucion' or tipo == 'institución':
+                            dpi_rep = benef_data.get('dpi_representante')
+                            # Validar que no exista otra institución con el mismo DPI del representante
+                            if dpi_rep:
+                                dpi_existente = BeneficiarioInstitucion.objects.filter(
+                                    dpi_representante=dpi_rep,
+                                    beneficiario__activo=True
+                                ).exclude(beneficiario=beneficiario).first()
+                                if dpi_existente:
+                                    raise ValueError(f'Ya existe una institución con el DPI del representante {dpi_rep}.')
+                            
                             inst = BeneficiarioInstitucion.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_institucion=benef_data.get('nombre_institucion', ''),
                                 tipo_institucion=benef_data.get('tipo_institucion', 'otro'),
                                 representante_legal=benef_data.get('representante_legal'),
-                                dpi_representante=benef_data.get('dpi_representante'),
+                                dpi_representante=dpi_rep,
                                 telefono=benef_data.get('telefono'),
                                 email=benef_data.get('email'),
                                 numero_beneficiarios_directos=benef_data.get('numero_beneficiarios_directos')
@@ -827,6 +982,7 @@ def api_crear_evento(request):
                             print(f"✅ Institución creada: {inst.nombre_institucion} (ID: {inst.id})")
                         elif tipo == 'otro':
                             # Guardar como institución con tipo 'otro' y usar campos flexibles
+                            # No validamos DPI para tipo "otro" ya que puede no tener representante legal con DPI
                             BeneficiarioInstitucion.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_institucion=benef_data.get('nombre', ''),
@@ -842,9 +998,15 @@ def api_crear_evento(request):
                             beneficiario=beneficiario
                         )
                         
-                except (json.JSONDecodeError, ValueError, TipoBeneficiario.DoesNotExist) as e:
+                except (json.JSONDecodeError, TipoBeneficiario.DoesNotExist) as e:
                     print(f"Error al crear beneficiarios: {e}")
                     pass  # Ignorar si hay errores en beneficiarios
+                except ValueError as e:
+                    # Retornar error de validación (duplicado)
+                    return JsonResponse({
+                        'success': False,
+                        'error': str(e)
+                    }, status=400)
 
             # 3b. Asociar beneficiarios existentes seleccionados
             if data.get('beneficiarios_existentes'):
@@ -876,9 +1038,15 @@ def api_crear_evento(request):
                     cambios_aplicados = aplicar_modificaciones_beneficiarios(beneficiarios_modificados)
                     if cambios_aplicados:
                         print(f"✏️ Beneficiarios existentes actualizados: {cambios_aplicados}")
-                except (json.JSONDecodeError, ValueError) as e:
+                except json.JSONDecodeError as e:
                     print(f"Error al actualizar beneficiarios: {e}")
                     pass
+                except ValueError as e:
+                    # Retornar error de validación (duplicado)
+                    return JsonResponse({
+                        'success': False,
+                        'error': str(e)
+                    }, status=400)
             
             # 5. Guardar evidencias (archivos/imágenes)
             archivos_guardados = []
@@ -1060,6 +1228,57 @@ def api_listar_beneficiarios(request):
     return JsonResponse(beneficiarios_list, safe=False)
 
 
+@permiso_gestionar_eventos
+@require_http_methods(["GET"])
+def api_obtener_beneficiario(request, beneficiario_id):
+    """API: Obtener detalles completos de un beneficiario por ID"""
+    try:
+        beneficiario = Beneficiario.objects.filter(
+            id=beneficiario_id, activo=True
+        ).select_related(
+            'tipo', 'comunidad', 'comunidad__region'
+        ).prefetch_related('individual', 'familia', 'institucion').first()
+        
+        if not beneficiario:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(beneficiario)
+        
+        if beneficiario.tipo and hasattr(beneficiario.tipo, 'get_nombre_display'):
+            tipo_display = beneficiario.tipo.get_nombre_display()
+        else:
+            tipo_display = tipo_envio.title() if tipo_envio else ''
+        
+        return JsonResponse({
+            'success': True,
+            'beneficiario': {
+                'id': str(beneficiario.id),
+                'nombre': nombre_display,
+                'display_name': nombre_display,
+                'tipo': tipo_envio,
+                'tipo_display': tipo_display,
+                'comunidad_id': str(beneficiario.comunidad_id) if beneficiario.comunidad_id else None,
+                'comunidad_nombre': beneficiario.comunidad.nombre if beneficiario.comunidad else None,
+                'region_id': str(beneficiario.comunidad.region_id) if beneficiario.comunidad and beneficiario.comunidad.region_id else None,
+                'region_nombre': beneficiario.comunidad.region.nombre if beneficiario.comunidad and beneficiario.comunidad.region else None,
+                'region_sede': beneficiario.comunidad.region.comunidad_sede if beneficiario.comunidad and beneficiario.comunidad.region and beneficiario.comunidad.region.comunidad_sede else None,
+                'info_adicional': info_adicional,
+                'detalles': detalles,
+                'creado_en': beneficiario.creado_en.isoformat() if beneficiario.creado_en else None,
+                'actualizado_en': beneficiario.actualizado_en.isoformat() if beneficiario.actualizado_en else None
+            }
+        })
+    
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener beneficiario: {str(e)}'
+        }, status=500)
+
+
 # =====================================================
 # APIs PARA GESTIÓN DE EVENTOS (Listar, Editar, Eliminar)
 # =====================================================
@@ -1160,6 +1379,7 @@ def api_obtener_evento(request, evento_id):
         ).prefetch_related(
             'personal__usuario__puesto',
             'personal__colaborador__puesto',
+            'personal__colaborador__usuario',
             'beneficiarios__beneficiario__individual',
             'beneficiarios__beneficiario__familia',
             'beneficiarios__beneficiario__institucion',
@@ -1171,7 +1391,21 @@ def api_obtener_evento(request, evento_id):
         # Personal asignado
         personal_data = []
         for ap in evento.personal.all():
-            if ap.usuario:
+            # IMPORTANTE: Si tiene colaborador, SIEMPRE usar el ID del colaborador (aunque también tenga usuario)
+            # Esto asegura que coincida con la lista de personal disponible desde api_listar_personal
+            # que siempre retorna colaboradores con su ID de colaborador
+            if ap.colaborador:
+                personal_data.append({
+                    'id': str(ap.colaborador.id),
+                    'username': ap.colaborador.usuario.username if ap.colaborador.usuario else (ap.colaborador.correo or ''),
+                    'nombre': ap.colaborador.nombre,
+                    'rol': ap.rol_en_actividad,
+                    'rol_display': 'Personal Fijo' if ap.colaborador.es_personal_fijo else 'Colaborador Externo',
+                    'puesto': ap.colaborador.puesto.nombre if ap.colaborador.puesto else None,
+                    'tipo': 'colaborador'
+                })
+            elif ap.usuario:
+                # Solo usuarios directos (sin colaborador asociado)
                 personal_data.append({
                     'id': str(ap.usuario.id),
                     'username': ap.usuario.username,
@@ -1180,16 +1414,6 @@ def api_obtener_evento(request, evento_id):
                     'rol_display': ap.usuario.get_rol_display(),
                     'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else None,
                     'tipo': 'usuario'
-                })
-            elif ap.colaborador:
-                personal_data.append({
-                    'id': str(ap.colaborador.id),
-                    'username': ap.colaborador.correo or '',
-                    'nombre': ap.colaborador.nombre,
-                    'rol': ap.rol_en_actividad,
-                    'rol_display': 'Personal Fijo' if ap.colaborador.es_personal_fijo else 'Colaborador Externo',
-                    'puesto': ap.colaborador.puesto.nombre if ap.colaborador.puesto else None,
-                    'tipo': 'colaborador'
                 })
         
         # Beneficiarios con detalles completos
@@ -1214,16 +1438,20 @@ def api_obtener_evento(request, evento_id):
                 'detalles': detalles
             })
         
-        # Evidencias
+        # Evidencias (excluir imágenes de galería que ahora están en eventos_galeria)
         evidencias_data = []
         for evidencia in evento.evidencias.all():
-            evidencias_data.append({
-                'id': str(evidencia.id),
-                'nombre': evidencia.archivo_nombre,
-                'url': evidencia.url_almacenamiento,
-                'tipo': evidencia.archivo_tipo,
-                'es_imagen': evidencia.es_imagen
-            })
+            # Excluir imágenes que están en la carpeta de galería (ahora están en eventos_galeria)
+            if '/media/galeria_img/' not in evidencia.url_almacenamiento:
+                evidencias_data.append({
+                    'id': str(evidencia.id),
+                    'nombre': evidencia.archivo_nombre,
+                    'archivo_nombre': evidencia.archivo_nombre,
+                    'url': evidencia.url_almacenamiento,
+                    'tipo': evidencia.archivo_tipo,
+                    'es_imagen': evidencia.es_imagen,
+                    'descripcion': evidencia.descripcion or ''
+                })
         
         comunidades_data = obtener_comunidades_evento(evento)
         comunidad_principal_id = comunidades_data[0]['comunidad_id'] if comunidades_data else (str(evento.comunidad.id) if evento.comunidad else None)
@@ -1237,8 +1465,6 @@ def api_obtener_evento(request, evento_id):
             'fecha': str(evento.fecha),
             'estado': evento.estado,
             'descripcion': evento.descripcion,
-            'latitud': float(evento.latitud) if evento.latitud else None,
-            'longitud': float(evento.longitud) if evento.longitud else None,
             'personal': personal_data,
             'beneficiarios': beneficiarios_data,
             'evidencias': evidencias_data,
@@ -1264,7 +1490,7 @@ def api_obtener_evento(request, evento_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos
+@permiso_gestionar_eventos_api
 @require_http_methods(["POST"])
 def api_actualizar_evento(request, evento_id):
     """Actualiza un evento existente"""
@@ -1288,17 +1514,36 @@ def api_actualizar_evento(request, evento_id):
 
         portada_eliminar_flag = data.get('portada_eliminar') == 'true'
 
+        # Solo validar comunidad si se está intentando actualizar la comunidad explícitamente
+        # Si solo se está actualizando la descripción u otros campos, usar la comunidad existente del evento
         if not comunidad_principal_id:
-            return JsonResponse({
-                'success': False,
-                'error': 'Debe seleccionar al menos una comunidad asociada al evento'
-            }, status=400)
+            # Si el evento ya tiene una comunidad, usar esa. Solo validar si no tiene ninguna.
+            if evento.comunidad:
+                # Usar la comunidad existente del evento
+                comunidad_principal_id = str(evento.comunidad.id)
+            else:
+                # El evento no tiene comunidad y no se está enviando una, entonces es un error
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Debe seleccionar al menos una comunidad asociada al evento'
+                }, status=400)
         
         with transaction.atomic():
             # Actualizar campos básicos
             if data.get('nombre') and data.get('nombre') != evento.nombre:
-                cambios_realizados.append(f"Nombre: '{evento.nombre}' → '{data.get('nombre')}'")
-                evento.nombre = data.get('nombre')
+                nuevo_nombre = data.get('nombre').strip()
+                # Validar que no exista otro evento con el mismo nombre (excluyendo el actual)
+                evento_existente = Actividad.objects.filter(
+                    nombre__iexact=nuevo_nombre,
+                    eliminado_en__isnull=True
+                ).exclude(id=evento.id).first()
+                if evento_existente:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Ya existe otro evento con el nombre "{nuevo_nombre}". Por favor, elige un nombre diferente.'
+                    }, status=400)
+                cambios_realizados.append(f"Nombre: '{evento.nombre}' → '{nuevo_nombre}'")
+                evento.nombre = nuevo_nombre
             
             if data.get('tipo_actividad_id'):
                 nuevo_tipo = TipoActividad.objects.get(id=data.get('tipo_actividad_id'))
@@ -1306,15 +1551,21 @@ def api_actualizar_evento(request, evento_id):
                     cambios_realizados.append(f"Tipo: '{evento.tipo.nombre}' → '{nuevo_tipo.nombre}'")
                     evento.tipo = nuevo_tipo
             
-            if comunidad_principal_id:
-                nueva_comunidad = Comunidad.objects.get(id=comunidad_principal_id)
-                if nueva_comunidad != evento.comunidad:
-                    cambios_realizados.append(f"Comunidad: '{evento.comunidad.nombre}' → '{nueva_comunidad.nombre}'")
-                    evento.comunidad = nueva_comunidad
-            else:
-                if evento.comunidad is not None:
-                    cambios_realizados.append(f"Comunidad principal removida: '{evento.comunidad.nombre}'")
-                    evento.comunidad = None
+            # Solo actualizar la comunidad si se está enviando explícitamente un cambio
+            # Si solo se está actualizando la descripción, mantener la comunidad existente
+            if data.get('comunidad_id') or comunidades_payload:
+                # Se está enviando un cambio explícito de comunidad
+                if comunidad_principal_id:
+                    nueva_comunidad = Comunidad.objects.get(id=comunidad_principal_id)
+                    if nueva_comunidad != evento.comunidad:
+                        cambios_realizados.append(f"Comunidad: '{evento.comunidad.nombre if evento.comunidad else 'Sin comunidad'}' → '{nueva_comunidad.nombre}'")
+                        evento.comunidad = nueva_comunidad
+                elif data.get('comunidad_id') == '' or (data.get('comunidades_seleccionadas') and not comunidades_payload):
+                    # Se está removiendo explícitamente la comunidad
+                    if evento.comunidad is not None:
+                        cambios_realizados.append(f"Comunidad principal removida: '{evento.comunidad.nombre}'")
+                        evento.comunidad = None
+            # Si no se envía comunidad_id ni comunidades_seleccionadas, mantener la comunidad existente
             
             if data.get('fecha') and data.get('fecha') != str(evento.fecha):
                 cambios_realizados.append(f"Fecha: '{evento.fecha}' → '{data.get('fecha')}'")
@@ -1327,12 +1578,6 @@ def api_actualizar_evento(request, evento_id):
             if data.get('descripcion') and data.get('descripcion') != evento.descripcion:
                 cambios_realizados.append("Descripción actualizada")
                 evento.descripcion = data.get('descripcion')
-            
-            if data.get('latitud'):
-                evento.latitud = float(data.get('latitud'))
-            
-            if data.get('longitud'):
-                evento.longitud = float(data.get('longitud'))
             
             evento.actualizado_en = timezone.now()
             evento.save()
@@ -1530,9 +1775,15 @@ def api_actualizar_evento(request, evento_id):
                     cambios_aplicados = aplicar_modificaciones_beneficiarios(beneficiarios_modificados)
                     if cambios_aplicados:
                         cambios_realizados.append(f"Modificado {cambios_aplicados} beneficiarios")
-                except (json.JSONDecodeError, ValueError) as e:
+                except json.JSONDecodeError as e:
                     print(f"Error al actualizar beneficiarios: {e}")
                     pass
+                except ValueError as e:
+                    # Retornar error de validación (duplicado)
+                    return JsonResponse({
+                        'success': False,
+                        'error': str(e)
+                    }, status=400)
             
             # Eliminar evidencias (si se marcaron)
             if data.get('evidencias_eliminadas'):
@@ -1588,31 +1839,61 @@ def api_actualizar_evento(request, evento_id):
                         
                         # Crear registro específico según tipo
                         if tipo == 'individual':
+                            dpi_individual = benef_data.get('dpi')
+                            # Validar que no exista otro beneficiario individual con el mismo DPI
+                            if dpi_individual:
+                                dpi_existente = BeneficiarioIndividual.objects.filter(
+                                    dpi=dpi_individual,
+                                    beneficiario__activo=True
+                                ).exclude(beneficiario=beneficiario).first()
+                                if dpi_existente:
+                                    raise ValueError(f'Ya existe un beneficiario individual con el DPI {dpi_individual}.')
+                            
                             BeneficiarioIndividual.objects.create(
                                 beneficiario=beneficiario,
                                 nombre=benef_data.get('nombre', ''),
                                 apellido=benef_data.get('apellido', ''),
-                                dpi=benef_data.get('dpi'),
+                                dpi=dpi_individual,
                                 fecha_nacimiento=benef_data.get('fecha_nacimiento'),
                                 genero=benef_data.get('genero'),
                                 telefono=benef_data.get('telefono')
                             )
                         elif tipo == 'familia':
+                            dpi_jefe = benef_data.get('dpi_jefe_familia')
+                            # Validar que no exista otra familia con el mismo DPI del jefe
+                            if dpi_jefe:
+                                dpi_existente = BeneficiarioFamilia.objects.filter(
+                                    dpi_jefe_familia=dpi_jefe,
+                                    beneficiario__activo=True
+                                ).exclude(beneficiario=beneficiario).first()
+                                if dpi_existente:
+                                    raise ValueError(f'Ya existe una familia con el DPI del jefe {dpi_jefe}.')
+                            
                             BeneficiarioFamilia.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_familia=benef_data.get('nombre_familia', ''),
                                 jefe_familia=benef_data.get('jefe_familia', ''),
-                                dpi_jefe_familia=benef_data.get('dpi_jefe_familia'),
+                                dpi_jefe_familia=dpi_jefe,
                                 telefono=benef_data.get('telefono'),
                                 numero_miembros=benef_data.get('numero_miembros')
                             )
                         elif tipo == 'institucion' or tipo == 'institución':
+                            dpi_rep = benef_data.get('dpi_representante')
+                            # Validar que no exista otra institución con el mismo DPI del representante
+                            if dpi_rep:
+                                dpi_existente = BeneficiarioInstitucion.objects.filter(
+                                    dpi_representante=dpi_rep,
+                                    beneficiario__activo=True
+                                ).exclude(beneficiario=beneficiario).first()
+                                if dpi_existente:
+                                    raise ValueError(f'Ya existe una institución con el DPI del representante {dpi_rep}.')
+                            
                             BeneficiarioInstitucion.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_institucion=benef_data.get('nombre_institucion', ''),
                                 tipo_institucion=benef_data.get('tipo_institucion', 'otro'),
                                 representante_legal=benef_data.get('representante_legal'),
-                                dpi_representante=benef_data.get('dpi_representante'),
+                                dpi_representante=dpi_rep,
                                 telefono=benef_data.get('telefono'),
                                 email=benef_data.get('email'),
                                 numero_beneficiarios_directos=benef_data.get('numero_beneficiarios_directos')
@@ -1635,9 +1916,15 @@ def api_actualizar_evento(request, evento_id):
                     
                     cambios_realizados.append(f"Agregado {len(beneficiarios_nuevos)} beneficiarios")
                     
-                except (json.JSONDecodeError, ValueError, TipoBeneficiario.DoesNotExist) as e:
+                except (json.JSONDecodeError, TipoBeneficiario.DoesNotExist) as e:
                     print(f"Error al agregar beneficiarios: {e}")
                     pass
+                except ValueError as e:
+                    # Retornar error de validación (duplicado)
+                    return JsonResponse({
+                        'success': False,
+                        'error': str(e)
+                    }, status=400)
             
             # Agregar nuevas evidencias
             if request.FILES.getlist('evidencias_nuevas'):
@@ -1693,12 +1980,35 @@ def api_actualizar_evento(request, evento_id):
 
                 if tarjetas_nuevas:
                     orden_inicial = TarjetaDato.objects.filter(entidad_tipo='actividad', entidad_id=evento.id).count()
+                    tarjetas_creadas_ids = set()  # Para evitar duplicados por título
+                    
                     for idx, tarjeta in enumerate(tarjetas_nuevas):
-                        titulo = tarjeta.get('titulo')
-                        valor = tarjeta.get('valor')
+                        titulo = tarjeta.get('titulo', '').strip()
+                        valor = tarjeta.get('valor', '').strip()
                         icono = tarjeta.get('icono')
+                        
                         if not titulo or not valor:
                             continue
+                        
+                        # Verificar si ya existe una tarjeta con el mismo título
+                        titulo_normalizado = titulo.lower().strip()
+                        existe = TarjetaDato.objects.filter(
+                            entidad_tipo='actividad',
+                            entidad_id=evento.id,
+                            titulo__iexact=titulo_normalizado
+                        ).exists()
+                        
+                        if existe:
+                            print(f'⚠️ Tarjeta con título "{titulo}" ya existe, omitiendo creación duplicada')
+                            continue
+                        
+                        # Verificar si ya se está creando una con el mismo título en esta misma operación
+                        if titulo_normalizado in tarjetas_creadas_ids:
+                            print(f'⚠️ Tarjeta con título "{titulo}" duplicada en la misma operación, omitiendo')
+                            continue
+                        
+                        tarjetas_creadas_ids.add(titulo_normalizado)
+                        
                         TarjetaDato.objects.create(
                             entidad_tipo='actividad',
                             entidad_id=evento.id,
@@ -1707,7 +2017,7 @@ def api_actualizar_evento(request, evento_id):
                             icono=icono,
                             orden=orden_inicial + idx
                         )
-                    cambios_realizados.append(f"Agregados {len(tarjetas_nuevas)} datos del proyecto")
+                    cambios_realizados.append(f"Agregados {len(tarjetas_creadas_ids)} datos del proyecto")
 
             if data.get('tarjetas_datos_actualizadas'):
                 try:
@@ -1720,10 +2030,12 @@ def api_actualizar_evento(request, evento_id):
                     tarjeta_id = tarjeta.get('id')
                     if not tarjeta_id:
                         continue
+                    nuevo_titulo = tarjeta.get('titulo', '').strip()
+                    
                     filas = TarjetaDato.objects.filter(id=tarjeta_id, entidad_tipo='actividad', entidad_id=evento.id)
                     if filas.exists():
                         filas.update(
-                            titulo=tarjeta.get('titulo', ''),
+                            titulo=nuevo_titulo,
                             valor=tarjeta.get('valor', ''),
                             icono=tarjeta.get('icono')
                         )
@@ -2785,6 +3097,11 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'beneficiarios__beneficiario__familia',
             'beneficiarios__beneficiario__institucion',
             'evidencias',
+            'archivos',
+            'galeria_imagenes',
+            'cambios__colaborador',
+            'cambios__responsable',
+            'cambios__evidencias_eventos',
             'comunidades_relacionadas__comunidad__region',
             'comunidades_relacionadas__region'
         ).get(id=evento_id, eliminado_en__isnull=True)
@@ -2836,16 +3153,43 @@ def api_obtener_detalle_proyecto(request, evento_id):
                 'detalles': detalles
             })
         
-        # Evidencias/Galería
+        # Galería de imágenes (desde eventos_galeria)
         evidencias_data = []
-        for evidencia in evento.evidencias.all():
+        for imagen in evento.galeria_imagenes.all():
             evidencias_data.append({
+                'id': str(imagen.id),
+                'nombre': imagen.archivo_nombre,
+                'url': imagen.url_almacenamiento,
+                'tipo': imagen.archivo_tipo or '',
+                'es_imagen': True,
+                'descripcion': imagen.descripcion or ''
+            })
+        
+        # Archivos del proyecto (evidencias no-imágenes + archivos de actividad_archivos)
+        archivos_data = []
+        # Evidencias que NO son imágenes (archivos) - excluir las de galería que ahora están en eventos_galeria
+        for evidencia in evento.evidencias.filter(es_imagen=False):
+            archivos_data.append({
                 'id': str(evidencia.id),
                 'nombre': evidencia.archivo_nombre,
                 'url': evidencia.url_almacenamiento,
-                'tipo': evidencia.archivo_tipo or '',
-                'es_imagen': evidencia.es_imagen,
-                'descripcion': evidencia.descripcion or ''
+                'tipo': evidencia.archivo_tipo or 'application/octet-stream',
+                'tamanio': evidencia.archivo_tamanio,
+                'descripcion': evidencia.descripcion or '',
+                'es_evidencia': True,  # Marca que es de evidencias (no se puede eliminar)
+                'creado_en': evidencia.creado_en.isoformat() if evidencia.creado_en else None
+            })
+        # Archivos de actividad_archivos
+        for archivo in evento.archivos.all():
+            archivos_data.append({
+                'id': str(archivo.id),
+                'nombre': archivo.nombre_archivo,
+                'url': archivo.url_almacenamiento,
+                'tipo': archivo.archivo_tipo or 'application/octet-stream',
+                'tamanio': archivo.archivo_tamanio,
+                'descripcion': archivo.descripcion or '',
+                'es_evidencia': False,  # Marca que es de actividad_archivos (se puede eliminar)
+                'creado_en': archivo.creado_en.isoformat() if archivo.creado_en else None
             })
         
         # Ubicación
@@ -2884,9 +3228,14 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'personal': personal_data,
             'beneficiarios': beneficiarios_data,
             'evidencias': evidencias_data,
+            'archivos': archivos_data,
             'portada': obtener_portada_evento(evento),
-            'tarjetas_datos': obtener_tarjetas_datos(evento)
+            'tarjetas_datos': obtener_tarjetas_datos(evento),
+            'comunidades': obtener_comunidades_evento(evento),
+            'cambios': obtener_cambios_evento(evento)
         }
+        
+        print(f'📤 Retornando proyecto con {len(proyecto_data.get("cambios", []))} cambios')
         
         return JsonResponse({
             'success': True,
@@ -2907,8 +3256,276 @@ def api_obtener_detalle_proyecto(request, evento_id):
         }, status=500)
 
 
+@permiso_gestionar_eventos_api
+@require_http_methods(["POST"])
+def api_agregar_imagen_galeria(request, evento_id):
+    """API: Agregar imagen a la galería de un evento"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Validar que se haya enviado una imagen
+        imagen = request.FILES.get('imagen')
+        if not imagen:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se ha enviado ninguna imagen'
+            }, status=400)
+        
+        # Validar que sea una imagen
+        if not imagen.content_type or not imagen.content_type.startswith('image/'):
+            return JsonResponse({
+                'success': False,
+                'error': 'El archivo debe ser una imagen (JPG, PNG, GIF, etc.)'
+            }, status=400)
+        
+        # Obtener descripción (opcional)
+        descripcion = request.POST.get('descripcion', '').strip()
+        
+        # Crear carpeta si no existe
+        galeria_dir = os.path.join(settings.MEDIA_ROOT, 'galeria_img')
+        os.makedirs(galeria_dir, exist_ok=True)
+        
+        # Guardar archivo
+        fs = FileSystemStorage(location=galeria_dir)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+        file_extension = os.path.splitext(imagen.name)[1]
+        filename = f"{timestamp}_{evento_id}{file_extension}"
+        saved_name = fs.save(filename, imagen)
+        file_url = f"/media/galeria_img/{saved_name}"
+        
+        # Crear registro en la BD usando EventosGaleria
+        imagen_galeria = EventosGaleria.objects.create(
+            actividad=evento,
+            archivo_nombre=imagen.name,
+            archivo_tipo=imagen.content_type,
+            archivo_tamanio=imagen.size,
+            url_almacenamiento=file_url,
+            descripcion=descripcion,
+            creado_por=usuario_maga
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Imagen agregada exitosamente',
+            'imagen': {
+                'id': str(imagen_galeria.id),
+                'url': file_url,
+                'nombre': imagen.name,
+                'descripcion': descripcion
+            }
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al agregar imagen: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos_api
+@require_http_methods(["DELETE", "POST"])
+def api_eliminar_imagen_galeria(request, evento_id, imagen_id):
+    """API: Eliminar imagen de la galería de un evento"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Obtener la imagen de la galería
+        imagen_galeria = EventosGaleria.objects.filter(
+            id=imagen_id,
+            actividad=evento
+        ).first()
+        
+        if not imagen_galeria:
+            return JsonResponse({
+                'success': False,
+                'error': 'Imagen no encontrada'
+            }, status=404)
+        
+        # Eliminar archivo físico
+        file_path = os.path.join(settings.MEDIA_ROOT, imagen_galeria.url_almacenamiento.replace('/media/', ''))
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f'Error al eliminar archivo físico: {e}')
+        
+        # Eliminar registro de la BD
+        imagen_galeria.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Imagen eliminada exitosamente'
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al eliminar imagen: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_agregar_archivo(request, evento_id):
+    """API: Agregar archivo a un evento"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Validar que se haya enviado un archivo
+        archivo = request.FILES.get('archivo')
+        if not archivo:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se ha enviado ningún archivo'
+            }, status=400)
+        
+        # Obtener descripción (opcional)
+        descripcion = request.POST.get('descripcion', '').strip()
+        
+        # Crear carpeta si no existe
+        archivos_dir = os.path.join(settings.MEDIA_ROOT, 'archivos_eventos')
+        os.makedirs(archivos_dir, exist_ok=True)
+        
+        # Guardar archivo
+        fs = FileSystemStorage(location=archivos_dir)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+        file_extension = os.path.splitext(archivo.name)[1]
+        filename = f"{timestamp}_{evento_id}{file_extension}"
+        saved_name = fs.save(filename, archivo)
+        file_url = f"/media/archivos_eventos/{saved_name}"
+        
+        # Crear registro en la tabla actividad_archivos
+        archivo_registro = ActividadArchivo.objects.create(
+            actividad=evento,
+            nombre_archivo=archivo.name,
+            archivo_tipo=archivo.content_type or 'application/octet-stream',
+            archivo_tamanio=archivo.size,
+            url_almacenamiento=file_url,
+            descripcion=descripcion,
+            creado_por=usuario_maga
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Archivo agregado exitosamente',
+            'archivo': {
+                'id': str(archivo_registro.id),
+                'nombre': archivo.name,
+                'url': file_url,
+                'tipo': archivo.content_type or 'application/octet-stream',
+                'tamanio': archivo.size,
+                'descripcion': descripcion,
+                'es_evidencia': False
+            }
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al agregar archivo: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["DELETE", "POST"])
+def api_eliminar_archivo(request, evento_id, archivo_id):
+    """API: Eliminar archivo de un evento (solo de actividad_archivos, no evidencias)"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Obtener el archivo de actividad_archivos (NO evidencias)
+        archivo = ActividadArchivo.objects.filter(
+            id=archivo_id,
+            actividad=evento
+        ).first()
+        
+        if not archivo:
+            return JsonResponse({
+                'success': False,
+                'error': 'Archivo no encontrado o no se puede eliminar (es una evidencia)'
+            }, status=404)
+        
+        # Eliminar archivo físico
+        file_path = os.path.join(settings.MEDIA_ROOT, archivo.url_almacenamiento.replace('/media/', ''))
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f'Error al eliminar archivo físico: {e}')
+        
+        # Eliminar registro de la BD
+        archivo.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Archivo eliminado exitosamente'
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al eliminar archivo: {str(e)}'
+        }, status=500)
+
+
 # =====================================================
-# APIs DE GESTIÓN DE USUARIOS Y COLABORADORES
+# APIs PARA GESTIÓN DE CAMBIOS
 # =====================================================
 
 @solo_administrador
@@ -3081,22 +3698,392 @@ def api_crear_usuario(request):
             'usuario': {
                 'id': str(usuario.id),
                 'username': usuario.username,
+                'nombre': usuario.nombre or '',
                 'email': usuario.email,
-                'rol': usuario.rol
+                'rol': usuario.rol,
+                'rol_display': usuario.get_rol_display(),
+                'puesto_id': str(usuario.puesto.id) if usuario.puesto else None,
+                'puesto_nombre': usuario.puesto.nombre if usuario.puesto else None,
+                'colaborador_id': str(colaborador.id) if colaborador else None,
+                'colaborador_nombre': colaborador.nombre if colaborador else None
             }
         })
         
-    except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False,
-            'error': 'Datos inválidos'
-        }, status=400)
     except Exception as e:
         import traceback
         traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': f'Error al crear usuario: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_crear_cambio(request, evento_id):
+    """API: Crear un cambio en un evento"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        descripcion = request.POST.get('descripcion', '').strip()
+        if not descripcion:
+            return JsonResponse({
+                'success': False,
+                'error': 'La descripción del cambio es obligatoria'
+            }, status=400)
+        
+        # Obtener colaborador responsable si se envía
+        colaborador_id = request.POST.get('colaborador_id')
+        colaborador = None
+        if colaborador_id:
+            try:
+                colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
+                # Verificar que el colaborador esté asignado al evento
+                if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'El colaborador seleccionado no está asignado a este evento'
+                    }, status=400)
+            except Colaborador.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Colaborador no encontrado'
+                }, status=404)
+        
+        # Crear el cambio
+        cambio = ActividadCambio.objects.create(
+            actividad=evento,
+            descripcion_cambio=descripcion,
+            colaborador=colaborador,
+            responsable=usuario_maga if not colaborador else None
+        )
+        
+        # Procesar evidencias si se enviaron archivos
+        evidencias_data = []
+        if request.FILES:
+            evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias_cambios_eventos')
+            os.makedirs(evidencias_dir, exist_ok=True)
+            
+            fs = FileSystemStorage(location=evidencias_dir)
+            print(f'📎 Archivos recibidos: {list(request.FILES.keys())}')
+            for index, key in enumerate(request.FILES.keys()):
+                archivo = request.FILES[key]
+                print(f'📎 Procesando archivo {key}: {archivo.name} ({archivo.size} bytes)')
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+                file_extension = os.path.splitext(archivo.name)[1]
+                filename = f"{timestamp}_{cambio.id}{file_extension}"
+                saved_name = fs.save(filename, archivo)
+                file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
+                
+                # Obtener descripción de la evidencia desde el FormData
+                # El formato puede ser 'descripcion_evidencia_0', 'descripcion_evidencia_1', etc.
+                descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
+                if not descripcion_evidencia:
+                    # También intentar con el nombre de la clave del archivo
+                    descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{key}', '').strip()
+                
+                evidencia = EventosEvidenciasCambios.objects.create(
+                    actividad=evento,
+                    cambio=cambio,
+                    archivo_nombre=archivo.name,
+                    archivo_tipo=archivo.content_type or 'application/octet-stream',
+                    archivo_tamanio=archivo.size,
+                    url_almacenamiento=file_url,
+                    descripcion=descripcion_evidencia,
+                    creado_por=usuario_maga
+                )
+                print(f'✅ Evidencia creada: {evidencia.id} - {evidencia.archivo_nombre}')
+                
+                evidencias_data.append({
+                    'id': str(evidencia.id),
+                    'nombre': evidencia.archivo_nombre,
+                    'url': evidencia.url_almacenamiento,
+                    'tipo': evidencia.archivo_tipo or '',
+                    'descripcion': evidencia.descripcion or ''
+                })
+        else:
+            print('⚠️ No se recibieron archivos en request.FILES')
+        
+        # Obtener nombre del responsable
+        responsable_nombre = ''
+        if cambio.colaborador:
+            responsable_nombre = cambio.colaborador.nombre
+        elif cambio.responsable:
+            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
+        
+        # Formatear fecha en zona horaria de Guatemala
+        fecha_display = ''
+        if cambio.fecha_cambio:
+            from django.utils import timezone
+            import pytz
+            guatemala_tz = pytz.timezone('America/Guatemala')
+            if timezone.is_aware(cambio.fecha_cambio):
+                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+            else:
+                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+            fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Cambio creado exitosamente',
+            'cambio': {
+                'id': str(cambio.id),
+                'descripcion': cambio.descripcion_cambio,
+                'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                'fecha_display': fecha_display,
+                'responsable': responsable_nombre,
+                'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None,
+                'evidencias': evidencias_data
+            }
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al crear cambio: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_actualizar_cambio(request, evento_id, cambio_id):
+    """API: Actualizar un cambio existente"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        descripcion = request.POST.get('descripcion', '').strip()
+        if not descripcion:
+            return JsonResponse({
+                'success': False,
+                'error': 'La descripción del cambio es obligatoria'
+            }, status=400)
+        
+        # Actualizar colaborador responsable si se envió
+        colaborador_id = request.POST.get('colaborador_id')
+        if colaborador_id:
+            try:
+                colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
+                # Verificar que el colaborador esté asignado al evento
+                if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'El colaborador seleccionado no está asignado a este evento'
+                    }, status=400)
+                cambio.colaborador = colaborador
+                cambio.responsable = None
+            except Colaborador.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Colaborador no encontrado'
+                }, status=404)
+        elif colaborador_id == '':
+            # Si se envía vacío, usar el usuario actual como responsable
+            cambio.colaborador = None
+            cambio.responsable = usuario_maga
+        
+        cambio.descripcion_cambio = descripcion
+        cambio.save()
+        
+        # Obtener nombre del responsable
+        responsable_nombre = ''
+        if cambio.colaborador:
+            responsable_nombre = cambio.colaborador.nombre
+        elif cambio.responsable:
+            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
+        
+        # Formatear fecha en zona horaria de Guatemala
+        fecha_display = ''
+        if cambio.fecha_cambio:
+            from django.utils import timezone
+            import pytz
+            guatemala_tz = pytz.timezone('America/Guatemala')
+            if timezone.is_aware(cambio.fecha_cambio):
+                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+            else:
+                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+            fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Cambio actualizado exitosamente',
+            'cambio': {
+                'id': str(cambio.id),
+                'descripcion': cambio.descripcion_cambio,
+                'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                'fecha_display': fecha_display,
+                'responsable': responsable_nombre,
+                'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None
+            }
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except ActividadCambio.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cambio no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar cambio: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["DELETE", "POST"])
+def api_eliminar_cambio(request, evento_id, cambio_id):
+    """API: Eliminar un cambio y sus evidencias"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Eliminar evidencias físicas
+        for evidencia in cambio.evidencias.all():
+            file_path = os.path.join(settings.MEDIA_ROOT, evidencia.url_almacenamiento.replace('/media/', ''))
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    print(f'Error al eliminar archivo físico de evidencia: {e}')
+        
+        # Eliminar el cambio (las evidencias se eliminan en cascada)
+        cambio.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Cambio eliminado exitosamente'
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except ActividadCambio.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cambio no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al eliminar cambio: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
+    """API: Agregar evidencia a un cambio existente"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        archivo = request.FILES.get('archivo')
+        if not archivo:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se ha enviado ningún archivo'
+            }, status=400)
+        
+        descripcion = request.POST.get('descripcion', '').strip()
+        
+        # Crear carpeta si no existe
+        evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias_cambios_eventos')
+        os.makedirs(evidencias_dir, exist_ok=True)
+        
+        # Guardar archivo
+        fs = FileSystemStorage(location=evidencias_dir)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+        file_extension = os.path.splitext(archivo.name)[1]
+        filename = f"{timestamp}_{cambio_id}{file_extension}"
+        saved_name = fs.save(filename, archivo)
+        file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
+        
+        # Crear registro en la BD usando la nueva tabla eventos_evidencias_cambios
+        evidencia = EventosEvidenciasCambios.objects.create(
+            actividad=evento,
+            cambio=cambio,
+            archivo_nombre=archivo.name,
+            archivo_tipo=archivo.content_type or 'application/octet-stream',
+            archivo_tamanio=archivo.size,
+            url_almacenamiento=file_url,
+            descripcion=descripcion,
+            creado_por=usuario_maga
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Evidencia agregada exitosamente',
+            'evidencia': {
+                'id': str(evidencia.id),
+                'nombre': evidencia.archivo_nombre,
+                'url': evidencia.url_almacenamiento,
+                'tipo': evidencia.archivo_tipo or '',
+                'descripcion': evidencia.descripcion or ''
+            }
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except ActividadCambio.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cambio no encontrado'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al agregar evidencia: {str(e)}'
         }, status=500)
 
 
@@ -3557,6 +4544,62 @@ def api_actualizar_usuario(request, usuario_id):
         }, status=500)
 
 
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
+    """API: Actualizar descripción de una evidencia de cambio"""
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        evidencia = EventosEvidenciasCambios.objects.get(id=evidencia_id, actividad=evento, cambio=cambio)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        descripcion = request.POST.get('descripcion', '').strip()
+        evidencia.descripcion = descripcion
+        evidencia.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Descripción actualizada exitosamente',
+            'evidencia': {
+                'id': str(evidencia.id),
+                'nombre': evidencia.archivo_nombre,
+                'url': evidencia.url_almacenamiento,
+                'tipo': evidencia.archivo_tipo or '',
+                'descripcion': evidencia.descripcion or ''
+            }
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except ActividadCambio.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cambio no encontrado'
+        }, status=404)
+    except EventosEvidenciasCambios.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evidencia no encontrada'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar evidencia: {str(e)}'
+        }, status=500)
+
+
 @solo_administrador
 @require_http_methods(["POST"])
 def api_eliminar_usuario(request, usuario_id):
@@ -3594,6 +4637,61 @@ def api_eliminar_usuario(request, usuario_id):
         return JsonResponse({
             'success': False,
             'error': f'Error al eliminar usuario: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["DELETE", "POST"])
+def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
+    try:
+        evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
+        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        evidencia = EventosEvidenciasCambios.objects.get(id=evidencia_id, actividad=evento, cambio=cambio)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Eliminar archivo físico
+        file_path = os.path.join(settings.MEDIA_ROOT, evidencia.url_almacenamiento.replace('/media/', ''))
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f'Error al eliminar archivo físico: {e}')
+        
+        # Eliminar registro de la BD
+        evidencia.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Evidencia eliminada exitosamente'
+        })
+        
+    except Actividad.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evento no encontrado'
+        }, status=404)
+    except ActividadCambio.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Cambio no encontrado'
+        }, status=404)
+    except EventosEvidenciasCambios.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evidencia no encontrada'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al eliminar evidencia: {str(e)}'
         }, status=500)
 
 

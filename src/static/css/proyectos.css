@@ -385,13 +385,21 @@ html {
 .list-title-container {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 20px;
+  position: relative;
+  margin-bottom: 30px;
 }
 
 .list-title-content {
   flex: 1;
   text-align: center;
+  max-width: 600px;
+}
+
+.list-title-container .btn-agregar-nuevo {
+  position: absolute;
+  right: 0;
 }
 
 .list-title {
@@ -439,6 +447,76 @@ html {
 
 .btn-agregar-nuevo svg {
   flex-shrink: 0;
+}
+
+/* Buscador */
+.list-search-container {
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.search-input-wrapper:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 123, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.search-icon {
+  color: var(--text-70);
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.search-input-wrapper:focus-within .search-icon {
+  color: #007bff;
+}
+
+.project-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-100);
+  font-size: 15px;
+  font-weight: 400;
+  padding: 0;
+}
+
+.project-search-input::placeholder {
+  color: var(--text-50);
+}
+
+.search-clear-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-70);
+  cursor: pointer;
+  padding: 4px;
+  margin-left: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.search-clear-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-100);
 }
 
 /* Contenedor de lista */
@@ -578,15 +656,23 @@ html {
     flex-direction: column;
     align-items: center;
     gap: 16px;
+    position: relative;
   }
 
   .list-title-content {
     text-align: center;
+    max-width: 100%;
   }
 
-  .btn-agregar-nuevo {
+  .list-title-container .btn-agregar-nuevo {
+    position: static;
     padding: 10px 16px;
     font-size: 13px;
+  }
+
+  .list-search-container {
+    max-width: 100%;
+    margin-top: 20px;
   }
 
   .list-item {
@@ -854,13 +940,37 @@ html {
 
 .gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 20px;
+  max-width: 100%;
+}
+
+.gallery-grid .gallery-item {
+  width: 100%;
+  max-width: 300px;
+  height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.gallery-grid .gallery-item:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.gallery-grid .gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .gallery-grid img {
   width: 100%;
-  height: 150px;
+  height: 100%;
   object-fit: cover;
   border-radius: 12px;
   transition: transform 0.3s ease;
@@ -2215,6 +2325,14 @@ html {
 .file-item .btn-remove-item:hover {
   background: rgba(220, 53, 69, 0.2);
   border-color: #dc3545;
+}
+
+/* Estilos para botón de eliminar archivo con clase btn-cover-remove */
+.file-item .btn-cover-remove {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 /* Responsive para botones de eliminación */
