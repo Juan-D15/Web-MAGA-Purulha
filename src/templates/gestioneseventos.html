@@ -5,7 +5,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=45">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=72">
+  <link rel="stylesheet" href="{% static 'css/proyectos.css' %}?v=6">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
 {% endblock %}
 {% block nav_gestioneseventos %}active{% endblock %}
@@ -50,6 +51,7 @@
               </svg>
             </button>
           </div>
+
         </div>
 
         <!-- Sección de Cambios Recientes -->
@@ -65,40 +67,28 @@
           </div>
         </section>
 
-        <!-- Sección de Gestión de Usuarios -->
-        <section class="report-section">
-          <div class="report-container">
-            <h2 class="report-title">Gestión de Usuarios</h2>
-            <p class="report-description">Administrar usuarios del sistema y personal involucrado en trabajos</p>
-            <a href="{% url 'webmaga:gestionusuarios' %}" class="btn-generate-report" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-              <span>Gestionar Usuarios</span>
-            </a>
-          </div>
-        </section><br>
-
-        <!-- Sección de Generar Reporte -->
-        <section class="report-section">
-          <div class="report-container">
-            <h2 class="report-title">Generar Reporte</h2>
-            <p class="report-description">Crear reportes detallados de eventos y actividades realizadas</p>
-            <button class="btn-generate-report" id="generateReportBtn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14,2 14,8 20,8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10,9 9,9 8,9"></polyline>
-              </svg>
-              <span>Generar Reporte</span>
-            </button>
-          </div>
-        </section>
+        <!-- Botones de Acción Rápida -->
+        <div class="action-buttons-section">
+          <a href="{% url 'webmaga:gestionusuarios' %}" class="action-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>Gestión de Usuarios</span>
+          </a>
+          <a href="{% url 'webmaga:reportes-index' %}" class="action-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14,2 14,8 20,8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10,9 9,9 8,9"></polyline>
+            </svg>
+            <span>Generar Reporte</span>
+          </a>
+        </div>
       </div>
 
       <!-- Vista de Crear Evento -->
@@ -223,31 +213,7 @@
               <textarea id="eventDescription" name="descripcion" class="form-textarea" rows="5" placeholder="Describa los detalles del evento, objetivos, metodología, etc." required></textarea>
             </div>
 
-            <!-- Datos Rápidos del Proyecto -->
-            <div class="form-group">
-              <label class="form-label">Datos del Proyecto</label>
-              <div class="beneficiary-upload">
-                <button type="button" id="addQuickDataBtn" class="beneficiary-label">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="12" y1="18" x2="12" y2="12"></line>
-                    <line x1="9" y1="15" x2="15" y2="15"></line>
-                  </svg>
-                  <span>Agregar dato del proyecto</span>
-                </button>
-              </div>
-
-              <div id="quickDataSection" style="display: none; margin-top: 14px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-                  <h4 style="margin: 0; color: #ffffff; font-size: 0.95rem; font-weight: 600;">Datos Registrados</h4>
-                  <span id="quickDataCount" style="color: #0d6efd; font-size: 0.85rem; font-weight: 600;"></span>
-                </div>
-                <div id="quickDataContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
-              </div>
-            </div>
- 
-            <!-- Beneficiarios -->
+            <!-- Beneficiarios (PRIMERO) -->
             <div class="form-group">
               <label for="beneficiaries" class="form-label">Beneficiarios del Evento</label>
               
@@ -268,9 +234,68 @@
               <div id="beneficiariesSection" style="margin-top: 16px; display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                   <h4 style="margin: 0; font-size: 0.95rem; color: #ffffff; font-weight: 600;">Beneficiarios Agregados</h4>
-                  <div id="beneficiaryCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <div id="beneficiaryCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                    <button type="button" id="toggleBeneficiariesListBtn" class="beneficiaries-toggle-btn" title="Ocultar/Mostrar lista">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <div id="beneficiariesContainer"></div>
+                <!-- Buscador de beneficiarios -->
+                <div class="beneficiaries-search-container" style="margin-bottom: 12px;">
+                  <div class="beneficiaries-search-wrapper">
+                    <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" id="beneficiariesSearchInput" class="beneficiaries-search-input" placeholder="Buscar por nombre, DPI o teléfono...">
+                    <button type="button" id="beneficiariesSearchClearBtn" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <!-- Contenedor con scroll limitado -->
+                <div id="beneficiariesContainerWrapper" class="beneficiaries-container-wrapper">
+                  <div id="beneficiariesContainer"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Datos Rápidos del Proyecto (DESPUÉS) -->
+            <div class="form-group">
+              <label class="form-label">Datos del Proyecto</label>
+              <div class="beneficiary-upload">
+                <button type="button" id="addQuickDataBtn" class="beneficiary-label">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <line x1="9" y1="15" x2="15" y2="15"></line>
+                  </svg>
+                  <span>Agregar dato del proyecto</span>
+                </button>
+              </div>
+
+              <div id="quickDataSection" style="display: none; margin-top: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                  <h4 style="margin: 0; color: #ffffff; font-size: 0.95rem; font-weight: 600;">Datos Registrados</h4>
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <span id="quickDataCount" style="color: #0d6efd; font-size: 0.85rem; font-weight: 600;"></span>
+                    <button type="button" id="toggleProjectDataListBtn" class="beneficiaries-toggle-btn" title="Ocultar/Mostrar lista">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div id="projectDataContainerWrapper" class="beneficiaries-container-wrapper">
+                  <div id="quickDataContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                </div>
               </div>
             </div>
             
@@ -294,9 +319,18 @@
               <div id="filesSection" style="margin-top: 16px; display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                   <h4 style="margin: 0; font-size: 0.95rem; color: #b8c5d1; font-weight: 600;">Archivos Seleccionados</h4>
-                  <div id="fileCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <div id="fileCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                    <button type="button" id="toggleEvidencesListBtn" class="beneficiaries-toggle-btn" title="Ocultar/Mostrar lista">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <div class="file-preview" id="filePreview"></div>
+                <div id="evidencesContainerWrapper" class="beneficiaries-container-wrapper">
+                  <div class="file-preview" id="filePreview"></div>
+                </div>
               </div>
             </div>
 
@@ -331,6 +365,23 @@
             Volver
           </button>
           <h2 class="view-title">Gestionar Eventos</h2>
+        </div>
+
+        <!-- Buscador de eventos -->
+        <div class="event-search-container">
+          <div class="event-search-wrapper">
+            <svg class="event-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <input type="text" id="eventSearchInput" class="event-search-input" placeholder="Buscar evento por nombre...">
+            <button type="button" id="eventSearchClearBtn" class="event-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="events-list-container">
@@ -577,18 +628,20 @@
           </svg>
         </button>
       </div>
-      <div class="modal-body" style="max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;">
-        <div class="form-group">
-          <label for="community_region_select" class="form-label">Región</label>
-          <select id="community_region_select" class="form-select">
-            <option value="">Seleccione una región</option>
-          </select>
+      <div class="modal-body" style="padding: 24px; display: flex; flex-direction: column; gap: 20px; max-height: calc(90vh - 140px); overflow: visible;">
+        <div style="display: flex; flex-direction: column; gap: 20px; flex-shrink: 0;">
+          <div class="form-group" style="display: flex !important; flex-direction: column !important; gap: 8px !important; width: 100% !important; flex-shrink: 0 !important; min-height: auto !important; margin: 0 !important;">
+            <label for="community_region_select" class="form-label" style="display: block !important; font-weight: 600 !important; color: #ffffff !important; font-size: 15px !important; margin: 0 0 8px 0 !important; visibility: visible !important; opacity: 1 !important;">Región</label>
+            <select id="community_region_select" class="form-select" style="width: 100% !important; padding: 12px 16px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 8px !important; background: rgba(255, 255, 255, 0.05) !important; color: #ffffff !important; font-size: 16px !important; display: block !important; visibility: visible !important; opacity: 1 !important; height: auto !important; min-height: 44px !important;">
+              <option value="">Todas las regiones</option>
+            </select>
+          </div>
+          <div class="form-group" style="display: flex !important; flex-direction: column !important; gap: 8px !important; width: 100% !important; flex-shrink: 0 !important; min-height: auto !important; margin: 0 !important;">
+            <label for="community_search_input" class="form-label" style="display: block !important; font-weight: 600 !important; color: #ffffff !important; font-size: 15px !important; margin: 0 0 8px 0 !important; visibility: visible !important; opacity: 1 !important;">Buscar comunidad</label>
+            <input type="text" id="community_search_input" class="form-input" placeholder="Buscar por nombre o código" style="width: 100% !important; padding: 12px 16px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 8px !important; background: rgba(255, 255, 255, 0.05) !important; color: #ffffff !important; font-size: 16px !important; display: block !important; visibility: visible !important; opacity: 1 !important; height: auto !important; min-height: 44px !important;">
+          </div>
         </div>
-        <div class="form-group">
-          <label for="community_search_input" class="form-label">Buscar comunidad</label>
-          <input type="text" id="community_search_input" class="form-input" placeholder="Buscar por nombre o código">
-        </div>
-        <div id="community_list_container" style="display: grid; gap: 8px;"></div>
+        <div id="community_list_container" style="display: grid !important; gap: 8px !important; flex: 1 !important; overflow-y: auto !important; min-height: 200px !important; max-height: calc(90vh - 350px) !important; padding-right: 8px;"></div>
       </div>
       <div class="modal-footer">
         <button type="button" id="cancelCommunityBtn" class="btn-secondary">Cancelar</button>
@@ -880,33 +933,121 @@
     </div>
   </div>
 
-  <!-- Modal Datos del Proyecto -->
+  <!-- Modal Datos del Proyecto (con tarjetas predefinidas y personalizadas) -->
   <div id="quickDataModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 520px;">
+    <div class="modal-content edit-data-modal" style="max-width: 800px;">
       <div class="modal-header">
-        <h3 class="modal-title">Agregar Dato del Proyecto</h3>
-        <button type="button" class="close-modal" id="closeQuickDataModal">×</button>
+        <h3 class="modal-title">Editar Datos del Proyecto</h3>
+        <button class="modal-close" id="closeQuickDataModal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
       <div class="modal-body">
-        <form id="quickDataForm" class="modal-form" autocomplete="off">
+        <!-- Pestañas -->
+        <div class="edit-data-tabs">
+          <button class="tab-btn active" data-tab="predefined">Tarjetas Predefinidas</button>
+          <button class="tab-btn" data-tab="custom">Crear Personalizada</button>
+        </div>
+
+        <!-- Pestaña de Tarjetas Predefinidas -->
+        <div class="tab-content active" id="predefined-tab-event">
+          <div class="search-container">
+            <input type="text" id="cardSearchEvent" class="form-input" placeholder="Buscar tarjetas...">
+          </div>
+          
+          <div class="category-filter">
+            <label for="categoryFilterEvent" class="form-label">Filtrar por categoría:</label>
+            <select id="categoryFilterEvent" class="form-select">
+              <option value="">Todas las categorías</option>
+              <option value="General">General</option>
+              <option value="Financiero">Financiero</option>
+              <option value="Físico">Físico</option>
+              <option value="Institucional">Institucional</option>
+              <option value="Educativo">Educativo</option>
+              <option value="Social">Social</option>
+              <option value="Recursos">Recursos</option>
+              <option value="Temporal">Temporal</option>
+              <option value="Técnico">Técnico</option>
+              <option value="Evaluación">Evaluación</option>
+              <option value="Ambiental">Ambiental</option>
+            </select>
+          </div>
+
+          <div class="predefined-cards-grid" id="predefinedCardsGridEvent">
+            <!-- Las tarjetas predefinidas se cargarán aquí dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Pestaña de Crear Personalizada -->
+        <div class="tab-content" id="custom-tab-event">
           <div class="form-group">
-            <label for="quickDataEmoji" class="form-label">Emoji o Ícono</label>
-            <input type="text" id="quickDataEmoji" maxlength="4" class="form-input" placeholder="Ej: 😀, 📌, ⚙️">
-            <small style="color: #6c757d;">Puedes pegar un emoji o escribir un símbolo corto.</small>
+            <label for="customIconEvent" class="form-label">Emoji/Icono</label>
+            <input type="text" id="customIconEvent" class="form-input" placeholder="Ej: 🌱" maxlength="2">
           </div>
           <div class="form-group">
-            <label for="quickDataTitle" class="form-label">Título *</label>
-            <input type="text" id="quickDataTitle" class="form-input" maxlength="100" placeholder="Ej: Cantidad de participantes" required>
+            <label for="customLabelEvent" class="form-label">Título de la Tarjeta</label>
+            <input type="text" id="customLabelEvent" class="form-input" placeholder="Ej: Sostenibilidad">
           </div>
           <div class="form-group">
-            <label for="quickDataDescription" class="form-label">Descripción / Valor *</label>
-            <input type="text" id="quickDataDescription" class="form-input" maxlength="255" placeholder="Ej: 150 personas" required>
+            <label for="customValueEvent" class="form-label">Valor/Dato</label>
+            <input type="text" id="customValueEvent" class="form-input" placeholder="Ej: 5 años">
           </div>
-        </form>
+          <button type="button" id="addCustomCardBtnEvent" class="btn-primary">Agregar Tarjeta Personalizada</button>
+        </div>
+
+        <!-- Tarjetas Seleccionadas -->
+        <div class="selected-cards-section">
+          <h4 class="section-title">Tarjetas Seleccionadas</h4>
+          <div class="selected-cards-container" id="selectedCardsContainerEvent">
+            <!-- Las tarjetas seleccionadas se mostrarán aquí -->
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" id="cancelQuickDataBtn">Cancelar</button>
-        <button type="button" class="btn-primary" id="saveQuickDataBtn">Guardar</button>
+        <button type="button" id="cancelQuickDataBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveQuickDataBtn" class="btn-primary">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Detalles del Cambio -->
+  <div id="changeDetailsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Detalles del Cambio</h3>
+        <button class="modal-close" onclick="cerrarDetallesCambio()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 20px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+            <div class="change-time">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <span id="changeDetailsDate">-</span>
+            </div>
+            <span id="changeDetailsEliminado" class="label-eliminado" style="display: none;">ELIMINADO</span>
+          </div>
+          <h4 style="color: var(--text-primary); margin: 0 0 8px 0; font-size: 1.1rem; font-weight: 600;" id="changeDetailsTitle">-</h4>
+          <p style="color: var(--text-secondary); margin: 0 0 16px 0; font-size: 0.9rem;">
+            <strong>Responsable:</strong> <span id="changeDetailsResponsible">-</span>
+          </p>
+        </div>
+        <div style="background: rgba(255, 255, 255, 0.03); padding: 16px; border-radius: 8px; border-left: 3px solid var(--text-accent);">
+          <p style="color: var(--text-primary); margin: 0; line-height: 1.6; white-space: pre-wrap;" id="changeDetailsDescription">-</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="cerrarDetallesCambio()">Cerrar</button>
       </div>
     </div>
   </div>
@@ -914,5 +1055,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=53"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=79"></script>
 {% endblock %}

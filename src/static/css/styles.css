@@ -37,7 +37,7 @@ a{color:inherit;text-decoration:none}
 
 /* ---------- ENCABEZADO ---------- */
 .topbar{
-  position:sticky;top:0;z-index:60;
+  position:sticky;top:0;z-index:5000;
   background:
     radial-gradient(900px 400px at 50% -200px, #ffffff12 0%, transparent 70%),
     linear-gradient(180deg, var(--bg-950) 0%, #121821 100%);
@@ -100,7 +100,7 @@ a{color:inherit;text-decoration:none}
 
 /* ---------- DROPDOWNS escritorio ---------- */
 .dd{position:relative}
-.dd__panel{position:absolute;top:44px;left:0;min-width:280px;background:radial-gradient(800px 400px at 20% -40%, #ffffff0a 0%, transparent 70%),linear-gradient(180deg, #273449 0%, #1f2937 100%);border:1px solid var(--border);border-radius:var(--radius);padding:10px;box-shadow:var(--shadow);display:none}
+.dd__panel{position:absolute;top:44px;left:0;min-width:280px;background:radial-gradient(800px 400px at 20% -40%, #ffffff0a 0%, transparent 70%),linear-gradient(180deg, #273449 0%, #1f2937 100%);border:1px solid var(--border);border-radius:var(--radius);padding:10px;box-shadow:var(--shadow);display:none;z-index:5050}
 .dd__panel.show{display:block;animation:fadeSlide .16s ease both}
 @keyframes fadeSlide{from{opacity:.0; transform:translateY(-6px)} to{opacity:1; transform:translateY(0)}}
 .dd__section{padding:8px}

@@ -1,182 +1,14 @@
 // ======= DATOS DE REGIONES - CARGA DESDE BD =======
-console.log('📦 Regiones.js - Usando datos desde la base de datos');
-
-// Los datos se cargarán desde la API
-let regionsData = {
-  'region-norte': {
-    id: 'region-norte',
-    name: 'Región Norte',
-    code: 'Región 1',
-    location: 'Zona norte de Purulhá',
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
-        description: 'Vista panorámica de la región norte'
-      }
-    ],
-    data: [
-      { icon: '🏘️', label: 'Número de Comunidades', value: '12 comunidades' },
-      { icon: '👥', label: 'Población Aproximada', value: '2,500 habitantes' },
-      { icon: '🏛️', label: 'Comunidad Sede', value: 'San José' }
-    ],
-    description: `
-      <p>La Región Norte de Purulhá se caracteriza por su diversidad geográfica y cultural. Esta región abarca comunidades rurales que se dedican principalmente a la agricultura y ganadería.</p>
-      <p>La región cuenta con un clima templado y suelos fértiles que favorecen el cultivo de maíz, frijol y café. Las comunidades mantienen tradiciones ancestrales y tienen una fuerte organización comunitária.</p>
-    `,
-    projects: [
-      { name: 'Capacitación en Técnicas Agrícolas', type: 'Capacitación', status: 'En ejecución' },
-      { name: 'Entrega de Semillas Mejoradas', type: 'Entrega', status: 'Completado' }
-    ],
-    communities: [
-      { name: 'San José', type: 'Aldea' },
-      { name: 'Los Pinos', type: 'Caserío' },
-      { name: 'El Progreso', type: 'Barrio' }
-    ],
-    files: [
-      { 
-        name: 'Plan Regional Norte 2024', 
-        description: 'Documento estratégico para el desarrollo de la región norte',
-        type: 'pdf',
-        size: '3.2 MB',
-        date: '2024-11-15',
-        url: '#'
-      },
-      { 
-        name: 'Censo Regional Norte', 
-        description: 'Resultados del censo poblacional de la región norte',
-        type: 'xlsx',
-        size: '2.1 MB',
-        date: '2024-11-10',
-        url: '#'
-      }
-    ]
-  },
-  'region-sur': {
-    id: 'region-sur',
-    name: 'Región Sur',
-    code: 'Región 2',
-    location: 'Zona sur de Purulhá',
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
-        description: 'Paisaje montañoso de la región sur'
-      }
-    ],
-    data: [
-      { icon: '🏘️', label: 'Número de Comunidades', value: '15 comunidades' },
-      { icon: '👥', label: 'Población Aproximada', value: '3,200 habitantes' },
-      { icon: '🏛️', label: 'Comunidad Sede', value: 'Centro Panchisivic' }
-    ],
-    description: `
-      <p>La Región Sur presenta un relieve montañoso que ofrece paisajes espectaculares y recursos naturales únicos. Las comunidades se adaptan a las condiciones topográficas del terreno.</p>
-      <p>Esta región se destaca por su producción de café de altura y por mantener prácticas agrícolas sostenibles. Las comunidades tienen una fuerte identidad cultural y organizativa.</p>
-    `,
-    projects: [
-      { name: 'Taller de Desarrollo Comunitario', type: 'Capacitación', status: 'Completado' },
-      { name: 'Construcción de Invernadero', type: 'Proyecto de Ayuda', status: 'En ejecución' }
-    ],
-    communities: [
-      { name: 'Centro Panchisivic', type: 'Aldea' },
-      { name: 'Eben-Ezer', type: 'Caserío' },
-      { name: 'Suquinay II', type: 'Barrio' }
-    ],
-    files: [
-      { 
-        name: 'Estudio de Suelos Región Sur', 
-        description: 'Análisis de suelos y capacidad productiva de la región sur',
-        type: 'pdf',
-        size: '4.5 MB',
-        date: '2024-11-12',
-        url: '#'
-      }
-    ]
-  },
-  'region-este': {
-    id: 'region-este',
-    name: 'Región Este',
-    code: 'Región 3',
-    location: 'Zona este de Purulhá',
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
-        description: 'Vista de la región este'
-      }
-    ],
-    data: [
-      { icon: '🏘️', label: 'Número de Comunidades', value: '10 comunidades' },
-      { icon: '👥', label: 'Población Aproximada', value: '2,100 habitantes' }
-    ],
-    description: `
-      <p>La Región Este se caracteriza por su proximidad a áreas urbanas y su desarrollo comercial. Las comunidades mantienen un equilibrio entre tradición y modernidad.</p>
-    `,
-    projects: [
-      { name: 'Capacitación Técnica Avanzada', type: 'Capacitación', status: 'En ejecución' }
-    ],
-    communities: [
-      { name: 'Los Ángeles', type: 'Aldea' },
-      { name: 'El Chol', type: 'Caserío' }
-    ]
-  },
-  'region-oeste': {
-    id: 'region-oeste',
-    name: 'Región Oeste',
-    code: 'Región 4',
-    location: 'Zona oeste de Purulhá',
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
-        description: 'Paisaje de la región oeste'
-      }
-    ],
-    data: [
-      { icon: '🏘️', label: 'Número de Comunidades', value: '8 comunidades' },
-      { icon: '👥', label: 'Población Aproximada', value: '1,800 habitantes' }
-    ],
-    description: `
-      <p>La Región Oeste presenta características únicas en su geografía y desarrollo comunitario. Las comunidades se han adaptado a las condiciones específicas del área.</p>
-    `,
-    projects: [
-      { name: 'Entrega de Herramientas Agrícolas', type: 'Entrega', status: 'Completado' }
-    ],
-    communities: [
-      { name: 'San Antonio', type: 'Aldea' },
-      { name: 'Las Flores', type: 'Caserío' }
-    ]
-  },
-  'region-central': {
-    id: 'region-central',
-    name: 'Región Central',
-    code: 'Región 5',
-    location: 'Zona central de Purulhá',
-    photos: [
-      {
-        url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
-        description: 'Centro de la región'
-      }
-    ],
-    data: [
-      { icon: '🏘️', label: 'Número de Comunidades', value: '18 comunidades' },
-      { icon: '👥', label: 'Población Aproximada', value: '4,500 habitantes' }
-    ],
-    description: `
-      <p>La Región Central es el corazón de Purulhá, concentrando la mayor cantidad de comunidades y población. Esta región es estratégica para el desarrollo regional.</p>
-    `,
-    projects: [
-      { name: 'Instalación de Sistema de Riego', type: 'Proyecto de Ayuda', status: 'En ejecución' }
-    ],
-    communities: [
-      { name: 'Centro Panchisivic', type: 'Aldea' },
-      { name: 'El Progreso', type: 'Barrio' }
-    ]
-  }
-};
+console.log('📦 Regiones.js - Cargando datos desde la base de datos');
 
 // ======= VARIABLES GLOBALES =======
+let regionsData = {}; // Se llenará dinámicamente desde la API
 let currentRegionData = null;
 let currentRegionId = null;
+let allRegions = []; // Todas las regiones para la lista completa
 
 // ======= FUNCIONES DE NAVEGACIÓN =======
-function showRegionsList() {
+async function showRegionsList() {
   const mainView = document.querySelector('.regions-main');
   const listView = document.getElementById('regionsListView');
   const detailView = document.getElementById('regionDetailView');
@@ -185,11 +17,29 @@ function showRegionsList() {
   detailView.style.display = 'none';
   listView.style.display = 'block';
   
+  // Mostrar indicador de carga
+  const regionsList = document.getElementById('regionsList');
+  if (regionsList) {
+    regionsList.innerHTML = `
+      <div style="display: flex; justify-content: center; align-items: center; min-height: 300px; flex-direction: column; gap: 20px;">
+        <div class="loading-spinner" style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #4A90E2; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p style="color: var(--text-muted);">Cargando regiones...</p>
+      </div>
+    `;
+  }
+  
+  // Si no hay regiones cargadas, cargarlas desde la API
+  if (!allRegions || allRegions.length === 0) {
+    console.log('🔄 No hay regiones cargadas, cargando desde API...');
+    await loadRegionsFromAPI();
+  }
+  
+  // Cargar la lista
   loadRegionsList();
   window.scrollTo(0, 0);
 }
 
-function showRegionDetail(regionId) {
+async function showRegionDetail(regionId) {
   const mainView = document.querySelector('.regions-main');
   const listView = document.getElementById('regionsListView');
   const detailView = document.getElementById('regionDetailView');
@@ -199,9 +49,84 @@ function showRegionDetail(regionId) {
   detailView.style.display = 'block';
   
   currentRegionId = regionId;
-  currentRegionData = regionsData[regionId];
-  loadRegionDetail(currentRegionData);
-  window.scrollTo(0, 0);
+  
+  // Mostrar indicador de carga como overlay sin eliminar el contenido
+  const detailContent = document.querySelector('.detail-content');
+  if (detailContent) {
+    // Guardar el contenido original si no existe un overlay de carga
+    if (!detailContent.querySelector('.loading-overlay')) {
+      const loadingOverlay = document.createElement('div');
+      loadingOverlay.className = 'loading-overlay';
+      loadingOverlay.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(30, 39, 54, 0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        gap: 20px;
+        z-index: 1000;
+      `;
+      loadingOverlay.innerHTML = `
+        <div class="loading-spinner" style="width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #4A90E2; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p style="color: var(--text-muted);">Cargando información de la región...</p>
+        <style>
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        </style>
+      `;
+      detailContent.style.position = 'relative';
+      detailContent.appendChild(loadingOverlay);
+    }
+  }
+  
+  // Cargar detalle completo desde la API
+  try {
+    const response = await fetch(`/api/region/${regionId}/`);
+    if (!response.ok) throw new Error('Error al cargar detalle de región');
+    const regionData = await response.json();
+    
+    // Convertir formato de API a formato esperado por loadRegionDetail
+    currentRegionData = {
+      id: regionData.id,
+      name: regionData.nombre,
+      code: regionData.codigo,
+      codigo: regionData.codigo,  // Agregar también codigo para el mapa
+      comunidad_sede: regionData.comunidad_sede || '',
+      location: regionData.location,
+      photos: regionData.photos || [],
+      data: regionData.data || [],
+      description: regionData.descripcion ? `<p>${regionData.descripcion}</p>` : '',
+      projects: regionData.projects || [],
+      communities: regionData.communities || [],
+      files: regionData.files || []
+    };
+    
+    // Remover el overlay de carga antes de cargar el detalle
+    const loadingOverlay = detailContent?.querySelector('.loading-overlay');
+    if (loadingOverlay) {
+      loadingOverlay.remove();
+    }
+    
+    loadRegionDetail(currentRegionData);
+    window.scrollTo(0, 0);
+  } catch (error) {
+    console.error('❌ Error al cargar detalle de región:', error);
+    
+    // Remover el overlay de carga en caso de error
+    const loadingOverlay = detailContent?.querySelector('.loading-overlay');
+    if (loadingOverlay) {
+      loadingOverlay.remove();
+    }
+    
+    showErrorMessage('Error al cargar el detalle de la región. Por favor, intenta de nuevo.');
+    backToMain();
+  }
 }
 
 function backToMain() {
@@ -232,36 +157,235 @@ function backToList() {
   window.scrollTo(0, 0);
 }
 
+// ======= FUNCIONES DE CARGA DE DATOS DESDE API =======
+// Estas funciones se usan para actualizar dinámicamente las regiones si es necesario
+// Las regiones iniciales se cargan desde Django templates
+async function loadRegionsFromAPI() {
+  console.log('🔄 Iniciando carga de regiones desde API (actualización dinámica)...');
+  try {
+    const response = await fetch('/api/regiones/');
+    console.log('📡 Respuesta recibida:', response.status, response.statusText);
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status} - ${response.statusText}`);
+    }
+    
+    const regiones = await response.json();
+    console.log('✅ Regiones recibidas:', regiones.length, regiones);
+    
+    if (!regiones || regiones.length === 0) {
+      console.warn('⚠️ No se encontraron regiones en la base de datos');
+      return;
+    }
+    
+    // Convertir array a objeto con ID como clave
+    regionsData = {};
+    regiones.forEach(region => {
+      regionsData[region.id] = {
+        id: region.id,
+        name: region.nombre,
+        code: region.codigo,
+        comunidad_sede: region.comunidad_sede || '',
+        imagen_url: region.imagen_url,
+        num_comunidades: region.num_comunidades || 0
+      };
+    });
+    
+    // Guardar todas las regiones en allRegions (mantener formato de API)
+    allRegions = regiones;
+    console.log('📊 Total de regiones procesadas:', allRegions.length);
+    console.log('📋 Primeras 3 regiones:', allRegions.slice(0, 3));
+    
+    // Actualizar la lista completa solo si estamos en la vista de lista
+    const listView = document.getElementById('regionsListView');
+    if (listView && listView.style.display !== 'none') {
+      console.log('🔄 Actualizando lista de regiones...');
+      loadRegionsList();
+    }
+    
+    console.log('✅ Regiones cargadas exitosamente:', Object.keys(regionsData).length);
+  } catch (error) {
+    console.error('❌ Error al cargar regiones:', error);
+    console.error('Detalles del error:', error.message, error.stack);
+    // No mostrar error si las regiones ya están cargadas desde el template
+  }
+}
+
+async function loadFeaturedRegions() {
+  console.log('🔄 Cargando últimas regiones...');
+  try {
+    const response = await fetch('/api/regiones/recientes/?limite=2');
+    console.log('📡 Respuesta últimas regiones:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    
+    const regiones = await response.json();
+    console.log('✅ Últimas regiones recibidas:', regiones.length, regiones);
+    
+    const container = document.getElementById('featuredRegionsContainer');
+    if (!container) {
+      console.error('❌ No se encontró el contenedor featuredRegionsContainer');
+      return;
+    }
+    
+    container.innerHTML = '';
+    
+    if (regiones.length === 0) {
+      console.warn('⚠️ No hay regiones recientes');
+      container.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones recientes disponibles</p>';
+      return;
+    }
+    
+    regiones.forEach((region, index) => {
+      console.log(`📦 Creando tarjeta ${index + 1} para región:`, region.nombre);
+      const card = createRegionCard(region, true); // true = featured card
+      container.appendChild(card);
+    });
+    
+    console.log('✅ Últimas regiones cargadas:', regiones.length);
+  } catch (error) {
+    console.error('❌ Error al cargar últimas regiones:', error);
+    const container = document.getElementById('featuredRegionsContainer');
+    if (container) {
+      container.innerHTML = '<p style="color: var(--text-danger); padding: 20px; text-align: center;">Error al cargar últimas regiones</p>';
+    }
+  }
+}
+
+function loadRegionsGrid() {
+  console.log('🔄 Cargando grid de regiones...');
+  const grid = document.getElementById('regionsGrid');
+  if (!grid) {
+    console.error('❌ No se encontró el contenedor regionsGrid');
+    return;
+  }
+  
+  grid.innerHTML = '';
+  
+  if (!allRegions || allRegions.length === 0) {
+    console.warn('⚠️ No hay regiones para mostrar en el grid');
+    grid.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones disponibles</p>';
+    return;
+  }
+  
+  // Excluir las regiones que ya están en "Últimas Regiones"
+  const featuredIds = new Set();
+  document.querySelectorAll('#featuredRegionsContainer [data-region-id]').forEach(el => {
+    const id = el.getAttribute('data-region-id');
+    if (id) featuredIds.add(id);
+  });
+  
+  console.log('📋 Regiones destacadas (excluidas del grid):', Array.from(featuredIds));
+  
+  // Cargar todas las demás regiones
+  let regionesAgregadas = 0;
+  allRegions.forEach((region, index) => {
+    if (!featuredIds.has(region.id)) {
+      console.log(`📦 Creando tarjeta ${index + 1} para región:`, region.nombre);
+      const card = createRegionCard(region, false); // false = normal card
+      grid.appendChild(card);
+      regionesAgregadas++;
+    }
+  });
+  
+  console.log(`✅ Grid de regiones cargado: ${regionesAgregadas} regiones agregadas`);
+  
+  if (regionesAgregadas === 0) {
+    grid.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">Todas las regiones están en la sección de últimas regiones</p>';
+  }
+}
+
+function createRegionCard(region, isFeatured = false) {
+  console.log('🎨 Creando tarjeta para región:', region.nombre, 'Featured:', isFeatured);
+  
+  const card = document.createElement('div');
+  card.className = `region-card ${isFeatured ? 'featured-card' : ''}`;
+  
+  // El título grande muestra la comunidad_sede, el código pequeño muestra el nombre de la región
+  const tituloGrande = region.comunidad_sede || region.nombre || 'Sin comunidad sede';
+  const codigoPequeño = region.nombre || region.codigo || 'Sin nombre';
+  
+  const imagenUrl = region.imagen_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+  
+  console.log('📝 Datos de la tarjeta:', {
+    tituloGrande,
+    codigoPequeño,
+    imagenUrl,
+    regionId: region.id
+  });
+  
+  card.innerHTML = `
+    <div class="region-card__image">
+      <img src="${imagenUrl}" 
+           alt="${region.nombre}" 
+           loading="${isFeatured ? 'eager' : 'lazy'}">
+      <div class="region-card__overlay">
+        <div class="region-card__info">
+          <h3 class="region-card__title">${tituloGrande}</h3>
+          <p class="region-card__code">${codigoPequeño}</p>
+        </div>
+        <button class="region-card__btn" data-region-id="${region.id}">Ver más</button>
+      </div>
+    </div>
+  `;
+  
+  return card;
+}
+
 // ======= FUNCIONES DE CARGA DE DATOS =======
 function loadRegionsList() {
   const regionsList = document.getElementById('regionsList');
-  if (!regionsList) return;
+  if (!regionsList) {
+    console.warn('⚠️ No se encontró el contenedor regionsList');
+    return;
+  }
+  
+  console.log('🔄 Cargando lista de regiones, total:', allRegions.length);
   
   regionsList.innerHTML = '';
   
-  Object.values(regionsData).forEach(region => {
+  if (!allRegions || allRegions.length === 0) {
+    console.warn('⚠️ No hay regiones para mostrar en la lista');
+    regionsList.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones disponibles</p>';
+    return;
+  }
+  
+  allRegions.forEach((region, index) => {
+    console.log(`📦 Creando item ${index + 1} para región:`, region.nombre);
     const regionItem = createRegionListItem(region);
     regionsList.appendChild(regionItem);
   });
+  
+  console.log(`✅ Lista de regiones cargada: ${allRegions.length} regiones`);
 }
 
 function createRegionListItem(region) {
   const regionItem = document.createElement('div');
   regionItem.className = 'region-list-item';
+  
+  const imagenUrl = region.imagen_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80';
+  const numComunidades = region.num_comunidades || 0;
+  
+  // Mostrar primero la sede, luego la región junto al icono de ubicación
+  const sedeNombre = region.comunidad_sede || 'Sin sede';
+  const regionNombre = region.nombre || region.codigo || 'Sin nombre';
+  
   regionItem.innerHTML = `
     <div class="region-list-item__image">
-      <img src="${region.photos[0].url}" alt="${region.name}" loading="lazy">
+      <img src="${imagenUrl}" alt="${regionNombre}" loading="lazy">
     </div>
     <div class="region-list-item__content">
       <div class="region-list-item__info">
-        <h3 class="region-list-item__name">${region.name}</h3>
+        <h3 class="region-list-item__name">${sedeNombre}</h3>
         <div class="region-list-item__details">
           <div class="region-list-item__code">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
               <circle cx="12" cy="10" r="3"></circle>
             </svg>
-            ${region.code}
+            ${regionNombre}
           </div>
           <div class="region-list-item__communities">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -270,7 +394,7 @@ function createRegionListItem(region) {
               <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
-            ${region.communities.length} comunidades
+            ${numComunidades} comunidades
           </div>
         </div>
       </div>
@@ -284,26 +408,54 @@ function createRegionListItem(region) {
 function loadRegionDetail(region) {
   if (!region) return;
   
-  // Título y código
-  document.getElementById('detailTitle').textContent = region.name;
-  document.getElementById('detailCode').textContent = region.code;
+  // Restaurar el contenido del detalle (por si estaba en estado de carga)
+  const detailContent = document.querySelector('.detail-content');
+  if (!detailContent) {
+    console.error('❌ No se encontró el elemento detail-content');
+    return;
+  }
+  
+  // Asegurarse de que el contenido esté visible (no en estado de carga)
+  const loadingOverlay = detailContent.querySelector('.loading-overlay');
+  if (loadingOverlay) {
+    loadingOverlay.remove();
+  }
+  
+  // Título: mostrar comunidad sede (o nombre de región si no hay sede)
+  const tituloPrincipal = region.comunidad_sede || region.name || 'Sin sede';
+  const subtitulo = region.name || region.code || 'Sin nombre';
+  
+  const detailTitle = document.getElementById('detailTitle');
+  const detailCode = document.getElementById('detailCode');
+  if (detailTitle) detailTitle.textContent = tituloPrincipal;
+  if (detailCode) detailCode.textContent = subtitulo;
   
   // Galería de imágenes con botones de eliminación
-  if (region.photos) {
+  if (region.photos && region.photos.length > 0) {
     loadGalleryWithDeleteButtons(region.photos);
+  } else {
+    const gallery = document.getElementById('detailGallery');
+    if (gallery) {
+      gallery.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay imágenes disponibles</p>';
+    }
   }
   
   // Ubicación
   loadLocation(region.location);
   
-  // Mapa de la región
-  loadRegionMap(region.id);
+  // Mapa de la región (esperar un poco para asegurar que el DOM esté listo)
+  setTimeout(() => {
+    loadRegionMap(region.id);
+  }, 100);
   
   // Datos generales
   loadData(region.data);
   
   // Descripción
-  document.getElementById('detailDescription').innerHTML = region.description;
+  const descElement = document.getElementById('detailDescription');
+  if (descElement) {
+    descElement.innerHTML = region.description || '<p style="color: var(--text-muted);">No hay descripción disponible</p>';
+  }
   
   // Proyectos activos
   loadProjects(region.projects);
@@ -316,7 +468,9 @@ function loadRegionDetail(region) {
     loadFilesWithDeleteButtons(region.files);
   } else {
     const filesContainer = document.getElementById('detailFiles');
-    filesContainer.innerHTML = '<p class="no-files">No hay archivos disponibles</p>';
+    if (filesContainer) {
+      filesContainer.innerHTML = '<p class="no-files">No hay archivos disponibles</p>';
+    }
   }
 }
 
@@ -353,57 +507,76 @@ function loadLocation(location) {
 
 function loadRegionMap(regionId) {
   const regionMapImage = document.getElementById('regionMapImage');
-  if (!regionMapImage) return;
+  if (!regionMapImage) {
+    console.warn('⚠️ No se encontró el elemento regionMapImage');
+    return;
+  }
   
-  // Extraer el número de región del ID (ej: 'region-norte' -> '1')
-  const regionNumber = getRegionNumber(regionId);
+  // Buscar la región en allRegions o en currentRegionData para obtener el código
+  let region = allRegions.find(r => r.id === regionId);
   
-  if (regionNumber) {
-    // Construir la ruta de la imagen
-    const imagePath = `regiones mapa pngs/region${regionNumber}.png`;
+  // Si no se encuentra en allRegions, intentar obtener el código desde currentRegionData
+  if (!region && currentRegionData) {
+    // Intentar obtener el código desde la API
+    const codigo = currentRegionData.code || currentRegionData.codigo;
+    if (codigo) {
+      const codigoMatch = codigo.match(/\d+/);
+      const regionNumber = codigoMatch ? parseInt(codigoMatch[0], 10) : null;  // Convertir a entero para eliminar ceros iniciales
+      
+      if (regionNumber) {
+        const svgPath = `/static/svg/regiones/region${regionNumber}.svg`;
+        console.log('🗺️ Cargando mapa SVG:', svgPath, '(código:', codigo, 'número:', regionNumber, ')');
+        regionMapImage.src = svgPath;
+        regionMapImage.alt = `Mapa de la región ${regionNumber}`;
+        regionMapImage.style.display = 'block';
+        
+        regionMapImage.onerror = function() {
+          console.warn(`⚠️ No se pudo cargar el mapa SVG para la región ${regionNumber} (ruta: ${svgPath})`);
+          regionMapImage.style.display = 'none';
+        };
+        
+        regionMapImage.onload = function() {
+          console.log('✅ Mapa SVG cargado exitosamente:', svgPath);
+          regionMapImage.style.display = 'block';
+        };
+        return;
+      }
+    }
+  }
+  
+  if (region && region.codigo) {
+    // Extraer número del código (ej: 'REG-02' -> '02' -> 2, 'REG-1' -> '1' -> 1)
+    const codigoMatch = region.codigo.match(/\d+/);
+    const regionNumber = codigoMatch ? parseInt(codigoMatch[0], 10) : null;  // Convertir a entero para eliminar ceros iniciales
     
-    // Cargar la imagen
-    regionMapImage.src = imagePath;
-    regionMapImage.alt = `Mapa de la ${regionId.replace('region-', 'Región ')}`;
-    
-    // Manejar errores de carga
-    regionMapImage.onerror = function() {
-      console.warn(`No se pudo cargar el mapa para la región ${regionNumber}`);
-      regionMapImage.style.display = 'none';
-    };
-    
-    regionMapImage.onload = function() {
+    if (regionNumber) {
+      // Construir la ruta del SVG (sin ceros iniciales)
+      const svgPath = `/static/svg/regiones/region${regionNumber}.svg`;
+      console.log('🗺️ Cargando mapa SVG:', svgPath, '(código:', region.codigo, 'número:', regionNumber, ')');
+      
+      // Cargar el SVG
+      regionMapImage.src = svgPath;
+      regionMapImage.alt = `Mapa de la ${region.nombre}`;
       regionMapImage.style.display = 'block';
-    };
+      
+      // Manejar errores de carga
+      regionMapImage.onerror = function() {
+        console.warn(`⚠️ No se pudo cargar el mapa SVG para la región ${regionNumber} (ruta: ${svgPath}, código original: ${region.codigo})`);
+        regionMapImage.style.display = 'none';
+      };
+      
+      regionMapImage.onload = function() {
+        console.log('✅ Mapa SVG cargado exitosamente:', svgPath);
+        regionMapImage.style.display = 'block';
+      };
+    } else {
+      console.warn('⚠️ No se pudo extraer el número de región del código:', region.codigo);
+      regionMapImage.style.display = 'none';
+    }
   } else {
-    // Si no se puede determinar el número de región, ocultar la imagen
+    console.warn('⚠️ No se encontró la región o su código. Region:', region, 'currentRegionData:', currentRegionData);
     regionMapImage.style.display = 'none';
   }
-}
-
-function getRegionNumber(regionId) {
-  // Mapeo de IDs de región a números
-  const regionMapping = {
-    'region-norte': 1,
-    'region-sur': 2,
-    'region-este': 3,
-    'region-oeste': 4,
-    'region-central': 5,
-    'region-noroeste': 6,
-    'region-noreste': 7,
-    'region-suroeste': 8,
-    'region-sureste': 9,
-    'region-10': 10,
-    'region-11': 11,
-    'region-12': 12,
-    'region-13': 13,
-    'region-14': 14,
-    'region-15': 15,
-    'region-16': 16,
-    'region-17': 17
-  };
-  
-  return regionMapping[regionId] || null;
 }
 
 function loadData(data) {
@@ -475,12 +648,17 @@ function loadFiles(files) {
     files.forEach(file => {
       const fileItem = document.createElement('div');
       fileItem.className = 'file-item';
+      
+      // Calcular tamaño si no está disponible
+      const fileSize = file.size || 'N/A';
+      const fileDate = file.date ? formatDate(file.date) : 'Fecha no disponible';
+      
       fileItem.innerHTML = `
         <div class="file-icon">${getFileIcon(file.type)}</div>
         <div class="file-info">
           <h4>${file.name}</h4>
-          <p>${file.description}</p>
-          <div class="file-date">Agregado el ${formatDate(file.date)} • ${file.size}</div>
+          <p>${file.description || ''}</p>
+          <div class="file-date">Agregado el ${fileDate}${fileSize !== 'N/A' ? ` • ${fileSize}` : ''}</div>
         </div>
         <div class="file-actions">
           <a href="${file.url}" class="file-download-btn" download>
@@ -612,17 +790,60 @@ function searchRegions(query) {
   if (!regionsList) return;
   
   const regionItems = regionsList.querySelectorAll('.region-list-item');
+  const queryLower = query.toLowerCase().trim();
   
-  regionItems.forEach(item => {
-    const regionName = item.querySelector('.region-list-item__name').textContent.toLowerCase();
-    const regionCode = item.querySelector('.region-list-item__code').textContent.toLowerCase();
-    
-    if (regionName.includes(query.toLowerCase()) || regionCode.includes(query.toLowerCase())) {
+  if (!queryLower) {
+    // Si no hay búsqueda, mostrar todas las regiones
+    regionItems.forEach(item => {
       item.style.display = 'flex';
+    });
+    // Eliminar mensaje de no resultados si existe
+    const existingNoResults = regionsList.querySelector('.no-results');
+    if (existingNoResults) {
+      existingNoResults.remove();
+    }
+    return;
+  }
+  
+  let visibleCount = 0;
+  regionItems.forEach(item => {
+    // Buscar en nombre de sede (título principal)
+    const sedeName = item.querySelector('.region-list-item__name')?.textContent.toLowerCase() || '';
+    // Buscar en nombre de región (junto al icono de ubicación)
+    const regionName = item.querySelector('.region-list-item__code')?.textContent.toLowerCase() || '';
+    // También buscar en el código si está disponible en los datos
+    const regionCode = item.getAttribute('data-region-code')?.toLowerCase() || '';
+    
+    // Buscar en sede, nombre de región o código
+    if (sedeName.includes(queryLower) || regionName.includes(queryLower) || regionCode.includes(queryLower)) {
+      item.style.display = 'flex';
+      visibleCount++;
     } else {
       item.style.display = 'none';
     }
   });
+  
+  // Si no hay resultados, mostrar mensaje
+  if (visibleCount === 0 && regionItems.length > 0) {
+    const noResults = document.createElement('div');
+    noResults.className = 'no-results';
+    noResults.style.cssText = 'padding: 40px; text-align: center; color: var(--text-muted); width: 100%;';
+    noResults.innerHTML = `<p>No se encontraron regiones que coincidan con "${query}"</p>`;
+    
+    // Verificar si ya existe el mensaje
+    const existingNoResults = regionsList.querySelector('.no-results');
+    if (!existingNoResults) {
+      regionsList.appendChild(noResults);
+    } else {
+      existingNoResults.innerHTML = `<p>No se encontraron regiones que coincidan con "${query}"</p>`;
+    }
+  } else {
+    // Eliminar mensaje de no resultados si existe
+    const existingNoResults = regionsList.querySelector('.no-results');
+    if (existingNoResults) {
+      existingNoResults.remove();
+    }
+  }
 }
 
 function sortRegions(sortBy) {
@@ -631,25 +852,40 @@ function sortRegions(sortBy) {
   
   const regionItems = Array.from(regionsList.querySelectorAll('.region-list-item'));
   
+  if (regionItems.length === 0) {
+    console.warn('⚠️ No hay elementos de región para ordenar');
+    return;
+  }
+  
   regionItems.sort((a, b) => {
-    const nameA = a.querySelector('.region-list-item__name').textContent;
-    const nameB = b.querySelector('.region-list-item__name').textContent;
+    const nameA = a.querySelector('.region-list-item__name')?.textContent || '';
+    const nameB = b.querySelector('.region-list-item__name')?.textContent || '';
     
     switch (sortBy) {
       case 'name-asc':
-        return nameA.localeCompare(nameB);
+        return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
       case 'name-desc':
-        return nameB.localeCompare(nameA);
+        return nameB.localeCompare(nameA, 'es', { sensitivity: 'base' });
+      case 'recent':
+        // Ordenar por fecha de actualización (si está disponible)
+        // Por ahora, mantener el orden original
+        return 0;
       case 'communities':
-        const communitiesA = parseInt(a.querySelector('.region-list-item__communities').textContent);
-        const communitiesB = parseInt(b.querySelector('.region-list-item__communities').textContent);
+        const communitiesA = parseInt(a.querySelector('.region-list-item__communities')?.textContent || '0');
+        const communitiesB = parseInt(b.querySelector('.region-list-item__communities')?.textContent || '0');
         return communitiesB - communitiesA;
       default:
         return 0;
     }
   });
   
-  regionItems.forEach(item => regionsList.appendChild(item));
+  // Limpiar el contenedor y agregar los elementos ordenados
+  regionsList.innerHTML = '';
+  regionItems.forEach(item => {
+    regionsList.appendChild(item);
+  });
+  
+  console.log(`✅ Regiones ordenadas por: ${sortBy}`);
 }
 
 // ======= FUNCIONES DE MODALES =======
@@ -697,7 +933,7 @@ function handleImageFileSelect(event) {
   reader.readAsDataURL(file);
 }
 
-function addImageToRegion() {
+async function addImageToRegion() {
   const fileInput = document.getElementById('imageFileInput');
   const description = document.getElementById('imageDescription').value;
   
@@ -706,23 +942,121 @@ function addImageToRegion() {
     return;
   }
   
-  const file = fileInput.files[0];
-  const reader = new FileReader();
+  if (!currentRegionId) {
+    showErrorMessage('No hay región seleccionada');
+    return;
+  }
   
-  reader.onload = function(e) {
-    if (currentRegionData) {
+  const file = fileInput.files[0];
+  
+  // Validar que sea una imagen
+  if (!file.type || !file.type.startsWith('image/')) {
+    showErrorMessage('El archivo debe ser una imagen (JPG, PNG, GIF, etc.)');
+    return;
+  }
+  
+  try {
+    // Crear FormData para enviar la imagen
+    const formData = new FormData();
+    formData.append('imagen', file);
+    if (description) {
+      formData.append('descripcion', description);
+    }
+    
+    // Obtener token CSRF
+    const csrfToken = getCookie('csrftoken');
+    if (!csrfToken) {
+      console.error('❌ No se encontró el token CSRF');
+      showErrorMessage('Error de autenticación. Por favor, recarga la página.');
+      return;
+    }
+    
+    console.log('📤 Enviando imagen al servidor...');
+    console.log('📋 ID de la región:', currentRegionId);
+    console.log('📎 Nombre del archivo:', file.name);
+    
+    // Llamar a la API
+    const response = await fetch(`/api/region/${currentRegionId}/galeria/agregar/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken
+      },
+      body: formData
+    });
+    
+    console.log('📥 Respuesta recibida:', response.status, response.statusText);
+    
+    // Verificar si la respuesta es JSON válido
+    const contentType = response.headers.get('content-type');
+    let result;
+    
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Respuesta no es JSON:', text.substring(0, 500));
+      showErrorMessage('Error del servidor. Por favor, intenta de nuevo.');
+      return;
+    }
+    
+    // Parsear JSON
+    try {
+      result = await response.json();
+    } catch (e) {
+      console.error('❌ Error al parsear JSON:', e);
+      showErrorMessage('Error al procesar la respuesta del servidor.');
+      return;
+    }
+    
+    if (!response.ok || !result.success) {
+      const errorMsg = result.error || 'Error al agregar la imagen';
+      console.error('❌ Error:', errorMsg);
+      showErrorMessage(errorMsg);
+      return;
+    }
+    
+    console.log('✅ Imagen agregada exitosamente:', result.imagen);
+    
+    // Agregar la imagen a la lista local
+    if (currentRegionData && currentRegionData.photos) {
       currentRegionData.photos.push({
-        url: e.target.result,
-        description: description || 'Imagen de la región'
+        id: result.imagen.id,
+        url: result.imagen.url,
+        description: result.imagen.descripcion || 'Imagen de la región'
       });
       
-      loadGallery(currentRegionData.photos);
-      showSuccessMessage('Imagen agregada exitosamente');
-      hideModal('addImageModal');
+      // Recargar la galería
+      loadGalleryWithDeleteButtons(currentRegionData.photos);
+    } else {
+      // Recargar el detalle completo desde la API
+      await showRegionDetail(currentRegionId);
     }
-  };
-  
-  reader.readAsDataURL(file);
+    
+    showSuccessMessage(result.message || 'Imagen agregada exitosamente');
+    hideModal('addImageModal');
+    clearImageForm();
+    
+    // Recargar la lista de regiones para actualizar la portada
+    await loadRegionsFromAPI();
+    
+  } catch (error) {
+    console.error('❌ Error al agregar imagen:', error);
+    showErrorMessage('Error al agregar la imagen. Por favor, intenta de nuevo.');
+  }
+}
+
+// Función para obtener cookie CSRF
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
 }
 
 function showEditDescriptionModal() {
@@ -812,6 +1146,8 @@ function showErrorMessage(message) {
 
 // ======= INICIALIZACIÓN =======
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('🚀 DOM cargado, iniciando carga de regiones...');
+  
   // Event listeners para navegación
   const btnVerTodas = document.getElementById('btnVerTodas');
   if (btnVerTodas) {
@@ -825,21 +1161,25 @@ document.addEventListener('DOMContentLoaded', function() {
   
   const btnBackFromDetail = document.getElementById('btnBackFromDetail');
   if (btnBackFromDetail) {
-    btnBackFromDetail.addEventListener('click', backToList);
+    btnBackFromDetail.addEventListener('click', backToMain);  // Cambiar a backToMain
   }
   
   // Event listeners para tarjetas de región
   document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('region-card__btn')) {
-      const regionId = e.target.getAttribute('data-region-id');
+    if (e.target.classList.contains('region-card__btn') || e.target.closest('.region-card__btn')) {
+      const btn = e.target.classList.contains('region-card__btn') ? e.target : e.target.closest('.region-card__btn');
+      const regionId = btn.getAttribute('data-region-id');
       if (regionId) {
+        console.log('🔍 Click en región:', regionId);
         showRegionDetail(regionId);
       }
     }
     
-    if (e.target.classList.contains('region-list-item__btn')) {
-      const regionId = e.target.getAttribute('data-region-id');
+    if (e.target.classList.contains('region-list-item__btn') || e.target.closest('.region-list-item__btn')) {
+      const btn = e.target.classList.contains('region-list-item__btn') ? e.target : e.target.closest('.region-list-item__btn');
+      const regionId = btn.getAttribute('data-region-id');
       if (regionId) {
+        console.log('🔍 Click en región de lista:', regionId);
         showRegionDetail(regionId);
       }
     }
@@ -934,9 +1274,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
-  // Cargar lista inicial
-  loadRegionsList();
-  
   // Event listeners para archivos
   const addFileBtn = document.getElementById('addFileBtn');
   if (addFileBtn) {
@@ -969,6 +1306,85 @@ document.addEventListener('DOMContentLoaded', function() {
       hideModal('addFileModal');
     });
   }
+  
+  // Event listeners para modales de confirmación
+  const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+  const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+  const closeConfirmModal = document.getElementById('closeConfirmModal');
+  const removeFileBtn = document.getElementById('removeFileBtn');
+
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener('click', executeDeleteAction);
+  }
+
+  if (cancelDeleteBtn) {
+    cancelDeleteBtn.addEventListener('click', function() {
+      hideModal('confirmDeleteModal');
+      pendingDeleteAction = null;
+    });
+  }
+
+  if (closeConfirmModal) {
+    closeConfirmModal.addEventListener('click', function() {
+      hideModal('confirmDeleteModal');
+      pendingDeleteAction = null;
+    });
+  }
+
+  if (removeFileBtn) {
+    removeFileBtn.addEventListener('click', function() {
+      showFileSelectionModal();
+    });
+  }
+  
+  // Event listeners para modal de selección de archivos
+  const closeFileSelectionModal = document.getElementById('closeFileSelectionModal');
+  const cancelFileSelectionBtn = document.getElementById('cancelFileSelectionBtn');
+  const confirmFileSelectionBtn = document.getElementById('confirmFileSelectionBtn');
+
+  if (closeFileSelectionModal) {
+    closeFileSelectionModal.addEventListener('click', function() {
+      hideModal('fileSelectionModal');
+    });
+  }
+
+  if (cancelFileSelectionBtn) {
+    cancelFileSelectionBtn.addEventListener('click', function() {
+      hideModal('fileSelectionModal');
+    });
+  }
+
+  if (confirmFileSelectionBtn) {
+    confirmFileSelectionBtn.addEventListener('click', function() {
+      const checkboxes = document.querySelectorAll('#fileSelectionModal .file-checkbox:checked');
+      const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      
+      if (selectedIndices.length === 0) {
+        showSuccessMessage('Selecciona al menos un archivo para eliminar');
+        return;
+      }
+      
+      showConfirmDeleteModal(
+        `¿Estás seguro de que deseas eliminar ${selectedIndices.length} archivo(s) seleccionado(s)?`,
+        () => {
+          const currentRegion = getCurrentRegion();
+          if (currentRegion && currentRegion.files) {
+            // Eliminar archivos en orden descendente para mantener los índices correctos
+            selectedIndices.sort((a, b) => b - a).forEach(index => {
+              currentRegion.files.splice(index, 1);
+            });
+            loadRegionDetail(currentRegion);
+            hideModal('fileSelectionModal');
+            showSuccessMessage(`${selectedIndices.length} archivo(s) eliminado(s) exitosamente`);
+          }
+        }
+      );
+    });
+  }
+  
+  // Cargar regiones desde la API al iniciar (para tener datos disponibles en JS)
+  console.log('🔄 Ejecutando loadRegionsFromAPI()...');
+  loadRegionsFromAPI();
 });
 
 // ======= FUNCIONALIDAD DE ELIMINACIÓN =======
@@ -1024,9 +1440,8 @@ function removeFileFromRegion(fileId) {
 
 // Función para obtener la región actual
 function getCurrentRegion() {
-  // Esta función debería retornar la región actualmente mostrada
-  // Por ahora retornamos una región de ejemplo
-  return regionsData['region-norte'];
+  // Retornar la región actualmente mostrada
+  return currentRegionData;
 }
 
 // Función para cargar galería con botones de eliminación
@@ -1097,37 +1512,7 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// Event listeners para modales de confirmación
-document.addEventListener('DOMContentLoaded', function() {
-  const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-  const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
-  const closeConfirmModal = document.getElementById('closeConfirmModal');
-  const removeFileBtn = document.getElementById('removeFileBtn');
-
-  if (confirmDeleteBtn) {
-    confirmDeleteBtn.addEventListener('click', executeDeleteAction);
-  }
-
-  if (cancelDeleteBtn) {
-    cancelDeleteBtn.addEventListener('click', function() {
-      hideModal('confirmDeleteModal');
-      pendingDeleteAction = null;
-    });
-  }
-
-  if (closeConfirmModal) {
-    closeConfirmModal.addEventListener('click', function() {
-      hideModal('confirmDeleteModal');
-      pendingDeleteAction = null;
-    });
-  }
-
-  if (removeFileBtn) {
-    removeFileBtn.addEventListener('click', function() {
-      showFileSelectionModal();
-    });
-  }
-});
+// Event listeners para modales de confirmación (se agregan al bloque principal DOMContentLoaded)
 
 // ======= FUNCIONALIDAD DE SELECCIÓN DE ARCHIVOS =======
 
@@ -1197,51 +1582,7 @@ function getSelectedFileIndices() {
   return Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-file-index')));
 }
 
-// Event listeners para el modal de selección de archivos
-document.addEventListener('DOMContentLoaded', function() {
-  const closeFileSelectionModal = document.getElementById('closeFileSelectionModal');
-  const cancelFileSelectionBtn = document.getElementById('cancelFileSelectionBtn');
-  const confirmFileSelectionBtn = document.getElementById('confirmFileSelectionBtn');
-
-  if (closeFileSelectionModal) {
-    closeFileSelectionModal.addEventListener('click', function() {
-      hideModal('fileSelectionModal');
-    });
-  }
-
-  if (cancelFileSelectionBtn) {
-    cancelFileSelectionBtn.addEventListener('click', function() {
-      hideModal('fileSelectionModal');
-    });
-  }
-
-  if (confirmFileSelectionBtn) {
-    confirmFileSelectionBtn.addEventListener('click', function() {
-      const selectedIndices = getSelectedFileIndices();
-      
-      if (selectedIndices.length === 0) {
-        showSuccessMessage('Selecciona al menos un archivo para eliminar');
-        return;
-      }
-      
-      showConfirmDeleteModal(
-        `¿Estás seguro de que deseas eliminar ${selectedIndices.length} archivo(s) seleccionado(s)?`,
-        () => {
-          const currentRegion = getCurrentRegion();
-          if (currentRegion && currentRegion.files) {
-            // Eliminar archivos en orden descendente para mantener los índices correctos
-            selectedIndices.sort((a, b) => b - a).forEach(index => {
-              currentRegion.files.splice(index, 1);
-            });
-            loadRegionDetail(currentRegion);
-            hideModal('fileSelectionModal');
-            showSuccessMessage(`${selectedIndices.length} archivo(s) eliminado(s) exitosamente`);
-          }
-        }
-      );
-    });
-  }
-});
+// Event listeners para el modal de selección de archivos (ya están en el bloque principal DOMContentLoaded)
 
 // FINAL VERSION: 2025-01-25 03:13 - Complete rewrite without any credential functions
 // All forms now open directly without any credential verification

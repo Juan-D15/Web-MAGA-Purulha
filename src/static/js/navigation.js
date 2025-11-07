@@ -530,6 +530,11 @@
         } else if (action === 'manageEventView') {
           hash = '#manageEventView';
         } else if (action === 'createReport') {
+          // Redirigir a la página de reportes
+          if (window.DJANGO_URLS && window.DJANGO_URLS.reportes) {
+            window.location.href = window.DJANGO_URLS.reportes;
+            return;
+          }
           hash = '#createReport';
         }
         window.location.href = window.DJANGO_URLS.gestioneseventos + hash;

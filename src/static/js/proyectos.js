@@ -587,15 +587,26 @@ function mostrarDetalleProyecto(proyecto) {
     if (tarjetasUnicas.length === 0) {
       detailData.innerHTML = '<p style="color: #6c757d; grid-column: 1 / -1;">No hay datos del proyecto registrados.</p>';
     } else {
-      detailData.innerHTML = tarjetasUnicas.map(tarjeta => `
+      detailData.innerHTML = tarjetasUnicas.map(tarjeta => {
+        // Para la tarjeta de Beneficiarios, mostrar solo el número si contiene "beneficiarios" o "beneficiario"
+        let valorMostrar = tarjeta.valor || 'Sin valor';
+        if (tarjeta.titulo === 'Beneficiarios' && tarjeta.icono === '👨‍👩‍👧‍👦') {
+          // Extraer solo el número del valor
+          const numeroMatch = valorMostrar.toString().match(/^(\d+)/);
+          if (numeroMatch) {
+            valorMostrar = numeroMatch[1];
+          }
+        }
+        return `
         <div class="data-item" style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; border-left: 3px solid #007bff;">
           <div class="data-icon" style="font-size: 2rem; margin-bottom: 8px;">${tarjeta.icono || '📊'}</div>
           <div class="data-content">
             <h4 style="margin: 0 0 8px 0; color: #ffffff; font-size: 1rem; font-weight: 600;">${tarjeta.titulo}</h4>
-            <p style="margin: 0; color: #b8c5d1; font-size: 0.9rem;">${tarjeta.valor || 'Sin valor'}</p>
+            <p style="margin: 0; color: #b8c5d1; font-size: 0.9rem;">${valorMostrar}</p>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
   }
   
@@ -2785,6 +2796,9 @@ let editingCambioId = null;
 // Función para limpiar formulario de cambio
 function clearChangeForm() {
   document.getElementById('changeDescription').value = '';
+  // Limpiar campos de fecha y hora
+  document.getElementById('changeDate').value = '';
+  document.getElementById('changeTime').value = '';
   const checkboxes = document.querySelectorAll('#changePersonnelList input.change-personnel-checkbox');
   checkboxes.forEach(cb => cb.checked = false);
   const evidencesInput = document.getElementById('changeEvidencesInput');
@@ -2850,6 +2864,29 @@ function editarCambio(cambioId, cambio) {
   document.getElementById('changeModalTitle').textContent = 'Editar Cambio';
   document.getElementById('confirmChangeBtn').textContent = 'Guardar';
   document.getElementById('changeDescription').value = cambio.descripcion || '';
+  
+  // Cargar fecha y hora del cambio si existe
+  if (cambio.fecha_cambio) {
+    const fechaCambio = new Date(cambio.fecha_cambio);
+    // Obtener fecha y hora en zona horaria local del navegador
+    const year = fechaCambio.getFullYear();
+    const month = String(fechaCambio.getMonth() + 1).padStart(2, '0');
+    const day = String(fechaCambio.getDate()).padStart(2, '0');
+    const hours = String(fechaCambio.getHours()).padStart(2, '0');
+    const minutes = String(fechaCambio.getMinutes()).padStart(2, '0');
+    
+    // Formatear fecha para input type="date" (YYYY-MM-DD)
+    const fechaStr = `${year}-${month}-${day}`;
+    // Formatear hora para input type="time" (HH:MM)
+    const horaStr = `${hours}:${minutes}`;
+    
+    document.getElementById('changeDate').value = fechaStr;
+    document.getElementById('changeTime').value = horaStr;
+  } else {
+    // Si no hay fecha, limpiar los campos
+    document.getElementById('changeDate').value = '';
+    document.getElementById('changeTime').value = '';
+  }
   
   // Cargar colaborador seleccionado si existe
   loadChangePersonnelList().then(() => {
@@ -2942,6 +2979,17 @@ async function addChangeToProject() {
   try {
     const formData = new FormData();
     formData.append('descripcion', description);
+    
+    // Agregar fecha y hora si se especificaron
+    const fechaCambio = document.getElementById('changeDate').value;
+    const horaCambio = document.getElementById('changeTime').value;
+    if (fechaCambio && horaCambio) {
+      // Combinar fecha y hora en formato ISO para enviar al servidor
+      // El servidor interpretará esto como hora local y la convertirá a zona horaria de Guatemala
+      const fechaHoraISO = `${fechaCambio}T${horaCambio}:00`;
+      formData.append('fecha_cambio', fechaHoraISO);
+    }
+    
     if (colaboradorId) {
       formData.append('colaborador_id', colaboradorId);
     }

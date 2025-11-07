@@ -22,6 +22,9 @@ urlpatterns = [
     # APIs JSON (para AJAX)
     path('api/usuario/', views.api_usuario_actual, name='api-usuario'),
     path('api/regiones/', views.api_regiones, name='api-regiones'),
+    path('api/regiones/recientes/', views.api_regiones_recientes, name='api-regiones-recientes'),
+    path('api/region/<uuid:region_id>/', views.api_region_detalle, name='api-region-detalle'),
+    path('api/region/<uuid:region_id>/galeria/agregar/', views.api_agregar_imagen_region, name='api-agregar-imagen-region'),
     path('api/comunidades/', views.api_comunidades, name='api-comunidades'),
     path('api/actividades/', views.api_actividades, name='api-actividades'),
     path('api/tipos-actividad/', views.api_tipos_actividad, name='api-tipos-actividad'),
