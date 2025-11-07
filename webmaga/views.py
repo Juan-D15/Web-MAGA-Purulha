@@ -21,7 +21,7 @@ from .models import (
     TipoBeneficiario, Usuario, TipoComunidad, ActividadPersonal,
     Colaborador, Puesto,
     ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
-    ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios
+    EventoCambioColaborador, ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios
 )
 from .forms import LoginForm, RecuperarPasswordForm, ActividadForm
 from .decorators import (
@@ -275,36 +275,27 @@ def obtener_tarjetas_datos(evento):
 
 
 def obtener_cambios_evento(evento):
-    """Obtiene los cambios realizados en un evento - SOLO los que tienen colaborador asignado"""
-    print(f'🔍 Buscando cambios para evento {evento.id}')
-    print(f'🔍 Nombre del evento: {evento.nombre}')
+    """Obtiene los cambios realizados en un evento por colaboradores."""
+    print(f'🔍 Buscando cambios (colaboradores) para evento {evento.id} - {evento.nombre}')
     
-    # FILTRAR SOLO CAMBIOS CON COLABORADOR ASIGNADO
-    cambios = ActividadCambio.objects.filter(
-        actividad=evento,
-        colaborador__isnull=False  # SOLO cambios con colaborador asignado
-    ).select_related('colaborador', 'responsable').prefetch_related('evidencias_eventos').order_by('-fecha_cambio')
-    
-    cambios_count = cambios.count()
-    print(f'📊 Total de cambios encontrados CON colaborador: {cambios_count}')
+    cambios = (
+        EventoCambioColaborador.objects
+        .filter(actividad=evento)
+        .select_related('colaborador')
+        .prefetch_related('evidencias')
+        .order_by('-fecha_cambio')
+    )
     
     cambios_data = []
     for cambio in cambios:
-        print(f'📝 Procesando cambio {cambio.id}: {cambio.descripcion_cambio[:50]}...')
-        print(f'🔍 Colaborador ID: {cambio.colaborador.id if cambio.colaborador else None}')
+        print(f'📝 Procesando cambio colaborador {cambio.id}: {cambio.descripcion_cambio[:50]}...')
+        colaborador = cambio.colaborador
+        responsable_nombre = colaborador.nombre if colaborador else 'Colaborador desconocido'
         
-        # Obtener nombre del responsable (colaborador o usuario)
-        responsable_nombre = ''
-        if cambio.colaborador:
-            responsable_nombre = cambio.colaborador.nombre
-        elif cambio.responsable:
-            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
-        
-        # Obtener evidencias del cambio usando la nueva tabla eventos_evidencias_cambios
         evidencias_data = []
-        evidencias_count = cambio.evidencias_eventos.count()
-        print(f'📎 Evidencias encontradas para cambio {cambio.id}: {evidencias_count}')
-        for evidencia in cambio.evidencias_eventos.all():
+        evidencias_qs = cambio.evidencias.all()
+        print(f'📎 Evidencias encontradas para cambio {cambio.id}: {evidencias_qs.count()}')
+        for evidencia in evidencias_qs:
             evidencias_data.append({
                 'id': str(evidencia.id),
                 'nombre': evidencia.archivo_nombre,
@@ -313,10 +304,8 @@ def obtener_cambios_evento(evento):
                 'descripcion': evidencia.descripcion or ''
             })
         
-        # Formatear fecha en zona horaria de Guatemala
         fecha_display = ''
         if cambio.fecha_cambio:
-            # Convertir a zona horaria de Guatemala si es necesario
             from django.utils import timezone
             import pytz
             guatemala_tz = pytz.timezone('America/Guatemala')
@@ -326,20 +315,19 @@ def obtener_cambios_evento(evento):
                 fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
             fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
         
-        cambio_data = {
+        cambios_data.append({
             'id': str(cambio.id),
             'descripcion': cambio.descripcion_cambio,
             'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
             'fecha_display': fecha_display,
             'responsable': responsable_nombre,
-            'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None,
-            'responsable_id': str(cambio.responsable.id) if cambio.responsable else None,
+            'colaborador_id': str(colaborador.id) if colaborador else None,
+            'responsable_id': str(colaborador.id) if colaborador else None,
             'evidencias': evidencias_data
-        }
-        cambios_data.append(cambio_data)
-        print(f'✅ Cambio agregado a datos: {cambio_data["id"]} - Colaborador: {responsable_nombre}')
+        })
+        print(f'✅ Cambio colaborador agregado: {cambios_data[-1]["id"]}')
     
-    print(f'📦 Total de cambios retornados: {len(cambios_data)}')
+    print(f'📦 Total de cambios de colaboradores retornados: {len(cambios_data)}')
     return cambios_data
 
 
@@ -2739,16 +2727,13 @@ def api_avances(request):
                 SELECT ac.id::text,
                        ac.actividad_id::text,
                        ac.responsable_id::text,
-                       ac.colaborador_id::text,
                        ac.descripcion_cambio,
                        ac.fecha_cambio,
                        a.nombre as evento_nombre,
-                       COALESCE(u.nombre, u.username) as responsable_nombre,
-                       c.nombre as colaborador_nombre
+                       COALESCE(u.nombre, u.username) as responsable_nombre
                 FROM actividad_cambios ac
                 INNER JOIN actividades a ON a.id = ac.actividad_id
                 LEFT JOIN usuarios u ON u.id = ac.responsable_id
-                LEFT JOIN colaboradores c ON c.id = ac.colaborador_id
                 WHERE (ac.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
                   AND a.eliminado_en IS NULL
                 ORDER BY ac.fecha_cambio ASC
@@ -2759,7 +2744,9 @@ def api_avances(request):
         
         results = []
         for row in rows:
-            cambio_id, actividad_id, responsable_id, colaborador_id, descripcion, fecha_cambio, evento_nombre, responsable_nombre, colaborador_nombre = row
+            cambio_id, actividad_id, responsable_id, descripcion, fecha_cambio, evento_nombre, responsable_nombre = row
+            colaborador_id = None
+            colaborador_nombre = None
             
             # Si no hay evento_nombre desde la consulta, obtenerlo manualmente (fallback)
             if not evento_nombre:
@@ -3099,9 +3086,9 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'evidencias',
             'archivos',
             'galeria_imagenes',
-            'cambios__colaborador',
             'cambios__responsable',
-            'cambios__evidencias_eventos',
+            'cambios_colaboradores__colaborador',
+            'cambios_colaboradores__evidencias',
             'comunidades_relacionadas__comunidad__region',
             'comunidades_relacionadas__region'
         ).get(id=evento_id, eliminado_en__isnull=True)
@@ -3757,17 +3744,25 @@ def api_crear_cambio(request, evento_id):
                     'error': 'Colaborador no encontrado'
                 }, status=404)
         
-        # Crear el cambio
-        cambio = ActividadCambio.objects.create(
-            actividad=evento,
-            descripcion_cambio=descripcion,
-            colaborador=colaborador,
-            responsable=usuario_maga if not colaborador else None
-        )
-        
-        # Procesar evidencias si se enviaron archivos
         evidencias_data = []
-        if request.FILES:
+        cambio = None
+        cambio_colaborador = None
+        
+        if colaborador:
+            cambio_colaborador = EventoCambioColaborador.objects.create(
+                actividad=evento,
+                colaborador=colaborador,
+                descripcion_cambio=descripcion
+            )
+        else:
+            cambio = ActividadCambio.objects.create(
+                actividad=evento,
+                responsable=usuario_maga,
+                descripcion_cambio=descripcion
+            )
+        
+        # Procesar evidencias únicamente cuando el cambio corresponde a un colaborador
+        if cambio_colaborador and request.FILES:
             evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias_cambios_eventos')
             os.makedirs(evidencias_dir, exist_ok=True)
             
@@ -3778,20 +3773,17 @@ def api_crear_cambio(request, evento_id):
                 print(f'📎 Procesando archivo {key}: {archivo.name} ({archivo.size} bytes)')
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
                 file_extension = os.path.splitext(archivo.name)[1]
-                filename = f"{timestamp}_{cambio.id}{file_extension}"
+                filename = f"{timestamp}_{cambio_colaborador.id}{file_extension}"
                 saved_name = fs.save(filename, archivo)
                 file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
                 
-                # Obtener descripción de la evidencia desde el FormData
-                # El formato puede ser 'descripcion_evidencia_0', 'descripcion_evidencia_1', etc.
                 descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
                 if not descripcion_evidencia:
-                    # También intentar con el nombre de la clave del archivo
                     descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{key}', '').strip()
                 
                 evidencia = EventosEvidenciasCambios.objects.create(
                     actividad=evento,
-                    cambio=cambio,
+                    cambio=cambio_colaborador,
                     archivo_nombre=archivo.name,
                     archivo_tipo=archivo.content_type or 'application/octet-stream',
                     archivo_tamanio=archivo.size,
@@ -3808,38 +3800,44 @@ def api_crear_cambio(request, evento_id):
                     'tipo': evidencia.archivo_tipo or '',
                     'descripcion': evidencia.descripcion or ''
                 })
+        elif request.FILES:
+            print('⚠️ Se recibieron archivos pero el cambio corresponde a un usuario, se omiten evidencias específicas de colaboradores.')
         else:
             print('⚠️ No se recibieron archivos en request.FILES')
         
         # Obtener nombre del responsable
         responsable_nombre = ''
-        if cambio.colaborador:
-            responsable_nombre = cambio.colaborador.nombre
-        elif cambio.responsable:
+        if cambio_colaborador and cambio_colaborador.colaborador:
+            responsable_nombre = cambio_colaborador.colaborador.nombre
+        elif cambio and cambio.responsable:
             responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
+        else:
+            responsable_nombre = 'Colaborador desconocido' if colaborador else (usuario_maga.nombre or usuario_maga.username)
         
         # Formatear fecha en zona horaria de Guatemala
         fecha_display = ''
-        if cambio.fecha_cambio:
+        fecha_base = cambio_colaborador.fecha_cambio if cambio_colaborador else (cambio.fecha_cambio if cambio else None)
+        if fecha_base:
             from django.utils import timezone
             import pytz
             guatemala_tz = pytz.timezone('America/Guatemala')
-            if timezone.is_aware(cambio.fecha_cambio):
-                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+            if timezone.is_aware(fecha_base):
+                fecha_local = fecha_base.astimezone(guatemala_tz)
             else:
-                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+                fecha_local = timezone.make_aware(fecha_base, guatemala_tz)
             fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
         
         return JsonResponse({
             'success': True,
             'message': 'Cambio creado exitosamente',
             'cambio': {
-                'id': str(cambio.id),
-                'descripcion': cambio.descripcion_cambio,
-                'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                'id': str((cambio_colaborador or cambio).id),
+                'descripcion': descripcion,
+                'fecha_cambio': fecha_base.isoformat() if fecha_base else None,
                 'fecha_display': fecha_display,
                 'responsable': responsable_nombre,
-                'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None,
+                'colaborador_id': str(colaborador.id) if colaborador else None,
+                'responsable_id': str(colaborador.id) if colaborador else (str(usuario_maga.id) if cambio else None),
                 'evidencias': evidencias_data
             }
         })
@@ -3864,7 +3862,14 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
     """API: Actualizar un cambio existente"""
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
-        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        cambio_colaborador = None
+        cambio = None
+        
+        try:
+            cambio_colaborador = EventoCambioColaborador.objects.get(id=cambio_id, actividad=evento)
+        except EventoCambioColaborador.DoesNotExist:
+            cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        
         usuario_maga = get_usuario_maga(request.user)
         
         if not usuario_maga:
@@ -3880,61 +3885,62 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 'error': 'La descripción del cambio es obligatoria'
             }, status=400)
         
-        # Actualizar colaborador responsable si se envió
         colaborador_id = request.POST.get('colaborador_id')
-        if colaborador_id:
-            try:
-                colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
-                # Verificar que el colaborador esté asignado al evento
-                if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
+        
+        if cambio_colaborador:
+            if colaborador_id:
+                try:
+                    colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
+                    if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'El colaborador seleccionado no está asignado a este evento'
+                        }, status=400)
+                    cambio_colaborador.colaborador = colaborador
+                except Colaborador.DoesNotExist:
                     return JsonResponse({
                         'success': False,
-                        'error': 'El colaborador seleccionado no está asignado a este evento'
-                    }, status=400)
-                cambio.colaborador = colaborador
-                cambio.responsable = None
-            except Colaborador.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Colaborador no encontrado'
-                }, status=404)
-        elif colaborador_id == '':
-            # Si se envía vacío, usar el usuario actual como responsable
-            cambio.colaborador = None
-            cambio.responsable = usuario_maga
-        
-        cambio.descripcion_cambio = descripcion
-        cambio.save()
-        
-        # Obtener nombre del responsable
-        responsable_nombre = ''
-        if cambio.colaborador:
-            responsable_nombre = cambio.colaborador.nombre
-        elif cambio.responsable:
-            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
+                        'error': 'Colaborador no encontrado'
+                    }, status=404)
+            elif colaborador_id == '':
+                cambio_colaborador.colaborador = None
+            cambio_colaborador.descripcion_cambio = descripcion
+            cambio_colaborador.save()
+            responsable_nombre = cambio_colaborador.colaborador.nombre if cambio_colaborador.colaborador else 'Colaborador desconocido'
+            fecha_base = cambio_colaborador.fecha_cambio
+            colaborador_response_id = str(cambio_colaborador.colaborador.id) if cambio_colaborador.colaborador else None
+        else:
+            # Cambio de usuario/responsable
+            cambio.descripcion_cambio = descripcion
+            cambio.responsable = cambio.responsable or usuario_maga
+            cambio.save()
+            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username if cambio.responsable else 'Sistema'
+            fecha_base = cambio.fecha_cambio
+            colaborador_response_id = None
         
         # Formatear fecha en zona horaria de Guatemala
         fecha_display = ''
-        if cambio.fecha_cambio:
+        if fecha_base:
             from django.utils import timezone
             import pytz
             guatemala_tz = pytz.timezone('America/Guatemala')
-            if timezone.is_aware(cambio.fecha_cambio):
-                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+            if timezone.is_aware(fecha_base):
+                fecha_local = fecha_base.astimezone(guatemala_tz)
             else:
-                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+                fecha_local = timezone.make_aware(fecha_base, guatemala_tz)
             fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
         
         return JsonResponse({
             'success': True,
             'message': 'Cambio actualizado exitosamente',
             'cambio': {
-                'id': str(cambio.id),
-                'descripcion': cambio.descripcion_cambio,
-                'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                'id': str((cambio_colaborador or cambio).id),
+                'descripcion': descripcion,
+                'fecha_cambio': fecha_base.isoformat() if fecha_base else None,
                 'fecha_display': fecha_display,
                 'responsable': responsable_nombre,
-                'colaborador_id': str(cambio.colaborador.id) if cambio.colaborador else None
+                'colaborador_id': colaborador_response_id,
+                'responsable_id': colaborador_response_id if cambio_colaborador else (str(cambio.responsable.id) if cambio and cambio.responsable else None)
             }
         })
         
@@ -3943,7 +3949,7 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             'success': False,
             'error': 'Evento no encontrado'
         }, status=404)
-    except ActividadCambio.DoesNotExist:
+    except (ActividadCambio.DoesNotExist, EventoCambioColaborador.DoesNotExist):
         return JsonResponse({
             'success': False,
             'error': 'Cambio no encontrado'
@@ -3963,7 +3969,12 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
     """API: Eliminar un cambio y sus evidencias"""
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
-        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        cambio_colaborador = None
+        cambio = None
+        try:
+            cambio_colaborador = EventoCambioColaborador.objects.get(id=cambio_id, actividad=evento)
+        except EventoCambioColaborador.DoesNotExist:
+            cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
         usuario_maga = get_usuario_maga(request.user)
         
         if not usuario_maga:
@@ -3972,8 +3983,12 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
                 'error': 'Usuario no autenticado'
             }, status=401)
         
-        # Eliminar evidencias físicas
-        for evidencia in cambio.evidencias.all():
+        if cambio_colaborador:
+            evidencias_iter = cambio_colaborador.evidencias.all()
+        else:
+            evidencias_iter = cambio.evidencias.all()
+        
+        for evidencia in evidencias_iter:
             file_path = os.path.join(settings.MEDIA_ROOT, evidencia.url_almacenamiento.replace('/media/', ''))
             if os.path.exists(file_path):
                 try:
@@ -3981,8 +3996,10 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
                 except Exception as e:
                     print(f'Error al eliminar archivo físico de evidencia: {e}')
         
-        # Eliminar el cambio (las evidencias se eliminan en cascada)
-        cambio.delete()
+        if cambio_colaborador:
+            cambio_colaborador.delete()
+        else:
+            cambio.delete()
         
         return JsonResponse({
             'success': True,
@@ -3994,7 +4011,7 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
             'success': False,
             'error': 'Evento no encontrado'
         }, status=404)
-    except ActividadCambio.DoesNotExist:
+    except (ActividadCambio.DoesNotExist, EventoCambioColaborador.DoesNotExist):
         return JsonResponse({
             'success': False,
             'error': 'Cambio no encontrado'
@@ -4014,7 +4031,7 @@ def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
     """API: Agregar evidencia a un cambio existente"""
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
-        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        cambio = EventoCambioColaborador.objects.get(id=cambio_id, actividad=evento)
         usuario_maga = get_usuario_maga(request.user)
         
         if not usuario_maga:
@@ -4073,7 +4090,7 @@ def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
             'success': False,
             'error': 'Evento no encontrado'
         }, status=404)
-    except ActividadCambio.DoesNotExist:
+    except EventoCambioColaborador.DoesNotExist:
         return JsonResponse({
             'success': False,
             'error': 'Cambio no encontrado'
@@ -4550,7 +4567,7 @@ def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id)
     """API: Actualizar descripción de una evidencia de cambio"""
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
-        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        cambio = EventoCambioColaborador.objects.get(id=cambio_id, actividad=evento)
         evidencia = EventosEvidenciasCambios.objects.get(id=evidencia_id, actividad=evento, cambio=cambio)
         usuario_maga = get_usuario_maga(request.user)
         
@@ -4581,7 +4598,7 @@ def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id)
             'success': False,
             'error': 'Evento no encontrado'
         }, status=404)
-    except ActividadCambio.DoesNotExist:
+    except EventoCambioColaborador.DoesNotExist:
         return JsonResponse({
             'success': False,
             'error': 'Cambio no encontrado'
@@ -4645,7 +4662,7 @@ def api_eliminar_usuario(request, usuario_id):
 def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
-        cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+        cambio = EventoCambioColaborador.objects.get(id=cambio_id, actividad=evento)
         evidencia = EventosEvidenciasCambios.objects.get(id=evidencia_id, actividad=evento, cambio=cambio)
         usuario_maga = get_usuario_maga(request.user)
         
@@ -4676,7 +4693,7 @@ def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
             'success': False,
             'error': 'Evento no encontrado'
         }, status=404)
-    except ActividadCambio.DoesNotExist:
+    except EventoCambioColaborador.DoesNotExist:
         return JsonResponse({
             'success': False,
             'error': 'Cambio no encontrado'

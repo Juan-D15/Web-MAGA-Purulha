@@ -3,8 +3,8 @@ from .models import (
     Puesto, Usuario, Region, TipoComunidad, Comunidad, ComunidadAutoridad,
     TipoActividad, TipoBeneficiario, Beneficiario, BeneficiarioIndividual,
     BeneficiarioFamilia, BeneficiarioInstitucion, Actividad, ActividadPersonal,
-    ActividadBeneficiario, Evidencia, ActividadCambio, ActividadArchivo,
-    ComunidadGaleria, RegionGaleria
+    ActividadBeneficiario, Evidencia, ActividadCambio, EventoCambioColaborador,
+    ActividadArchivo, ComunidadGaleria, RegionGaleria
 )
 
 # =====================================================
@@ -192,6 +192,15 @@ class ActividadCambioAdmin(admin.ModelAdmin):
     list_display = ['actividad', 'responsable', 'fecha_cambio']
     list_filter = ['fecha_cambio']
     search_fields = ['actividad__nombre', 'descripcion_cambio']
+    readonly_fields = ['id', 'fecha_cambio', 'creado_en']
+    date_hierarchy = 'fecha_cambio'
+
+
+@admin.register(EventoCambioColaborador)
+class EventoCambioColaboradorAdmin(admin.ModelAdmin):
+    list_display = ['actividad', 'colaborador', 'fecha_cambio']
+    list_filter = ['fecha_cambio']
+    search_fields = ['actividad__nombre', 'colaborador__nombre', 'descripcion_cambio']
     readonly_fields = ['id', 'fecha_cambio', 'creado_en']
     date_hierarchy = 'fecha_cambio'
 

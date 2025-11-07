@@ -558,12 +558,11 @@ class Evidencia(models.Model):
 
 
 class ActividadCambio(models.Model):
-    """Registro de cambios/actualizaciones en actividades"""
+    """Registro de cambios/actualizaciones realizados por usuarios del sistema en actividades"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='cambios', db_column='actividad_id')
     responsable = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='cambios_realizados', db_column='responsable_id')
-    colaborador = models.ForeignKey('Colaborador', on_delete=models.SET_NULL, null=True, blank=True, related_name='cambios_realizados', db_column='colaborador_id')
     descripcion_cambio = models.TextField()
     fecha_cambio = models.DateTimeField(auto_now_add=True)
     creado_en = models.DateTimeField(auto_now_add=True)
@@ -576,6 +575,40 @@ class ActividadCambio(models.Model):
     
     def __str__(self):
         return f"Cambio en {self.actividad.nombre} - {self.fecha_cambio}"
+
+
+class EventoCambioColaborador(models.Model):
+    """Cambios realizados por colaboradores en actividades"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actividad = models.ForeignKey(
+        Actividad,
+        on_delete=models.CASCADE,
+        related_name='cambios_colaboradores',
+        db_column='actividad_id'
+    )
+    colaborador = models.ForeignKey(
+        Colaborador,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cambios_eventos',
+        db_column='colaborador_id'
+    )
+    descripcion_cambio = models.TextField()
+    fecha_cambio = models.DateTimeField(auto_now_add=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'eventos_cambios_colaboradores'
+        verbose_name = 'Cambio de Evento por Colaborador'
+        verbose_name_plural = 'Cambios de Evento por Colaboradores'
+        ordering = ['-fecha_cambio']
+    
+    def __str__(self):
+        actividad = self.actividad.nombre if self.actividad else 'Actividad'
+        colaborador = self.colaborador.nombre if self.colaborador else 'Colaborador'
+        return f"{actividad} - {colaborador} ({self.fecha_cambio})"
 
 
 class CambioEvidencia(models.Model):
@@ -599,11 +632,16 @@ class CambioEvidencia(models.Model):
 
 
 class EventosEvidenciasCambios(models.Model):
-    """Evidencias (archivos) asociadas a cambios realizados en eventos/actividades"""
+    """Evidencias (archivos) asociadas a cambios realizados en eventos por colaboradores"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     actividad = models.ForeignKey(Actividad, on_delete=models.CASCADE, related_name='evidencias_cambios', db_column='actividad_id')
-    cambio = models.ForeignKey(ActividadCambio, on_delete=models.CASCADE, related_name='evidencias_eventos', db_column='cambio_id')
+    cambio = models.ForeignKey(
+        EventoCambioColaborador,
+        on_delete=models.CASCADE,
+        related_name='evidencias',
+        db_column='cambio_id'
+    )
     archivo_nombre = models.CharField(max_length=255)
     archivo_tipo = models.CharField(max_length=50, blank=True, null=True)
     archivo_tamanio = models.BigIntegerField(blank=True, null=True)
