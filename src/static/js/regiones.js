@@ -511,72 +511,62 @@ function loadRegionMap(regionId) {
     console.warn('⚠️ No se encontró el elemento regionMapImage');
     return;
   }
-  
-  // Buscar la región en allRegions o en currentRegionData para obtener el código
-  let region = allRegions.find(r => r.id === regionId);
-  
-  // Si no se encuentra en allRegions, intentar obtener el código desde currentRegionData
-  if (!region && currentRegionData) {
-    // Intentar obtener el código desde la API
-    const codigo = currentRegionData.code || currentRegionData.codigo;
-    if (codigo) {
-      const codigoMatch = codigo.match(/\d+/);
-      const regionNumber = codigoMatch ? parseInt(codigoMatch[0], 10) : null;  // Convertir a entero para eliminar ceros iniciales
-      
-      if (regionNumber) {
-        const svgPath = `/static/svg/regiones/region${regionNumber}.svg`;
-        console.log('🗺️ Cargando mapa SVG:', svgPath, '(código:', codigo, 'número:', regionNumber, ')');
-        regionMapImage.src = svgPath;
-        regionMapImage.alt = `Mapa de la región ${regionNumber}`;
-        regionMapImage.style.display = 'block';
-        
-        regionMapImage.onerror = function() {
-          console.warn(`⚠️ No se pudo cargar el mapa SVG para la región ${regionNumber} (ruta: ${svgPath})`);
-          regionMapImage.style.display = 'none';
-        };
-        
-        regionMapImage.onload = function() {
-          console.log('✅ Mapa SVG cargado exitosamente:', svgPath);
-          regionMapImage.style.display = 'block';
-        };
-        return;
-      }
-    }
-  }
-  
-  if (region && region.codigo) {
-    // Extraer número del código (ej: 'REG-02' -> '02' -> 2, 'REG-1' -> '1' -> 1)
-    const codigoMatch = region.codigo.match(/\d+/);
-    const regionNumber = codigoMatch ? parseInt(codigoMatch[0], 10) : null;  // Convertir a entero para eliminar ceros iniciales
-    
-    if (regionNumber) {
-      // Construir la ruta del SVG (sin ceros iniciales)
-      const svgPath = `/static/svg/regiones/region${regionNumber}.svg`;
-      console.log('🗺️ Cargando mapa SVG:', svgPath, '(código:', region.codigo, 'número:', regionNumber, ')');
-      
-      // Cargar el SVG
-      regionMapImage.src = svgPath;
-      regionMapImage.alt = `Mapa de la ${region.nombre}`;
+
+  const fallbackImage =
+    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=60';
+
+  const getRegionNumberFromCode = (codigo) => {
+    if (!codigo) return null;
+    const codigoMatch = codigo.match(/\d+/);
+    return codigoMatch ? parseInt(codigoMatch[0], 10) : null;
+  };
+
+  const loadMapImage = (regionNumber, regionName = '') => {
+    if (!regionNumber) {
+      console.warn('⚠️ No se pudo obtener el número de la región para cargar el mapa');
+      regionMapImage.src = fallbackImage;
+      regionMapImage.alt = 'Mapa no disponible';
       regionMapImage.style.display = 'block';
-      
-      // Manejar errores de carga
-      regionMapImage.onerror = function() {
-        console.warn(`⚠️ No se pudo cargar el mapa SVG para la región ${regionNumber} (ruta: ${svgPath}, código original: ${region.codigo})`);
-        regionMapImage.style.display = 'none';
-      };
-      
-      regionMapImage.onload = function() {
-        console.log('✅ Mapa SVG cargado exitosamente:', svgPath);
-        regionMapImage.style.display = 'block';
-      };
-    } else {
-      console.warn('⚠️ No se pudo extraer el número de región del código:', region.codigo);
-      regionMapImage.style.display = 'none';
+      return;
     }
-  } else {
-    console.warn('⚠️ No se encontró la región o su código. Region:', region, 'currentRegionData:', currentRegionData);
-    regionMapImage.style.display = 'none';
+
+    const pngPath = `/static/img/regiones%20mapa/region${regionNumber}.png`;
+    console.log('🗺️ Cargando mapa PNG:', pngPath, '(región:', regionName || regionNumber, ')');
+
+    regionMapImage.style.display = 'block';
+    regionMapImage.src = pngPath;
+    regionMapImage.alt = `Mapa de la región ${regionName || regionNumber}`;
+
+    regionMapImage.onload = () => {
+      console.log('✅ Mapa PNG cargado exitosamente:', pngPath);
+      regionMapImage.style.display = 'block';
+    };
+
+    regionMapImage.onerror = () => {
+      console.warn(`⚠️ No se pudo cargar el mapa PNG para la región ${regionNumber} (ruta: ${pngPath}). Usando imagen de respaldo.`);
+      regionMapImage.src = fallbackImage;
+      regionMapImage.alt = 'Mapa no disponible';
+      regionMapImage.style.display = 'block';
+    };
+  };
+
+  const region = allRegions.find((r) => r.id === regionId);
+  if (region && region.codigo) {
+    loadMapImage(getRegionNumberFromCode(region.codigo), region.nombre);
+    return;
   }
+
+  if (currentRegionData) {
+    const codigo = currentRegionData.code || currentRegionData.codigo;
+    const nombre = currentRegionData.name || currentRegionData.nombre || '';
+    loadMapImage(getRegionNumberFromCode(codigo), nombre);
+    return;
+  }
+
+  console.warn('⚠️ No se encontró información suficiente para mostrar el mapa de la región', regionId);
+  regionMapImage.src = fallbackImage;
+  regionMapImage.alt = 'Mapa no disponible';
+  regionMapImage.style.display = 'block';
 }
 
 function loadData(data) {
