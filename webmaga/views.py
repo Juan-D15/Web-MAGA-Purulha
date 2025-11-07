@@ -2,13 +2,13 @@ from django.http import JsonResponse
 from django.db import connection
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count, Q, Sum, Avg, Max, Min, F
 from django.db.models.functions import TruncMonth, TruncYear, Extract
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.contrib.auth import authenticate
 import os
 import json
 from datetime import datetime
@@ -1885,7 +1885,6 @@ def api_verificar_admin(request):
                 'error': 'Usuario y contraseña son requeridos'
             }, status=400)
         
-        # Autenticar el usuario con el backend personalizado de MAGA
         user = authenticate(request, username=username, password=password)
         
         if user is None:
@@ -1894,8 +1893,6 @@ def api_verificar_admin(request):
                 'error': 'Credenciales inválidas'
             }, status=401)
         
-        # Verificar que es administrador
-        # El backend personalizado agrega el atributo 'rol_maga' al objeto user
         rol = getattr(user, 'rol_maga', None)
         
         if rol != 'admin':
@@ -1926,43 +1923,6 @@ def api_verificar_admin(request):
             'success': False,
             'error': f'Error al verificar credenciales: {str(e)}'
         }, status=500)
-
-
-def _calcular_tiempo_relativo(fecha):
-    """Calcula tiempo relativo (ej: 'hace 2 horas')"""
-    from django.utils import timezone
-    from django.utils.timezone import localtime, is_aware, make_aware
-    import pytz
-    
-    # Asegurar que la fecha tenga zona horaria
-    if not is_aware(fecha):
-        # Si la fecha no tiene timezone, asumir que es UTC
-        fecha = make_aware(fecha, pytz.UTC)
-    
-    ahora = timezone.now()
-    diferencia = ahora - fecha
-    
-    segundos = diferencia.total_seconds()
-    
-    # Manejar fechas futuras
-    if segundos < 0:
-        return 'recién creado'
-    
-    if segundos < 60:
-        return 'hace unos segundos'
-    elif segundos < 3600:
-        minutos = int(segundos / 60)
-        return f'hace {minutos} minuto{"s" if minutos != 1 else ""}'
-    elif segundos < 86400:
-        horas = int(segundos / 3600)
-        return f'hace {horas} hora{"s" if horas != 1 else ""}'
-    elif segundos < 604800:
-        dias = int(segundos / 86400)
-        return f'hace {dias} día{"s" if dias != 1 else ""}'
-    else:
-        # Convertir a zona horaria local antes de formatear
-        fecha_local = localtime(fecha)
-        return fecha_local.strftime('%d/%m/%Y %H:%M')
 
 
 @permiso_gestionar_eventos
@@ -4600,80 +4560,6 @@ def api_eliminar_colaborador(request, colaborador_id):
             'success': False,
             'error': f'Error al eliminar colaborador: {str(e)}'
         }, status=500)
-
-
-@require_http_methods(["POST"])
-def api_verificar_admin(request):
-    """API: Verificar credenciales de administrador"""
-    try:
-        data = json.loads(request.body or '{}')
-        
-        username = data.get('username', '').strip()
-        password = data.get('password', '')
-        
-        if not username or not password:
-            return JsonResponse({
-                'success': False,
-                'error': 'Usuario y contraseña son requeridos'
-            }, status=400)
-        
-        # Obtener usuario
-        try:
-            usuario = Usuario.objects.get(username=username, activo=True)
-        except Usuario.DoesNotExist:
-            return JsonResponse({
-                'success': False,
-                'error': 'Credenciales incorrectas'
-            }, status=401)
-        
-        # Verificar que sea administrador
-        if usuario.rol != 'admin':
-            return JsonResponse({
-                'success': False,
-                'error': 'Solo los administradores pueden realizar esta acción'
-            }, status=403)
-        
-        # Verificar contraseña usando el backend personalizado
-        # Esto maneja diferentes tipos de hash (pgcrypto, Django hashers, etc.)
-        from webmaga.authentication import UsuarioMAGABackend
-        backend = UsuarioMAGABackend()
-        
-        if not backend._check_password(password, usuario.password_hash):
-            return JsonResponse({
-                'success': False,
-                'error': 'Credenciales incorrectas'
-            }, status=401)
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Credenciales verificadas'
-        })
-        
-    except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False,
-            'error': 'Datos inválidos'
-        }, status=400)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'success': False,
-            'error': f'Error al verificar credenciales: {str(e)}'
-        }, status=500)
-
-
-# =====================================================
-# VISTAS DE REPORTES
-# =====================================================
-
-@solo_administrador
-def reportes_index(request):
-    """Vista principal del módulo de reportes"""
-    context = {
-        'es_admin': True,  # Ya viene del context_processor
-    }
-    return render(request, 'reportes.html', context)
 
 
 @solo_administrador

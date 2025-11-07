@@ -431,5 +431,38 @@ __all__ = [
     'eliminar_portada_evento',
     'obtener_url_portada_o_evidencia',
     'guardar_portada_evento',
+    '_calcular_tiempo_relativo',
 ]
+
+
+def _calcular_tiempo_relativo(fecha):
+    """Calcula tiempo relativo (ej: 'hace 2 horas')"""
+    from django.utils import timezone
+    from django.utils.timezone import localtime, is_aware, make_aware
+    import pytz
+
+    if not is_aware(fecha):
+        fecha = make_aware(fecha, pytz.UTC)
+
+    ahora = timezone.now()
+    diferencia = ahora - fecha
+    segundos = diferencia.total_seconds()
+
+    if segundos < 0:
+        return 'recién creado'
+
+    if segundos < 60:
+        return 'hace unos segundos'
+    if segundos < 3600:
+        minutos = int(segundos / 60)
+        return f'hace {minutos} minuto{"s" if minutos != 1 else ""}'
+    if segundos < 86400:
+        horas = int(segundos / 3600)
+        return f'hace {horas} hora{"s" if horas != 1 else ""}'
+    if segundos < 604800:
+        dias = int(segundos / 86400)
+        return f'hace {dias} día{"s" if dias != 1 else ""}'
+
+    fecha_local = localtime(fecha)
+    return fecha_local.strftime('%d/%m/%Y %H:%M')
 
