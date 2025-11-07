@@ -1283,7 +1283,7 @@ label {
 
 /* Contenedor con scroll para beneficiarios, datos del proyecto y evidencias */
 .beneficiaries-container-wrapper {
-  max-height: 950px; /* Altura fija para mostrar aproximadamente 5 elementos completos */
+  max-height: 520px; /* Aproximadamente 4-5 tarjetas visibles en escritorio */
   overflow-y: auto; /* Scroll siempre activo por defecto */
   overflow-x: hidden;
   padding-right: 8px;
@@ -1945,7 +1945,7 @@ label {
   }
 
   .beneficiaries-container-wrapper {
-    max-height: 800px;
+    max-height: 480px;
   }
 
   .event-search-container {
@@ -2015,7 +2015,7 @@ label {
   }
 
   .beneficiaries-container-wrapper {
-    max-height: 700px;
+    max-height: 420px;
   }
 
   .change-item {

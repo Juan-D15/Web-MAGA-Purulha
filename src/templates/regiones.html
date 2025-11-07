@@ -4,8 +4,8 @@
 {% block extra_css %}
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/regiones.css' %}">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=6">
+  <link rel="stylesheet" href="{% static 'css/regiones.css' %}?v=6">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -21,34 +21,31 @@
       <section class="featured-regions">
         <h2 class="section-title">Últimas Regiones</h2>
 
-        <div class="featured-regions__container">
-          <!-- Región 1 -->
+        <div class="featured-regions__container" id="featuredRegionsContainer">
+          {% for region in ultimas_regiones %}
           <div class="region-card featured-card">
             <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Región Norte" loading="eager">
+              {% if region.imagen_url %}
+              <img src="{{ region.imagen_url }}" 
+                   alt="{{ region.nombre }}" 
+                   loading="eager">
+              {% else %}
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+                   alt="{{ region.nombre }}" 
+                   loading="eager">
+              {% endif %}
               <div class="region-card__overlay">
                 <div class="region-card__info">
-                  <h3 class="region-card__title">Región Norte</h3>
-                  <p class="region-card__code">Región 1</p>
+                  <h3 class="region-card__title">{{ region.comunidad_sede|default:region.nombre }}</h3>
+                  <p class="region-card__code">{{ region.nombre }}</p>
                 </div>
-                <button class="region-card__btn" data-region-id="region-norte">Ver más</button>
+                <button class="region-card__btn" data-region-id="{{ region.id }}">Ver más</button>
               </div>
             </div>
           </div>
-
-          <!-- Región 2 -->
-          <div class="region-card featured-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Región Sur" loading="eager">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Sur</h3>
-                  <p class="region-card__code">Región 2</p>
-                </div>
-                <button class="region-card__btn" data-region-id="region-sur">Ver más</button>
-              </div>
-            </div>
-          </div>
+          {% empty %}
+          <p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones recientes disponibles</p>
+          {% endfor %}
         </div>
       </section>
 
@@ -56,104 +53,33 @@
       <section class="regions-section">
         <h2 class="section-title">Más Regiones</h2>
 
-        <div class="regions-section__grid">
-          <!-- Región 3 -->
-          <div class="region-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Este" loading="lazy">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Este</h3>
-                  <p class="region-card__code">Región 3</p>
+        <div class="regions-section__grid" id="regionsGrid">
+          {% for region in regiones %}
+            {% if region.id|stringformat:"s" not in ultimas_regiones_ids %}
+            <div class="region-card">
+              <div class="region-card__image">
+                {% if region.imagen_url %}
+                <img src="{{ region.imagen_url }}" 
+                     alt="{{ region.nombre }}" 
+                     loading="lazy">
+                {% else %}
+                <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                     alt="{{ region.nombre }}" 
+                     loading="lazy">
+                {% endif %}
+                <div class="region-card__overlay">
+                  <div class="region-card__info">
+                    <h3 class="region-card__title">{{ region.comunidad_sede|default:region.nombre }}</h3>
+                    <p class="region-card__code">{{ region.nombre }}</p>
+                  </div>
+                  <button class="region-card__btn" data-region-id="{{ region.id }}">Ver más</button>
                 </div>
-                <button class="region-card__btn" data-region-id="region-este">Ver más</button>
               </div>
             </div>
-          </div>
-
-          <!-- Región 4 -->
-          <div class="region-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Oeste" loading="lazy">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Oeste</h3>
-                  <p class="region-card__code">Región 4</p>
-                </div>
-                <button class="region-card__btn" data-region-id="region-oeste">Ver más</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Región 5 -->
-          <div class="region-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Central" loading="lazy">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Central</h3>
-                  <p class="region-card__code">Región 5</p>
-                </div>
-                <button class="region-card__btn" data-region-id="region-central">Ver más</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Región 6 -->
-          <div class="region-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Noroeste" loading="lazy">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Noroeste</h3>
-                  <p class="region-card__code">Región 6</p>
-                </div>
-                <button class="region-card__btn" data-region-id="region-noroeste">Ver más</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Región 7 -->
-          <div class="region-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Noreste" loading="lazy">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Noreste</h3>
-                  <p class="region-card__code">Región 7</p>
-                </div>
-                <button class="region-card__btn" data-region-id="region-noreste">Ver más</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Región 8 -->
-          <div class="region-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Suroeste" loading="lazy">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Suroeste</h3>
-                  <p class="region-card__code">Región 8</p>
-                </div>
-                <button class="region-card__btn" data-region-id="region-suroeste">Ver más</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Región 9 -->
-          <div class="region-card">
-            <div class="region-card__image">
-              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Región Sureste" loading="lazy">
-              <div class="region-card__overlay">
-                <div class="region-card__info">
-                  <h3 class="region-card__title">Región Sureste</h3>
-                  <p class="region-card__code">Región 9</p>
-                </div>
-                <button class="region-card__btn" data-region-id="region-sureste">Ver más</button>
-              </div>
-            </div>
-          </div>
+            {% endif %}
+          {% empty %}
+          <p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones disponibles</p>
+          {% endfor %}
         </div>
 
         <!-- Botón Ver Todas las Regiones -->
@@ -545,5 +471,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/regiones.js' %}"></script>
+  <script src="{% static 'js/regiones.js' %}?v=6"></script>
 {% endblock %}

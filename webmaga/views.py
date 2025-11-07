@@ -21,7 +21,8 @@ from .models import (
     TipoBeneficiario, Usuario, TipoComunidad, ActividadPersonal,
     Colaborador, Puesto,
     ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
-    EventoCambioColaborador, ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios
+    EventoCambioColaborador, ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios,
+    RegionGaleria, RegionArchivo
 )
 from .forms import LoginForm, RecuperarPasswordForm, ActividadForm
 from .decorators import (
@@ -453,8 +454,33 @@ def regiones(request):
         num_actividades=Count('comunidades__actividades', filter=Q(comunidades__actividades__eliminado_en__isnull=True))
     ).order_by('codigo')
     
+    # Obtener las últimas 2 regiones actualizadas para la sección destacada
+    ultimas_regiones = Region.objects.annotate(
+        num_comunidades=Count('comunidades', filter=Q(comunidades__activo=True))
+    ).order_by('-actualizado_en', '-creado_en')[:2]
+    
+    # Crear lista de IDs de últimas regiones para comparación en template
+    ultimas_regiones_ids = [str(r.id) for r in ultimas_regiones]
+    
+    # Obtener primera imagen de cada región (con imagen predeterminada si no hay)
+    for region in regiones_list:
+        try:
+            galeria = RegionGaleria.objects.filter(region=region).first()
+            region.imagen_url = galeria.url_almacenamiento if galeria else 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
+        except:
+            region.imagen_url = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
+    
+    for region in ultimas_regiones:
+        try:
+            galeria = RegionGaleria.objects.filter(region=region).first()
+            region.imagen_url = galeria.url_almacenamiento if galeria else 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+        except:
+            region.imagen_url = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+    
     context = {
         'regiones': regiones_list,
+        'ultimas_regiones': ultimas_regiones,
+        'ultimas_regiones_ids': ultimas_regiones_ids,
         'total_regiones': regiones_list.count()
     }
     return render(request, 'regiones.html', context)
@@ -630,24 +656,248 @@ def api_usuario_actual(request):
 
 
 def api_regiones(request):
-    """API: Listar todas las regiones"""
+    """API: Listar todas las regiones con información básica"""
     regiones_query = Region.objects.annotate(
         num_comunidades=Count('comunidades', filter=Q(comunidades__activo=True))
     ).order_by('codigo')
     
     regiones = []
     for region in regiones_query:
+        # Obtener primera imagen de la galería si existe
+        primera_imagen = None
+        try:
+            galeria = RegionGaleria.objects.filter(region=region).first()
+            if galeria:
+                primera_imagen = galeria.url_almacenamiento
+        except:
+            pass
+        
         regiones.append({
             'id': str(region.id),
             'codigo': region.codigo,
             'nombre': region.nombre,
             'descripcion': region.descripcion,
-            'comunidad_sede': region.comunidad_sede,
+            'comunidad_sede': region.comunidad_sede or '',
             'poblacion_aprox': region.poblacion_aprox,
-            'num_comunidades': region.num_comunidades
+            'num_comunidades': region.num_comunidades,
+            'imagen_url': primera_imagen or 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
+            'actualizado_en': region.actualizado_en.isoformat() if region.actualizado_en else None,
+            'creado_en': region.creado_en.isoformat() if region.creado_en else None
         })
     
     return JsonResponse(regiones, safe=False)
+
+
+def api_regiones_recientes(request):
+    """API: Obtener las últimas regiones actualizadas (para sección 'Últimas Regiones')"""
+    limite = int(request.GET.get('limite', 2))
+    
+    regiones_query = Region.objects.annotate(
+        num_comunidades=Count('comunidades', filter=Q(comunidades__activo=True))
+    ).order_by('-actualizado_en', '-creado_en')[:limite]
+    
+    regiones = []
+    for region in regiones_query:
+        primera_imagen = None
+        try:
+            galeria = RegionGaleria.objects.filter(region=region).first()
+            if galeria:
+                primera_imagen = galeria.url_almacenamiento
+        except:
+            pass
+        
+        regiones.append({
+            'id': str(region.id),
+            'codigo': region.codigo,
+            'nombre': region.nombre,
+            'descripcion': region.descripcion,
+            'comunidad_sede': region.comunidad_sede or '',
+            'poblacion_aprox': region.poblacion_aprox,
+            'num_comunidades': region.num_comunidades,
+            'imagen_url': primera_imagen or 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+            'actualizado_en': region.actualizado_en.isoformat() if region.actualizado_en else None
+        })
+    
+    return JsonResponse(regiones, safe=False)
+
+
+def api_region_detalle(request, region_id):
+    """API: Obtener detalle completo de una región"""
+    try:
+        region = Region.objects.prefetch_related(
+            'galeria',
+            'archivos',
+            'comunidades'
+        ).annotate(
+            num_comunidades=Count('comunidades', filter=Q(comunidades__activo=True)),
+            num_actividades=Count('comunidades__actividades', filter=Q(comunidades__actividades__eliminado_en__isnull=True))
+        ).get(id=region_id)
+    except Region.DoesNotExist:
+        return JsonResponse({'error': 'Región no encontrada'}, status=404)
+    
+    # Obtener galería de imágenes
+    fotos = []
+    for img in region.galeria.all():
+        fotos.append({
+            'id': str(img.id),
+            'url': img.url_almacenamiento,
+            'description': img.descripcion or 'Imagen de la región'
+        })
+    
+    # No agregar imagen por defecto si no hay imágenes
+    
+    # Obtener archivos
+    archivos = []
+    for archivo in region.archivos.all():
+        archivos.append({
+            'id': str(archivo.id),
+            'name': archivo.nombre_archivo,
+            'description': archivo.descripcion or '',
+            'type': archivo.archivo_tipo or 'pdf',
+            'url': archivo.url_almacenamiento,
+            'date': archivo.creado_en.isoformat() if archivo.creado_en else None
+        })
+    
+    # Obtener comunidades
+    comunidades_list = []
+    for comunidad in region.comunidades.filter(activo=True):
+        comunidades_list.append({
+            'name': comunidad.nombre,
+            'type': comunidad.tipo.get_nombre_display() if comunidad.tipo else ''
+        })
+    
+    # Obtener proyectos activos de la región
+    proyectos = []
+    actividades = Actividad.objects.filter(
+        eliminado_en__isnull=True,
+        comunidad__region=region
+    ).select_related('tipo').order_by('-fecha')[:10]
+    
+    for actividad in actividades:
+        proyectos.append({
+            'name': actividad.nombre,
+            'type': actividad.tipo.nombre if actividad.tipo else 'Actividad',
+            'status': actividad.get_estado_display()
+        })
+    
+    # Construir datos generales
+    data = []
+    if region.num_comunidades:
+        data.append({
+            'icon': '🏘️',
+            'label': 'Número de Comunidades',
+            'value': f'{region.num_comunidades} comunidades'
+        })
+    if region.poblacion_aprox:
+        data.append({
+            'icon': '👥',
+            'label': 'Población Aproximada',
+            'value': f'{region.poblacion_aprox:,} habitantes'
+        })
+    if region.comunidad_sede:
+        data.append({
+            'icon': '🏛️',
+            'label': 'Comunidad Sede',
+            'value': region.comunidad_sede
+        })
+    
+    return JsonResponse({
+        'id': str(region.id),
+        'codigo': region.codigo,
+        'nombre': region.nombre,
+        'descripcion': region.descripcion or '',
+        'comunidad_sede': region.comunidad_sede or '',
+        'poblacion_aprox': region.poblacion_aprox,
+        'num_comunidades': region.num_comunidades,
+        'num_actividades': region.num_actividades,
+        'latitud': float(region.latitud) if region.latitud else None,
+        'longitud': float(region.longitud) if region.longitud else None,
+        'photos': fotos,
+        'data': data,
+        'projects': proyectos,
+        'communities': comunidades_list,
+        'files': archivos,
+        'location': f'Región {region.codigo} - {region.nombre}',
+        'actualizado_en': region.actualizado_en.isoformat() if region.actualizado_en else None,
+        'creado_en': region.creado_en.isoformat() if region.creado_en else None
+    })
+
+
+@require_http_methods(["POST"])
+def api_agregar_imagen_region(request, region_id):
+    """API: Agregar imagen a la galería de una región"""
+    try:
+        region = Region.objects.get(id=region_id)
+        usuario_maga = get_usuario_maga(request.user)
+        
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Validar que se haya enviado una imagen
+        imagen = request.FILES.get('imagen')
+        if not imagen:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se ha enviado ninguna imagen'
+            }, status=400)
+        
+        # Validar que sea una imagen
+        if not imagen.content_type or not imagen.content_type.startswith('image/'):
+            return JsonResponse({
+                'success': False,
+                'error': 'El archivo debe ser una imagen (JPG, PNG, GIF, etc.)'
+            }, status=400)
+        
+        # Obtener descripción (opcional)
+        descripcion = request.POST.get('descripcion', '').strip()
+        
+        # Crear carpeta si no existe
+        portada_dir = os.path.join(settings.MEDIA_ROOT, 'regiones_portada_img')
+        os.makedirs(portada_dir, exist_ok=True)
+        
+        # Guardar archivo
+        fs = FileSystemStorage(location=portada_dir)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+        file_extension = os.path.splitext(imagen.name)[1]
+        filename = f"{timestamp}_{region_id}{file_extension}"
+        saved_name = fs.save(filename, imagen)
+        file_url = f"/media/regiones_portada_img/{saved_name}"
+        
+        # Crear registro en la BD usando RegionGaleria
+        imagen_galeria = RegionGaleria.objects.create(
+            region=region,
+            archivo_nombre=imagen.name,
+            url_almacenamiento=file_url,
+            descripcion=descripcion,
+            creado_por=usuario_maga
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Imagen agregada exitosamente',
+            'imagen': {
+                'id': str(imagen_galeria.id),
+                'url': file_url,
+                'nombre': imagen.name,
+                'descripcion': descripcion
+            }
+        })
+        
+    except Region.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Región no encontrada'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al agregar imagen: {str(e)}'
+        }, status=500)
 
 
 def api_tipos_actividad(request):
