@@ -341,11 +341,11 @@ function openReport(reportType) {
     hideAllForms();
     showFormForReport(reportType);
     
-    // Cargar datos específicos del formulario
-    loadFormData(reportType);
-    
-    // Resetear filtros
-    resetFiltersForm(reportType);
+    // Cargar datos específicos del formulario (async, esperar a que termine)
+    loadFormData(reportType).then(() => {
+        // Después de cargar datos, resetear filtros
+        resetFiltersForm(reportType);
+    });
 }
 
 // Ocultar todos los formularios
@@ -359,7 +359,8 @@ function hideAllForms() {
 function showFormForReport(reportType) {
     const formMap = {
         'actividades-por-region-comunidad': 'form-actividades-por-region-comunidad',
-        'beneficiarios-por-region-comunidad': 'form-beneficiarios-por-region-comunidad'
+        'beneficiarios-por-region-comunidad': 'form-beneficiarios-por-region-comunidad',
+        'actividad-de-personal': 'form-actividad-de-personal'
     };
     
     const formId = formMap[reportType] || 'form-generic';
@@ -381,6 +382,8 @@ async function loadFormData(reportType) {
         // Cargar eventos si es el reporte de beneficiarios
         if (reportType === 'beneficiarios-por-region-comunidad') {
             await loadEventos();
+            // Configurar buscador de eventos
+            setupEventoSearchBeneficiarios();
         }
         
         // Configurar switches
@@ -391,6 +394,25 @@ async function loadFormData(reportType) {
         
         // Configurar buscadores de comunidades
         setupComunidadSearch(reportType);
+    } else if (reportType === 'actividad-de-personal') {
+        // Cargar todas las comunidades para el buscador
+        await loadAllComunidades();
+        
+        // Cargar eventos
+        await loadEventosPersonal();
+        
+        // Cargar colaboradores
+        await loadColaboradores();
+        
+        // Configurar selector de período
+        setupPeriodSelectorPersonal();
+        
+        // Configurar buscadores
+        setupComunidadSearchPersonal();
+        setupEventoSearchPersonal();
+        
+        // Configurar lista de colaboradores con checklist
+        setupColaboradorSearchPersonal();
     }
 }
 
@@ -436,24 +458,649 @@ async function loadTiposActividad(reportType) {
     }
 }
 
-// Cargar eventos
+// Cargar eventos para reporte de beneficiarios
+let allEventosBeneficiarios = [];
 async function loadEventos() {
     try {
         const response = await fetch('/api/actividades/');
         if (response.ok) {
-            const eventos = await response.json();
-            const select = document.getElementById('filterEventoBeneficiarios');
-            select.innerHTML = '<option value="">Todos los eventos</option>';
-            eventos.forEach(evento => {
-                const option = document.createElement('option');
-                option.value = evento.id;
-                option.textContent = evento.nombre || 'Sin nombre';
-                select.appendChild(option);
-            });
+            allEventosBeneficiarios = await response.json();
+            // Renderizar checklist de eventos
+            renderEventosBeneficiariosChecklist();
         }
     } catch (error) {
         console.error('Error cargando eventos:', error);
     }
+}
+
+// Configurar lista de eventos con checklist y buscador para beneficiarios
+let selectedEventosBeneficiarios = [];
+let eventoBeneficiariosCheckboxes = [];
+let eventoBeneficiariosSearchHandler = null;
+
+function renderEventosBeneficiariosChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterEventosBeneficiarios');
+    if (!checklistContainer) return;
+    
+    // Filtrar eventos según la búsqueda Y excluir los ya seleccionados
+    const filtered = allEventosBeneficiarios.filter(evento => {
+        // Excluir eventos ya seleccionados
+        if (selectedEventosBeneficiarios.includes(evento.id)) {
+            return false;
+        }
+        // Aplicar filtro de búsqueda
+        if (!filterQuery) return true;
+        const query = filterQuery.toLowerCase().trim();
+        return evento.nombre && evento.nombre.toLowerCase().includes(query);
+    });
+    
+    // Limpiar contenedor
+    checklistContainer.innerHTML = '';
+    eventoBeneficiariosCheckboxes = [];
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron eventos</p>';
+        return;
+    }
+    
+    // Crear checkboxes solo para eventos NO seleccionados
+    filtered.forEach(evento => {
+        const label = document.createElement('label');
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = evento.id;
+        checkbox.checked = false; // Nunca están seleccionados aquí porque ya están en tags
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!selectedEventosBeneficiarios.includes(evento.id)) {
+                    selectedEventosBeneficiarios.push(evento.id);
+                    updateSelectedEventosBeneficiariosTags();
+                    renderEventosBeneficiariosChecklist(filterQuery); // Re-renderizar lista sin el seleccionado
+                }
+            }
+        });
+        
+        eventoBeneficiariosCheckboxes.push(checkbox);
+        
+        const span = document.createElement('span');
+        span.textContent = evento.nombre || 'Sin nombre';
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+function updateSelectedEventosBeneficiariosTags() {
+    const tagsContainer = document.getElementById('selectedEventosBeneficiariosTags');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    selectedEventosBeneficiarios.forEach(eventoId => {
+        const evento = allEventosBeneficiarios.find(e => e.id === eventoId);
+        if (evento) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = evento.nombre || 'Sin nombre';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedEventosBeneficiarios = selectedEventosBeneficiarios.filter(id => id !== eventoId);
+                updateSelectedEventosBeneficiariosTags();
+                // Re-renderizar lista con el evento deseleccionado
+                const searchInput = document.getElementById('searchEventoBeneficiarios');
+                renderEventosBeneficiariosChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    });
+}
+
+function setupEventoSearchBeneficiarios() {
+    const searchInput = document.getElementById('searchEventoBeneficiarios');
+    const checklistContainer = document.getElementById('filterEventosBeneficiarios');
+    const container = document.getElementById('eventosBeneficiariosContainer');
+    
+    if (!searchInput || !checklistContainer || !container) return;
+    
+    // Renderizar tags seleccionados
+    updateSelectedEventosBeneficiariosTags();
+    
+    // Renderizar lista inicial
+    renderEventosBeneficiariosChecklist();
+    
+    // Configurar buscador para filtrar la lista
+    if (eventoBeneficiariosSearchHandler) {
+        searchInput.removeEventListener('input', eventoBeneficiariosSearchHandler);
+    }
+    
+    eventoBeneficiariosSearchHandler = function() {
+        const query = this.value;
+        renderEventosBeneficiariosChecklist(query);
+    };
+    
+    searchInput.addEventListener('input', eventoBeneficiariosSearchHandler);
+    
+    // Expandir lista cuando el usuario hace foco en el buscador
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconEventosBeneficiarios');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    // Colapsar lista cuando el usuario sale del buscador
+    searchInput.addEventListener('blur', function(e) {
+        // Usar setTimeout para permitir que se procesen los clicks en los checkboxes y tags
+        setTimeout(function() {
+            // Verificar si el nuevo elemento activo está dentro del contenedor o en los tags
+            const activeElement = document.activeElement;
+            const tagsContainer = document.getElementById('selectedEventosBeneficiariosTags');
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer && tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconEventosBeneficiarios');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    // Mantener la lista abierta cuando se hace clic en los checkboxes
+    checklistContainer.addEventListener('click', function(e) {
+        // Si se hace clic en un checkbox o label, restaurar el foco al input después de un pequeño delay
+        if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
+}
+
+// Cargar eventos para reporte de personal
+let allEventos = [];
+async function loadEventosPersonal() {
+    try {
+        const response = await fetch('/api/actividades/');
+        if (response.ok) {
+            allEventos = await response.json();
+        }
+    } catch (error) {
+        console.error('Error cargando eventos:', error);
+    }
+}
+
+// Cargar colaboradores
+let allColaboradores = [];
+async function loadColaboradores() {
+    try {
+        const response = await fetch('/api/colaboradores/');
+        if (response.ok) {
+            const data = await response.json();
+            allColaboradores = data.colaboradores || [];
+        }
+    } catch (error) {
+        console.error('Error cargando colaboradores:', error);
+    }
+}
+
+// Configurar selector de período para personal
+let periodoPersonalHandler = null;
+function setupPeriodSelectorPersonal() {
+    const periodSelect = document.getElementById('filterPeriodoPersonal');
+    const dateRangeContainer = document.getElementById('dateRangePersonal');
+    
+    if (!periodSelect || !dateRangeContainer) return;
+    
+    // Remover listener anterior si existe
+    if (periodoPersonalHandler) {
+        periodSelect.removeEventListener('change', periodoPersonalHandler);
+    }
+    
+    periodoPersonalHandler = function() {
+        if (this.value === 'rango') {
+            dateRangeContainer.style.display = 'block';
+        } else {
+            dateRangeContainer.style.display = 'none';
+        }
+    };
+    
+    periodSelect.addEventListener('change', periodoPersonalHandler);
+    
+    // Aplicar estado inicial
+    if (periodSelect.value === 'rango') {
+        dateRangeContainer.style.display = 'block';
+    } else {
+        dateRangeContainer.style.display = 'none';
+    }
+}
+
+// Configurar buscador de comunidades para personal
+let selectedComunidadesPersonal = [];
+let comunidadSearchHandler = null;
+function setupComunidadSearchPersonal() {
+    const searchInput = document.getElementById('searchComunidadPersonal');
+    const resultsDiv = document.getElementById('searchResultsComunidadPersonal');
+    
+    if (!searchInput || !resultsDiv) return;
+    
+    // Remover listener anterior si existe
+    if (comunidadSearchHandler) {
+        searchInput.removeEventListener('input', comunidadSearchHandler);
+    }
+    
+    comunidadSearchHandler = function() {
+        const query = this.value.toLowerCase().trim();
+        
+        if (query.length < 2) {
+            resultsDiv.style.display = 'none';
+            return;
+        }
+        
+        const filtered = allComunidades.filter(com => 
+            com.nombre.toLowerCase().includes(query)
+        ).slice(0, 10);
+        
+        if (filtered.length === 0) {
+            resultsDiv.style.display = 'none';
+            return;
+        }
+        
+        resultsDiv.innerHTML = '';
+        filtered.forEach(comunidad => {
+            const div = document.createElement('div');
+            div.className = 'search-result-item';
+            div.textContent = comunidad.nombre;
+            div.addEventListener('click', function() {
+                if (!selectedComunidadesPersonal.includes(comunidad.id)) {
+                    selectedComunidadesPersonal.push(comunidad.id);
+                    updateSelectedComunidadesPersonal();
+                }
+                searchInput.value = '';
+                resultsDiv.style.display = 'none';
+            });
+            resultsDiv.appendChild(div);
+        });
+        
+        resultsDiv.style.display = 'block';
+    };
+    
+    searchInput.addEventListener('input', comunidadSearchHandler);
+    
+    // Ocultar resultados al hacer clic fuera (solo una vez)
+    if (!searchInput._clickOutsideHandlerComunidad) {
+        searchInput._clickOutsideHandlerComunidad = function(e) {
+            if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+                resultsDiv.style.display = 'none';
+            }
+        };
+        document.addEventListener('click', searchInput._clickOutsideHandlerComunidad);
+    }
+}
+
+function updateSelectedComunidadesPersonal() {
+    const searchInput = document.getElementById('searchComunidadPersonal');
+    if (!searchInput) return;
+    
+    const container = searchInput.parentElement;
+    let selectedContainer = container.querySelector('.selected-comunidades');
+    
+    if (!selectedContainer) {
+        selectedContainer = document.createElement('div');
+        selectedContainer.className = 'selected-comunidades';
+    } else {
+        selectedContainer.innerHTML = '';
+    }
+    
+    selectedComunidadesPersonal.forEach(comId => {
+        const comunidad = allComunidades.find(c => c.id === comId);
+        if (comunidad) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = comunidad.nombre;
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedComunidadesPersonal = selectedComunidadesPersonal.filter(id => id !== comId);
+                updateSelectedComunidadesPersonal();
+            });
+            tag.appendChild(removeBtn);
+            selectedContainer.appendChild(tag);
+        }
+    });
+    
+    const existing = container.querySelector('.selected-comunidades');
+    if (existing) existing.remove();
+    container.appendChild(selectedContainer);
+}
+
+// Configurar lista de eventos con checklist y buscador para personal
+let selectedEventosPersonal = [];
+let eventoCheckboxes = [];
+let eventoSearchHandler = null;
+
+function renderEventosChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterEventosPersonal');
+    if (!checklistContainer) return;
+    
+    // Filtrar eventos según la búsqueda Y excluir los ya seleccionados
+    const filtered = allEventos.filter(evento => {
+        // Excluir eventos ya seleccionados
+        if (selectedEventosPersonal.includes(evento.id)) {
+            return false;
+        }
+        // Aplicar filtro de búsqueda
+        if (!filterQuery) return true;
+        const query = filterQuery.toLowerCase().trim();
+        return evento.nombre && evento.nombre.toLowerCase().includes(query);
+    });
+    
+    // Limpiar contenedor
+    checklistContainer.innerHTML = '';
+    eventoCheckboxes = [];
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron eventos</p>';
+        return;
+    }
+    
+    // Crear checkboxes solo para eventos NO seleccionados
+    filtered.forEach(evento => {
+        const label = document.createElement('label');
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = evento.id;
+        checkbox.checked = false; // Nunca están seleccionados aquí porque ya están en tags
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!selectedEventosPersonal.includes(evento.id)) {
+                    selectedEventosPersonal.push(evento.id);
+                    updateSelectedEventosPersonalTags();
+                    renderEventosChecklist(filterQuery); // Re-renderizar lista sin el seleccionado
+                }
+            }
+        });
+        
+        eventoCheckboxes.push(checkbox);
+        
+        const span = document.createElement('span');
+        span.textContent = evento.nombre || 'Sin nombre';
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+function updateSelectedEventosPersonalTags() {
+    const tagsContainer = document.getElementById('selectedEventosPersonalTags');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    selectedEventosPersonal.forEach(eventoId => {
+        const evento = allEventos.find(e => e.id === eventoId);
+        if (evento) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = evento.nombre || 'Sin nombre';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedEventosPersonal = selectedEventosPersonal.filter(id => id !== eventoId);
+                updateSelectedEventosPersonalTags();
+                // Re-renderizar lista con el evento deseleccionado
+                const searchInput = document.getElementById('searchEventoPersonal');
+                renderEventosChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    });
+}
+
+function setupEventoSearchPersonal() {
+    const searchInput = document.getElementById('searchEventoPersonal');
+    const checklistContainer = document.getElementById('filterEventosPersonal');
+    const container = document.getElementById('eventosPersonalContainer');
+    
+    if (!searchInput || !checklistContainer || !container) return;
+    
+    // Renderizar tags seleccionados
+    updateSelectedEventosPersonalTags();
+    
+    // Renderizar lista inicial
+    renderEventosChecklist();
+    
+    // Configurar buscador para filtrar la lista
+    if (eventoSearchHandler) {
+        searchInput.removeEventListener('input', eventoSearchHandler);
+    }
+    
+    eventoSearchHandler = function() {
+        const query = this.value;
+        renderEventosChecklist(query);
+    };
+    
+    searchInput.addEventListener('input', eventoSearchHandler);
+    
+    // Expandir lista cuando el usuario hace foco en el buscador
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconEventosPersonal');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    // Colapsar lista cuando el usuario sale del buscador
+    searchInput.addEventListener('blur', function(e) {
+        // Usar setTimeout para permitir que se procesen los clicks en los checkboxes y tags
+        setTimeout(function() {
+            // Verificar si el nuevo elemento activo está dentro del contenedor o en los tags
+            const activeElement = document.activeElement;
+            const tagsContainer = document.getElementById('selectedEventosPersonalTags');
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer && tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconEventosPersonal');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    // Mantener la lista abierta cuando se hace clic en los checkboxes
+    checklistContainer.addEventListener('click', function(e) {
+        // Si se hace clic en un checkbox o label, restaurar el foco al input después de un pequeño delay
+        if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
+}
+
+// Función para colapsar/expandir checklists
+function toggleChecklist(type) {
+    let container, icon;
+    
+    if (type === 'eventosPersonal') {
+        container = document.getElementById('eventosPersonalContainer');
+        icon = document.getElementById('toggleIconEventosPersonal');
+    } else if (type === 'colaboradoresPersonal') {
+        container = document.getElementById('colaboradoresPersonalContainer');
+        icon = document.getElementById('toggleIconColaboradoresPersonal');
+    } else if (type === 'eventosBeneficiarios') {
+        container = document.getElementById('eventosBeneficiariosContainer');
+        icon = document.getElementById('toggleIconEventosBeneficiarios');
+    }
+    
+    if (!container || !icon) return;
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        container.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+// Configurar lista de colaboradores con checklist y buscador para personal
+let selectedColaboradoresPersonal = [];
+let colaboradorCheckboxes = [];
+let colaboradorSearchHandler = null;
+
+function renderColaboradoresChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterColaboradoresPersonal');
+    if (!checklistContainer) return;
+    
+    // Filtrar colaboradores según la búsqueda Y excluir los ya seleccionados
+    const filtered = allColaboradores.filter(col => {
+        // Excluir colaboradores ya seleccionados
+        if (selectedColaboradoresPersonal.includes(col.id)) {
+            return false;
+        }
+        // Aplicar filtro de búsqueda
+        if (!filterQuery) return true;
+        const query = filterQuery.toLowerCase().trim();
+        return col.nombre && col.nombre.toLowerCase().includes(query);
+    });
+    
+    // Limpiar contenedor
+    checklistContainer.innerHTML = '';
+    colaboradorCheckboxes = [];
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron colaboradores</p>';
+        return;
+    }
+    
+    // Crear checkboxes solo para colaboradores NO seleccionados
+    filtered.forEach(colaborador => {
+        const label = document.createElement('label');
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = colaborador.id;
+        checkbox.checked = false; // Nunca están seleccionados aquí porque ya están en tags
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!selectedColaboradoresPersonal.includes(colaborador.id)) {
+                    selectedColaboradoresPersonal.push(colaborador.id);
+                    updateSelectedColaboradoresPersonalTags();
+                    renderColaboradoresChecklist(filterQuery); // Re-renderizar lista sin el seleccionado
+                }
+            }
+        });
+        
+        colaboradorCheckboxes.push(checkbox);
+        
+        const span = document.createElement('span');
+        span.textContent = colaborador.nombre || 'Sin nombre';
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+function updateSelectedColaboradoresPersonalTags() {
+    const tagsContainer = document.getElementById('selectedColaboradoresPersonalTags');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    selectedColaboradoresPersonal.forEach(colId => {
+        const colaborador = allColaboradores.find(c => c.id === colId);
+        if (colaborador) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = colaborador.nombre || 'Sin nombre';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedColaboradoresPersonal = selectedColaboradoresPersonal.filter(id => id !== colId);
+                updateSelectedColaboradoresPersonalTags();
+                // Re-renderizar lista con el colaborador deseleccionado
+                const searchInput = document.getElementById('searchColaboradorPersonal');
+                renderColaboradoresChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    });
+}
+
+function setupColaboradorSearchPersonal() {
+    const searchInput = document.getElementById('searchColaboradorPersonal');
+    const checklistContainer = document.getElementById('filterColaboradoresPersonal');
+    const container = document.getElementById('colaboradoresPersonalContainer');
+    
+    if (!searchInput || !checklistContainer || !container) return;
+    
+    // Renderizar tags seleccionados
+    updateSelectedColaboradoresPersonalTags();
+    
+    // Renderizar lista inicial
+    renderColaboradoresChecklist();
+    
+    // Configurar buscador para filtrar la lista
+    if (colaboradorSearchHandler) {
+        searchInput.removeEventListener('input', colaboradorSearchHandler);
+    }
+    
+    colaboradorSearchHandler = function() {
+        const query = this.value;
+        renderColaboradoresChecklist(query);
+    };
+    
+    searchInput.addEventListener('input', colaboradorSearchHandler);
+    
+    // Expandir lista cuando el usuario hace foco en el buscador
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconColaboradoresPersonal');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    // Colapsar lista cuando el usuario sale del buscador
+    searchInput.addEventListener('blur', function(e) {
+        // Usar setTimeout para permitir que se procesen los clicks en los checkboxes y tags
+        setTimeout(function() {
+            // Verificar si el nuevo elemento activo está dentro del contenedor o en los tags
+            const activeElement = document.activeElement;
+            const tagsContainer = document.getElementById('selectedColaboradoresPersonalTags');
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer && tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconColaboradoresPersonal');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    // Mantener la lista abierta cuando se hace clic en los checkboxes
+    checklistContainer.addEventListener('click', function(e) {
+        // Si se hace clic en un checkbox o label, restaurar el foco al input después de un pequeño delay
+        if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
 }
 
 // Configurar switches
@@ -647,9 +1294,36 @@ function applyFiltersForm(reportType) {
             fecha_inicio: document.getElementById('filterFechaInicioBeneficiarios').value,
             fecha_fin: document.getElementById('filterFechaFinBeneficiarios').value,
             comunidades: selectedComunidades.beneficiarios,
-            evento: document.getElementById('filterEventoBeneficiarios').value,
+            evento: Array.from(document.querySelectorAll('#filterEventosBeneficiarios input[type="checkbox"]:checked')).map(cb => cb.value),
             tipo_actividad: tiposActividadSeleccionados,
             tipo_beneficiario: tiposBeneficiarioSeleccionados.length > 0 ? tiposBeneficiarioSeleccionados : ['individual', 'familia', 'institución', 'otro']
+        };
+    } else if (reportType === 'actividad-de-personal') {
+        // Obtener estados seleccionados
+        const estadosSeleccionados = Array.from(
+            document.querySelectorAll('#filterEstadoPersonal input[type="checkbox"]:checked')
+        ).map(cb => cb.value);
+        
+        // Obtener tipos de actividad seleccionados
+        const tiposActividadSeleccionados = Array.from(
+            document.querySelectorAll('#filterTipoActividadPersonal input[type="checkbox"]:checked')
+        ).map(cb => cb.value);
+        
+        // Obtener colaboradores seleccionados (usar el array selectedColaboradoresPersonal que incluye todos los seleccionados)
+        const colaboradoresSeleccionados = selectedColaboradoresPersonal.length > 0 ? selectedColaboradoresPersonal : Array.from(document.querySelectorAll('#filterColaboradoresPersonal input[type="checkbox"]:checked')).map(cb => cb.value);
+        
+        // Obtener eventos seleccionados (usar el array selectedEventosPersonal que incluye todos los seleccionados)
+        const eventosSeleccionados = selectedEventosPersonal.length > 0 ? selectedEventosPersonal : Array.from(document.querySelectorAll('#filterEventosPersonal input[type="checkbox"]:checked')).map(cb => cb.value);
+        
+        filters = {
+            periodo: document.getElementById('filterPeriodoPersonal').value,
+            fecha_inicio: document.getElementById('filterFechaInicioPersonal').value,
+            fecha_fin: document.getElementById('filterFechaFinPersonal').value,
+            comunidades: selectedComunidadesPersonal,
+            eventos: eventosSeleccionados,
+            estado: estadosSeleccionados.length > 0 ? estadosSeleccionados : ['planificado', 'en_progreso', 'completado', 'cancelado'],
+            tipo_actividad: tiposActividadSeleccionados.length > 0 ? tiposActividadSeleccionados : ['Capacitación', 'Entrega', 'Proyecto de Ayuda'],
+            colaboradores: colaboradoresSeleccionados
         };
     }
     
@@ -687,7 +1361,11 @@ function resetFiltersForm(reportType) {
         document.getElementById('filterFechaInicioBeneficiarios').value = '';
         document.getElementById('filterFechaFinBeneficiarios').value = '';
         document.getElementById('searchComunidadBeneficiarios').value = '';
-        document.getElementById('filterEventoBeneficiarios').value = '';
+        // Limpiar selecciones de eventos
+        selectedEventosBeneficiarios = [];
+        updateSelectedEventosBeneficiariosTags();
+        document.getElementById('searchEventoBeneficiarios').value = '';
+        renderEventosBeneficiariosChecklist();
         
         // Resetear selector de tipo de actividad
         document.getElementById('filterTipoActividadBeneficiarios').selectedIndex = -1;
@@ -700,6 +1378,69 @@ function resetFiltersForm(reportType) {
         selectedComunidades.beneficiarios = [];
         const selectedContainer = document.querySelector('#searchResultsBeneficiarios').parentElement.querySelector('.selected-comunidades');
         if (selectedContainer) selectedContainer.remove();
+    } else if (reportType === 'actividad-de-personal') {
+        document.getElementById('filterPeriodoPersonal').value = 'todo';
+        document.getElementById('dateRangePersonal').style.display = 'none';
+        document.getElementById('filterFechaInicioPersonal').value = '';
+        document.getElementById('filterFechaFinPersonal').value = '';
+        document.getElementById('searchComunidadPersonal').value = '';
+        document.getElementById('searchEventoPersonal').value = '';
+        document.getElementById('searchColaboradorPersonal').value = '';
+        
+        // Resetear checkboxes de estado (todos marcados)
+        document.querySelectorAll('#filterEstadoPersonal input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
+        
+        // Resetear checkboxes de tipo de actividad (todos marcados)
+        document.querySelectorAll('#filterTipoActividadPersonal input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
+        
+        // Resetear selector de período
+        document.getElementById('filterPeriodoPersonal').value = 'todo';
+        document.getElementById('dateRangePersonal').style.display = 'none';
+        document.getElementById('filterFechaInicioPersonal').value = '';
+        document.getElementById('filterFechaFinPersonal').value = '';
+        
+        // Limpiar buscadores
+        document.getElementById('searchComunidadPersonal').value = '';
+        document.getElementById('searchEventoPersonal').value = '';
+        document.getElementById('searchColaboradorPersonal').value = '';
+        
+        // Resetear checkboxes de estado (todos marcados)
+        document.querySelectorAll('#filterEstadoPersonal input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
+        
+        // Resetear checkboxes de tipo de actividad (todos marcados)
+        document.querySelectorAll('#filterTipoActividadPersonal input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
+        
+        // Limpiar arrays de selección
+        selectedComunidadesPersonal = [];
+        selectedEventosPersonal = []; // Mantener para compatibilidad, pero los eventos se obtienen de los checkboxes
+        selectedColaboradoresPersonal = []; // Mantener para compatibilidad, pero los colaboradores se obtienen de los checkboxes
+        
+        // Limpiar contenedores de tags seleccionados
+        const containerComunidades = document.querySelector('#searchComunidadPersonal')?.parentElement;
+        if (containerComunidades) {
+            const selectedComunidadesContainer = containerComunidades.querySelector('.selected-comunidades');
+            if (selectedComunidadesContainer) selectedComunidadesContainer.remove();
+        }
+        
+        // Limpiar selecciones de eventos
+        selectedEventosPersonal = [];
+        updateSelectedEventosPersonalTags();
+        document.getElementById('searchEventoPersonal').value = '';
+        renderEventosChecklist();
+        
+        // Limpiar selecciones de colaboradores
+        selectedColaboradoresPersonal = [];
+        updateSelectedColaboradoresPersonalTags();
+        document.getElementById('searchColaboradorPersonal').value = '';
+        renderColaboradoresChecklist();
     }
     
     currentFilters = {};
@@ -871,7 +1612,11 @@ async function generateReport(reportType, filters) {
             const now = new Date();
             let fechaInicio, fechaFin;
             
-            if (filters.periodo === 'ultimo_mes') {
+            if (filters.periodo === 'todo') {
+                // No agregar filtros de fecha para "todo el tiempo"
+                fechaInicio = null;
+                fechaFin = null;
+            } else if (filters.periodo === 'ultimo_mes') {
                 fechaFin = now.toISOString().split('T')[0];
                 const lastMonth = new Date(now);
                 lastMonth.setMonth(lastMonth.getMonth() - 1);
@@ -923,6 +1668,25 @@ async function generateReport(reportType, filters) {
             }
         }
         
+        // Parámetros específicos para reporte de personal
+        if (reportType === 'actividad-de-personal') {
+            if (filters.comunidades && filters.comunidades.length > 0) {
+                params.append('comunidades', filters.comunidades.join(','));
+            }
+            if (filters.eventos && filters.eventos.length > 0) {
+                params.append('eventos', filters.eventos.join(','));
+            }
+            if (filters.estado && filters.estado.length > 0) {
+                params.append('estado', filters.estado.join(','));
+            }
+            if (filters.tipo_actividad && filters.tipo_actividad.length > 0) {
+                params.append('tipo_actividad', filters.tipo_actividad.join(','));
+            }
+            if (filters.colaboradores && filters.colaboradores.length > 0) {
+                params.append('colaboradores', filters.colaboradores.join(','));
+            }
+        }
+        
         // Parámetros genéricos
         if (filters.region && filters.region.length > 0) params.append('region', filters.region.join(','));
         if (filters.comunidad && filters.comunidad.length > 0) params.append('comunidad', filters.comunidad.join(','));
@@ -960,6 +1724,8 @@ function renderReportResults(data, reportType) {
         renderActividadesReport(data.data);
     } else if (reportType === 'beneficiarios-por-region-comunidad') {
         renderBeneficiariosReport(data.data);
+    } else if (reportType === 'actividad-de-personal') {
+        renderPersonalReport(data.data);
     } else {
         // Renderizado genérico para otros reportes
         renderGenericReport(data.data);
@@ -1059,6 +1825,85 @@ function renderBeneficiariosReport(data) {
     });
     
     html += '</tbody></table></div>';
+    resultsContainer.innerHTML = html;
+}
+
+// Renderizar reporte de personal
+function renderPersonalReport(data) {
+    const resultsContainer = document.getElementById('resultsContainer');
+    
+    if (!data || data.length === 0) {
+        resultsContainer.innerHTML = '<div class="loading-state"><p>No se encontraron datos para este reporte.</p></div>';
+        return;
+    }
+    
+    let html = '';
+    
+    data.forEach(colaborador => {
+        html += `<div class="colaborador-report-card">`;
+        html += `<div class="colaborador-header">`;
+        html += `<h3 class="colaborador-name">${escapeHtml(colaborador.nombre || 'Sin nombre')}</h3>`;
+        html += `<div class="colaborador-info">`;
+        html += `<span class="colaborador-field"><strong>Tel:</strong> ${escapeHtml(colaborador.telefono || '-')}</span>`;
+        html += `<span class="colaborador-field"><strong>Puesto:</strong> ${escapeHtml(colaborador.puesto || '-')}</span>`;
+        html += `</div>`;
+        html += `</div>`;
+        
+        html += `<div class="colaborador-stats">`;
+        html += `<div class="stat-item">`;
+        html += `<span class="stat-label">Total Eventos Trabajados</span>`;
+        html += `<span class="stat-value">${colaborador.sin_avances ? 0 : (colaborador.total_eventos || 0)}</span>`;
+        html += `</div>`;
+        html += `<div class="stat-item">`;
+        html += `<span class="stat-label">Total de Avances Realizados</span>`;
+        html += `<span class="stat-value">${colaborador.sin_avances ? 0 : (colaborador.total_avances || 0)}</span>`;
+        html += `</div>`;
+        html += `</div>`;
+        
+        // Si tiene avances, mostrar eventos normalmente
+        if (!colaborador.sin_avances && colaborador.eventos && colaborador.eventos.length > 0) {
+            html += `<div class="eventos-section">`;
+            html += `<h4 class="eventos-title">Eventos en el que trabajó</h4>`;
+            html += `<div class="eventos-grid">`;
+            
+            colaborador.eventos.forEach(evento => {
+                html += `<div class="evento-card">`;
+                html += `<h5 class="evento-name">${escapeHtml(evento.nombre || 'Sin nombre')}</h5>`;
+                html += `<div class="evento-details">`;
+                html += `<span class="status-badge status-${evento.estado || 'planificado'}">${formatEstado(evento.estado)}</span>`;
+                html += `<span class="evento-comunidad">${escapeHtml(evento.tipo_comunidad || '')} ${escapeHtml(evento.comunidad || '-')}</span>`;
+                html += `</div>`;
+                html += `<div class="evento-stats">`;
+                html += `<div class="evento-stat">`;
+                html += `<span class="evento-stat-label">Avances realizados:</span>`;
+                html += `<span class="evento-stat-value">${evento.total_avances || 0}</span>`;
+                html += `</div>`;
+                html += `<div class="evento-stat">`;
+                html += `<span class="evento-stat-label">Fecha primer avance:</span>`;
+                html += `<span class="evento-stat-value">${evento.fecha_primer_avance || '-'}</span>`;
+                html += `</div>`;
+                html += `<div class="evento-stat">`;
+                html += `<span class="evento-stat-label">Fecha último avance:</span>`;
+                html += `<span class="evento-stat-value">${evento.fecha_ultimo_avance || '-'}</span>`;
+                html += `</div>`;
+                html += `</div>`;
+                html += `</div>`;
+            });
+            
+            html += `</div>`;
+            html += `</div>`;
+        } else if (colaborador.sin_avances) {
+            // Si no tiene avances, mostrar mensaje especial
+            html += `<div class="eventos-section">`;
+            html += `<div class="evento-card" style="text-align: center; padding: 24px;">`;
+            html += `<p style="color: var(--text-70); font-size: 1rem; margin: 0;">Personal sin Avances de proyecto</p>`;
+            html += `</div>`;
+            html += `</div>`;
+        }
+        
+        html += `</div>`;
+    });
+    
     resultsContainer.innerHTML = html;
 }
 

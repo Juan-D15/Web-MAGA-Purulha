@@ -3984,7 +3984,7 @@ def api_crear_cambio(request, evento_id):
             return JsonResponse({
                 'success': False,
                 'error': 'La descripción del cambio es obligatoria'
-            }, status=400)
+        }, status=400)
         
         # Obtener colaborador responsable si se envía
         colaborador_id = request.POST.get('colaborador_id')
@@ -5684,30 +5684,212 @@ def api_generar_reporte(request, report_type):
                 for item in resultado
             ]
         
-        elif report_type == 'actividades-por-responsable':
-            resultado = actividades_query.select_related('responsable__puesto').filter(
-                responsable__isnull=False
-            ).values(
-                'responsable__username',
-                'responsable__nombre',
-                'responsable__puesto__nombre'
-            ).annotate(
-                total=Count('id'),
-                completadas=Count('id', filter=Q(estado='completado')),
-                en_progreso=Count('id', filter=Q(estado='en_progreso'))
-            ).order_by('-total')
+        elif report_type == 'actividad-de-personal':
+            # Obtener filtros específicos
+            colaboradores_filtro = request.GET.get('colaboradores', '').split(',') if request.GET.get('colaboradores') else []
+            colaboradores_filtro = [c for c in colaboradores_filtro if c]  # Limpiar valores vacíos
+            eventos_filtro = request.GET.get('eventos', '').split(',') if request.GET.get('eventos') else []
+            eventos_filtro = [e for e in eventos_filtro if e]  # Limpiar valores vacíos
             
-            data = [
-                {
-                    'responsable': item['responsable__username'] or 'Sin responsable',
-                    'nombre': item['responsable__nombre'] or '',
-                    'puesto': item['responsable__puesto__nombre'] or '-',
-                    'total_actividades': item['total'],
-                    'completadas': item['completadas'],
-                    'en_progreso': item['en_progreso']
-                }
-                for item in resultado
-            ]
+            # Si hay filtro de colaboradores, obtener esos colaboradores primero
+            colaboradores_seleccionados = {}
+            if colaboradores_filtro:
+                colaboradores_objs = Colaborador.objects.filter(
+                    id__in=colaboradores_filtro,
+                    activo=True
+                ).select_related('puesto')
+                
+                for col in colaboradores_objs:
+                    col_id = str(col.id)
+                    colaboradores_seleccionados[col_id] = {
+                        'colaborador_id': col_id,
+                        'nombre': col.nombre,
+                        'puesto': col.puesto.nombre if col.puesto else '-',
+                        'telefono': col.telefono or '-',
+                        'total_eventos': set(),
+                        'total_avances': 0,
+                        'eventos': {},
+                        'tiene_avances': False
+                    }
+            
+            # Construir query base para cambios de colaboradores
+            cambios_query = EventoCambioColaborador.objects.filter(
+                colaborador__isnull=False,
+                colaborador__activo=True
+            ).select_related(
+                'colaborador', 'colaborador__puesto', 'actividad', 
+                'actividad__comunidad', 'actividad__comunidad__region', 'actividad__tipo'
+            )
+            
+            # Aplicar filtros de fecha (solo si se proporcionan)
+            if fecha_inicio:
+                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio)
+            if fecha_fin:
+                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin)
+            # Si no hay filtros de fecha, se muestran todos los cambios (período "todo el tiempo")
+            
+            # Aplicar filtros de actividades
+            if comunidades_filtro and comunidades_filtro[0]:
+                cambios_query = cambios_query.filter(actividad__comunidad_id__in=comunidades_filtro)
+            if eventos_filtro and eventos_filtro[0]:
+                cambios_query = cambios_query.filter(actividad_id__in=eventos_filtro)
+            if estados and estados[0]:
+                cambios_query = cambios_query.filter(actividad__estado__in=estados)
+            if tipo_actividad and tipo_actividad[0]:
+                tipos = TipoActividad.objects.filter(nombre__in=tipo_actividad, activo=True)
+                cambios_query = cambios_query.filter(actividad__tipo_id__in=[t.id for t in tipos])
+            if colaboradores_filtro:
+                cambios_query = cambios_query.filter(colaborador_id__in=colaboradores_filtro)
+            
+            # Agrupar por colaborador
+            # IMPORTANTE: Si hay filtro de colaboradores, SOLO trabajar con esos colaboradores
+            if colaboradores_filtro:
+                # Inicializar el diccionario SOLO con los colaboradores filtrados
+                colaboradores_dict = colaboradores_seleccionados.copy()
+            else:
+                # Si NO hay filtro de colaboradores, inicializar vacío
+                colaboradores_dict = {}
+            
+            # Procesar TODOS los cambios una sola vez (la query ya está filtrada por colaboradores_filtro si hay filtro)
+            for cambio in cambios_query:
+                colaborador = cambio.colaborador
+                actividad = cambio.actividad
+                
+                if not colaborador or not actividad:
+                    continue
+                
+                col_id = str(colaborador.id)
+                
+                # Si hay filtro de colaboradores, verificar que esté en el filtro
+                if colaboradores_filtro and col_id not in colaboradores_filtro:
+                    continue
+                
+                # Si el colaborador no está en el diccionario, crearlo (solo si no hay filtro)
+                if col_id not in colaboradores_dict:
+                    if not colaboradores_filtro:
+                        # Solo crear si NO hay filtro (si hay filtro, todos deberían estar ya inicializados)
+                        colaboradores_dict[col_id] = {
+                            'colaborador_id': col_id,
+                            'nombre': colaborador.nombre,
+                            'puesto': colaborador.puesto.nombre if colaborador.puesto else '-',
+                            'telefono': colaborador.telefono or '-',
+                            'total_eventos': set(),
+                            'total_avances': 0,
+                            'eventos': {},
+                            'tiene_avances': False
+                        }
+                    else:
+                        # Si hay filtro y el colaborador no está en el diccionario, saltarlo
+                        continue
+                
+                # Marcar que tiene avances
+                colaboradores_dict[col_id]['tiene_avances'] = True
+                
+                # Agregar evento
+                actividad_id = str(actividad.id)
+                if actividad_id not in colaboradores_dict[col_id]['eventos']:
+                    colaboradores_dict[col_id]['eventos'][actividad_id] = {
+                        'evento_id': actividad_id,
+                        'nombre': actividad.nombre,
+                        'estado': actividad.estado,
+                        'tipo': actividad.tipo.nombre if actividad.tipo else '-',
+                        'comunidad': actividad.comunidad.nombre if actividad.comunidad else '-',
+                        'tipo_comunidad': actividad.comunidad.tipo.nombre if actividad.comunidad and actividad.comunidad.tipo else '-',
+                        'avances': [],
+                        'total_avances': 0,
+                        'fecha_primer_avance': None,
+                        'fecha_ultimo_avance': None
+                    }
+                    colaboradores_dict[col_id]['total_eventos'].add(actividad_id)
+                
+                # Agregar avance
+                fecha_cambio = cambio.fecha_cambio
+                colaboradores_dict[col_id]['eventos'][actividad_id]['avances'].append({
+                    'fecha': fecha_cambio.isoformat() if fecha_cambio else None,
+                    'descripcion': cambio.descripcion_cambio
+                })
+                colaboradores_dict[col_id]['eventos'][actividad_id]['total_avances'] += 1
+                colaboradores_dict[col_id]['total_avances'] += 1
+                
+                # Actualizar fechas
+                if fecha_cambio:
+                    if not colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_primer_avance']:
+                        colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_primer_avance'] = fecha_cambio
+                    elif fecha_cambio < colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_primer_avance']:
+                        colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_primer_avance'] = fecha_cambio
+                    
+                    if not colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_ultimo_avance']:
+                        colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_ultimo_avance'] = fecha_cambio
+                    elif fecha_cambio > colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_ultimo_avance']:
+                        colaboradores_dict[col_id]['eventos'][actividad_id]['fecha_ultimo_avance'] = fecha_cambio
+            
+            # Formatear datos para respuesta
+            data = []
+            
+            # Si hay filtro de colaboradores, asegurarse de que SOLO los colaboradores filtrados estén en el resultado
+            if colaboradores_filtro:
+                # Asegurarse de que todos los colaboradores filtrados estén en el diccionario
+                # (ya deberían estar porque los inicializamos al principio, pero por seguridad verificamos)
+                for col_id in colaboradores_filtro:
+                    if col_id not in colaboradores_dict:
+                        # Este colaborador fue seleccionado pero no tiene cambios que coincidan con los filtros
+                        # Buscar el colaborador en la base de datos
+                        try:
+                            col = Colaborador.objects.get(id=col_id, activo=True)
+                            colaboradores_dict[col_id] = {
+                                'colaborador_id': col_id,
+                                'nombre': col.nombre,
+                                'puesto': col.puesto.nombre if col.puesto else '-',
+                                'telefono': col.telefono or '-',
+                                'total_eventos': set(),
+                                'total_avances': 0,
+                                'eventos': {},
+                                'tiene_avances': False
+                            }
+                        except Colaborador.DoesNotExist:
+                            # Colaborador no existe, saltarlo
+                            continue
+                
+                # FILTRAR ESTRICTAMENTE: Solo procesar colaboradores que están en el filtro
+                colaboradores_dict_filtrado = {}
+                for col_id in colaboradores_filtro:
+                    if col_id in colaboradores_dict:
+                        colaboradores_dict_filtrado[col_id] = colaboradores_dict[col_id]
+                
+                colaboradores_dict = colaboradores_dict_filtrado
+            
+            # Procesar solo los colaboradores que están en el diccionario (ya filtrados si hay filtro)
+            for col_data in colaboradores_dict.values():
+                eventos_list = []
+                
+                # Si tiene avances, procesar eventos normalmente
+                if col_data.get('tiene_avances', False):
+                    for evento_data in col_data['eventos'].values():
+                        eventos_list.append({
+                            'nombre': evento_data['nombre'],
+                            'estado': evento_data['estado'],
+                            'tipo': evento_data['tipo'],
+                            'comunidad': evento_data['comunidad'],
+                            'tipo_comunidad': evento_data['tipo_comunidad'],
+                            'total_avances': evento_data['total_avances'],
+                            'fecha_primer_avance': evento_data['fecha_primer_avance'].strftime('%d/%m/%Y') if evento_data['fecha_primer_avance'] else '-',
+                            'fecha_ultimo_avance': evento_data['fecha_ultimo_avance'].strftime('%d/%m/%Y') if evento_data['fecha_ultimo_avance'] else '-'
+                        })
+                # Si no tiene avances, no agregar eventos a la lista
+                
+                data.append({
+                    'colaborador_id': col_data['colaborador_id'],
+                    'nombre': col_data['nombre'],
+                    'puesto': col_data['puesto'],
+                    'telefono': col_data['telefono'],
+                    'total_eventos': len(col_data['total_eventos']),
+                    'total_avances': col_data['total_avances'],
+                    'eventos': eventos_list,
+                    'sin_avances': not col_data.get('tiene_avances', False)
+                })
+            
+            # Ordenar por total de avances descendente (los sin avances van al final)
+            data.sort(key=lambda x: (x['total_avances'], x['nombre']), reverse=True)
         
         elif report_type == 'distribucion-por-tipo':
             resultado = actividades_query.select_related('tipo').values(

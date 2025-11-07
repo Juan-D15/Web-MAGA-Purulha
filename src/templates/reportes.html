@@ -6,7 +6,7 @@
 {% block header_subtitle %}Reportes y Estadísticas{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=2.0">
+<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=3.8">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
 
@@ -244,7 +244,7 @@
       <div class="category-section">
         <h3 class="category-title">Reportes de Personal</h3>
         <div class="reports-grid">
-          <div class="report-card" data-report-type="actividades-por-responsable">
+          <div class="report-card" data-report-type="actividad-de-personal">
             <div class="card-icon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -253,22 +253,8 @@
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
               </svg>
             </div>
-            <h4 class="card-title">Actividades por Responsable</h4>
-            <p class="card-description">Actividades asignadas a cada responsable/usuario</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="participacion-colaboradores">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-            </div>
-            <h4 class="card-title">Participación de Colaboradores</h4>
-            <p class="card-description">Participación de colaboradores en actividades</p>
+            <h4 class="card-title">Actividad de Personal</h4>
+            <p class="card-description">Actividades y avances realizados por colaboradores</p>
             <button class="card-button">Generar Reporte</button>
           </div>
         </div>
@@ -705,15 +691,127 @@
               </div>
               
               <div class="filter-group filter-group-full">
-                <label class="filter-label">Filtrar por Evento</label>
-                <select class="filter-select" id="filterEventoBeneficiarios">
-                  <option value="">Todos los eventos</option>
-                </select>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Evento</label>
+                  <span class="toggle-icon" id="toggleIconEventosBeneficiarios" style="cursor: pointer;" onclick="toggleChecklist('eventosBeneficiarios')">▶</span>
+                </div>
+                <!-- Tags de eventos seleccionados (siempre visibles) -->
+                <div id="selectedEventosBeneficiariosTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;">
+                  <!-- Los eventos seleccionados aparecerán aquí como tags -->
+                </div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchEventoBeneficiarios" placeholder="Buscar evento...">
+                </div>
+                <div id="eventosBeneficiariosContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterEventosBeneficiarios" style="max-height: 200px; overflow-y: auto;">
+                    <!-- Los eventos NO seleccionados se cargarán aquí dinámicamente -->
+                  </div>
+                </div>
               </div>
             </div>
             <div class="filters-actions">
               <button class="btn-secondary" onclick="resetFiltersForm('beneficiarios-por-region-comunidad')">Limpiar Filtros</button>
               <button class="btn-primary" onclick="applyFiltersForm('beneficiarios-por-region-comunidad')">Aplicar Filtros</button>
+            </div>
+          </div>
+          
+          <!-- Formulario: Actividad de Personal - V3.1 SIMPLIFICADO -->
+          <div class="report-form" id="form-actividad-de-personal" style="display: none;">
+            <div class="filters-grid">
+              <!-- Período de Fechas -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Período de Fechas</label>
+                <select class="filter-select" id="filterPeriodoPersonal">
+                  <option value="todo">Todo el tiempo</option>
+                  <option value="ultimo_mes">Último mes</option>
+                  <option value="ultima_semana">Esta última semana</option>
+                  <option value="rango">Rango de fechas</option>
+                </select>
+                <div class="date-range-container" id="dateRangePersonal" style="display: none; margin-top: 12px;">
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Inicio</label>
+                    <input type="date" class="filter-input" id="filterFechaInicioPersonal">
+                  </div>
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Fin</label>
+                    <input type="date" class="filter-input" id="filterFechaFinPersonal">
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Buscar Comunidad -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Buscar Comunidad</label>
+                <div class="search-input-container">
+                  <input type="text" class="filter-input filter-search" id="searchComunidadPersonal" placeholder="Buscar comunidades...">
+                  <div class="search-results" id="searchResultsComunidadPersonal" style="display: none;"></div>
+                </div>
+              </div>
+              
+              <!-- Filtrar por Evento -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Evento</label>
+                  <span class="toggle-icon" id="toggleIconEventosPersonal" style="cursor: pointer;" onclick="toggleChecklist('eventosPersonal')">▶</span>
+                </div>
+                <!-- Tags de eventos seleccionados (siempre visibles) -->
+                <div id="selectedEventosPersonalTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;">
+                  <!-- Los eventos seleccionados aparecerán aquí como tags -->
+                </div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchEventoPersonal" placeholder="Buscar evento...">
+                </div>
+                <div id="eventosPersonalContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterEventosPersonal" style="max-height: 200px; overflow-y: auto;">
+                    <!-- Los eventos NO seleccionados se cargarán aquí dinámicamente -->
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Estado del Evento -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Estado del Evento</label>
+                <div class="filter-checkboxes" id="filterEstadoPersonal">
+                  <label><input type="checkbox" value="planificado" checked> Planificado</label>
+                  <label><input type="checkbox" value="en_progreso" checked> En Progreso</label>
+                  <label><input type="checkbox" value="completado" checked> Completado</label>
+                  <label><input type="checkbox" value="cancelado" checked> Cancelado</label>
+                </div>
+              </div>
+              
+              <!-- Tipo de Actividad -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Actividad</label>
+                <div class="filter-checkboxes" id="filterTipoActividadPersonal">
+                  <label><input type="checkbox" value="Capacitación" checked> Capacitación</label>
+                  <label><input type="checkbox" value="Entrega" checked> Entrega</label>
+                  <label><input type="checkbox" value="Proyecto de Ayuda" checked> Proyecto de Ayuda</label>
+                </div>
+              </div>
+              
+              <!-- Filtrar por Colaborador -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Colaborador</label>
+                  <span class="toggle-icon" id="toggleIconColaboradoresPersonal" style="cursor: pointer;" onclick="toggleChecklist('colaboradoresPersonal')">▶</span>
+                </div>
+                <!-- Tags de colaboradores seleccionados (siempre visibles) -->
+                <div id="selectedColaboradoresPersonalTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;">
+                  <!-- Los colaboradores seleccionados aparecerán aquí como tags -->
+                </div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchColaboradorPersonal" placeholder="Buscar colaborador...">
+                </div>
+                <div id="colaboradoresPersonalContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterColaboradoresPersonal" style="max-height: 200px; overflow-y: auto;">
+                    <!-- Los colaboradores NO seleccionados se cargarán aquí dinámicamente -->
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('actividad-de-personal')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('actividad-de-personal')">Aplicar Filtros</button>
             </div>
           </div>
           
@@ -821,6 +919,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/reportes.js' %}"></script>
+<script src="{% static 'js/reportes.js' %}?v=3.12"></script>
 {% endblock %}
 

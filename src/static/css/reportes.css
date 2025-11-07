@@ -500,6 +500,18 @@
   flex-shrink: 0;
 }
 
+/* Toggle Icon para colapsar/expandir */
+.toggle-icon {
+  font-size: 0.75rem;
+  color: var(--text-70);
+  transition: transform 0.2s ease;
+  user-select: none;
+}
+
+.toggle-icon:hover {
+  color: var(--text-100);
+}
+
 .filters-actions {
   display: flex;
   gap: 12px;
@@ -689,9 +701,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-top: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
 }
 
 /* Search Input Container */
@@ -785,11 +795,20 @@
 }
 
 /* Selected Tags */
-.selected-comunidades {
+.selected-comunidades,
+.selected-eventos,
+.selected-colaboradores {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+.selected-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 0;
 }
 
 .selected-tag {
@@ -804,15 +823,28 @@
   font-weight: 500;
 }
 
-.selected-tag span {
+.selected-tag button {
+  background: none;
+  border: none;
+  color: white;
   cursor: pointer;
   font-weight: bold;
   font-size: 1.1rem;
   line-height: 1;
+  padding: 0;
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  transition: var(--transition);
 }
 
-.selected-tag span:hover {
-  opacity: 0.8;
+.selected-tag button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  opacity: 1;
 }
 
 /* Responsive */
@@ -980,6 +1012,223 @@
   .reportes-main .reportes-container {
     padding: 0 16px !important;
     box-sizing: border-box !important;
+  }
+  
+  /* Estilos responsive para reporte de personal */
+  .colaborador-report-card {
+    margin-bottom: 24px !important;
+  }
+  
+  .colaborador-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  
+  .colaborador-info {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .colaborador-stats {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  
+  .eventos-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .evento-card {
+    width: 100% !important;
+  }
+}
+
+/* ======= ESTILOS PARA REPORTE DE PERSONAL ======= */
+.colaborador-report-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 24px;
+  margin-bottom: 32px;
+  transition: var(--transition);
+}
+
+.colaborador-report-card:hover {
+  box-shadow: var(--shadow-medium);
+  border-color: var(--primary-color);
+}
+
+.colaborador-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.colaborador-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-100);
+  margin: 0;
+}
+
+.colaborador-info {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.colaborador-field {
+  color: var(--text-70);
+  font-size: 0.9rem;
+}
+
+.colaborador-field strong {
+  color: var(--text-100);
+  margin-right: 8px;
+}
+
+.colaborador-stats {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-70);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.eventos-section {
+  margin-top: 24px;
+}
+
+.eventos-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-100);
+  margin-bottom: 16px;
+}
+
+.eventos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.evento-card {
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  transition: var(--transition);
+}
+
+.evento-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-light);
+}
+
+.evento-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-100);
+  margin: 0 0 12px 0;
+}
+
+.evento-details {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.evento-comunidad {
+  font-size: 0.875rem;
+  color: var(--text-70);
+}
+
+.evento-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.evento-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.evento-stat-label {
+  color: var(--text-70);
+}
+
+.evento-stat-value {
+  color: var(--text-100);
+  font-weight: 600;
+}
+
+/* Responsive para reporte de personal */
+@media screen and (max-width: 768px) {
+  .colaborador-report-card {
+    padding: 16px !important;
+  }
+  
+  .colaborador-name {
+    font-size: 1.25rem !important;
+  }
+  
+  .colaborador-info {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .colaborador-stats {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+  
+  .stat-value {
+    font-size: 1.25rem !important;
+  }
+  
+  .eventos-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .evento-card {
+    padding: 12px !important;
+  }
+  
+  .evento-details {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  
+  .evento-stat {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
   }
 }
 
