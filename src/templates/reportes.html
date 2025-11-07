@@ -6,7 +6,7 @@
 {% block header_subtitle %}Reportes y Estadísticas{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=3.8">
+<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=3.10">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
 
@@ -260,146 +260,7 @@
         </div>
       </div>
 
-      <!-- Categoría 3: Reportes de Tipos de Actividad -->
-      <div class="category-section">
-        <h3 class="category-title">Reportes de Tipos de Actividad</h3>
-        <div class="reports-grid">
-          <div class="report-card" data-report-type="distribucion-por-tipo">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="2" x2="12" y2="6"></line>
-                <line x1="12" y1="18" x2="12" y2="22"></line>
-                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-                <line x1="2" y1="12" x2="6" y2="12"></line>
-                <line x1="18" y1="12" x2="22" y2="12"></line>
-                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-              </svg>
-            </div>
-            <h4 class="card-title">Distribución por Tipo</h4>
-            <p class="card-description">Análisis de distribución de actividades por tipo</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="beneficiarios-por-tipo-actividad">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-            </div>
-            <h4 class="card-title">Beneficiarios por Tipo de Actividad</h4>
-            <p class="card-description">Beneficiarios alcanzados por cada tipo de actividad</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Categoría 4: Reportes de Beneficiarios -->
-      <div class="category-section">
-        <h3 class="category-title">Reportes de Beneficiarios</h3>
-        <div class="reports-grid">
-          <div class="report-card" data-report-type="beneficiarios-por-tipo">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-            </div>
-            <h4 class="card-title">Beneficiarios por Tipo</h4>
-            <p class="card-description">Distribución de beneficiarios: Individual, Familia, Institución</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="distribucion-por-genero">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-            </div>
-            <h4 class="card-title">Distribución por Género</h4>
-            <p class="card-description">Distribución de beneficiarios individuales por género</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="comunidades-mas-beneficiarios">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-            </div>
-            <h4 class="card-title">Comunidades con Más Beneficiarios</h4>
-            <p class="card-description">Ranking de comunidades con mayor número de beneficiarios</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="eventos-mas-beneficiarios">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-              </svg>
-            </div>
-            <h4 class="card-title">Eventos con Más Beneficiarios</h4>
-            <p class="card-description">Eventos con mayor número de beneficiarios participantes</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Categoría 5: Reportes Temporales -->
-      <div class="category-section">
-        <h3 class="category-title">Reportes Temporales</h3>
-        <div class="reports-grid">
-          <div class="report-card" data-report-type="actividades-por-periodo">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-            </div>
-            <h4 class="card-title">Actividades por Período</h4>
-            <p class="card-description">Actividades agrupadas por período (semanal, mensual, trimestral, anual)</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="tendencia-eventos">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                <polyline points="17 6 23 6 23 12"></polyline>
-              </svg>
-            </div>
-            <h4 class="card-title">Tendencia de Eventos</h4>
-            <p class="card-description">Análisis de tendencias de eventos en el tiempo</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="eventos-proximos">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-            </div>
-            <h4 class="card-title">Eventos Próximos</h4>
-            <p class="card-description">Eventos programados para los próximos 7 o 30 días</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Categoría 6: Reportes de Evidencia -->
+      <!-- Categoría 3: Reportes de Evidencia -->
       <div class="category-section">
         <h3 class="category-title">Reportes de Evidencia</h3>
         <div class="reports-grid">
@@ -442,7 +303,7 @@
         </div>
       </div>
 
-      <!-- Categoría 7: Reportes de Comunidades -->
+      <!-- Categoría 4: Reportes de Comunidades -->
       <div class="category-section">
         <h3 class="category-title">Reportes de Comunidades</h3>
         <div class="reports-grid">
@@ -495,7 +356,7 @@
         </div>
       </div>
 
-      <!-- Categoría 8: Reportes de Auditoría -->
+      <!-- Categoría 5: Reportes de Auditoría -->
       <div class="category-section">
         <h3 class="category-title">Reportes de Auditoría</h3>
         <div class="reports-grid">
@@ -919,6 +780,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/reportes.js' %}?v=3.12"></script>
+<script src="{% static 'js/reportes.js' %}?v=3.14"></script>
 {% endblock %}
 

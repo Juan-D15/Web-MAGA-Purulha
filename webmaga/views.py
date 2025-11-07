@@ -5891,58 +5891,6 @@ def api_generar_reporte(request, report_type):
             # Ordenar por total de avances descendente (los sin avances van al final)
             data.sort(key=lambda x: (x['total_avances'], x['nombre']), reverse=True)
         
-        elif report_type == 'distribucion-por-tipo':
-            resultado = actividades_query.select_related('tipo').values(
-                'tipo__nombre'
-            ).annotate(
-                total=Count('id')
-            ).order_by('-total')
-            
-            data = [
-                {
-                    'tipo_actividad': item['tipo__nombre'] or 'Sin tipo',
-                    'total': item['total']
-                }
-                for item in resultado
-            ]
-        
-        elif report_type == 'beneficiarios-por-tipo':
-            beneficiarios_query = Beneficiario.objects.filter(activo=True)
-            
-            if tipo_beneficiario and tipo_beneficiario[0]:
-                tipos = TipoBeneficiario.objects.filter(nombre__in=tipo_beneficiario)
-                beneficiarios_query = beneficiarios_query.filter(tipo_id__in=[t.id for t in tipos])
-            
-            resultado = beneficiarios_query.select_related('tipo').values(
-                'tipo__nombre'
-            ).annotate(
-                total=Count('id')
-            )
-            
-            data = [
-                {
-                    'tipo_beneficiario': item['tipo__nombre'] or 'Sin tipo',
-                    'total': item['total']
-                }
-                for item in resultado
-            ]
-        
-        elif report_type == 'actividades-por-periodo':
-            # Agrupar por mes
-            resultado = actividades_query.annotate(
-                mes=TruncMonth('fecha')
-            ).values('mes').annotate(
-                total=Count('id')
-            ).order_by('mes')
-            
-            data = [
-                {
-                    'periodo': item['mes'].strftime('%Y-%m') if item['mes'] else '-',
-                    'total': item['total']
-                }
-                for item in resultado
-            ]
-        
         else:
             # Reporte genérico: lista de actividades
             actividades = actividades_query.select_related(
