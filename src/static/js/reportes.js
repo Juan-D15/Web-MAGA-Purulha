@@ -320,6 +320,12 @@ function setupReportCards() {
 function openReport(reportType) {
     currentReportType = reportType;
     
+    // Limpiar completamente el contenedor de resultados antes de mostrar el nuevo reporte
+    const resultsContainer = document.getElementById('resultsContainer');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = '';
+    }
+    
     // Ocultar dashboard y sección de reportes
     document.getElementById('dashboardSection').style.display = 'none';
     document.getElementById('reportsSection').style.display = 'none';
@@ -712,6 +718,12 @@ function setupBackButton() {
         // Ocultar todos los formularios
         hideAllForms();
         
+        // Limpiar completamente el contenedor de resultados
+        const resultsContainer = document.getElementById('resultsContainer');
+        if (resultsContainer) {
+            resultsContainer.innerHTML = '';
+        }
+        
         // Mostrar dashboard y sección de reportes
         document.getElementById('dashboardSection').style.display = 'block';
         document.getElementById('reportsSection').style.display = 'block';
@@ -958,7 +970,7 @@ function renderReportResults(data, reportType) {
 function renderActividadesReport(data) {
     const resultsContainer = document.getElementById('resultsContainer');
     
-    let html = '<table class="results-table"><thead><tr>';
+    let html = '<div class="table-responsive-wrapper"><table class="results-table"><thead><tr>';
     html += '<th>Región/Comunidad</th>';
     html += '<th>Total Actividades</th>';
     html += '<th>Total Beneficiarios</th>';
@@ -972,13 +984,13 @@ function renderActividadesReport(data) {
     
     data.forEach(item => {
         html += '<tr>';
-        html += `<td>${escapeHtml(item.nombre || '-')}</td>`;
-        html += `<td>${item.total_actividades || 0}</td>`;
-        html += `<td>${item.total_beneficiarios || 0}</td>`;
-        html += `<td>${item.beneficiarios_individuales || 0}</td>`;
-        html += `<td>${item.beneficiarios_familias || 0}</td>`;
-        html += `<td>${item.beneficiarios_instituciones || 0}</td>`;
-        html += `<td>${escapeHtml(item.responsables || '-')}</td>`;
+        html += `<td data-label="Región/Comunidad"><span class="cell-value">${escapeHtml(item.nombre || '-')}</span></td>`;
+        html += `<td data-label="Total Actividades"><span class="cell-value">${item.total_actividades || 0}</span></td>`;
+        html += `<td data-label="Total Beneficiarios"><span class="cell-value">${item.total_beneficiarios || 0}</span></td>`;
+        html += `<td data-label="Beneficiarios Individuales"><span class="cell-value">${item.beneficiarios_individuales || 0}</span></td>`;
+        html += `<td data-label="Beneficiarios Familias"><span class="cell-value">${item.beneficiarios_familias || 0}</span></td>`;
+        html += `<td data-label="Beneficiarios Instituciones"><span class="cell-value">${item.beneficiarios_instituciones || 0}</span></td>`;
+        html += `<td data-label="Responsables"><span class="cell-value">${escapeHtml(item.responsables || '-')}</span></td>`;
         html += '</tr>';
         
         // Acumular actividades para la tabla de detalles
@@ -987,12 +999,12 @@ function renderActividadesReport(data) {
         }
     });
     
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     
     // Agregar tabla expandible con detalles de actividades
     if (todasLasActividades.length > 0) {
         html += '<div style="margin-top: 32px;"><h3 style="color: var(--text-100); margin-bottom: 16px;">Detalles de Actividades</h3>';
-        html += '<table class="results-table"><thead><tr>';
+        html += '<div class="table-responsive-wrapper"><table class="results-table"><thead><tr>';
         html += '<th>Nombre</th>';
         html += '<th>Fecha</th>';
         html += '<th>Estado</th>';
@@ -1003,16 +1015,16 @@ function renderActividadesReport(data) {
         
         todasLasActividades.forEach(actividad => {
             html += '<tr>';
-            html += `<td>${escapeHtml(actividad.nombre || '-')}</td>`;
-            html += `<td>${actividad.fecha || '-'}</td>`;
-            html += `<td><span class="status-badge status-${actividad.estado || 'planificado'}">${formatEstado(actividad.estado)}</span></td>`;
-            html += `<td>${escapeHtml(actividad.comunidad || '-')}</td>`;
-            html += `<td>${escapeHtml(actividad.responsable || '-')}</td>`;
-            html += `<td>${actividad.total_beneficiarios || 0}</td>`;
+            html += `<td data-label="Nombre"><span class="cell-value">${escapeHtml(actividad.nombre || '-')}</span></td>`;
+            html += `<td data-label="Fecha"><span class="cell-value">${actividad.fecha || '-'}</span></td>`;
+            html += `<td data-label="Estado"><span class="status-badge status-${actividad.estado || 'planificado'}">${formatEstado(actividad.estado)}</span></td>`;
+            html += `<td data-label="Comunidad"><span class="cell-value">${escapeHtml(actividad.comunidad || '-')}</span></td>`;
+            html += `<td data-label="Responsable"><span class="cell-value">${escapeHtml(actividad.responsable || '-')}</span></td>`;
+            html += `<td data-label="Total Beneficiarios"><span class="cell-value">${actividad.total_beneficiarios || 0}</span></td>`;
             html += '</tr>';
         });
         
-        html += '</tbody></table></div>';
+        html += '</tbody></table></div></div>';
     }
     
     resultsContainer.innerHTML = html;
@@ -1022,7 +1034,7 @@ function renderActividadesReport(data) {
 function renderBeneficiariosReport(data) {
     const resultsContainer = document.getElementById('resultsContainer');
     
-    let html = '<table class="results-table"><thead><tr>';
+    let html = '<div class="table-responsive-wrapper"><table class="results-table"><thead><tr>';
     html += '<th>Nombre</th>';
     html += '<th>Tipo</th>';
     html += '<th>Comunidad</th>';
@@ -1035,18 +1047,18 @@ function renderBeneficiariosReport(data) {
     
     data.forEach(item => {
         html += '<tr>';
-        html += `<td>${escapeHtml(item.nombre || '-')}</td>`;
-        html += `<td>${escapeHtml(item.tipo || '-')}</td>`;
-        html += `<td>${escapeHtml(item.comunidad || '-')}</td>`;
-        html += `<td>${escapeHtml(item.region || '-')}</td>`;
-        html += `<td>${escapeHtml(item.dpi || item.documento || '-')}</td>`;
-        html += `<td>${escapeHtml(item.telefono || '-')}</td>`;
-        html += `<td>${escapeHtml(item.email || '-')}</td>`;
-        html += `<td>${escapeHtml(item.evento || '-')}</td>`;
+        html += `<td data-label="Nombre"><span class="cell-value">${escapeHtml(item.nombre || '-')}</span></td>`;
+        html += `<td data-label="Tipo"><span class="cell-value">${escapeHtml(item.tipo || '-')}</span></td>`;
+        html += `<td data-label="Comunidad"><span class="cell-value">${escapeHtml(item.comunidad || '-')}</span></td>`;
+        html += `<td data-label="Región"><span class="cell-value">${escapeHtml(item.region || '-')}</span></td>`;
+        html += `<td data-label="DPI/Documento"><span class="cell-value">${escapeHtml(item.dpi || item.documento || '-')}</span></td>`;
+        html += `<td data-label="Teléfono"><span class="cell-value">${escapeHtml(item.telefono || '-')}</span></td>`;
+        html += `<td data-label="Email"><span class="cell-value">${escapeHtml(item.email || '-')}</span></td>`;
+        html += `<td data-label="Evento"><span class="cell-value">${escapeHtml(item.evento || '-')}</span></td>`;
         html += '</tr>';
     });
     
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     resultsContainer.innerHTML = html;
 }
 

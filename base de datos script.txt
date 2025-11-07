@@ -1939,3 +1939,4 @@ CREATE INDEX idx_eventos_evidencias_cambios_creado_por ON eventos_evidencias_cam
 CREATE INDEX idx_eventos_evidencias_cambios_creado_en ON eventos_evidencias_cambios(creado_en DESC);
 
 COMMENT ON TABLE eventos_evidencias_cambios IS 'Evidencias (archivos) asociadas a cambios realizados en eventos/actividades';
+

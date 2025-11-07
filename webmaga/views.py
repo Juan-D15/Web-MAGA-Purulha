@@ -5271,6 +5271,14 @@ def api_generar_reporte(request, report_type):
             ).select_related('beneficiario', 'beneficiario__tipo', 'beneficiario__comunidad', 
                             'beneficiario__comunidad__region', 'actividad')
             
+            # Aplicar filtro de comunidad del beneficiario si está presente
+            # Esto es importante porque el filtro anterior solo filtra por actividades de esa comunidad,
+            # pero necesitamos también filtrar por beneficiarios que pertenecen a esa comunidad
+            if comunidades_filtro and comunidades_filtro[0]:
+                beneficiarios_query = beneficiarios_query.filter(
+                    beneficiario__comunidad_id__in=comunidades_filtro
+                )
+            
             # Aplicar filtro de tipo de beneficiario si está presente
             if tipo_beneficiario and tipo_beneficiario[0]:
                 # Normalizar nombres de tipos (pueden venir como "individual", "Individual", etc.)

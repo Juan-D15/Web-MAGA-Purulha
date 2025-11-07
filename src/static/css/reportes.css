@@ -816,9 +816,170 @@
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media screen and (max-width: 768px) {
   .date-range-container {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Contenedor de resultados - asegurar que no se desborde */
+  .results-section .results-container,
+  #resultsContainer {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .results-section .results-content,
+  .results-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+    padding: 16px !important;
+  }
+  
+  /* Tablas responsive - Convertir en tarjetas en móvil */
+  .results-section .table-responsive-wrapper,
+  .table-responsive-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .results-section .results-table,
+  .results-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border: 0 !important;
+    box-sizing: border-box !important;
+    display: block !important;
+  }
+  
+  .results-section .results-table thead,
+  .results-table thead {
+    display: none !important;
+  }
+  
+  .results-section .results-table tbody,
+  .results-table tbody {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  .results-section .results-table tbody tr,
+  .results-table tbody tr {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 16px !important;
+    background: var(--background-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 16px !important;
+    box-shadow: var(--shadow-light) !important;
+    box-sizing: border-box !important;
+  }
+  
+  .results-section .results-table tbody tr:hover,
+  .results-table tbody tr:hover {
+    background: var(--background-secondary) !important;
+    box-shadow: var(--shadow-medium) !important;
+  }
+  
+  .results-section .results-table tbody td,
+  .results-table tbody td {
+    display: grid !important;
+    grid-template-columns: minmax(120px, 40%) 1fr !important;
+    gap: 16px !important;
+    align-items: flex-start !important;
+    padding: 12px 0 !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+  
+  .results-section .results-table tbody td:last-child,
+  .results-table tbody td:last-child {
+    border-bottom: 0 !important;
+  }
+  
+  /* Etiquetas usando ::before */
+  .results-section .results-table tbody td::before,
+  .results-table tbody td::before {
+    content: attr(data-label) !important;
+    display: block !important;
+    font-weight: 600 !important;
+    color: var(--text-100) !important;
+    text-align: left !important;
+    grid-column: 1 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  
+  .results-section .results-table tbody td:empty::before,
+  .results-table tbody td:empty::before {
+    content: attr(data-label) !important;
+    display: block !important;
+  }
+  
+  /* Contenido de la celda (valor) - usando grid column 2 */
+  .results-section .results-table tbody td > *,
+  .results-table tbody td > * {
+    grid-column: 2 !important;
+    text-align: right !important;
+    max-width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  
+  /* Estilos específicos para el span con el valor */
+  .results-section .results-table tbody td .cell-value,
+  .results-table tbody td .cell-value {
+    grid-column: 2 !important;
+    text-align: right !important;
+    display: block !important;
+  }
+  
+  /* Ajustes para badges dentro de celdas */
+  .results-section .results-table tbody td .status-badge,
+  .results-table tbody td .status-badge {
+    grid-column: 2 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+  }
+  
+  /* Ajustes adicionales para contenido largo */
+  .results-section .results-table tbody td > *:not(.status-badge),
+  .results-table tbody td > *:not(.status-badge) {
+    max-width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  
+  /* Ajustes para tablas de detalles */
+  .results-section .results-table + .table-responsive-wrapper,
+  .results-table + .table-responsive-wrapper {
+    margin-top: 24px !important;
+  }
+  
+  /* Asegurar que el contenedor principal no cause desbordamiento */
+  .reportes-main .reportes-container {
+    padding: 0 16px !important;
+    box-sizing: border-box !important;
   }
 }
 
