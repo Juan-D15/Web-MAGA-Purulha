@@ -631,13 +631,23 @@ def api_usuario_actual(request):
 
 def api_regiones(request):
     """API: Listar todas las regiones"""
-    regiones = Region.objects.annotate(
+    regiones_query = Region.objects.annotate(
         num_comunidades=Count('comunidades', filter=Q(comunidades__activo=True))
-    ).values(
-        'id', 'codigo', 'nombre', 'descripcion', 'comunidad_sede', 
-        'poblacion_aprox', 'num_comunidades'
     ).order_by('codigo')
-    return JsonResponse(list(regiones), safe=False)
+    
+    regiones = []
+    for region in regiones_query:
+        regiones.append({
+            'id': str(region.id),
+            'codigo': region.codigo,
+            'nombre': region.nombre,
+            'descripcion': region.descripcion,
+            'comunidad_sede': region.comunidad_sede,
+            'poblacion_aprox': region.poblacion_aprox,
+            'num_comunidades': region.num_comunidades
+        })
+    
+    return JsonResponse(regiones, safe=False)
 
 
 def api_tipos_actividad(request):
@@ -3744,6 +3754,26 @@ def api_crear_cambio(request, evento_id):
                     'error': 'Colaborador no encontrado'
                 }, status=404)
         
+        # Obtener fecha_cambio si se proporciona, de lo contrario usar la fecha actual
+        fecha_cambio_str = request.POST.get('fecha_cambio')
+        fecha_cambio = None
+        if fecha_cambio_str:
+            try:
+                from django.utils.dateparse import parse_datetime
+                from django.utils import timezone
+                import pytz
+                fecha_cambio_naive = parse_datetime(fecha_cambio_str)
+                if fecha_cambio_naive:
+                    # Convertir a zona horaria de Guatemala
+                    guatemala_tz = pytz.timezone('America/Guatemala')
+                    if timezone.is_aware(fecha_cambio_naive):
+                        fecha_cambio = fecha_cambio_naive.astimezone(guatemala_tz)
+                    else:
+                        fecha_cambio = guatemala_tz.localize(fecha_cambio_naive)
+            except Exception as e:
+                print(f'⚠️ Error al parsear fecha_cambio: {e}, usando fecha actual')
+                fecha_cambio = None
+        
         evidencias_data = []
         cambio = None
         cambio_colaborador = None
@@ -3752,13 +3782,15 @@ def api_crear_cambio(request, evento_id):
             cambio_colaborador = EventoCambioColaborador.objects.create(
                 actividad=evento,
                 colaborador=colaborador,
-                descripcion_cambio=descripcion
+                descripcion_cambio=descripcion,
+                fecha_cambio=fecha_cambio if fecha_cambio else timezone.now()
             )
         else:
             cambio = ActividadCambio.objects.create(
                 actividad=evento,
                 responsable=usuario_maga,
-                descripcion_cambio=descripcion
+                descripcion_cambio=descripcion,
+                fecha_cambio=fecha_cambio if fecha_cambio else timezone.now()
             )
         
         # Procesar evidencias únicamente cuando el cambio corresponde a un colaborador
@@ -3885,6 +3917,26 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 'error': 'La descripción del cambio es obligatoria'
             }, status=400)
         
+        # Obtener fecha_cambio si se proporciona
+        fecha_cambio_str = request.POST.get('fecha_cambio')
+        fecha_cambio = None
+        if fecha_cambio_str:
+            try:
+                from django.utils.dateparse import parse_datetime
+                from django.utils import timezone
+                import pytz
+                fecha_cambio_naive = parse_datetime(fecha_cambio_str)
+                if fecha_cambio_naive:
+                    # Convertir a zona horaria de Guatemala
+                    guatemala_tz = pytz.timezone('America/Guatemala')
+                    if timezone.is_aware(fecha_cambio_naive):
+                        fecha_cambio = fecha_cambio_naive.astimezone(guatemala_tz)
+                    else:
+                        fecha_cambio = guatemala_tz.localize(fecha_cambio_naive)
+            except Exception as e:
+                print(f'⚠️ Error al parsear fecha_cambio: {e}, manteniendo fecha existente')
+                fecha_cambio = None
+        
         colaborador_id = request.POST.get('colaborador_id')
         
         if cambio_colaborador:
@@ -3905,6 +3957,8 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             elif colaborador_id == '':
                 cambio_colaborador.colaborador = None
             cambio_colaborador.descripcion_cambio = descripcion
+            if fecha_cambio:
+                cambio_colaborador.fecha_cambio = fecha_cambio
             cambio_colaborador.save()
             responsable_nombre = cambio_colaborador.colaborador.nombre if cambio_colaborador.colaborador else 'Colaborador desconocido'
             fecha_base = cambio_colaborador.fecha_cambio
@@ -3913,6 +3967,8 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             # Cambio de usuario/responsable
             cambio.descripcion_cambio = descripcion
             cambio.responsable = cambio.responsable or usuario_maga
+            if fecha_cambio:
+                cambio.fecha_cambio = fecha_cambio
             cambio.save()
             responsable_nombre = cambio.responsable.nombre or cambio.responsable.username if cambio.responsable else 'Sistema'
             fecha_base = cambio.fecha_cambio
