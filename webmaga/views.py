@@ -307,7 +307,6 @@ def obtener_cambios_evento(evento):
         
         fecha_display = ''
         if cambio.fecha_cambio:
-            from django.utils import timezone
             import pytz
             guatemala_tz = pytz.timezone('America/Guatemala')
             if timezone.is_aware(cambio.fecha_cambio):
@@ -4010,7 +4009,6 @@ def api_crear_cambio(request, evento_id):
         if fecha_cambio_str:
             try:
                 from django.utils.dateparse import parse_datetime
-                from django.utils import timezone
                 import pytz
                 fecha_cambio_naive = parse_datetime(fecha_cambio_str)
                 if fecha_cambio_naive:
@@ -4100,7 +4098,6 @@ def api_crear_cambio(request, evento_id):
         fecha_display = ''
         fecha_base = cambio_colaborador.fecha_cambio if cambio_colaborador else (cambio.fecha_cambio if cambio else None)
         if fecha_base:
-            from django.utils import timezone
             import pytz
             guatemala_tz = pytz.timezone('America/Guatemala')
             if timezone.is_aware(fecha_base):
@@ -4173,7 +4170,6 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
         if fecha_cambio_str:
             try:
                 from django.utils.dateparse import parse_datetime
-                from django.utils import timezone
                 import pytz
                 fecha_cambio_naive = parse_datetime(fecha_cambio_str)
                 if fecha_cambio_naive:
@@ -4227,7 +4223,6 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
         # Formatear fecha en zona horaria de Guatemala
         fecha_display = ''
         if fecha_base:
-            from django.utils import timezone
             import pytz
             guatemala_tz = pytz.timezone('America/Guatemala')
             if timezone.is_aware(fecha_base):
