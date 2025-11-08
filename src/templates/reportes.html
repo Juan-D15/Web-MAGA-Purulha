@@ -6,7 +6,7 @@
 {% block header_subtitle %}Reportes y Estadísticas{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=3.16">
+<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=3.23">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
 
@@ -17,7 +17,18 @@
     
     <!-- ======= SECCIÓN 1: DASHBOARD EJECUTIVO ======= -->
     <section class="dashboard-section" id="dashboardSection">
-      <h2 class="section-title">Dashboard Ejecutivo</h2>
+      <div class="dashboard-header-container">
+        <h2 class="section-title">Dashboard Ejecutivo</h2>
+        <button class="btn-reporte-general" onclick="openReporteGeneral()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          <span class="btn-reporte-text">Generar Reporte General</span>
+        </button>
+      </div>
       
       <!-- Tarjetas de Métricas Principales -->
       <div class="metrics-grid" id="metricsGrid">
@@ -292,54 +303,19 @@
         </div>
       </div>
 
-      <!-- Categoría 4: Reportes de Comunidades -->
+      <!-- Categoría 6: Reportes de Comunidades -->
       <div class="category-section">
         <h3 class="category-title">Reportes de Comunidades</h3>
         <div class="reports-grid">
-          <div class="report-card" data-report-type="comunidades-mas-activas">
+          <div class="report-card" data-report-type="comunidades">
             <div class="card-icon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
               </svg>
             </div>
-            <h4 class="card-title">Comunidades Más Activas</h4>
-            <p class="card-description">Ranking de comunidades con mayor actividad</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="comunidades-sin-actividades">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-            </div>
-            <h4 class="card-title">Comunidades sin Actividades</h4>
-            <p class="card-description">Comunidades que no tienen actividades registradas</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="distribucion-por-tipo-comunidad">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-              </svg>
-            </div>
-            <h4 class="card-title">Distribución por Tipo</h4>
-            <p class="card-description">Distribución de comunidades por tipo (barrio, caserío, aldea, municipio)</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="comunidades-por-region">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-            </div>
-            <h4 class="card-title">Comunidades por Región</h4>
-            <p class="card-description">Distribución de comunidades agrupadas por región</p>
+            <h4 class="card-title">Comunidades</h4>
+            <p class="card-description">Comunidades alcanzadas con proyectos, estadísticas generales de comunidades</p>
             <button class="card-button">Generar Reporte</button>
           </div>
         </div>
@@ -349,17 +325,6 @@
       <div class="category-section">
         <h3 class="category-title">Reportes de Auditoría</h3>
         <div class="reports-grid">
-          <div class="report-card" data-report-type="cambios-actividades">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-              </svg>
-            </div>
-            <h4 class="card-title">Cambios en Actividades</h4>
-            <p class="card-description">Historial de cambios realizados en actividades</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
           <div class="report-card" data-report-type="actividad-usuarios">
             <div class="card-icon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -370,21 +335,7 @@
               </svg>
             </div>
             <h4 class="card-title">Actividad de Usuarios</h4>
-            <p class="card-description">Registro de actividad de usuarios en el sistema</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="operaciones-por-usuario">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-              </svg>
-            </div>
-            <h4 class="card-title">Operaciones por Usuario</h4>
-            <p class="card-description">Registro de operaciones realizadas por cada usuario</p>
+            <p class="card-description">Registro de actividad y cambios realizados por usuarios en el sistema</p>
             <button class="card-button">Generar Reporte</button>
           </div>
         </div>
@@ -787,6 +738,168 @@
             </div>
           </div>
           
+          <!-- Formulario: Comunidades -->
+          <div class="report-form" id="form-comunidades" style="display: none;">
+            <div class="filters-grid">
+              <!-- Periodo de Fechas -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Periodo de Fechas</label>
+                <select class="filter-select" id="periodoComunidades">
+                  <option value="todo">Todo el tiempo</option>
+                  <option value="ultimo_mes">Último mes</option>
+                  <option value="ultima_semana">Esta última semana</option>
+                  <option value="rango">Rango de fechas</option>
+                </select>
+              </div>
+              
+              <!-- Rango de Fechas (oculto por defecto) -->
+              <div class="filter-group" id="fechaInicioComunidades" style="display: none;">
+                <label class="filter-label">Fecha Inicio</label>
+                <input type="date" class="filter-input" id="filterFechaInicioComunidades">
+              </div>
+              <div class="filter-group" id="fechaFinComunidades" style="display: none;">
+                <label class="filter-label">Fecha Fin</label>
+                <input type="date" class="filter-input" id="filterFechaFinComunidades">
+              </div>
+              
+              <!-- Tipo de Actividad -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Actividad</label>
+                <div class="filter-checkboxes" id="filterTipoActividadComunidades">
+                  <label><input type="checkbox" value="todos" checked> Todos</label>
+                  <label><input type="checkbox" value="Capacitación" checked> Capacitación</label>
+                  <label><input type="checkbox" value="Entrega" checked> Entrega</label>
+                  <label><input type="checkbox" value="Proyecto de Ayuda" checked> Proyecto de Ayuda</label>
+                </div>
+              </div>
+              
+              <!-- Filtrar por Evento/Proyecto (selección única) -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Evento/Proyecto</label>
+                  <span class="toggle-icon" id="toggleIconEventoComunidades" style="cursor: pointer;" onclick="toggleChecklist('eventoComunidades')">▶</span>
+                </div>
+                <div id="selectedEventoComunidadesTag" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchEventoComunidades" placeholder="Buscar evento/proyecto...">
+                </div>
+                <div id="eventoComunidadesContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterEventoComunidades" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <p style="color: var(--text-70); font-size: 0.875rem; margin-top: 8px;">Si no se selecciona ningún evento, se buscará por comunidad (pueden aparecer varios proyectos por comunidad)</p>
+              </div>
+              
+              <!-- Buscar Comunidad (múltiple, checklist) -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Buscar Comunidad</label>
+                  <span class="toggle-icon" id="toggleIconComunidadComunidades" style="cursor: pointer;" onclick="toggleChecklist('comunidadComunidades')">▶</span>
+                </div>
+                <div id="selectedComunidadesComunidadesTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchComunidadComunidades" placeholder="Buscar comunidades...">
+                </div>
+                <div id="comunidadComunidadesContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterComunidadComunidades" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <p style="color: var(--text-70); font-size: 0.875rem; margin-top: 8px;">Debe seleccionar al menos una comunidad</p>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('comunidades')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('comunidades')">Aplicar Filtros</button>
+            </div>
+          </div>
+          
+          <!-- Formulario: Actividad de Usuarios -->
+          <div class="report-form" id="form-actividad-usuarios" style="display: none;">
+            <div class="filters-grid">
+              <!-- Periodo de Fechas -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Periodo de Fechas</label>
+                <select class="filter-select" id="periodoActividadUsuarios">
+                  <option value="todo">Todo el tiempo</option>
+                  <option value="ultimo_mes">Último mes</option>
+                  <option value="ultima_semana">Esta última semana</option>
+                  <option value="rango">Rango de fechas</option>
+                </select>
+              </div>
+              
+              <!-- Rango de Fechas (oculto por defecto) -->
+              <div class="filter-group" id="fechaInicioActividadUsuarios" style="display: none;">
+                <label class="filter-label">Fecha Inicio</label>
+                <input type="date" class="filter-input" id="filterFechaInicioActividadUsuarios">
+              </div>
+              <div class="filter-group" id="fechaFinActividadUsuarios" style="display: none;">
+                <label class="filter-label">Fecha Fin</label>
+                <input type="date" class="filter-input" id="filterFechaFinActividadUsuarios">
+              </div>
+              
+              <!-- Tipo de Actividad -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Actividad</label>
+                <div class="filter-checkboxes" id="filterTipoActividadActividadUsuarios">
+                  <label><input type="checkbox" value="todos" checked> Todos</label>
+                  <label><input type="checkbox" value="Capacitación" checked> Capacitación</label>
+                  <label><input type="checkbox" value="Entrega" checked> Entrega</label>
+                  <label><input type="checkbox" value="Proyecto de Ayuda" checked> Proyecto de Ayuda</label>
+                </div>
+              </div>
+              
+              <!-- Filtrar por Evento/Proyecto (selección única) -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Evento/Proyecto</label>
+                  <span class="toggle-icon" id="toggleIconEventoActividadUsuarios" style="cursor: pointer;" onclick="toggleChecklist('eventoActividadUsuarios')">▶</span>
+                </div>
+                <div id="selectedEventoActividadUsuariosTag" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchEventoActividadUsuarios" placeholder="Buscar evento/proyecto...">
+                </div>
+                <div id="eventoActividadUsuariosContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterEventoActividadUsuarios" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <p style="color: var(--text-70); font-size: 0.875rem; margin-top: 8px;">Si no se selecciona ningún evento, se buscará por comunidad</p>
+              </div>
+              
+              <!-- Buscar Comunidad (múltiple, checklist) -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Buscar Comunidad</label>
+                  <span class="toggle-icon" id="toggleIconComunidadActividadUsuarios" style="cursor: pointer;" onclick="toggleChecklist('comunidadActividadUsuarios')">▶</span>
+                </div>
+                <div id="selectedComunidadesActividadUsuariosTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchComunidadActividadUsuarios" placeholder="Buscar comunidades...">
+                </div>
+                <div id="comunidadActividadUsuariosContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterComunidadActividadUsuarios" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <p style="color: var(--text-70); font-size: 0.875rem; margin-top: 8px;">Si no se selecciona ninguna comunidad, se buscará por eventos. Si ambos están vacíos, se buscará todo.</p>
+              </div>
+              
+              <!-- Filtrar por Usuarios (múltiple, checklist) -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Usuarios</label>
+                  <span class="toggle-icon" id="toggleIconUsuariosActividadUsuarios" style="cursor: pointer;" onclick="toggleChecklist('usuariosActividadUsuarios')">▶</span>
+                </div>
+                <div id="selectedUsuariosActividadUsuariosTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchUsuariosActividadUsuarios" placeholder="Buscar usuarios...">
+                </div>
+                <div id="usuariosActividadUsuariosContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterUsuariosActividadUsuarios" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <p style="color: var(--text-70); font-size: 0.875rem; margin-top: 8px;">Usuarios del sistema y colaboradores vinculados. Si no se selecciona ninguno, se buscarán todos.</p>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('actividad-usuarios')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('actividad-usuarios')">Aplicar Filtros</button>
+            </div>
+          </div>
+          
           <!-- Formulario genérico para otros reportes -->
           <div class="report-form" id="form-generic" style="display: none;">
             <div class="filters-grid">
@@ -845,6 +958,52 @@
               <button class="btn-primary" id="applyFiltersBtn">Aplicar Filtros</button>
             </div>
           </div>
+
+          <!-- Formulario: Reporte General -->
+          <div class="report-form" id="form-reporte-general" style="display: none;">
+            <div class="filters-grid">
+              <!-- Periodo de Fechas -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Periodo de Fechas</label>
+                <select class="filter-select" id="periodoReporteGeneral">
+                  <option value="todo">Todo el tiempo</option>
+                  <option value="ultimo_mes">Último mes</option>
+                  <option value="ultima_semana">Esta última semana</option>
+                  <option value="rango">Rango de fechas</option>
+                </select>
+              </div>
+              
+              <!-- Rango de Fechas (oculto por defecto) -->
+              <div class="filter-group" id="fechaInicioReporteGeneral" style="display: none;">
+                <label class="filter-label">Fecha Inicio</label>
+                <input type="date" class="filter-input" id="filterFechaInicioReporteGeneral">
+              </div>
+              <div class="filter-group" id="fechaFinReporteGeneral" style="display: none;">
+                <label class="filter-label">Fecha Fin</label>
+                <input type="date" class="filter-input" id="filterFechaFinReporteGeneral">
+              </div>
+              
+              <!-- Checklist de Apartados -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Apartados a Incluir en el Reporte</label>
+                <div class="filter-checkboxes" id="filterApartadosReporteGeneral">
+                  <label><input type="checkbox" value="total_eventos" checked> Total de Eventos (con lista)</label>
+                  <label><input type="checkbox" value="tipos_eventos" checked> Total de Tipos de Eventos</label>
+                  <label><input type="checkbox" value="total_beneficiarios" checked> Total de Beneficiarios Alcanzados</label>
+                  <label><input type="checkbox" value="tipos_beneficiarios" checked> Total de Tipos de Beneficiarios</label>
+                  <label><input type="checkbox" value="total_comunidades" checked> Total de Comunidades Alcanzadas</label>
+                  <label><input type="checkbox" value="total_avances" checked> Total de Avances en Proyectos</label>
+                  <label><input type="checkbox" value="comunidades_mas_beneficiarios" checked> Comunidades con Más Beneficiarios y Eventos</label>
+                  <label><input type="checkbox" value="eventos_mas_beneficiarios" checked> Eventos con Más Beneficiarios</label>
+                  <label><input type="checkbox" value="evento_mas_avances" checked> Evento con Más Avances y Cambios</label>
+                </div>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('reporte-general')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('reporte-general')">Aplicar Filtros</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -891,6 +1050,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/reportes.js' %}?v=3.17"></script>
+<script src="{% static 'js/reportes.js' %}?v=3.21"></script>
 {% endblock %}
 

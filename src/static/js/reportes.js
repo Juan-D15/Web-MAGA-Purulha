@@ -333,9 +333,18 @@ function openReport(reportType) {
     // Mostrar sección de resultados
     document.getElementById('resultsSection').style.display = 'block';
     
-    // Actualizar título
-    const reportTitle = document.querySelector('.report-card[data-report-type="' + reportType + '"] .card-title').textContent;
-    document.getElementById('resultsTitle').textContent = reportTitle;
+    // Actualizar título (solo si existe la tarjeta del reporte)
+    const reportCard = document.querySelector('.report-card[data-report-type="' + reportType + '"]');
+    const resultsTitle = document.getElementById('resultsTitle');
+    if (reportCard && resultsTitle) {
+        const cardTitle = reportCard.querySelector('.card-title');
+        if (cardTitle) {
+            resultsTitle.textContent = cardTitle.textContent;
+        }
+    } else if (reportType === 'reporte-general' && resultsTitle) {
+        // Título especial para reporte general
+        resultsTitle.textContent = 'Reporte General';
+    }
     
     // Mostrar formulario específico según el tipo de reporte
     hideAllForms();
@@ -356,13 +365,21 @@ function hideAllForms() {
 }
 
 // Mostrar formulario según tipo de reporte
+// Función para abrir el reporte general
+function openReporteGeneral() {
+    openReport('reporte-general');
+}
+
 function showFormForReport(reportType) {
     const formMap = {
         'actividades-por-region-comunidad': 'form-actividades-por-region-comunidad',
         'beneficiarios-por-region-comunidad': 'form-beneficiarios-por-region-comunidad',
         'actividad-de-personal': 'form-actividad-de-personal',
         'avances-eventos-generales': 'form-avances-eventos-generales',
-        'reporte-evento-individual': 'form-reporte-evento-individual'
+        'reporte-evento-individual': 'form-reporte-evento-individual',
+        'comunidades': 'form-comunidades',
+        'actividad-usuarios': 'form-actividad-usuarios',
+        'reporte-general': 'form-reporte-general'
     };
     
     const formId = formMap[reportType] || 'form-generic';
@@ -438,6 +455,39 @@ async function loadFormData(reportType) {
         
         // Configurar buscador de eventos (solo uno)
         setupEventoSearchIndividual();
+    } else if (reportType === 'comunidades') {
+        // Cargar todas las comunidades
+        await loadAllComunidades();
+        
+        // Cargar eventos
+        await loadEventosComunidades();
+        
+        // Configurar selector de período
+        setupPeriodSelectorComunidades();
+        
+        // Configurar buscadores
+        setupEventoSearchComunidades();
+        setupComunidadSearchComunidades();
+    } else if (reportType === 'actividad-usuarios') {
+        // Cargar todas las comunidades
+        await loadAllComunidades();
+        
+        // Cargar eventos
+        await loadEventosActividadUsuarios();
+        
+        // Cargar usuarios
+        await loadUsuariosActividadUsuarios();
+        
+        // Configurar selector de período
+        setupPeriodSelectorActividadUsuarios();
+        
+        // Configurar buscadores
+        setupEventoSearchActividadUsuarios();
+        setupComunidadSearchActividadUsuarios();
+        setupUsuariosSearchActividadUsuarios();
+    } else if (reportType === 'reporte-general') {
+        // Configurar selector de período
+        setupPeriodSelectorReporteGeneral();
     }
 }
 
@@ -671,6 +721,42 @@ async function loadColaboradores() {
         }
     } catch (error) {
         console.error('Error cargando colaboradores:', error);
+    }
+}
+
+// Configurar selector de período para reporte general
+let periodoReporteGeneralHandler = null;
+function setupPeriodSelectorReporteGeneral() {
+    const periodSelect = document.getElementById('periodoReporteGeneral');
+    const fechaInicioContainer = document.getElementById('fechaInicioReporteGeneral');
+    const fechaFinContainer = document.getElementById('fechaFinReporteGeneral');
+    
+    if (!periodSelect || !fechaInicioContainer || !fechaFinContainer) return;
+    
+    // Remover listener anterior si existe
+    if (periodoReporteGeneralHandler) {
+        periodSelect.removeEventListener('change', periodoReporteGeneralHandler);
+    }
+    
+    periodoReporteGeneralHandler = function() {
+        if (this.value === 'rango') {
+            fechaInicioContainer.style.display = 'block';
+            fechaFinContainer.style.display = 'block';
+        } else {
+            fechaInicioContainer.style.display = 'none';
+            fechaFinContainer.style.display = 'none';
+        }
+    };
+    
+    periodSelect.addEventListener('change', periodoReporteGeneralHandler);
+    
+    // Aplicar estado inicial
+    if (periodSelect.value === 'rango') {
+        fechaInicioContainer.style.display = 'block';
+        fechaFinContainer.style.display = 'block';
+    } else {
+        fechaInicioContainer.style.display = 'none';
+        fechaFinContainer.style.display = 'none';
     }
 }
 
@@ -1621,6 +1707,764 @@ function setupEventoSearchIndividual() {
     });
 }
 
+// ========== FUNCIONES PARA REPORTE DE COMUNIDADES ==========
+
+// Variables globales para reporte de comunidades
+let allEventosComunidades = [];
+let selectedEventoComunidades = null;
+let eventoComunidadesCheckboxes = [];
+let selectedComunidadesComunidades = [];
+let comunidadComunidadesCheckboxes = [];
+
+// Cargar eventos para reporte de comunidades
+async function loadEventosComunidades() {
+    try {
+        const response = await fetch('/api/actividades/');
+        if (response.ok) {
+            allEventosComunidades = await response.json();
+            renderEventoComunidadesChecklist();
+        }
+    } catch (error) {
+        console.error('Error cargando eventos para comunidades:', error);
+    }
+}
+
+// Renderizar checklist de eventos (selección única, tipo radio)
+function renderEventoComunidadesChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterEventoComunidades');
+    if (!checklistContainer) return;
+    
+    checklistContainer.innerHTML = '';
+    eventoComunidadesCheckboxes = [];
+    
+    const tiposSeleccionados = Array.from(
+        document.querySelectorAll('#filterTipoActividadComunidades input[type="checkbox"]:checked')
+    ).map(cb => cb.value).filter(v => v !== 'todos');
+    
+    const query = filterQuery.toLowerCase();
+    const filtered = allEventosComunidades.filter(evento => {
+        const nombre = (evento.nombre || '').toLowerCase();
+        const tipoMatch = tiposSeleccionados.length === 0 || 
+            tiposSeleccionados.includes(evento.tipo) || 
+            document.querySelector('#filterTipoActividadComunidades input[value="todos"]')?.checked;
+        return nombre.includes(query) && tipoMatch && selectedEventoComunidades !== evento.id;
+    });
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron eventos</p>';
+        return;
+    }
+    
+    filtered.forEach(evento => {
+        const label = document.createElement('label');
+        
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'eventoComunidades';
+        radio.value = evento.id;
+        radio.checked = selectedEventoComunidades === evento.id;
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                selectedEventoComunidades = evento.id;
+                updateSelectedEventoComunidadesTag();
+                renderEventoComunidadesChecklist(filterQuery);
+            }
+        });
+        
+        eventoComunidadesCheckboxes.push(radio);
+        
+        const span = document.createElement('span');
+        span.textContent = evento.nombre || 'Sin nombre';
+        
+        label.appendChild(radio);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+// Actualizar tag del evento seleccionado
+function updateSelectedEventoComunidadesTag() {
+    const tagsContainer = document.getElementById('selectedEventoComunidadesTag');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    if (selectedEventoComunidades) {
+        const evento = allEventosComunidades.find(e => e.id === selectedEventoComunidades);
+        if (evento) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = evento.nombre || 'Sin nombre';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedEventoComunidades = null;
+                updateSelectedEventoComunidadesTag();
+                const searchInput = document.getElementById('searchEventoComunidades');
+                renderEventoComunidadesChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    }
+}
+
+// Configurar búsqueda de eventos (selección única)
+function setupEventoSearchComunidades() {
+    const searchInput = document.getElementById('searchEventoComunidades');
+    const checklistContainer = document.getElementById('filterEventoComunidades');
+    const container = document.getElementById('eventoComunidadesContainer');
+    const tagsContainer = document.getElementById('selectedEventoComunidadesTag');
+    
+    if (!searchInput || !checklistContainer || !container || !tagsContainer) return;
+    
+    updateSelectedEventoComunidadesTag();
+    renderEventoComunidadesChecklist();
+    
+    // Escuchar cambios en tipo de actividad para actualizar lista
+    document.querySelectorAll('#filterTipoActividadComunidades input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', function() {
+            renderEventoComunidadesChecklist(searchInput.value);
+        });
+    });
+    
+    searchInput.addEventListener('input', function() {
+        renderEventoComunidadesChecklist(this.value);
+    });
+    
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconEventoComunidades');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    searchInput.addEventListener('blur', function() {
+        setTimeout(function() {
+            const activeElement = document.activeElement;
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconEventoComunidades');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    checklistContainer.addEventListener('click', function(e) {
+        if (e.target.type === 'radio' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
+}
+
+// Renderizar checklist de comunidades (selección múltiple)
+function renderComunidadComunidadesChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterComunidadComunidades');
+    if (!checklistContainer) return;
+    
+    const filtered = allComunidades.filter(comunidad => {
+        if (selectedComunidadesComunidades.includes(comunidad.id)) {
+            return false;
+        }
+        if (!filterQuery) return true;
+        const query = filterQuery.toLowerCase().trim();
+        return comunidad.nombre && comunidad.nombre.toLowerCase().includes(query);
+    });
+    
+    checklistContainer.innerHTML = '';
+    comunidadComunidadesCheckboxes = [];
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron comunidades</p>';
+        return;
+    }
+    
+    filtered.forEach(comunidad => {
+        const label = document.createElement('label');
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = comunidad.id;
+        checkbox.checked = false;
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!selectedComunidadesComunidades.includes(comunidad.id)) {
+                    selectedComunidadesComunidades.push(comunidad.id);
+                    updateSelectedComunidadesComunidadesTags();
+                    renderComunidadComunidadesChecklist(filterQuery);
+                }
+            }
+        });
+        
+        comunidadComunidadesCheckboxes.push(checkbox);
+        
+        const span = document.createElement('span');
+        span.textContent = comunidad.nombre || 'Sin nombre';
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+// Actualizar tags de comunidades seleccionadas
+function updateSelectedComunidadesComunidadesTags() {
+    const tagsContainer = document.getElementById('selectedComunidadesComunidadesTags');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    selectedComunidadesComunidades.forEach(comunidadId => {
+        const comunidad = allComunidades.find(c => c.id === comunidadId);
+        if (comunidad) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = comunidad.nombre || 'Sin nombre';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedComunidadesComunidades = selectedComunidadesComunidades.filter(id => id !== comunidadId);
+                updateSelectedComunidadesComunidadesTags();
+                const searchInput = document.getElementById('searchComunidadComunidades');
+                renderComunidadComunidadesChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    });
+}
+
+// Configurar búsqueda de comunidades (selección múltiple)
+function setupComunidadSearchComunidades() {
+    const searchInput = document.getElementById('searchComunidadComunidades');
+    const checklistContainer = document.getElementById('filterComunidadComunidades');
+    const container = document.getElementById('comunidadComunidadesContainer');
+    const tagsContainer = document.getElementById('selectedComunidadesComunidadesTags');
+    
+    if (!searchInput || !checklistContainer || !container || !tagsContainer) return;
+    
+    updateSelectedComunidadesComunidadesTags();
+    renderComunidadComunidadesChecklist();
+    
+    searchInput.addEventListener('input', function() {
+        renderComunidadComunidadesChecklist(this.value);
+    });
+    
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconComunidadComunidades');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    searchInput.addEventListener('blur', function() {
+        setTimeout(function() {
+            const activeElement = document.activeElement;
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconComunidadComunidades');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    checklistContainer.addEventListener('click', function(e) {
+        if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
+}
+
+// Configurar selector de período para comunidades
+function setupPeriodSelectorComunidades() {
+    const periodSelect = document.getElementById('periodoComunidades');
+    const fechaInicioContainer = document.getElementById('fechaInicioComunidades');
+    const fechaFinContainer = document.getElementById('fechaFinComunidades');
+    
+    if (!periodSelect || !fechaInicioContainer || !fechaFinContainer) return;
+    
+    periodSelect.addEventListener('change', function() {
+        if (this.value === 'rango') {
+            fechaInicioContainer.style.display = 'block';
+            fechaFinContainer.style.display = 'block';
+        } else {
+            fechaInicioContainer.style.display = 'none';
+            fechaFinContainer.style.display = 'none';
+        }
+    });
+}
+
+// ========== FUNCIONES PARA REPORTE DE ACTIVIDAD DE USUARIOS ==========
+
+// Variables globales para reporte de actividad de usuarios
+let allEventosActividadUsuarios = [];
+let selectedEventoActividadUsuarios = null;
+let eventoActividadUsuariosCheckboxes = [];
+let selectedComunidadesActividadUsuarios = [];
+let comunidadActividadUsuariosCheckboxes = [];
+let allUsuariosActividadUsuarios = [];
+let selectedUsuariosActividadUsuarios = [];
+let usuariosActividadUsuariosCheckboxes = [];
+
+// Cargar eventos para reporte de actividad de usuarios
+async function loadEventosActividadUsuarios() {
+    try {
+        const response = await fetch('/api/actividades/');
+        if (response.ok) {
+            allEventosActividadUsuarios = await response.json();
+            renderEventoActividadUsuariosChecklist();
+        }
+    } catch (error) {
+        console.error('Error cargando eventos para actividad de usuarios:', error);
+    }
+}
+
+// Renderizar checklist de eventos (selección única, tipo radio)
+function renderEventoActividadUsuariosChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterEventoActividadUsuarios');
+    if (!checklistContainer) return;
+    
+    checklistContainer.innerHTML = '';
+    eventoActividadUsuariosCheckboxes = [];
+    
+    const tiposSeleccionados = Array.from(
+        document.querySelectorAll('#filterTipoActividadActividadUsuarios input[type="checkbox"]:checked')
+    ).map(cb => cb.value).filter(v => v !== 'todos');
+    
+    const query = filterQuery.toLowerCase();
+    const filtered = allEventosActividadUsuarios.filter(evento => {
+        const nombre = (evento.nombre || '').toLowerCase();
+        const tipoMatch = tiposSeleccionados.length === 0 || 
+            tiposSeleccionados.includes(evento.tipo) || 
+            document.querySelector('#filterTipoActividadActividadUsuarios input[value="todos"]')?.checked;
+        return nombre.includes(query) && tipoMatch && selectedEventoActividadUsuarios !== evento.id;
+    });
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron eventos</p>';
+        return;
+    }
+    
+    filtered.forEach(evento => {
+        const label = document.createElement('label');
+        
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'eventoActividadUsuarios';
+        radio.value = evento.id;
+        radio.checked = selectedEventoActividadUsuarios === evento.id;
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                selectedEventoActividadUsuarios = evento.id;
+                updateSelectedEventoActividadUsuariosTag();
+                renderEventoActividadUsuariosChecklist(filterQuery);
+            }
+        });
+        
+        eventoActividadUsuariosCheckboxes.push(radio);
+        
+        const span = document.createElement('span');
+        span.textContent = evento.nombre || 'Sin nombre';
+        
+        label.appendChild(radio);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+// Actualizar tag del evento seleccionado
+function updateSelectedEventoActividadUsuariosTag() {
+    const tagsContainer = document.getElementById('selectedEventoActividadUsuariosTag');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    if (selectedEventoActividadUsuarios) {
+        const evento = allEventosActividadUsuarios.find(e => e.id === selectedEventoActividadUsuarios);
+        if (evento) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = evento.nombre || 'Sin nombre';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedEventoActividadUsuarios = null;
+                updateSelectedEventoActividadUsuariosTag();
+                const searchInput = document.getElementById('searchEventoActividadUsuarios');
+                renderEventoActividadUsuariosChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    }
+}
+
+// Configurar búsqueda de eventos (selección única)
+function setupEventoSearchActividadUsuarios() {
+    const searchInput = document.getElementById('searchEventoActividadUsuarios');
+    const checklistContainer = document.getElementById('filterEventoActividadUsuarios');
+    const container = document.getElementById('eventoActividadUsuariosContainer');
+    const tagsContainer = document.getElementById('selectedEventoActividadUsuariosTag');
+    
+    if (!searchInput || !checklistContainer || !container || !tagsContainer) return;
+    
+    updateSelectedEventoActividadUsuariosTag();
+    renderEventoActividadUsuariosChecklist();
+    
+    // Escuchar cambios en tipo de actividad para actualizar lista
+    document.querySelectorAll('#filterTipoActividadActividadUsuarios input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', function() {
+            renderEventoActividadUsuariosChecklist(searchInput.value);
+        });
+    });
+    
+    searchInput.addEventListener('input', function() {
+        renderEventoActividadUsuariosChecklist(this.value);
+    });
+    
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconEventoActividadUsuarios');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    searchInput.addEventListener('blur', function() {
+        setTimeout(function() {
+            const activeElement = document.activeElement;
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconEventoActividadUsuarios');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    checklistContainer.addEventListener('click', function(e) {
+        if (e.target.type === 'radio' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
+}
+
+// Renderizar checklist de comunidades (selección múltiple)
+function renderComunidadActividadUsuariosChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterComunidadActividadUsuarios');
+    if (!checklistContainer) return;
+    
+    const filtered = allComunidades.filter(comunidad => {
+        if (selectedComunidadesActividadUsuarios.includes(comunidad.id)) {
+            return false;
+        }
+        if (!filterQuery) return true;
+        const query = filterQuery.toLowerCase().trim();
+        return comunidad.nombre && comunidad.nombre.toLowerCase().includes(query);
+    });
+    
+    checklistContainer.innerHTML = '';
+    comunidadActividadUsuariosCheckboxes = [];
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron comunidades</p>';
+        return;
+    }
+    
+    filtered.forEach(comunidad => {
+        const label = document.createElement('label');
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = comunidad.id;
+        checkbox.checked = false;
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!selectedComunidadesActividadUsuarios.includes(comunidad.id)) {
+                    selectedComunidadesActividadUsuarios.push(comunidad.id);
+                    updateSelectedComunidadesActividadUsuariosTags();
+                    renderComunidadActividadUsuariosChecklist(filterQuery);
+                }
+            }
+        });
+        
+        comunidadActividadUsuariosCheckboxes.push(checkbox);
+        
+        const span = document.createElement('span');
+        span.textContent = comunidad.nombre || 'Sin nombre';
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+// Actualizar tags de comunidades seleccionadas
+function updateSelectedComunidadesActividadUsuariosTags() {
+    const tagsContainer = document.getElementById('selectedComunidadesActividadUsuariosTags');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    selectedComunidadesActividadUsuarios.forEach(comunidadId => {
+        const comunidad = allComunidades.find(c => c.id === comunidadId);
+        if (comunidad) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            tag.textContent = comunidad.nombre || 'Sin nombre';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedComunidadesActividadUsuarios = selectedComunidadesActividadUsuarios.filter(id => id !== comunidadId);
+                updateSelectedComunidadesActividadUsuariosTags();
+                const searchInput = document.getElementById('searchComunidadActividadUsuarios');
+                renderComunidadActividadUsuariosChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    });
+}
+
+// Configurar búsqueda de comunidades (selección múltiple)
+function setupComunidadSearchActividadUsuarios() {
+    const searchInput = document.getElementById('searchComunidadActividadUsuarios');
+    const checklistContainer = document.getElementById('filterComunidadActividadUsuarios');
+    const container = document.getElementById('comunidadActividadUsuariosContainer');
+    const tagsContainer = document.getElementById('selectedComunidadesActividadUsuariosTags');
+    
+    if (!searchInput || !checklistContainer || !container || !tagsContainer) return;
+    
+    updateSelectedComunidadesActividadUsuariosTags();
+    renderComunidadActividadUsuariosChecklist();
+    
+    searchInput.addEventListener('input', function() {
+        renderComunidadActividadUsuariosChecklist(this.value);
+    });
+    
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconComunidadActividadUsuarios');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    searchInput.addEventListener('blur', function() {
+        setTimeout(function() {
+            const activeElement = document.activeElement;
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconComunidadActividadUsuarios');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    checklistContainer.addEventListener('click', function(e) {
+        if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
+}
+
+// Cargar usuarios para reporte de actividad de usuarios
+async function loadUsuariosActividadUsuarios() {
+    try {
+        const response = await fetch('/api/usuarios/');
+        if (response.ok) {
+            const data = await response.json();
+            // La API devuelve {success: true, usuarios: [...]}
+            if (data.success && data.usuarios) {
+                allUsuariosActividadUsuarios = data.usuarios;
+                renderUsuariosActividadUsuariosChecklist();
+            } else {
+                allUsuariosActividadUsuarios = [];
+            }
+        }
+    } catch (error) {
+        console.error('Error cargando usuarios para actividad de usuarios:', error);
+        allUsuariosActividadUsuarios = [];
+    }
+}
+
+// Renderizar checklist de usuarios (selección múltiple)
+function renderUsuariosActividadUsuariosChecklist(filterQuery = '') {
+    const checklistContainer = document.getElementById('filterUsuariosActividadUsuarios');
+    if (!checklistContainer) return;
+    
+    const filtered = allUsuariosActividadUsuarios.filter(usuario => {
+        if (selectedUsuariosActividadUsuarios.includes(usuario.id)) {
+            return false;
+        }
+        if (!filterQuery) return true;
+        const query = filterQuery.toLowerCase().trim();
+        const nombre = (usuario.nombre || usuario.username || '').toLowerCase();
+        return nombre.includes(query);
+    });
+    
+    checklistContainer.innerHTML = '';
+    usuariosActividadUsuariosCheckboxes = [];
+    
+    if (filtered.length === 0) {
+        checklistContainer.innerHTML = '<p style="color: var(--text-70); padding: 12px;">No se encontraron usuarios</p>';
+        return;
+    }
+    
+    filtered.forEach(usuario => {
+        const label = document.createElement('label');
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = usuario.id;
+        checkbox.checked = false;
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                if (!selectedUsuariosActividadUsuarios.includes(usuario.id)) {
+                    selectedUsuariosActividadUsuarios.push(usuario.id);
+                    updateSelectedUsuariosActividadUsuariosTags();
+                    renderUsuariosActividadUsuariosChecklist(filterQuery);
+                }
+            }
+        });
+        
+        usuariosActividadUsuariosCheckboxes.push(checkbox);
+        
+        const span = document.createElement('span');
+        const displayName = usuario.nombre || usuario.username || 'Sin nombre';
+        // Si tiene colaborador, agregar indicador
+        if (usuario.tiene_colaborador && usuario.colaborador_nombre) {
+            span.textContent = `${displayName} (${usuario.colaborador_nombre})`;
+        } else {
+            span.textContent = displayName;
+        }
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        checklistContainer.appendChild(label);
+    });
+}
+
+// Actualizar tags de usuarios seleccionados
+function updateSelectedUsuariosActividadUsuariosTags() {
+    const tagsContainer = document.getElementById('selectedUsuariosActividadUsuariosTags');
+    if (!tagsContainer) return;
+    
+    tagsContainer.innerHTML = '';
+    
+    selectedUsuariosActividadUsuarios.forEach(usuarioId => {
+        const usuario = allUsuariosActividadUsuarios.find(u => u.id === usuarioId);
+        if (usuario) {
+            const tag = document.createElement('span');
+            tag.className = 'selected-tag';
+            const displayName = usuario.nombre || usuario.username || 'Sin nombre';
+            // Si tiene colaborador, agregar indicador
+            if (usuario.tiene_colaborador && usuario.colaborador_nombre) {
+                tag.textContent = `${displayName} (${usuario.colaborador_nombre})`;
+            } else {
+                tag.textContent = displayName;
+            }
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.addEventListener('click', function() {
+                selectedUsuariosActividadUsuarios = selectedUsuariosActividadUsuarios.filter(id => id !== usuarioId);
+                updateSelectedUsuariosActividadUsuariosTags();
+                const searchInput = document.getElementById('searchUsuariosActividadUsuarios');
+                renderUsuariosActividadUsuariosChecklist(searchInput ? searchInput.value : '');
+            });
+            
+            tag.appendChild(removeBtn);
+            tagsContainer.appendChild(tag);
+        }
+    });
+}
+
+// Configurar búsqueda de usuarios (selección múltiple)
+function setupUsuariosSearchActividadUsuarios() {
+    const searchInput = document.getElementById('searchUsuariosActividadUsuarios');
+    const checklistContainer = document.getElementById('filterUsuariosActividadUsuarios');
+    const container = document.getElementById('usuariosActividadUsuariosContainer');
+    const tagsContainer = document.getElementById('selectedUsuariosActividadUsuariosTags');
+    
+    if (!searchInput || !checklistContainer || !container || !tagsContainer) return;
+    
+    updateSelectedUsuariosActividadUsuariosTags();
+    renderUsuariosActividadUsuariosChecklist();
+    
+    searchInput.addEventListener('input', function() {
+        renderUsuariosActividadUsuariosChecklist(this.value);
+    });
+    
+    searchInput.addEventListener('focus', function() {
+        container.style.display = 'block';
+        const icon = document.getElementById('toggleIconUsuariosActividadUsuarios');
+        if (icon) icon.textContent = '▼';
+    });
+    
+    searchInput.addEventListener('blur', function() {
+        setTimeout(function() {
+            const activeElement = document.activeElement;
+            const isInContainer = container.contains(activeElement);
+            const isInTags = tagsContainer.contains(activeElement);
+            
+            if (!isInContainer && !isInTags && activeElement !== searchInput) {
+                container.style.display = 'none';
+                const icon = document.getElementById('toggleIconUsuariosActividadUsuarios');
+                if (icon) icon.textContent = '▶';
+            }
+        }, 200);
+    });
+    
+    checklistContainer.addEventListener('click', function(e) {
+        if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+            setTimeout(function() {
+                searchInput.focus();
+            }, 10);
+        }
+    });
+}
+
+// Configurar selector de período para actividad de usuarios
+function setupPeriodSelectorActividadUsuarios() {
+    const periodSelect = document.getElementById('periodoActividadUsuarios');
+    const fechaInicioContainer = document.getElementById('fechaInicioActividadUsuarios');
+    const fechaFinContainer = document.getElementById('fechaFinActividadUsuarios');
+    
+    if (!periodSelect || !fechaInicioContainer || !fechaFinContainer) return;
+    
+    periodSelect.addEventListener('change', function() {
+        if (this.value === 'rango') {
+            fechaInicioContainer.style.display = 'block';
+            fechaFinContainer.style.display = 'block';
+        } else {
+            fechaInicioContainer.style.display = 'none';
+            fechaFinContainer.style.display = 'none';
+        }
+    });
+}
+
 // Configurar switches
 function setupSwitches(reportType) {
     if (reportType === 'actividades-por-region-comunidad') {
@@ -1886,6 +2730,113 @@ function applyFiltersForm(reportType) {
         filters = {
             evento: selectedEventoIndividual
         };
+    } else if (reportType === 'comunidades') {
+        // Validar que al menos una comunidad esté seleccionada
+        if (!selectedComunidadesComunidades || selectedComunidadesComunidades.length === 0) {
+            showError('Por favor, seleccione al menos una comunidad');
+            return;
+        }
+        
+        // Obtener período
+        const periodo = document.getElementById('periodoComunidades').value;
+        let fechaInicio = '';
+        let fechaFin = '';
+        
+        if (periodo === 'rango') {
+            fechaInicio = document.getElementById('filterFechaInicioComunidades').value;
+            fechaFin = document.getElementById('filterFechaFinComunidades').value;
+        } else if (periodo === 'ultimo_mes') {
+            const fecha = new Date();
+            fecha.setMonth(fecha.getMonth() - 1);
+            fechaInicio = fecha.toISOString().split('T')[0];
+            fechaFin = new Date().toISOString().split('T')[0];
+        } else if (periodo === 'ultima_semana') {
+            const fecha = new Date();
+            fecha.setDate(fecha.getDate() - 7);
+            fechaInicio = fecha.toISOString().split('T')[0];
+            fechaFin = new Date().toISOString().split('T')[0];
+        }
+        
+        // Obtener tipos de actividad seleccionados
+        const tiposActividadSeleccionados = Array.from(
+            document.querySelectorAll('#filterTipoActividadComunidades input[type="checkbox"]:checked')
+        ).map(cb => cb.value).filter(v => v !== 'todos');
+        
+        filters = {
+            periodo: periodo,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            comunidades: selectedComunidadesComunidades,
+            evento: selectedEventoComunidades, // Puede ser null si no se selecciona
+            tipo_actividad: tiposActividadSeleccionados.length > 0 ? tiposActividadSeleccionados : ['Capacitación', 'Entrega', 'Proyecto de Ayuda']
+        };
+    } else if (reportType === 'actividad-usuarios') {
+        // Obtener período
+        const periodo = document.getElementById('periodoActividadUsuarios').value;
+        let fechaInicio = '';
+        let fechaFin = '';
+        
+        if (periodo === 'rango') {
+            fechaInicio = document.getElementById('filterFechaInicioActividadUsuarios').value;
+            fechaFin = document.getElementById('filterFechaFinActividadUsuarios').value;
+        } else if (periodo === 'ultimo_mes') {
+            const fecha = new Date();
+            fecha.setMonth(fecha.getMonth() - 1);
+            fechaInicio = fecha.toISOString().split('T')[0];
+            fechaFin = new Date().toISOString().split('T')[0];
+        } else if (periodo === 'ultima_semana') {
+            const fecha = new Date();
+            fecha.setDate(fecha.getDate() - 7);
+            fechaInicio = fecha.toISOString().split('T')[0];
+            fechaFin = new Date().toISOString().split('T')[0];
+        }
+        
+        // Obtener tipos de actividad seleccionados
+        const tiposActividadSeleccionados = Array.from(
+            document.querySelectorAll('#filterTipoActividadActividadUsuarios input[type="checkbox"]:checked')
+        ).map(cb => cb.value).filter(v => v !== 'todos');
+        
+        filters = {
+            periodo: periodo,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            comunidades: selectedComunidadesActividadUsuarios.length > 0 ? selectedComunidadesActividadUsuarios : null,
+            evento: selectedEventoActividadUsuarios, // Puede ser null
+            tipo_actividad: tiposActividadSeleccionados.length > 0 ? tiposActividadSeleccionados : ['Capacitación', 'Entrega', 'Proyecto de Ayuda'],
+            usuarios: selectedUsuariosActividadUsuarios.length > 0 ? selectedUsuariosActividadUsuarios : null
+        };
+    } else if (reportType === 'reporte-general') {
+        // Obtener período
+        const periodo = document.getElementById('periodoReporteGeneral').value;
+        let fechaInicio = '';
+        let fechaFin = '';
+        
+        if (periodo === 'rango') {
+            fechaInicio = document.getElementById('filterFechaInicioReporteGeneral').value;
+            fechaFin = document.getElementById('filterFechaFinReporteGeneral').value;
+        } else if (periodo === 'ultimo_mes') {
+            const fecha = new Date();
+            fecha.setMonth(fecha.getMonth() - 1);
+            fechaInicio = fecha.toISOString().split('T')[0];
+            fechaFin = new Date().toISOString().split('T')[0];
+        } else if (periodo === 'ultima_semana') {
+            const fecha = new Date();
+            fecha.setDate(fecha.getDate() - 7);
+            fechaInicio = fecha.toISOString().split('T')[0];
+            fechaFin = new Date().toISOString().split('T')[0];
+        }
+        
+        // Obtener apartados seleccionados
+        const apartadosSeleccionados = Array.from(
+            document.querySelectorAll('#filterApartadosReporteGeneral input[type="checkbox"]:checked')
+        ).map(cb => cb.value);
+        
+        filters = {
+            periodo: periodo,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            apartados: apartadosSeleccionados
+        };
     }
     
     currentFilters = filters;
@@ -2044,6 +2995,72 @@ function resetFiltersForm(reportType) {
         selectedEventoIndividual = null;
         updateSelectedEventoIndividualTag();
         renderEventoIndividualChecklist();
+    } else if (reportType === 'comunidades') {
+        // Resetear selector de período
+        document.getElementById('periodoComunidades').value = 'todo';
+        document.getElementById('fechaInicioComunidades').style.display = 'none';
+        document.getElementById('fechaFinComunidades').style.display = 'none';
+        document.getElementById('filterFechaInicioComunidades').value = '';
+        document.getElementById('filterFechaFinComunidades').value = '';
+        
+        // Resetear checkboxes de tipo de actividad (todos marcados)
+        document.querySelectorAll('#filterTipoActividadComunidades input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
+        
+        // Resetear evento seleccionado
+        document.getElementById('searchEventoComunidades').value = '';
+        selectedEventoComunidades = null;
+        updateSelectedEventoComunidadesTag();
+        renderEventoComunidadesChecklist();
+        
+        // Resetear comunidades seleccionadas
+        document.getElementById('searchComunidadComunidades').value = '';
+        selectedComunidadesComunidades = [];
+        updateSelectedComunidadesComunidadesTags();
+        renderComunidadComunidadesChecklist();
+    } else if (reportType === 'actividad-usuarios') {
+        // Resetear selector de período
+        document.getElementById('periodoActividadUsuarios').value = 'todo';
+        document.getElementById('fechaInicioActividadUsuarios').style.display = 'none';
+        document.getElementById('fechaFinActividadUsuarios').style.display = 'none';
+        document.getElementById('filterFechaInicioActividadUsuarios').value = '';
+        document.getElementById('filterFechaFinActividadUsuarios').value = '';
+        
+        // Resetear checkboxes de tipo de actividad (todos marcados)
+        document.querySelectorAll('#filterTipoActividadActividadUsuarios input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
+        
+        // Resetear evento seleccionado
+        document.getElementById('searchEventoActividadUsuarios').value = '';
+        selectedEventoActividadUsuarios = null;
+        updateSelectedEventoActividadUsuariosTag();
+        renderEventoActividadUsuariosChecklist();
+        
+        // Resetear comunidades seleccionadas
+        document.getElementById('searchComunidadActividadUsuarios').value = '';
+        selectedComunidadesActividadUsuarios = [];
+        updateSelectedComunidadesActividadUsuariosTags();
+        renderComunidadActividadUsuariosChecklist();
+        
+        // Resetear usuarios seleccionados
+        document.getElementById('searchUsuariosActividadUsuarios').value = '';
+        selectedUsuariosActividadUsuarios = [];
+        updateSelectedUsuariosActividadUsuariosTags();
+        renderUsuariosActividadUsuariosChecklist();
+    } else if (reportType === 'reporte-general') {
+        // Resetear selector de período
+        document.getElementById('periodoReporteGeneral').value = 'todo';
+        document.getElementById('fechaInicioReporteGeneral').style.display = 'none';
+        document.getElementById('fechaFinReporteGeneral').style.display = 'none';
+        document.getElementById('filterFechaInicioReporteGeneral').value = '';
+        document.getElementById('filterFechaFinReporteGeneral').value = '';
+        
+        // Resetear checkboxes de apartados (todos marcados)
+        document.querySelectorAll('#filterApartadosReporteGeneral input[type="checkbox"]').forEach(cb => {
+            cb.checked = true;
+        });
     }
     
     currentFilters = {};
@@ -2316,6 +3333,69 @@ async function generateReport(reportType, filters) {
             }
         }
         
+        // Parámetros específicos para Reporte de Comunidades
+        if (reportType === 'comunidades') {
+            if (filters.periodo) {
+                params.append('periodo', filters.periodo);
+            }
+            if (filters.fecha_inicio) {
+                params.append('fecha_inicio', filters.fecha_inicio);
+            }
+            if (filters.fecha_fin) {
+                params.append('fecha_fin', filters.fecha_fin);
+            }
+            if (filters.comunidades && filters.comunidades.length > 0) {
+                params.append('comunidades', filters.comunidades.join(','));
+            }
+            if (filters.evento) {
+                params.append('evento', filters.evento);
+            }
+            if (filters.tipo_actividad && filters.tipo_actividad.length > 0) {
+                params.append('tipo_actividad', filters.tipo_actividad.join(','));
+            }
+        }
+        
+        // Parámetros específicos para Reporte General
+        if (reportType === 'reporte-general') {
+            if (filters.periodo) {
+                params.append('periodo', filters.periodo);
+            }
+            if (filters.fecha_inicio) {
+                params.append('fecha_inicio', filters.fecha_inicio);
+            }
+            if (filters.fecha_fin) {
+                params.append('fecha_fin', filters.fecha_fin);
+            }
+            if (filters.apartados && filters.apartados.length > 0) {
+                params.append('apartados', filters.apartados.join(','));
+            }
+        }
+        
+        // Parámetros específicos para Reporte de Actividad de Usuarios
+        if (reportType === 'actividad-usuarios') {
+            if (filters.periodo) {
+                params.append('periodo', filters.periodo);
+            }
+            if (filters.fecha_inicio) {
+                params.append('fecha_inicio', filters.fecha_inicio);
+            }
+            if (filters.fecha_fin) {
+                params.append('fecha_fin', filters.fecha_fin);
+            }
+            if (filters.comunidades && filters.comunidades.length > 0) {
+                params.append('comunidades', filters.comunidades.join(','));
+            }
+            if (filters.evento) {
+                params.append('evento', filters.evento);
+            }
+            if (filters.tipo_actividad && filters.tipo_actividad.length > 0) {
+                params.append('tipo_actividad', filters.tipo_actividad.join(','));
+            }
+            if (filters.usuarios && filters.usuarios.length > 0) {
+                params.append('usuarios', filters.usuarios.join(','));
+            }
+        }
+        
         // Parámetros genéricos
         if (filters.region && filters.region.length > 0) params.append('region', filters.region.join(','));
         if (filters.comunidad && filters.comunidad.length > 0) params.append('comunidad', filters.comunidad.join(','));
@@ -2359,6 +3439,12 @@ function renderReportResults(data, reportType) {
         renderAvancesEventosGeneralesReport(data.data);
     } else if (reportType === 'reporte-evento-individual') {
         renderEventoIndividualReport(data.data);
+    } else if (reportType === 'comunidades') {
+        renderComunidadesReport(data.data);
+    } else if (reportType === 'actividad-usuarios') {
+        renderActividadUsuariosReport(data.data);
+    } else if (reportType === 'reporte-general') {
+        renderReporteGeneral(data.data);
     } else {
         // Renderizado genérico para otros reportes
         renderGenericReport(data.data);
@@ -2926,6 +4012,444 @@ function showError(message) {
     setTimeout(() => {
         errorDiv.remove();
     }, 5000);
+}
+
+// Renderizar reporte de comunidades
+function renderComunidadesReport(data) {
+    const resultsContainer = document.getElementById('resultsContainer');
+    if (!resultsContainer) return;
+    
+    if (!data || !data.comunidades || data.comunidades.length === 0) {
+        resultsContainer.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-70);">No se encontraron comunidades que cumplan con los criterios de búsqueda.</div>';
+        return;
+    }
+    
+    let html = '<div class="comunidades-report-container">';
+    
+    // Opciones de ordenamiento
+    html += '<div style="display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: center;">';
+    html += '<label style="color: var(--text-100); font-weight: 500;">Ordenar por:</label>';
+    html += '<select id="ordenarComunidadesActivas" style="padding: 8px 12px; background: var(--bg-800); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-100);">';
+    html += '<option value="mas_activas">Más Activas</option>';
+    html += '<option value="menos_activas">Menos Activas</option>';
+    html += '</select>';
+    html += '<select id="ordenarComunidadesTipo" style="padding: 8px 12px; background: var(--bg-800); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-100);">';
+    html += '<option value="todos">Todos los Tipos</option>';
+    html += '<option value="barrio">Barrio</option>';
+    html += '<option value="caserío">Caserío</option>';
+    html += '<option value="aldea">Aldea</option>';
+    html += '</select>';
+    html += '</div>';
+    
+    // Renderizar cada comunidad
+    data.comunidades.forEach(comunidad => {
+        html += `<div class="comunidad-card" style="background: var(--bg-800); border-radius: var(--radius-sm); padding: 24px; margin-bottom: 24px; border-left: 4px solid var(--primary-color);">`;
+        
+        // Información general de la comunidad
+        html += `<h3 style="color: var(--text-100); margin-bottom: 16px; font-size: 1.25rem;">${escapeHtml(comunidad.nombre || 'Sin nombre')}</h3>`;
+        html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">`;
+        html += `<div><strong style="color: var(--text-80);">COCODE:</strong> <span style="color: var(--text-70);">${escapeHtml(comunidad.cocode || '-')}</span></div>`;
+        html += `<div><strong style="color: var(--text-80);">Región:</strong> <span style="color: var(--text-70);">${escapeHtml(comunidad.region || '-')}</span></div>`;
+        html += `<div><strong style="color: var(--text-80);">Tipo:</strong> <span style="color: var(--text-70);">${escapeHtml(comunidad.tipo || '-')}</span></div>`;
+        html += `<div><strong style="color: var(--text-80);">Número de Beneficiarios:</strong> <span style="color: var(--text-70);">${comunidad.numero_beneficiarios || 0}</span></div>`;
+        html += `<div><strong style="color: var(--text-80);">Número de Proyectos:</strong> <span style="color: var(--text-70);">${comunidad.numero_proyectos || 0}</span></div>`;
+        html += `</div>`;
+        
+        // Proyectos/Eventos que alcanzan la comunidad
+        if (comunidad.proyectos && comunidad.proyectos.length > 0) {
+            html += `<h4 style="color: var(--text-100); margin-bottom: 12px; margin-top: 24px;">Proyectos/Eventos</h4>`;
+            html += `<div style="display: grid; gap: 16px;">`;
+            comunidad.proyectos.forEach(proyecto => {
+                html += `<div style="padding: 16px; background: var(--bg-900); border-radius: var(--radius-sm); border-left: 3px solid var(--primary-color);">`;
+                html += `<div style="color: var(--text-100); font-weight: 500; margin-bottom: 8px;">${escapeHtml(proyecto.nombre || 'Sin nombre')}</div>`;
+                html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; color: var(--text-70); font-size: 0.875rem;">`;
+                html += `<div><strong>Tipo:</strong> ${escapeHtml(proyecto.tipo || '-')}</div>`;
+                html += `<div><strong>Estado:</strong> ${formatEstado(proyecto.estado || '-')}</div>`;
+                html += `<div><strong>Fecha:</strong> ${proyecto.fecha || '-'}</div>`;
+                html += `</div>`;
+                html += `</div>`;
+            });
+            html += `</div>`;
+        }
+        
+        // Beneficiarios de la comunidad
+        if (comunidad.beneficiarios && comunidad.beneficiarios.length > 0) {
+            html += `<h4 style="color: var(--text-100); margin-bottom: 12px; margin-top: 24px;">Beneficiarios</h4>`;
+            html += `<div style="overflow-x: auto;">`;
+            html += `<table class="results-table" style="width: 100%;">`;
+            html += `<thead><tr>`;
+            html += `<th>Nombre</th>`;
+            html += `<th>Tipo</th>`;
+            html += `<th>Eventos</th>`;
+            html += `</tr></thead>`;
+            html += `<tbody>`;
+            comunidad.beneficiarios.forEach(beneficiario => {
+                html += `<tr>`;
+                html += `<td>${escapeHtml(beneficiario.nombre || '-')}</td>`;
+                html += `<td>${escapeHtml(beneficiario.tipo || '-')}</td>`;
+                html += `<td>${beneficiario.eventos ? beneficiario.eventos.map(e => escapeHtml(e)).join(', ') : '-'}</td>`;
+                html += `</tr>`;
+            });
+            html += `</tbody>`;
+            html += `</table>`;
+            html += `</div>`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    html += '</div>';
+    resultsContainer.innerHTML = html;
+    
+    // Agregar event listeners para ordenamiento (por ahora solo UI, la lógica se puede implementar después)
+    const ordenarActivas = document.getElementById('ordenarComunidadesActivas');
+    const ordenarTipo = document.getElementById('ordenarComunidadesTipo');
+    
+    if (ordenarActivas) {
+        ordenarActivas.addEventListener('change', function() {
+            // TODO: Implementar ordenamiento
+            console.log('Ordenar por:', this.value);
+        });
+    }
+    
+    if (ordenarTipo) {
+        ordenarTipo.addEventListener('change', function() {
+            // TODO: Implementar filtrado por tipo
+            console.log('Filtrar por tipo:', this.value);
+        });
+    }
+}
+
+// Renderizar reporte de actividad de usuarios
+function renderActividadUsuariosReport(data) {
+    const resultsContainer = document.getElementById('resultsContainer');
+    if (!resultsContainer) return;
+    
+    if (!data || !data.usuarios || data.usuarios.length === 0) {
+        resultsContainer.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-70);">No se encontraron usuarios que cumplan con los criterios de búsqueda.</div>';
+        return;
+    }
+    
+    let html = '<div class="actividad-usuarios-report-container">';
+    
+    // Opción de ordenamiento
+    html += '<div style="display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: center;">';
+    html += '<label style="color: var(--text-100); font-weight: 500;">Ordenar por:</label>';
+    html += '<select id="ordenarUsuariosActivos" style="padding: 8px 12px; background: var(--bg-800); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-100);">';
+    html += '<option value="mas_activos">Más Activos</option>';
+    html += '<option value="menos_activos">Menos Activos</option>';
+    html += '</select>';
+    html += '</div>';
+    
+    // Renderizar cada usuario
+    data.usuarios.forEach(usuario => {
+        html += `<div class="usuario-card" style="background: var(--bg-800); border-radius: var(--radius-sm); padding: 24px; margin-bottom: 24px; border-left: 4px solid var(--primary-color);">`;
+        
+        // Título con información general del usuario
+        html += `<h3 style="color: var(--text-100); margin-bottom: 16px; font-size: 1.25rem;">${escapeHtml(usuario.nombre || usuario.username || 'Sin nombre')}</h3>`;
+        html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">`;
+        html += `<div><strong style="color: var(--text-80);">Usuario:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.username || '-')}</span></div>`;
+        html += `<div><strong style="color: var(--text-80);">Rol:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.rol_display || usuario.rol || '-')}</span></div>`;
+        html += `<div><strong style="color: var(--text-80);">Puesto:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.puesto_nombre || usuario.puesto || '-')}</span></div>`;
+        html += `<div><strong style="color: var(--text-80);">Total de Cambios:</strong> <span style="color: var(--text-70);">${usuario.total_cambios || 0}</span></div>`;
+        html += `</div>`;
+        
+        // Verificar si el usuario tiene actividad
+        if (usuario.sin_actividad) {
+            html += `<div style="padding: 24px; background: var(--bg-900); border-radius: var(--radius-sm); text-align: center; color: var(--text-70);">`;
+            html += `<p style="margin: 0;">Este usuario no tiene actividad registrada en los eventos o comunidades seleccionados.</p>`;
+            html += `</div>`;
+        } else if (usuario.cambios && usuario.cambios.length > 0) {
+            // Agrupar cambios por evento
+            const cambiosPorEvento = {};
+            usuario.cambios.forEach(cambio => {
+                const eventoId = cambio.evento_id || 'sin_evento';
+                const eventoNombre = cambio.evento_nombre || 'Sin evento';
+                if (!cambiosPorEvento[eventoId]) {
+                    cambiosPorEvento[eventoId] = {
+                        nombre: eventoNombre,
+                        cambios: []
+                    };
+                }
+                cambiosPorEvento[eventoId].cambios.push(cambio);
+            });
+            
+            // Renderizar cambios por evento
+            Object.keys(cambiosPorEvento).forEach(eventoId => {
+                const eventoData = cambiosPorEvento[eventoId];
+                html += `<h4 style="color: var(--text-100); margin-bottom: 12px; margin-top: 24px; border-bottom: 2px solid var(--primary-color); padding-bottom: 8px;">${escapeHtml(eventoData.nombre)}</h4>`;
+                html += `<div style="overflow-x: auto;">`;
+                html += `<table class="results-table" style="width: 100%;">`;
+                html += `<thead><tr>`;
+                html += `<th>Cambio</th>`;
+                html += `<th>Descripción</th>`;
+                html += `<th>Fecha</th>`;
+                html += `</tr></thead>`;
+                html += `<tbody>`;
+                eventoData.cambios.forEach(cambio => {
+                    html += `<tr>`;
+                    html += `<td>${escapeHtml(cambio.tipo_cambio || '-')}</td>`;
+                    html += `<td>${escapeHtml(cambio.descripcion || '-')}</td>`;
+                    html += `<td>${cambio.fecha_display || cambio.fecha || '-'}</td>`;
+                    html += `</tr>`;
+                });
+                html += `</tbody>`;
+                html += `</table>`;
+                html += `</div>`;
+            });
+        } else {
+            html += `<div style="padding: 24px; background: var(--bg-900); border-radius: var(--radius-sm); text-align: center; color: var(--text-70);">`;
+            html += `<p style="margin: 0;">No se encontraron cambios registrados para este usuario.</p>`;
+            html += `</div>`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    html += '</div>';
+    resultsContainer.innerHTML = html;
+    
+    // Agregar event listener para ordenamiento
+    const ordenarActivos = document.getElementById('ordenarUsuariosActivos');
+    if (ordenarActivos) {
+        ordenarActivos.addEventListener('change', function() {
+            // TODO: Implementar ordenamiento
+            console.log('Ordenar por:', this.value);
+        });
+    }
+}
+
+// Renderizar reporte general
+function renderReporteGeneral(data) {
+    const resultsContainer = document.getElementById('resultsContainer');
+    if (!resultsContainer) return;
+    
+    if (!data) {
+        resultsContainer.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-70);">No se encontraron datos para el reporte general.</div>';
+        return;
+    }
+    
+    let html = '<div class="reporte-general-container" style="padding: 24px;">';
+    
+    // Título del reporte
+    html += '<h2 style="color: var(--text-100); margin-bottom: 32px; text-align: center; border-bottom: 2px solid var(--primary-color); padding-bottom: 16px;">Reporte General de la Oficina</h2>';
+    
+    // Total de Eventos (con lista si está seleccionado)
+    if (data.total_eventos !== undefined) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--primary-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Total de Eventos</h3>';
+        html += `<p style="color: var(--text-80); font-size: 1.5rem; margin-bottom: 16px;"><strong>${data.total_eventos.total || 0}</strong> eventos</p>`;
+        
+        // Lista de eventos si está seleccionado
+        if (data.total_eventos.lista_eventos && data.total_eventos.lista_eventos.length > 0) {
+            html += '<div style="margin-top: 16px;">';
+            html += '<h4 style="color: var(--text-100); margin-bottom: 12px;">Lista de Eventos</h4>';
+            html += '<div style="overflow-x: auto;">';
+            html += '<table class="results-table" style="width: 100%;">';
+            html += '<thead><tr>';
+            html += '<th>Nombre</th>';
+            html += '<th>Tipo</th>';
+            html += '<th>Estado</th>';
+            html += '<th>Fecha</th>';
+            html += '<th>Comunidad</th>';
+            html += '<th>Beneficiarios</th>';
+            html += '</tr></thead>';
+            html += '<tbody>';
+            data.total_eventos.lista_eventos.forEach(evento => {
+                html += '<tr>';
+                html += `<td>${escapeHtml(evento.nombre || '-')}</td>`;
+                html += `<td>${escapeHtml(evento.tipo || '-')}</td>`;
+                html += `<td>${escapeHtml(evento.estado || '-')}</td>`;
+                html += `<td>${evento.fecha || '-'}</td>`;
+                html += `<td>${escapeHtml(evento.comunidad || '-')}</td>`;
+                html += `<td>${evento.beneficiarios || 0}</td>`;
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            html += '</div>';
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+    
+    // Total de Tipos de Eventos
+    if (data.tipos_eventos !== undefined) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--success-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Total de Tipos de Eventos</h3>';
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+        if (data.tipos_eventos.capacitacion !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Capacitación:</strong> <span style="color: var(--text-70);">${data.tipos_eventos.capacitacion || 0}</span></div>`;
+        }
+        if (data.tipos_eventos.entrega !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Entrega:</strong> <span style="color: var(--text-70);">${data.tipos_eventos.entrega || 0}</span></div>`;
+        }
+        if (data.tipos_eventos.proyecto_ayuda !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Proyecto de Ayuda:</strong> <span style="color: var(--text-70);">${data.tipos_eventos.proyecto_ayuda || 0}</span></div>`;
+        }
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    // Total de Beneficiarios Alcanzados
+    if (data.total_beneficiarios !== undefined) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--primary-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Total de Beneficiarios Alcanzados</h3>';
+        html += `<p style="color: var(--text-80); font-size: 1.5rem;"><strong>${data.total_beneficiarios || 0}</strong> beneficiarios</p>`;
+        html += '</div>';
+    }
+    
+    // Total de Tipos de Beneficiarios
+    if (data.tipos_beneficiarios !== undefined) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--success-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Total de Tipos de Beneficiarios</h3>';
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+        if (data.tipos_beneficiarios.individual !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Individual:</strong> <span style="color: var(--text-70);">${data.tipos_beneficiarios.individual || 0}</span></div>`;
+        }
+        if (data.tipos_beneficiarios.familia !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Familia:</strong> <span style="color: var(--text-70);">${data.tipos_beneficiarios.familia || 0}</span></div>`;
+        }
+        if (data.tipos_beneficiarios.institucion !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Institución:</strong> <span style="color: var(--text-70);">${data.tipos_beneficiarios.institucion || 0}</span></div>`;
+        }
+        if (data.tipos_beneficiarios.mujeres !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Mujeres:</strong> <span style="color: var(--text-70);">${data.tipos_beneficiarios.mujeres || 0}</span></div>`;
+        }
+        if (data.tipos_beneficiarios.hombres !== undefined) {
+            html += `<div><strong style="color: var(--text-80);">Hombres:</strong> <span style="color: var(--text-70);">${data.tipos_beneficiarios.hombres || 0}</span></div>`;
+        }
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    // Total de Comunidades Alcanzadas
+    if (data.total_comunidades !== undefined) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--primary-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Total de Comunidades Alcanzadas</h3>';
+        
+        // Si es un objeto con total y lista
+        if (typeof data.total_comunidades === 'object' && data.total_comunidades.total !== undefined) {
+            html += `<p style="color: var(--text-80); font-size: 1.5rem; margin-bottom: 16px;"><strong>${data.total_comunidades.total || 0}</strong> comunidades</p>`;
+            
+            // Lista de comunidades si está disponible
+            if (data.total_comunidades.lista_comunidades && data.total_comunidades.lista_comunidades.length > 0) {
+                html += '<div style="margin-top: 16px;">';
+                html += '<h4 style="color: var(--text-100); margin-bottom: 12px;">Lista de Comunidades</h4>';
+                html += '<div style="overflow-x: auto;">';
+                html += '<table class="results-table" style="width: 100%;">';
+                html += '<thead><tr>';
+                html += '<th>Comunidad</th>';
+                html += '<th>COCODE</th>';
+                html += '<th>Región</th>';
+                html += '<th>Tipo</th>';
+                html += '<th>Total Eventos</th>';
+                html += '<th>Total Beneficiarios</th>';
+                html += '</tr></thead>';
+                html += '<tbody>';
+                data.total_comunidades.lista_comunidades.forEach(comunidad => {
+                    html += '<tr>';
+                    html += `<td>${escapeHtml(comunidad.nombre || '-')}</td>`;
+                    html += `<td>${escapeHtml(comunidad.cocode || '-')}</td>`;
+                    html += `<td>${escapeHtml(comunidad.region || '-')}</td>`;
+                    html += `<td>${escapeHtml(comunidad.tipo || '-')}</td>`;
+                    html += `<td>${comunidad.total_eventos || 0}</td>`;
+                    html += `<td>${comunidad.total_beneficiarios || 0}</td>`;
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                html += '</div>';
+                html += '</div>';
+            }
+        } else {
+            // Compatibilidad con formato antiguo (solo número)
+            html += `<p style="color: var(--text-80); font-size: 1.5rem;"><strong>${data.total_comunidades || 0}</strong> comunidades</p>`;
+        }
+        
+        html += '</div>';
+    }
+    
+    // Total de Avances en Proyectos
+    if (data.total_avances !== undefined) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--success-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Total de Avances en Proyectos</h3>';
+        html += `<p style="color: var(--text-80); font-size: 1.5rem;"><strong>${data.total_avances || 0}</strong> avances</p>`;
+        html += '</div>';
+    }
+    
+    // Comunidades con Más Beneficiarios y Eventos
+    if (data.comunidades_mas_beneficiarios !== undefined && data.comunidades_mas_beneficiarios.length > 0) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--primary-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Comunidades con Más Beneficiarios y Eventos</h3>';
+        html += '<div style="overflow-x: auto;">';
+        html += '<table class="results-table" style="width: 100%;">';
+        html += '<thead><tr>';
+        html += '<th>Comunidad</th>';
+        html += '<th>Región</th>';
+        html += '<th>Total Beneficiarios</th>';
+        html += '<th>Total Eventos</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        data.comunidades_mas_beneficiarios.forEach(comunidad => {
+            html += '<tr>';
+            html += `<td>${escapeHtml(comunidad.nombre || '-')}</td>`;
+            html += `<td>${escapeHtml(comunidad.region || '-')}</td>`;
+            html += `<td>${comunidad.total_beneficiarios || 0}</td>`;
+            html += `<td>${comunidad.total_eventos || 0}</td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    // Eventos con Más Beneficiarios
+    if (data.eventos_mas_beneficiarios !== undefined && data.eventos_mas_beneficiarios.length > 0) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--success-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Eventos con Más Beneficiarios</h3>';
+        html += '<div style="overflow-x: auto;">';
+        html += '<table class="results-table" style="width: 100%;">';
+        html += '<thead><tr>';
+        html += '<th>Evento</th>';
+        html += '<th>Tipo</th>';
+        html += '<th>Estado</th>';
+        html += '<th>Total Beneficiarios</th>';
+        html += '<th>Comunidad</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        data.eventos_mas_beneficiarios.forEach(evento => {
+            html += '<tr>';
+            html += `<td>${escapeHtml(evento.nombre || '-')}</td>`;
+            html += `<td>${escapeHtml(evento.tipo || '-')}</td>`;
+            html += `<td>${escapeHtml(evento.estado || '-')}</td>`;
+            html += `<td>${evento.total_beneficiarios || 0}</td>`;
+            html += `<td>${escapeHtml(evento.comunidad || '-')}</td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    // Evento con Más Avances y Cambios
+    if (data.evento_mas_avances !== undefined) {
+        html += '<div class="reporte-section" style="margin-bottom: 32px; background: var(--bg-800); padding: 24px; border-radius: var(--radius-sm); border-left: 4px solid var(--primary-color);">';
+        html += '<h3 style="color: var(--text-100); margin-bottom: 16px;">Evento con Más Avances y Cambios</h3>';
+        if (data.evento_mas_avances.nombre) {
+            html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+            html += `<div><strong style="color: var(--text-80);">Evento:</strong> <span style="color: var(--text-70);">${escapeHtml(data.evento_mas_avances.nombre || '-')}</span></div>`;
+            html += `<div><strong style="color: var(--text-80);">Tipo:</strong> <span style="color: var(--text-70);">${escapeHtml(data.evento_mas_avances.tipo || '-')}</span></div>`;
+            html += `<div><strong style="color: var(--text-80);">Estado:</strong> <span style="color: var(--text-70);">${escapeHtml(data.evento_mas_avances.estado || '-')}</span></div>`;
+            html += `<div><strong style="color: var(--text-80);">Total Avances:</strong> <span style="color: var(--text-70);">${data.evento_mas_avances.total_avances || 0}</span></div>`;
+            html += `<div><strong style="color: var(--text-80);">Comunidad:</strong> <span style="color: var(--text-70);">${escapeHtml(data.evento_mas_avances.comunidad || '-')}</span></div>`;
+            html += '</div>';
+        } else {
+            html += '<p style="color: var(--text-70);">No hay eventos con avances registrados.</p>';
+        }
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    resultsContainer.innerHTML = html;
 }
 
 // Funciones globales para mostrar/ocultar tablas en reporte individual

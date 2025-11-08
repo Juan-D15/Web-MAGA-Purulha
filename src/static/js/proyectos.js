@@ -5576,7 +5576,10 @@ function showAddChangeModal() {
 
   clearChangeForm();
 
-  loadChangePersonnelList();
+  // Esperar un momento para que el modal esté completamente visible antes de cargar la lista
+  setTimeout(() => {
+    loadChangePersonnelList();
+  }, 100);
 
 }
 
@@ -5936,11 +5939,11 @@ async function addChangeToProject() {
 
   
 
-  // El colaborador es opcional, pero si se selecciona uno, usar el primero
-
-  const colaboradorId = selectedPersonnel.length > 0 ? selectedPersonnel[0].id : null;
-
-  
+  // Validar que se haya seleccionado al menos un colaborador
+  if (selectedPersonnel.length === 0) {
+    showErrorMessage('Por favor selecciona al menos un colaborador responsable');
+    return;
+  }
 
   const currentProject = getCurrentProject();
 
@@ -5982,10 +5985,17 @@ async function addChangeToProject() {
 
     
 
-    if (colaboradorId) {
-
-      formData.append('colaborador_id', colaboradorId);
-
+    // Enviar TODOS los colaboradores seleccionados como una lista JSON
+    const colaboradoresIds = selectedPersonnel.map(p => p.id);
+    console.log('📤 Colaboradores seleccionados:', selectedPersonnel);
+    console.log('📤 IDs de colaboradores:', colaboradoresIds);
+    console.log('📤 JSON string:', JSON.stringify(colaboradoresIds));
+    
+    if (colaboradoresIds.length > 0) {
+      formData.append('colaboradores_ids', JSON.stringify(colaboradoresIds));
+      console.log('✅ colaboradores_ids agregado al FormData');
+    } else {
+      console.error('❌ No hay IDs de colaboradores para enviar');
     }
 
     
@@ -6026,7 +6036,12 @@ async function addChangeToProject() {
 
     console.log('Enviando cambio a:', url);
 
+    // Log de todos los datos del FormData
     console.log('FormData keys:', Array.from(formData.keys()));
+    for (let key of formData.keys()) {
+      const value = formData.get(key);
+      console.log(`  ${key}:`, value);
+    }
 
     
 
@@ -7972,60 +7987,6 @@ function getSelectedPersonnel() {
 
 
 
-// Función para cargar lista de personal en modal de cambios
-
-function loadChangePersonnelList() {
-
-  const personnelList = document.getElementById('changePersonnelList');
-
-  if (!personnelList) return;
-
-  
-
-  personnelList.innerHTML = '';
-
-  
-
-  availablePersonnel.forEach(person => {
-
-    const personnelItem = document.createElement('div');
-
-    personnelItem.className = 'personnel-item';
-
-    personnelItem.innerHTML = `
-
-      <input type="checkbox" id="change-personnel-${person.id}" value="${person.id}">
-
-      <div class="personnel-info">
-
-        <div class="personnel-name">${person.name}</div>
-
-        <div class="personnel-role">${person.role}</div>
-
-      </div>
-
-    `;
-
-    personnelList.appendChild(personnelItem);
-
-  });
-
-  
-
-  // Agregar event listener para el buscador
-
-  const searchInput = document.getElementById('changePersonnelSearch');
-
-  if (searchInput) {
-
-    searchInput.addEventListener('input', filterChangePersonnel);
-
-  }
-
-}
-
-
-
 // Función para filtrar comunidades
 
 function filterCommunities() {
@@ -8064,16 +8025,23 @@ function filterCommunities() {
 
 async function loadChangePersonnelList() {
 
+  console.log('🔍 loadChangePersonnelList() llamada');
+  
   const personnelList = document.getElementById('changePersonnelList');
 
-  if (!personnelList) return;
+  if (!personnelList) {
+    console.error('❌ No se encontró el elemento changePersonnelList');
+    return;
+  }
 
   
 
   const currentProject = getCurrentProject();
+  console.log('📦 Proyecto actual:', currentProject);
 
   if (!currentProject || !currentProject.id) {
 
+    console.error('❌ No se pudo obtener el proyecto actual');
     personnelList.innerHTML = '<p style="color: #6c757d;">No se pudo obtener la información del proyecto.</p>';
 
     return;
@@ -8085,6 +8053,7 @@ async function loadChangePersonnelList() {
   // Obtener solo los colaboradores asignados al proyecto actual
 
   const personalAsignado = currentProject.personal || [];
+  console.log('👥 Personal asignado:', personalAsignado);
 
   
 
@@ -8094,6 +8063,7 @@ async function loadChangePersonnelList() {
 
   if (personalAsignado.length === 0) {
 
+    console.warn('⚠️ No hay personal asignado al proyecto');
     personnelList.innerHTML = '<p style="color: #6c757d;">No hay colaboradores asignados a este proyecto.</p>';
 
     return;
@@ -8103,10 +8073,13 @@ async function loadChangePersonnelList() {
   
 
   // Renderizar solo colaboradores (no usuarios directos) con checkboxes como en "Personal a Cargo"
-
+  let colaboradoresCount = 0;
+  
   personalAsignado.forEach(person => {
+    console.log('👤 Procesando persona:', person.tipo, person.id, person.nombre);
 
     if (person.tipo === 'colaborador' && person.id) {
+      colaboradoresCount++;
 
       const personnelItem = document.createElement('div');
 
@@ -8162,7 +8135,7 @@ async function loadChangePersonnelList() {
 
   });
 
-  
+  console.log(`✅ Total colaboradores renderizados: ${colaboradoresCount}`);
 
   // Agregar event listener para el buscador
 
@@ -8183,6 +8156,7 @@ async function loadChangePersonnelList() {
 function getSelectedChangePersonnel() {
 
   const checkboxes = document.querySelectorAll('#changePersonnelList input.change-personnel-checkbox:checked');
+  console.log('🔍 Checkboxes seleccionados:', checkboxes.length);
 
   const selected = [];
 
@@ -8193,8 +8167,9 @@ function getSelectedChangePersonnel() {
     if (personItem) {
 
       const personId = cb.value;
-
       const name = personItem.querySelector('h4')?.textContent.trim() || '';
+      
+      console.log('✅ Colaborador seleccionado:', { id: personId, name: name });
 
       selected.push({
 
@@ -8208,6 +8183,7 @@ function getSelectedChangePersonnel() {
 
   });
 
+  console.log('📋 Total seleccionados:', selected);
   return selected;
 
 }

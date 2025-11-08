@@ -3209,15 +3209,25 @@ def api_obtener_detalle_proyecto(request, evento_id):
         personal_data = []
         for ap in evento.personal.all():
             if ap.usuario:
-                personal_data.append({
-                    'id': str(ap.usuario.id),
-                    'username': ap.usuario.username,
-                    'nombre': ap.usuario.nombre or ap.usuario.username,
-                    'rol': ap.rol_en_actividad,
-                    'rol_display': ap.usuario.get_rol_display() if hasattr(ap.usuario, 'get_rol_display') else ap.usuario.rol,
-                    'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else 'Sin puesto',
-                    'tipo': 'usuario'
-                })
+                # Si el usuario tiene un colaborador vinculado, incluir información del colaborador
+                colaborador_vinculado = None
+                if hasattr(ap.usuario, 'colaborador') and ap.usuario.colaborador:
+                    colaborador_vinculado = ap.usuario.colaborador
+                    # Incluir como colaborador (con el ID del colaborador, no del usuario)
+                    personal_data.append({
+                        'id': str(colaborador_vinculado.id),  # ID del colaborador
+                        'username': ap.usuario.username,
+                        'nombre': colaborador_vinculado.nombre,
+                        'rol': ap.rol_en_actividad,
+                        'rol_display': 'Personal Fijo' if colaborador_vinculado.es_personal_fijo else 'Colaborador Externo',
+                        'puesto': colaborador_vinculado.puesto.nombre if colaborador_vinculado.puesto else 'Sin puesto',
+                        'tipo': 'colaborador',  # Tipo colaborador aunque sea usuario
+                        'usuario_id': str(ap.usuario.id),  # Guardar también el ID del usuario para referencia
+                        'tiene_colaborador': True
+                    })
+                else:
+                    # Usuario sin colaborador vinculado - no incluirlo en la lista de cambios
+                    pass
             elif ap.colaborador:
                 personal_data.append({
                     'id': str(ap.colaborador.id),
@@ -3226,7 +3236,8 @@ def api_obtener_detalle_proyecto(request, evento_id):
                     'rol': ap.rol_en_actividad,
                     'rol_display': 'Personal Fijo' if ap.colaborador.es_personal_fijo else 'Colaborador Externo',
                     'puesto': ap.colaborador.puesto.nombre if ap.colaborador.puesto else 'Sin puesto',
-                    'tipo': 'colaborador'
+                    'tipo': 'colaborador',
+                    'tiene_colaborador': True
                 })
         
         # Beneficiarios
@@ -3838,22 +3849,46 @@ def api_crear_cambio(request, evento_id):
                 'error': 'La descripción del cambio es obligatoria'
         }, status=400)
         
-        # Obtener colaborador responsable si se envía
-        colaborador_id = request.POST.get('colaborador_id')
-        colaborador = None
-        if colaborador_id:
+        # Obtener lista de colaboradores seleccionados
+        colaboradores_ids_str = request.POST.get('colaboradores_ids')
+        print(f'📥 colaboradores_ids recibido: {colaboradores_ids_str}')
+        colaboradores_ids = []
+        if colaboradores_ids_str:
+            try:
+                colaboradores_ids = json.loads(colaboradores_ids_str)
+                print(f'✅ Colaboradores parseados: {colaboradores_ids}')
+            except json.JSONDecodeError as e:
+                print(f'❌ Error al parsear JSON: {e}')
+                # Fallback: intentar como colaborador_id individual (compatibilidad)
+                colaborador_id_legacy = request.POST.get('colaborador_id')
+                if colaborador_id_legacy:
+                    colaboradores_ids = [colaborador_id_legacy]
+                    print(f'✅ Usando colaborador_id legacy: {colaboradores_ids}')
+        
+        # Validar que se haya proporcionado al menos un colaborador
+        if not colaboradores_ids or len(colaboradores_ids) == 0:
+            print('❌ No se proporcionaron colaboradores')
+            return JsonResponse({
+                'success': False,
+                'error': 'Debe seleccionar al menos un colaborador responsable'
+            }, status=400)
+        
+        # Validar y obtener colaboradores
+        colaboradores = []
+        for colaborador_id in colaboradores_ids:
             try:
                 colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
                 # Verificar que el colaborador esté asignado al evento
                 if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
                     return JsonResponse({
                         'success': False,
-                        'error': 'El colaborador seleccionado no está asignado a este evento'
+                        'error': f'El colaborador {colaborador.nombre} no está asignado a este evento'
                     }, status=400)
+                colaboradores.append(colaborador)
             except Colaborador.DoesNotExist:
                 return JsonResponse({
                     'success': False,
-                    'error': 'Colaborador no encontrado'
+                    'error': f'Colaborador con ID {colaborador_id} no encontrado'
                 }, status=404)
         
         # Obtener fecha_cambio si se proporciona, de lo contrario usar la fecha actual
@@ -3875,101 +3910,115 @@ def api_crear_cambio(request, evento_id):
                 print(f'⚠️ Error al parsear fecha_cambio: {e}, usando fecha actual')
                 fecha_cambio = None
         
+        fecha_cambio_final = fecha_cambio if fecha_cambio else timezone.now()
+        
+        # Crear un cambio por cada colaborador seleccionado
+        cambios_creados = []
         evidencias_data = []
-        cambio = None
-        cambio_colaborador = None
         
-        if colaborador:
-            cambio_colaborador = EventoCambioColaborador.objects.create(
-                actividad=evento,
-                colaborador=colaborador,
-                descripcion_cambio=descripcion,
-                fecha_cambio=fecha_cambio if fecha_cambio else timezone.now()
-            )
-        else:
-            cambio = ActividadCambio.objects.create(
-                actividad=evento,
-                responsable=usuario_maga,
-                descripcion_cambio=descripcion,
-                fecha_cambio=fecha_cambio if fecha_cambio else timezone.now()
-            )
-        
-        # Procesar evidencias únicamente cuando el cambio corresponde a un colaborador
-        if cambio_colaborador and request.FILES:
-            evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias_cambios_eventos')
-            os.makedirs(evidencias_dir, exist_ok=True)
-            
-            fs = FileSystemStorage(location=evidencias_dir)
-            print(f'📎 Archivos recibidos: {list(request.FILES.keys())}')
-            for index, key in enumerate(request.FILES.keys()):
-                archivo = request.FILES[key]
-                print(f'📎 Procesando archivo {key}: {archivo.name} ({archivo.size} bytes)')
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
-                file_extension = os.path.splitext(archivo.name)[1]
-                filename = f"{timestamp}_{cambio_colaborador.id}{file_extension}"
-                saved_name = fs.save(filename, archivo)
-                file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
-                
-                descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
-                if not descripcion_evidencia:
-                    descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{key}', '').strip()
-                
-                evidencia = EventosEvidenciasCambios.objects.create(
+        with transaction.atomic():
+            # Crear cambios para cada colaborador
+            for colaborador in colaboradores:
+                cambio_colaborador = EventoCambioColaborador.objects.create(
                     actividad=evento,
-                    cambio=cambio_colaborador,
-                    archivo_nombre=archivo.name,
-                    archivo_tipo=archivo.content_type or 'application/octet-stream',
-                    archivo_tamanio=archivo.size,
-                    url_almacenamiento=file_url,
-                    descripcion=descripcion_evidencia,
-                    creado_por=usuario_maga
+                    colaborador=colaborador,
+                    descripcion_cambio=descripcion,
+                    fecha_cambio=fecha_cambio_final
                 )
-                print(f'✅ Evidencia creada: {evidencia.id} - {evidencia.archivo_nombre}')
+                cambios_creados.append(cambio_colaborador)
+                print(f'✅ Cambio creado para colaborador {colaborador.nombre}: {cambio_colaborador.id}')
+            
+            # Procesar evidencias y asociarlas a TODOS los cambios creados
+            if request.FILES and len(cambios_creados) > 0:
+                evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias_cambios_eventos')
+                os.makedirs(evidencias_dir, exist_ok=True)
                 
-                evidencias_data.append({
-                    'id': str(evidencia.id),
-                    'nombre': evidencia.archivo_nombre,
-                    'url': evidencia.url_almacenamiento,
-                    'tipo': evidencia.archivo_tipo or '',
-                    'descripcion': evidencia.descripcion or ''
-                })
-        elif request.FILES:
-            print('⚠️ Se recibieron archivos pero el cambio corresponde a un usuario, se omiten evidencias específicas de colaboradores.')
-        else:
-            print('⚠️ No se recibieron archivos en request.FILES')
+                fs = FileSystemStorage(location=evidencias_dir)
+                print(f'📎 Archivos recibidos: {list(request.FILES.keys())}')
+                
+                # Procesar cada archivo
+                archivos_keys = [key for key in request.FILES.keys() if key.startswith('archivo_')]
+                for index, key in enumerate(archivos_keys):
+                    archivo = request.FILES[key]
+                    print(f'📎 Procesando archivo {key}: {archivo.name} ({archivo.size} bytes)')
+                    
+                    # Obtener descripción de la evidencia
+                    descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
+                    if not descripcion_evidencia:
+                        # Intentar obtener por el nombre del campo sin el prefijo "archivo_"
+                        index_num = key.replace('archivo_', '')
+                        descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index_num}', '').strip()
+                    
+                    # Guardar el archivo físico UNA VEZ (usando el ID del primer cambio para el nombre)
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+                    file_extension = os.path.splitext(archivo.name)[1]
+                    # Usar el ID del primer cambio para el nombre base del archivo
+                    filename = f"{timestamp}_{cambios_creados[0].id}_{index}{file_extension}"
+                    saved_name = fs.save(filename, archivo)
+                    file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
+                    
+                    # Crear un registro de evidencia en la BD para cada cambio creado
+                    # Todos apuntan al mismo archivo físico
+                    primera_evidencia_id = None
+                    for cambio_colaborador in cambios_creados:
+                        evidencia = EventosEvidenciasCambios.objects.create(
+                            actividad=evento,
+                            cambio=cambio_colaborador,
+                            archivo_nombre=archivo.name,
+                            archivo_tipo=archivo.content_type or 'application/octet-stream',
+                            archivo_tamanio=archivo.size,
+                            url_almacenamiento=file_url,  # Misma URL para todos
+                            descripcion=descripcion_evidencia,
+                            creado_por=usuario_maga
+                        )
+                        if primera_evidencia_id is None:
+                            primera_evidencia_id = evidencia.id
+                        print(f'✅ Evidencia creada para cambio {cambio_colaborador.id}: {evidencia.id} - {evidencia.archivo_nombre}')
+                    
+                    # Agregar a evidencias_data solo una vez (para evitar duplicados en la respuesta)
+                    evidencias_data.append({
+                        'id': str(primera_evidencia_id),
+                        'nombre': archivo.name,
+                        'url': file_url,
+                        'tipo': archivo.content_type or 'application/octet-stream',
+                        'descripcion': descripcion_evidencia
+                    })
+            elif request.FILES:
+                print('⚠️ Se recibieron archivos pero no se crearon cambios de colaboradores.')
+            else:
+                print('⚠️ No se recibieron archivos en request.FILES')
         
-        # Obtener nombre del responsable
-        responsable_nombre = ''
-        if cambio_colaborador and cambio_colaborador.colaborador:
-            responsable_nombre = cambio_colaborador.colaborador.nombre
-        elif cambio and cambio.responsable:
-            responsable_nombre = cambio.responsable.nombre or cambio.responsable.username
-        else:
-            responsable_nombre = 'Colaborador desconocido' if colaborador else (usuario_maga.nombre or usuario_maga.username)
+        # Obtener nombres de los responsables (todos los colaboradores)
+        responsables_nombres = [colab.nombre for colab in colaboradores]
+        responsable_nombre = ', '.join(responsables_nombres)
         
         # Formatear fecha en zona horaria de Guatemala
         fecha_display = ''
-        fecha_base = cambio_colaborador.fecha_cambio if cambio_colaborador else (cambio.fecha_cambio if cambio else None)
-        if fecha_base:
+        if fecha_cambio_final:
             import pytz
             guatemala_tz = pytz.timezone('America/Guatemala')
-            if timezone.is_aware(fecha_base):
-                fecha_local = fecha_base.astimezone(guatemala_tz)
+            if timezone.is_aware(fecha_cambio_final):
+                fecha_local = fecha_cambio_final.astimezone(guatemala_tz)
             else:
-                fecha_local = timezone.make_aware(fecha_base, guatemala_tz)
+                fecha_local = timezone.make_aware(fecha_cambio_final, guatemala_tz)
             fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+        
+        # Retornar información del primer cambio creado (para compatibilidad) y lista de todos
+        cambios_ids = [str(c.id) for c in cambios_creados]
         
         return JsonResponse({
             'success': True,
-            'message': 'Cambio creado exitosamente',
+            'message': f'Cambio creado exitosamente para {len(cambios_creados)} colaborador(es)',
             'cambio': {
-                'id': str((cambio_colaborador or cambio).id),
+                'id': str(cambios_creados[0].id),  # Primer cambio para compatibilidad
+                'ids': cambios_ids,  # Todos los IDs de cambios creados
                 'descripcion': descripcion,
-                'fecha_cambio': fecha_base.isoformat() if fecha_base else None,
+                'fecha_cambio': fecha_cambio_final.isoformat() if fecha_cambio_final else None,
                 'fecha_display': fecha_display,
                 'responsable': responsable_nombre,
-                'colaborador_id': str(colaborador.id) if colaborador else None,
-                'responsable_id': str(colaborador.id) if colaborador else (str(usuario_maga.id) if cambio else None),
+                'responsables': responsables_nombres,  # Lista de nombres
+                'colaboradores_ids': [str(c.id) for c in colaboradores],
+                'cantidad_colaboradores': len(colaboradores),
                 'evidencias': evidencias_data
             }
         })
@@ -5465,6 +5514,35 @@ def api_generar_reporte(request, report_type):
             eventos_filtro = request.GET.get('eventos', '').split(',') if request.GET.get('eventos') else []
             eventos_filtro = [e for e in eventos_filtro if e]  # Limpiar valores vacíos
             
+            # Obtener período para calcular fechas correctamente
+            periodo = request.GET.get('periodo', 'todo')
+            from django.utils import timezone
+            from datetime import timedelta, datetime, time
+            
+            # Calcular fechas según período (para DateTimeField, usar datetime completo)
+            if periodo == 'ultimo_mes':
+                fecha_inicio_dt = timezone.now() - timedelta(days=30)
+                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
+            elif periodo == 'ultima_semana':
+                fecha_inicio_dt = timezone.now() - timedelta(days=7)
+                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
+            elif periodo == 'rango' and fecha_inicio and fecha_fin:
+                try:
+                    fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d')
+                    # Para fecha_fin, usar el final del día (23:59:59.999999)
+                    fecha_fin_dt = datetime.combine(datetime.strptime(fecha_fin, '%Y-%m-%d').date(), time.max)
+                    # Convertir a timezone-aware si es necesario
+                    if timezone.is_naive(fecha_inicio_dt):
+                        fecha_inicio_dt = timezone.make_aware(fecha_inicio_dt)
+                    if timezone.is_naive(fecha_fin_dt):
+                        fecha_fin_dt = timezone.make_aware(fecha_fin_dt)
+                except:
+                    fecha_inicio_dt = None
+                    fecha_fin_dt = None
+            else:
+                fecha_inicio_dt = None
+                fecha_fin_dt = None
+            
             # Si hay filtro de colaboradores, obtener esos colaboradores primero
             colaboradores_seleccionados = {}
             if colaboradores_filtro:
@@ -5495,11 +5573,11 @@ def api_generar_reporte(request, report_type):
                 'actividad__comunidad', 'actividad__comunidad__region', 'actividad__tipo'
             )
             
-            # Aplicar filtros de fecha (solo si se proporcionan)
-            if fecha_inicio:
-                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio)
-            if fecha_fin:
-                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin)
+            # Aplicar filtros de fecha (usar datetime para DateTimeField)
+            if fecha_inicio_dt:
+                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio_dt)
+            if fecha_fin_dt:
+                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin_dt)
             # Si no hay filtros de fecha, se muestran todos los cambios (período "todo el tiempo")
             
             # Aplicar filtros de actividades
@@ -5675,6 +5753,35 @@ def api_generar_reporte(request, report_type):
             colaboradores_filtro = [c for c in colaboradores_filtro if c]
             mostrar_evidencias = request.GET.get('mostrar_evidencias', 'true').lower() == 'true'
             
+            # Obtener período para calcular fechas correctamente
+            periodo = request.GET.get('periodo', 'todo')
+            from django.utils import timezone
+            from datetime import timedelta, datetime, time
+            
+            # Calcular fechas según período (para DateTimeField, usar datetime completo)
+            if periodo == 'ultimo_mes':
+                fecha_inicio_dt = timezone.now() - timedelta(days=30)
+                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
+            elif periodo == 'ultima_semana':
+                fecha_inicio_dt = timezone.now() - timedelta(days=7)
+                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
+            elif periodo == 'rango' and fecha_inicio and fecha_fin:
+                try:
+                    fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d')
+                    # Para fecha_fin, usar el final del día (23:59:59.999999)
+                    fecha_fin_dt = datetime.combine(datetime.strptime(fecha_fin, '%Y-%m-%d').date(), time.max)
+                    # Convertir a timezone-aware si es necesario
+                    if timezone.is_naive(fecha_inicio_dt):
+                        fecha_inicio_dt = timezone.make_aware(fecha_inicio_dt)
+                    if timezone.is_naive(fecha_fin_dt):
+                        fecha_fin_dt = timezone.make_aware(fecha_fin_dt)
+                except:
+                    fecha_inicio_dt = None
+                    fecha_fin_dt = None
+            else:
+                fecha_inicio_dt = None
+                fecha_fin_dt = None
+            
             # Construir query base para cambios de colaboradores
             cambios_query = EventoCambioColaborador.objects.filter(
                 colaborador__isnull=False,
@@ -5689,11 +5796,11 @@ def api_generar_reporte(request, report_type):
                 'actividad__comunidades_relacionadas__region'
             )
             
-            # Aplicar filtros de fecha
-            if fecha_inicio:
-                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio)
-            if fecha_fin:
-                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin)
+            # Aplicar filtros de fecha (usar datetime para DateTimeField)
+            if fecha_inicio_dt:
+                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio_dt)
+            if fecha_fin_dt:
+                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin_dt)
             
             # Aplicar filtros de actividades
             if comunidades_filtro:
@@ -5945,6 +6052,619 @@ def api_generar_reporte(request, report_type):
                 return JsonResponse({
                     'error': 'Evento no encontrado'
                 }, status=404)
+        
+        elif report_type == 'comunidades':
+            # Obtener filtros
+            comunidades_ids = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
+            comunidades_ids = [cid.strip() for cid in comunidades_ids if cid.strip()]
+            
+            if not comunidades_ids:
+                return JsonResponse({
+                    'error': 'Debe seleccionar al menos una comunidad'
+                }, status=400)
+            
+            evento_id = request.GET.get('evento')
+            periodo = request.GET.get('periodo', 'todo')
+            fecha_inicio = request.GET.get('fecha_inicio')
+            fecha_fin = request.GET.get('fecha_fin')
+            tipos_actividad = request.GET.get('tipo_actividad', '').split(',') if request.GET.get('tipo_actividad') else []
+            tipos_actividad = [t.strip() for t in tipos_actividad if t.strip()]
+            
+            # Construir query base para actividades
+            actividades_query = Actividad.objects.filter(
+                eliminado_en__isnull=True
+            )
+            
+            # Filtrar por fecha según período
+            from django.utils import timezone
+            from datetime import timedelta
+            import pytz
+            
+            if periodo == 'ultimo_mes':
+                # Para DateField, usar date() está bien, pero asegurarse de incluir el día actual
+                fecha_inicio = (timezone.now() - timedelta(days=30)).date()
+                fecha_fin = timezone.now().date()  # Incluye el día actual
+            elif periodo == 'ultima_semana':
+                fecha_inicio = (timezone.now() - timedelta(days=7)).date()
+                fecha_fin = timezone.now().date()  # Incluye el día actual
+            elif periodo == 'rango' and fecha_inicio and fecha_fin:
+                try:
+                    from datetime import datetime
+                    fecha_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
+                    fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
+                except:
+                    fecha_inicio = None
+                    fecha_fin = None
+            
+            if fecha_inicio:
+                actividades_query = actividades_query.filter(fecha__gte=fecha_inicio)
+            if fecha_fin:
+                # Para DateField, fecha__lte con date() debería funcionar correctamente
+                actividades_query = actividades_query.filter(fecha__lte=fecha_fin)
+            
+            # Filtrar por tipo de actividad
+            if tipos_actividad:
+                actividades_query = actividades_query.filter(tipo__nombre__in=tipos_actividad)
+            
+            # Filtrar por evento si está seleccionado
+            if evento_id:
+                actividades_query = actividades_query.filter(id=evento_id)
+                # Si hay evento, solo mostrar comunidades relacionadas con ese evento
+                actividades_filtradas = actividades_query.prefetch_related(
+                    'comunidades_relacionadas__comunidad',
+                    'comunidades_relacionadas__comunidad__region',
+                    'comunidades_relacionadas__comunidad__tipo',
+                    'beneficiarios__beneficiario',
+                    'beneficiarios__beneficiario__tipo'
+                ).all()
+                
+                # Obtener comunidades relacionadas con el evento
+                comunidades_relacionadas_ids = set()
+                for actividad in actividades_filtradas:
+                    for cr in actividad.comunidades_relacionadas.all():
+                        if str(cr.comunidad.id) in comunidades_ids:
+                            comunidades_relacionadas_ids.add(cr.comunidad.id)
+                    # También incluir la comunidad principal si está en la lista
+                    if actividad.comunidad and str(actividad.comunidad.id) in comunidades_ids:
+                        comunidades_relacionadas_ids.add(actividad.comunidad.id)
+                
+                comunidades_query = Comunidad.objects.filter(
+                    id__in=comunidades_relacionadas_ids
+                ).select_related('region', 'tipo').prefetch_related('galeria', 'archivos')
+            else:
+                # Si no hay evento, filtrar por comunidades directamente
+                # Las actividades deben estar relacionadas con las comunidades seleccionadas
+                actividades_query = actividades_query.filter(
+                    Q(comunidad_id__in=comunidades_ids) |
+                    Q(comunidades_relacionadas__comunidad_id__in=comunidades_ids)
+                ).distinct()
+                
+                actividades_filtradas = actividades_query.prefetch_related(
+                    'comunidades_relacionadas__comunidad',
+                    'comunidades_relacionadas__comunidad__region',
+                    'comunidades_relacionadas__comunidad__tipo',
+                    'beneficiarios__beneficiario',
+                    'beneficiarios__beneficiario__tipo',
+                    'tipo'
+                ).all()
+                
+                comunidades_query = Comunidad.objects.filter(
+                    id__in=comunidades_ids
+                ).select_related('region', 'tipo').prefetch_related('galeria', 'archivos')
+            
+            # Construir datos de comunidades
+            comunidades_data = []
+            for comunidad in comunidades_query:
+                # Actividades relacionadas con esta comunidad
+                actividades_comunidad = []
+                for actividad in actividades_filtradas:
+                    # Verificar si la actividad está relacionada con esta comunidad
+                    relacionada = False
+                    if actividad.comunidad and actividad.comunidad.id == comunidad.id:
+                        relacionada = True
+                    else:
+                        for cr in actividad.comunidades_relacionadas.all():
+                            if cr.comunidad.id == comunidad.id:
+                                relacionada = True
+                                break
+                    
+                    if relacionada:
+                        actividades_comunidad.append(actividad)
+                
+                # Contar beneficiarios de esta comunidad en las actividades
+                beneficiarios_comunidad = []
+                beneficiarios_ids = set()
+                
+                for actividad in actividades_comunidad:
+                    for ab in actividad.beneficiarios.all():
+                        benef = ab.beneficiario
+                        # Solo incluir si el beneficiario pertenece a esta comunidad
+                        if benef.comunidad and benef.comunidad.id == comunidad.id:
+                            if benef.id not in beneficiarios_ids:
+                                beneficiarios_ids.add(benef.id)
+                                nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(benef)
+                                eventos_benef = []
+                                # Buscar todos los eventos donde está este beneficiario
+                                for act2 in actividades_filtradas:
+                                    if act2.beneficiarios.filter(beneficiario=benef).exists():
+                                        eventos_benef.append(act2.nombre)
+                                
+                                beneficiarios_comunidad.append({
+                                    'id': str(benef.id),
+                                    'nombre': nombre_display,
+                                    'tipo': tipo_envio or 'individual',
+                                    'eventos': eventos_benef
+                                })
+                
+                # Proyectos/Eventos
+                proyectos_data = []
+                for actividad in actividades_comunidad:
+                    fecha_str = actividad.fecha.strftime('%Y-%m-%d') if actividad.fecha else ''
+                    proyectos_data.append({
+                        'id': str(actividad.id),
+                        'nombre': actividad.nombre,
+                        'tipo': actividad.tipo.nombre if actividad.tipo else 'Sin tipo',
+                        'estado': actividad.estado,
+                        'fecha': fecha_str
+                    })
+                
+                # Tipo de comunidad
+                tipo_nombre = comunidad.tipo.nombre if comunidad.tipo else 'Sin tipo'
+                
+                comunidades_data.append({
+                    'id': str(comunidad.id),
+                    'nombre': comunidad.nombre,
+                    'cocode': comunidad.cocode or '-',
+                    'region': comunidad.region.nombre if comunidad.region else '-',
+                    'tipo': tipo_nombre,
+                    'numero_beneficiarios': len(beneficiarios_comunidad),
+                    'numero_proyectos': len(proyectos_data),
+                    'beneficiarios': beneficiarios_comunidad,
+                    'proyectos': proyectos_data
+                })
+            
+            return JsonResponse({
+                'data': {
+                    'comunidades': comunidades_data
+                },
+                'total': len(comunidades_data)
+            })
+        
+        elif report_type == 'actividad-usuarios':
+            # Obtener filtros
+            usuarios_ids = request.GET.get('usuarios', '').split(',') if request.GET.get('usuarios') else []
+            usuarios_ids = [uid.strip() for uid in usuarios_ids if uid.strip()]
+            
+            comunidades_ids = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
+            comunidades_ids = [cid.strip() for cid in comunidades_ids if cid.strip()]
+            
+            evento_id = request.GET.get('evento')
+            periodo = request.GET.get('periodo', 'todo')
+            fecha_inicio = request.GET.get('fecha_inicio')
+            fecha_fin = request.GET.get('fecha_fin')
+            tipos_actividad = request.GET.get('tipo_actividad', '').split(',') if request.GET.get('tipo_actividad') else []
+            tipos_actividad = [t.strip() for t in tipos_actividad if t.strip()]
+            
+            # Construir query base para cambios
+            cambios_query = ActividadCambio.objects.filter(
+                actividad__eliminado_en__isnull=True
+            ).select_related(
+                'actividad', 'actividad__tipo', 'actividad__comunidad', 'actividad__comunidad__region',
+                'responsable', 'responsable__puesto'
+            ).prefetch_related(
+                'actividad__comunidades_relacionadas__comunidad'
+            )
+            
+            # Filtrar por fecha según período
+            from django.utils import timezone
+            from datetime import timedelta, datetime, time
+            
+            # Calcular fechas según período (para DateTimeField, usar datetime completo)
+            if periodo == 'ultimo_mes':
+                fecha_inicio_dt = timezone.now() - timedelta(days=30)
+                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
+            elif periodo == 'ultima_semana':
+                fecha_inicio_dt = timezone.now() - timedelta(days=7)
+                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
+            elif periodo == 'rango' and fecha_inicio and fecha_fin:
+                try:
+                    fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d')
+                    # Para fecha_fin, usar el final del día (23:59:59.999999)
+                    fecha_fin_dt = datetime.combine(datetime.strptime(fecha_fin, '%Y-%m-%d').date(), time.max)
+                    # Convertir a timezone-aware si es necesario
+                    if timezone.is_naive(fecha_inicio_dt):
+                        fecha_inicio_dt = timezone.make_aware(fecha_inicio_dt)
+                    if timezone.is_naive(fecha_fin_dt):
+                        fecha_fin_dt = timezone.make_aware(fecha_fin_dt)
+                except:
+                    fecha_inicio_dt = None
+                    fecha_fin_dt = None
+            else:
+                fecha_inicio_dt = None
+                fecha_fin_dt = None
+            
+            # Aplicar filtros de fecha (usar datetime para DateTimeField)
+            if fecha_inicio_dt:
+                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio_dt)
+            if fecha_fin_dt:
+                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin_dt)
+            
+            # Filtrar por tipo de actividad
+            if tipos_actividad:
+                cambios_query = cambios_query.filter(actividad__tipo__nombre__in=tipos_actividad)
+            
+            # Filtrar por evento
+            if evento_id:
+                cambios_query = cambios_query.filter(actividad_id=evento_id)
+            # Si no hay evento, filtrar por comunidades
+            elif comunidades_ids:
+                cambios_query = cambios_query.filter(
+                    Q(actividad__comunidad_id__in=comunidades_ids) |
+                    Q(actividad__comunidades_relacionadas__comunidad_id__in=comunidades_ids)
+                ).distinct()
+            
+            # Obtener usuarios para el reporte
+            if usuarios_ids:
+                usuarios_query = Usuario.objects.filter(id__in=usuarios_ids).select_related('puesto', 'colaborador__puesto')
+            else:
+                # Si no se seleccionan usuarios, obtener todos los que tienen cambios
+                usuarios_con_cambios = cambios_query.values_list('responsable_id', flat=True).distinct()
+                usuarios_query = Usuario.objects.filter(id__in=usuarios_con_cambios).select_related('puesto', 'colaborador__puesto')
+            
+            # Construir datos de usuarios
+            usuarios_data = []
+            for usuario in usuarios_query:
+                # Filtrar cambios de este usuario
+                cambios_usuario = cambios_query.filter(responsable_id=usuario.id)
+                
+                # Si no hay cambios y se seleccionó el usuario, mostrar igual con sin_actividad
+                if cambios_usuario.count() == 0 and usuarios_ids and str(usuario.id) in usuarios_ids:
+                    usuarios_data.append({
+                        'id': str(usuario.id),
+                        'username': usuario.username,
+                        'nombre': usuario.nombre or usuario.username,
+                        'rol': usuario.rol,
+                        'rol_display': usuario.get_rol_display(),
+                        'puesto_nombre': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
+                        'puesto': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
+                        'total_cambios': 0,
+                        'sin_actividad': True,
+                        'cambios': []
+                    })
+                elif cambios_usuario.count() > 0:
+                    # Agrupar cambios por evento
+                    cambios_list = []
+                    for cambio in cambios_usuario:
+                        actividad = cambio.actividad
+                        fecha_display = cambio.fecha_cambio.strftime('%d/%m/%Y %H:%M') if cambio.fecha_cambio else '-'
+                        
+                        cambios_list.append({
+                            'id': str(cambio.id),
+                            'evento_id': str(actividad.id),
+                            'evento_nombre': actividad.nombre,
+                            'tipo_cambio': 'Cambio',
+                            'descripcion': cambio.descripcion_cambio or '-',
+                            'fecha': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else '',
+                            'fecha_display': fecha_display
+                        })
+                    
+                    usuarios_data.append({
+                        'id': str(usuario.id),
+                        'username': usuario.username,
+                        'nombre': usuario.nombre or usuario.username,
+                        'rol': usuario.rol,
+                        'rol_display': usuario.get_rol_display(),
+                        'puesto_nombre': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
+                        'puesto': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
+                        'total_cambios': len(cambios_list),
+                        'sin_actividad': False,
+                        'cambios': cambios_list
+                    })
+            
+            return JsonResponse({
+                'data': {
+                    'usuarios': usuarios_data
+                },
+                'total': len(usuarios_data)
+            })
+        
+        elif report_type == 'reporte-general':
+            # Obtener filtros
+            periodo = request.GET.get('periodo', 'todo')
+            fecha_inicio = request.GET.get('fecha_inicio')
+            fecha_fin = request.GET.get('fecha_fin')
+            apartados = request.GET.get('apartados', '').split(',') if request.GET.get('apartados') else []
+            apartados = [a.strip() for a in apartados if a.strip()]
+            
+            # Si no hay apartados seleccionados, retornar vacío
+            if not apartados:
+                return JsonResponse({
+                    'data': {},
+                    'total': 0
+                })
+            
+            # Construir query base para actividades
+            actividades_query = Actividad.objects.filter(eliminado_en__isnull=True)
+            
+            # Filtrar por fecha según período
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            if periodo == 'ultimo_mes':
+                fecha_inicio = (timezone.now() - timedelta(days=30)).date()
+                fecha_fin = timezone.now().date()
+            elif periodo == 'ultima_semana':
+                fecha_inicio = (timezone.now() - timedelta(days=7)).date()
+                fecha_fin = timezone.now().date()
+            elif periodo == 'rango' and fecha_inicio and fecha_fin:
+                try:
+                    from datetime import datetime
+                    fecha_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
+                    fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
+                except:
+                    fecha_inicio = None
+                    fecha_fin = None
+            
+            if fecha_inicio:
+                actividades_query = actividades_query.filter(fecha__gte=fecha_inicio)
+            if fecha_fin:
+                actividades_query = actividades_query.filter(fecha__lte=fecha_fin)
+            
+            # Construir datos del reporte según apartados seleccionados
+            reporte_data = {}
+            
+            # Total de Eventos
+            if 'total_eventos' in apartados:
+                total_eventos = actividades_query.count()
+                lista_eventos = []
+                # Si se selecciona mostrar lista, obtener eventos
+                if 'total_eventos' in apartados:  # Siempre incluir lista si está seleccionado
+                    eventos_lista = actividades_query.select_related('tipo', 'comunidad', 'comunidad__region')[:100]
+                    for evento in eventos_lista:
+                        ben_count = ActividadBeneficiario.objects.filter(actividad_id=evento.id).count()
+                        lista_eventos.append({
+                            'nombre': evento.nombre,
+                            'tipo': evento.tipo.nombre if evento.tipo else '-',
+                            'estado': evento.get_estado_display() if hasattr(evento, 'get_estado_display') else evento.estado,
+                            'fecha': evento.fecha.strftime('%d/%m/%Y') if evento.fecha else '-',
+                            'comunidad': evento.comunidad.nombre if evento.comunidad else '-',
+                            'beneficiarios': ben_count
+                        })
+                reporte_data['total_eventos'] = {
+                    'total': total_eventos,
+                    'lista_eventos': lista_eventos
+                }
+            
+            # Total de Tipos de Eventos
+            if 'tipos_eventos' in apartados:
+                tipos_query = actividades_query.values('tipo__nombre').annotate(
+                    total=Count('id')
+                )
+                tipos_eventos = {
+                    'capacitacion': 0,
+                    'entrega': 0,
+                    'proyecto_ayuda': 0
+                }
+                for tipo in tipos_query:
+                    nombre = tipo['tipo__nombre'] or ''
+                    if 'capacitación' in nombre.lower() or 'capacitacion' in nombre.lower():
+                        tipos_eventos['capacitacion'] = tipo['total']
+                    elif 'entrega' in nombre.lower():
+                        tipos_eventos['entrega'] = tipo['total']
+                    elif 'proyecto' in nombre.lower() or 'ayuda' in nombre.lower():
+                        tipos_eventos['proyecto_ayuda'] = tipo['total']
+                reporte_data['tipos_eventos'] = tipos_eventos
+            
+            # Total de Beneficiarios Alcanzados
+            if 'total_beneficiarios' in apartados:
+                actividad_ids = actividades_query.values_list('id', flat=True)
+                total_benef = ActividadBeneficiario.objects.filter(
+                    actividad_id__in=actividad_ids
+                ).values('beneficiario_id').distinct().count()
+                reporte_data['total_beneficiarios'] = total_benef
+            
+            # Total de Tipos de Beneficiarios
+            if 'tipos_beneficiarios' in apartados:
+                actividad_ids = actividades_query.values_list('id', flat=True)
+                beneficiarios_query = ActividadBeneficiario.objects.filter(
+                    actividad_id__in=actividad_ids
+                ).select_related('beneficiario__tipo', 'beneficiario__individual', 'beneficiario__familia')
+                
+                tipos_benef = {
+                    'individual': 0,
+                    'familia': 0,
+                    'institucion': 0,
+                    'mujeres': 0,
+                    'hombres': 0
+                }
+                
+                beneficiarios_ids = beneficiarios_query.values_list('beneficiario_id', flat=True).distinct()
+                for benef_id in beneficiarios_ids:
+                    try:
+                        benef = Beneficiario.objects.select_related('tipo', 'individual', 'familia').get(id=benef_id)
+                        tipo_nombre = benef.tipo.nombre.lower() if benef.tipo else ''
+                        if 'individual' in tipo_nombre:
+                            tipos_benef['individual'] += 1
+                            # Contar género si es individual
+                            if hasattr(benef, 'individual') and benef.individual:
+                                genero = benef.individual.genero.lower() if benef.individual.genero else ''
+                                if 'femenino' in genero or 'mujer' in genero:
+                                    tipos_benef['mujeres'] += 1
+                                elif 'masculino' in genero or 'hombre' in genero:
+                                    tipos_benef['hombres'] += 1
+                        elif 'familia' in tipo_nombre:
+                            tipos_benef['familia'] += 1
+                        elif 'institución' in tipo_nombre or 'institucion' in tipo_nombre:
+                            tipos_benef['institucion'] += 1
+                    except Beneficiario.DoesNotExist:
+                        continue
+                
+                reporte_data['tipos_beneficiarios'] = tipos_benef
+            
+            # Total de Comunidades Alcanzadas
+            if 'total_comunidades' in apartados:
+                actividad_ids = actividades_query.values_list('id', flat=True)
+                comunidades_ids_list = list(actividades_query.values_list('comunidad_id', flat=True).distinct())
+                # También incluir comunidades relacionadas
+                comunidades_relacionadas_ids_list = list(ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids
+                ).values_list('comunidad_id', flat=True).distinct())
+                
+                # Combinar y obtener IDs únicos
+                todas_comunidades_ids = list(set([c for c in comunidades_ids_list if c] + [c for c in comunidades_relacionadas_ids_list if c]))
+                total_comunidades = len(todas_comunidades_ids)
+                
+                # Obtener información de las comunidades
+                comunidades_lista = []
+                for com_id in todas_comunidades_ids:
+                    try:
+                        comunidad = Comunidad.objects.select_related('region', 'tipo').get(id=com_id)
+                        # Contar eventos de esta comunidad
+                        eventos_count = actividades_query.filter(
+                            Q(comunidad_id=com_id) | 
+                            Q(comunidades_relacionadas__comunidad_id=com_id)
+                        ).distinct().count()
+                        
+                        # Contar beneficiarios de esta comunidad
+                        beneficiarios_count = Beneficiario.objects.filter(
+                            comunidad_id=com_id
+                        ).count()
+                        
+                        comunidades_lista.append({
+                            'nombre': comunidad.nombre,
+                            'cocode': comunidad.cocode or '-',
+                            'region': comunidad.region.nombre if comunidad.region else '-',
+                            'tipo': comunidad.tipo.nombre if comunidad.tipo else '-',
+                            'total_eventos': eventos_count,
+                            'total_beneficiarios': beneficiarios_count
+                        })
+                    except Comunidad.DoesNotExist:
+                        continue
+                
+                # Ordenar por nombre
+                comunidades_lista.sort(key=lambda x: x['nombre'])
+                
+                reporte_data['total_comunidades'] = {
+                    'total': total_comunidades,
+                    'lista_comunidades': comunidades_lista
+                }
+            
+            # Total de Avances en Proyectos
+            if 'total_avances' in apartados:
+                actividad_ids = actividades_query.values_list('id', flat=True)
+                total_avances = EventoCambioColaborador.objects.filter(
+                    actividad_id__in=actividad_ids
+                ).count()
+                reporte_data['total_avances'] = total_avances
+            
+            # Comunidades con Más Beneficiarios y Eventos
+            if 'comunidades_mas_beneficiarios' in apartados:
+                actividad_ids = actividades_query.values_list('id', flat=True)
+                comunidades_stats = {}
+                
+                # Obtener comunidades principales
+                for actividad in actividades_query.select_related('comunidad', 'comunidad__region'):
+                    if actividad.comunidad:
+                        com_id = str(actividad.comunidad.id)
+                        if com_id not in comunidades_stats:
+                            comunidades_stats[com_id] = {
+                                'nombre': actividad.comunidad.nombre,
+                                'region': actividad.comunidad.region.nombre if actividad.comunidad.region else '-',
+                                'total_eventos': 0,
+                                'total_beneficiarios': set()
+                            }
+                        comunidades_stats[com_id]['total_eventos'] += 1
+                
+                # Obtener comunidades relacionadas
+                actividades_comunidades = ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids
+                ).select_related('comunidad', 'comunidad__region')
+                
+                for ac in actividades_comunidades:
+                    if ac.comunidad:
+                        com_id = str(ac.comunidad.id)
+                        if com_id not in comunidades_stats:
+                            comunidades_stats[com_id] = {
+                                'nombre': ac.comunidad.nombre,
+                                'region': ac.comunidad.region.nombre if ac.comunidad.region else '-',
+                                'total_eventos': 0,
+                                'total_beneficiarios': set()
+                            }
+                        comunidades_stats[com_id]['total_eventos'] += 1
+                
+                # Contar beneficiarios por comunidad
+                for actividad_id in actividad_ids:
+                    ben_ids = ActividadBeneficiario.objects.filter(
+                        actividad_id=actividad_id
+                    ).values_list('beneficiario_id', flat=True)
+                    
+                    # Obtener comunidad de cada beneficiario
+                    for ben_id in ben_ids:
+                        try:
+                            ben = Beneficiario.objects.select_related('comunidad').get(id=ben_id)
+                            if ben.comunidad:
+                                com_id = str(ben.comunidad.id)
+                                if com_id in comunidades_stats:
+                                    comunidades_stats[com_id]['total_beneficiarios'].add(ben_id)
+                        except Beneficiario.DoesNotExist:
+                            continue
+                
+                # Convertir a lista y ordenar
+                comunidades_list = []
+                for com_id, stats in comunidades_stats.items():
+                    comunidades_list.append({
+                        'nombre': stats['nombre'],
+                        'region': stats['region'],
+                        'total_beneficiarios': len(stats['total_beneficiarios']),
+                        'total_eventos': stats['total_eventos']
+                    })
+                
+                comunidades_list.sort(key=lambda x: (x['total_beneficiarios'], x['total_eventos']), reverse=True)
+                reporte_data['comunidades_mas_beneficiarios'] = comunidades_list[:10]  # Top 10
+            
+            # Eventos con Más Beneficiarios
+            if 'eventos_mas_beneficiarios' in apartados:
+                eventos_stats = []
+                for actividad in actividades_query.select_related('tipo', 'comunidad')[:100]:
+                    ben_count = ActividadBeneficiario.objects.filter(actividad_id=actividad.id).count()
+                    eventos_stats.append({
+                        'nombre': actividad.nombre,
+                        'tipo': actividad.tipo.nombre if actividad.tipo else '-',
+                        'estado': actividad.get_estado_display() if hasattr(actividad, 'get_estado_display') else actividad.estado,
+                        'total_beneficiarios': ben_count,
+                        'comunidad': actividad.comunidad.nombre if actividad.comunidad else '-'
+                    })
+                
+                eventos_stats.sort(key=lambda x: x['total_beneficiarios'], reverse=True)
+                reporte_data['eventos_mas_beneficiarios'] = eventos_stats[:10]  # Top 10
+            
+            # Evento con Más Avances y Cambios
+            if 'evento_mas_avances' in apartados:
+                actividad_ids = actividades_query.values_list('id', flat=True)
+                eventos_avances = {}
+                
+                for cambio in EventoCambioColaborador.objects.filter(actividad_id__in=actividad_ids).select_related('actividad', 'actividad__tipo', 'actividad__comunidad'):
+                    act_id = str(cambio.actividad.id)
+                    if act_id not in eventos_avances:
+                        eventos_avances[act_id] = {
+                            'nombre': cambio.actividad.nombre,
+                            'tipo': cambio.actividad.tipo.nombre if cambio.actividad.tipo else '-',
+                            'estado': cambio.actividad.get_estado_display() if hasattr(cambio.actividad, 'get_estado_display') else cambio.actividad.estado,
+                            'comunidad': cambio.actividad.comunidad.nombre if cambio.actividad.comunidad else '-',
+                            'total_avances': 0
+                        }
+                    eventos_avances[act_id]['total_avances'] += 1
+                
+                if eventos_avances:
+                    evento_mas_avances = max(eventos_avances.values(), key=lambda x: x['total_avances'])
+                    reporte_data['evento_mas_avances'] = evento_mas_avances
+                else:
+                    reporte_data['evento_mas_avances'] = {}
+            
+            return JsonResponse({
+                'data': reporte_data,
+                'total': len(apartados)
+            })
         
         else:
             # Reporte genérico: lista de actividades

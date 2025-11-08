@@ -50,6 +50,106 @@
   margin-bottom: 60px;
 }
 
+/* Contenedor del header del dashboard */
+.dashboard-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dashboard-header-container .section-title {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Botón de Reporte General - Estilo compacto */
+.btn-reporte-general {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+  height: auto;
+  line-height: 1.4;
+}
+
+.btn-reporte-general:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-medium);
+}
+
+.btn-reporte-general svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.btn-reporte-text {
+  font-size: 0.75rem;
+}
+
+/* Responsive: En pantallas pequeñas, el botón se apila debajo */
+@media (max-width: 768px) {
+  .dashboard-header-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .dashboard-header-container .section-title {
+    width: 100%;
+    margin-bottom: 12px;
+  }
+  
+  .btn-reporte-general {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
+    font-size: 0.875rem;
+  }
+  
+  .btn-reporte-general svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .btn-reporte-text {
+    font-size: 0.875rem;
+    display: inline;
+  }
+}
+
+/* En pantallas muy pequeñas, mantener texto pero ajustar tamaño */
+@media (max-width: 480px) {
+  .btn-reporte-general {
+    padding: 10px 14px;
+    font-size: 0.8125rem;
+    justify-content: center;
+  }
+  
+  .btn-reporte-text {
+    display: inline;
+    font-size: 0.8125rem;
+  }
+  
+  .btn-reporte-general svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
 /* Tarjetas de Métricas */
 .metrics-grid {
   display: grid;
