@@ -4,10 +4,10 @@
 {% block extra_css %}
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=6">
-  <link rel="stylesheet" href="{% static 'css/regiones.css' %}?v=6">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=8">
+  <link rel="stylesheet" href="{% static 'css/regiones.css' %}?v=8">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
-  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=74">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 {% endblock %}
 
@@ -160,13 +160,17 @@
         <div class="detail-gallery">
           <div class="section-header">
             <h3 class="gallery-title">Fotos de la Región</h3>
-            <button class="btn-edit-item" id="addImageBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Agregar Imagen
-            </button>
+            {% if user.is_authenticated %}
+              {% if es_admin or es_personal %}
+              <button class="btn-edit-item" id="addImageBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Agregar Imagen
+              </button>
+              {% endif %}
+            {% endif %}
           </div>
           <div class="gallery-grid" id="detailGallery">
             <!-- Las imágenes se cargarán dinámicamente -->
@@ -192,13 +196,6 @@
         <div class="detail-data-section">
           <div class="section-header">
             <h3 class="data-title">Datos Generales</h3>
-            <button class="btn-edit-item" id="editDataBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-              Editar Datos
-            </button>
           </div>
           <div class="data-grid" id="detailData">
             <!-- Los datos se cargarán dinámicamente -->
@@ -209,13 +206,17 @@
         <div class="detail-description-section">
           <div class="section-header">
             <h3 class="description-title">Descripción de la Región</h3>
-            <button class="btn-edit-item" id="editDescriptionBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-              Editar Descripción
-            </button>
+            {% if user.is_authenticated %}
+              {% if es_admin or es_personal %}
+              <button class="btn-edit-item" id="editDescriptionBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                Editar Descripción
+              </button>
+              {% endif %}
+            {% endif %}
           </div>
           <div class="description-content" id="detailDescription">
             <!-- La descripción se cargará dinámicamente -->
@@ -246,22 +247,19 @@
         <div class="detail-files-section">
           <div class="section-header">
             <h3 class="files-title">Archivos de la Región</h3>
-            <div class="section-actions">
-              <button class="btn-remove-section" id="removeFileBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-                Eliminar Archivo
-              </button>
-              <button class="btn-edit-item" id="addFileBtn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                Agregar Archivo
-              </button>
-            </div>
+            {% if user.is_authenticated %}
+              {% if es_admin or es_personal %}
+              <div class="section-actions">
+                <button class="btn-edit-item" id="addFileBtn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  Agregar Archivo
+                </button>
+              </div>
+              {% endif %}
+            {% endif %}
           </div>
           <div class="files-list" id="detailFiles">
             <!-- Los archivos se cargarán dinámicamente -->
@@ -273,8 +271,10 @@
 
   <!-- ======= MODALES ======= -->
   
-  <!-- Modal para Agregar Imagen -->
-  <div id="addImageModal" class="modal">
+  {% if user.is_authenticated %}
+    {% if es_admin or es_personal %}
+    <!-- Modal para Agregar Imagen -->
+    <div id="addImageModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
         <h3 class="modal-title">Agregar Imagen</h3>
@@ -309,6 +309,25 @@
       <div class="modal-footer">
         <button type="button" id="cancelImageBtn" class="btn-secondary">Cancelar</button>
         <button type="button" id="confirmImageBtn" class="btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para visualizar una imagen -->
+  <div id="imageViewerModal" class="modal image-viewer-modal">
+    <div class="modal-content image-viewer">
+      <div class="modal-header">
+        <h3 class="modal-title" id="imageViewerTitle">Imagen de la región</h3>
+        <button class="modal-close" id="closeImageViewer">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body image-viewer-body">
+        <img id="imageViewerImg" src="" alt="Imagen ampliada">
+        <p id="imageViewerDescription" class="image-viewer-description"></p>
       </div>
     </div>
   </div>
@@ -402,10 +421,6 @@
           <div class="file-preview" id="filePreview"></div>
         </div>
         <div class="form-group">
-          <label for="fileName" class="form-label">Nombre del Archivo</label>
-          <input type="text" id="fileName" class="form-input" placeholder="Ingresa un nombre descriptivo para el archivo">
-        </div>
-        <div class="form-group">
           <label for="fileDescription" class="form-label">Descripción del Archivo</label>
           <textarea id="fileDescription" class="form-textarea" rows="3" placeholder="Describe el contenido del archivo..."></textarea>
         </div>
@@ -441,35 +456,10 @@
       </div>
     </div>
   </div>
-
-  <!-- Modal de Selección de Archivos -->
-  <div id="fileSelectionModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Seleccionar Archivos a Eliminar</h3>
-        <button class="modal-close" id="closeFileSelectionModal">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Archivos de la Región</label>
-          <div class="selection-list" id="fileSelectionList">
-            <!-- Los archivos se cargarán dinámicamente -->
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" id="cancelFileSelectionBtn" class="btn-secondary">Cancelar</button>
-        <button type="button" id="confirmFileSelectionBtn" class="btn-danger">Eliminar Seleccionados</button>
-      </div>
-    </div>
-  </div>
+    {% endif %}
+  {% endif %}
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/regiones.js' %}?v=7"></script>
+  <script src="{% static 'js/regiones.js' %}?v=12"></script>
 {% endblock %}

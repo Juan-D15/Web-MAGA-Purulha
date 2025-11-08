@@ -950,6 +950,8 @@
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s ease;
+  overflow: auto;
+  padding: 32px 16px;
 }
 
 .modal.active {
@@ -961,12 +963,13 @@
   background: #28303D;
   border-radius: 16px;
   padding: 0;
-  max-width: 500px;
-  width: 90%;
-  max-height: 90vh;
+  max-width: 560px;
+  width: 100%;
+  max-height: calc(100vh - 64px);
   overflow-y: auto;
-  transform: scale(0.9);
+  transform: scale(0.95);
   transition: transform 0.3s ease;
+  margin: 0 auto;
 }
 
 .modal.active .modal-content {

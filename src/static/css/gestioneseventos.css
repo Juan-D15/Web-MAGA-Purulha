@@ -1173,6 +1173,8 @@ label {
   opacity: 0;
   visibility: hidden;
   transition: var(--transition);
+  overflow: auto;
+  padding: 32px 16px;
 }
 
 .modal.show {
@@ -1184,11 +1186,14 @@ label {
   background: var(--background-tertiary);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
-  width: 90%;
-  max-width: 500px;
+  width: 100%;
+  max-width: 560px;
   box-shadow: var(--shadow-heavy);
-  transform: scale(0.9);
+  transform: scale(0.95);
   transition: var(--transition);
+  margin: 0 auto;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
 }
 
 .modal.show .modal-content {

@@ -847,23 +847,29 @@ html {
 .communities-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.5);
+  background: rgba(0,0,0,.55);
   display: none;
   z-index: 200;
+  padding: 64px 16px;
+  box-sizing: border-box;
+  overflow: auto;
 }
 
-.communities-modal.open { display: block; }
+.communities-modal.open {
+  display: flex;
+}
 
 .communities-modal__panel {
-  position: absolute;
-  left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(90vw, 800px);
-  max-height: 80vh;
+  width: min(900px, 100%);
+  max-height: calc(100vh - 96px);
+  margin: auto;
   background: var(--bg-800);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  display: flex; flex-direction: column;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .communities-modal__header {
@@ -879,7 +885,11 @@ html {
   width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
 }
 
-.communities-modal__body { padding: 16px; overflow: auto; }
+.communities-modal__body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
 
 .region-info-scroll {
   flex: 1;

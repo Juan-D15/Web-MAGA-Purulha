@@ -8,7 +8,7 @@
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=8">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   
   {% block extra_css %}{% endblock %}
@@ -427,6 +427,7 @@
       var userAuth = {
         isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
         isAdmin: {% if es_admin %}true{% else %}false{% endif %},
+        isPersonal: {% if es_personal %}true{% else %}false{% endif %},
         username: "{% if usuario_maga %}{{ usuario_maga.username }}{% else %}{% endif %}",
         email: "{% if usuario_maga %}{{ usuario_maga.email }}{% else %}{% endif %}"
       };
