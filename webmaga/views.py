@@ -5222,6 +5222,287 @@ def api_generar_reporte(request, report_type):
             # Ordenar por total de avances descendente (los sin avances van al final)
             data.sort(key=lambda x: (x['total_avances'], x['nombre']), reverse=True)
         
+        elif report_type == 'avances-eventos-generales':
+            # Obtener filtros específicos
+            comunidades_filtro = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
+            comunidades_filtro = [c for c in comunidades_filtro if c]
+            eventos_filtro = request.GET.get('eventos', '').split(',') if request.GET.get('eventos') else []
+            eventos_filtro = [e for e in eventos_filtro if e]
+            colaboradores_filtro = request.GET.get('colaboradores', '').split(',') if request.GET.get('colaboradores') else []
+            colaboradores_filtro = [c for c in colaboradores_filtro if c]
+            mostrar_evidencias = request.GET.get('mostrar_evidencias', 'true').lower() == 'true'
+            
+            # Construir query base para cambios de colaboradores
+            cambios_query = EventoCambioColaborador.objects.filter(
+                colaborador__isnull=False,
+                colaborador__activo=True,
+                actividad__eliminado_en__isnull=True
+            ).select_related(
+                'colaborador', 'colaborador__puesto', 'actividad', 
+                'actividad__tipo', 'actividad__comunidad', 'actividad__comunidad__region'
+            ).prefetch_related(
+                'actividad__comunidades_relacionadas__comunidad',
+                'actividad__comunidades_relacionadas__comunidad__region',
+                'actividad__comunidades_relacionadas__region'
+            )
+            
+            # Aplicar filtros de fecha
+            if fecha_inicio:
+                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio)
+            if fecha_fin:
+                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin)
+            
+            # Aplicar filtros de actividades
+            if comunidades_filtro:
+                cambios_query = cambios_query.filter(
+                    Q(actividad__comunidad_id__in=comunidades_filtro) |
+                    Q(actividad__comunidades_relacionadas__comunidad_id__in=comunidades_filtro)
+                ).distinct()
+            if eventos_filtro:
+                cambios_query = cambios_query.filter(actividad_id__in=eventos_filtro)
+            if tipo_actividad and tipo_actividad[0]:
+                tipos = TipoActividad.objects.filter(nombre__in=tipo_actividad, activo=True)
+                cambios_query = cambios_query.filter(actividad__tipo_id__in=[t.id for t in tipos])
+            if colaboradores_filtro:
+                cambios_query = cambios_query.filter(colaborador_id__in=colaboradores_filtro)
+            
+            # Prefetch evidencias si se deben mostrar
+            if mostrar_evidencias:
+                cambios_query = cambios_query.prefetch_related('evidencias')
+            
+            # Procesar cambios
+            data = []
+            for cambio in cambios_query:
+                actividad = cambio.actividad
+                colaborador = cambio.colaborador
+                
+                if not actividad or not colaborador:
+                    continue
+                
+                # Obtener comunidades del evento
+                comunidades_nombres = []
+                if actividad.comunidad:
+                    comunidades_nombres.append(actividad.comunidad.nombre)
+                
+                # También obtener de relaciones de comunidades
+                if hasattr(actividad, 'comunidades_relacionadas'):
+                    for relacion in actividad.comunidades_relacionadas.all():
+                        if relacion.comunidad and relacion.comunidad.nombre not in comunidades_nombres:
+                            comunidades_nombres.append(relacion.comunidad.nombre)
+                
+                # Obtener evidencias si se deben mostrar
+                evidencias_data = []
+                if mostrar_evidencias:
+                    evidencias_qs = cambio.evidencias.all()
+                    for evidencia in evidencias_qs:
+                        evidencias_data.append({
+                            'id': str(evidencia.id),
+                            'nombre': evidencia.archivo_nombre,
+                            'url': evidencia.url_almacenamiento,
+                            'tipo': evidencia.archivo_tipo or '',
+                            'es_imagen': evidencia.archivo_tipo and evidencia.archivo_tipo.startswith('image/'),
+                            'descripcion': evidencia.descripcion or ''
+                        })
+                
+                # Formatear fecha
+                fecha_display = ''
+                if cambio.fecha_cambio:
+                    from django.utils.timezone import localtime
+                    import pytz
+                    guatemala_tz = pytz.timezone('America/Guatemala')
+                    if timezone.is_aware(cambio.fecha_cambio):
+                        fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+                    else:
+                        fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+                    fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+                
+                data.append({
+                    'evento_id': str(actividad.id),
+                    'evento': {
+                        'id': str(actividad.id),
+                        'nombre': actividad.nombre,
+                        'estado': actividad.estado,
+                        'tipo': actividad.tipo.nombre if actividad.tipo else '-'
+                    },
+                    'comunidad': ', '.join(comunidades_nombres) if comunidades_nombres else '-',
+                    'colaborador_id': str(colaborador.id),
+                    'colaborador_nombre': colaborador.nombre,
+                    'descripcion_cambio': cambio.descripcion_cambio,
+                    'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                    'fecha_display': fecha_display,
+                    'evidencias': evidencias_data
+                })
+            
+            # El frontend espera data directamente (no en un campo 'data')
+            return JsonResponse({
+                'data': data,
+                'total': len(data)
+            })
+        
+        elif report_type == 'reporte-evento-individual':
+            # Obtener el evento específico
+            evento_id = request.GET.get('evento')
+            if not evento_id:
+                return JsonResponse({
+                    'error': 'Debe seleccionar un evento'
+                }, status=400)
+            
+            try:
+                evento = Actividad.objects.select_related(
+                    'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador', 'portada'
+                ).prefetch_related(
+                    'personal__usuario__puesto',
+                    'personal__colaborador__puesto',
+                    'beneficiarios__beneficiario__individual',
+                    'beneficiarios__beneficiario__familia',
+                    'beneficiarios__beneficiario__institucion',
+                    'beneficiarios__beneficiario__tipo',
+                    'evidencias',
+                    'archivos',
+                    'galeria_imagenes',
+                    'cambios__responsable',
+                    'cambios_colaboradores__colaborador',
+                    'cambios_colaboradores__evidencias',
+                    'comunidades_relacionadas__comunidad__region',
+                    'comunidades_relacionadas__region'
+                ).get(id=evento_id, eliminado_en__isnull=True)
+                
+                # Personal asignado
+                personal_data = []
+                for ap in evento.personal.all():
+                    if ap.usuario:
+                        personal_data.append({
+                            'id': str(ap.usuario.id),
+                            'username': ap.usuario.username,
+                            'nombre': ap.usuario.nombre or ap.usuario.username,
+                            'rol': ap.rol_en_actividad,
+                            'rol_display': ap.usuario.get_rol_display() if hasattr(ap.usuario, 'get_rol_display') else ap.usuario.rol,
+                            'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else 'Sin puesto',
+                            'tipo': 'usuario'
+                        })
+                    elif ap.colaborador:
+                        personal_data.append({
+                            'id': str(ap.colaborador.id),
+                            'username': ap.colaborador.correo or '',
+                            'nombre': ap.colaborador.nombre,
+                            'rol': ap.rol_en_actividad,
+                            'rol_display': 'Personal Fijo' if ap.colaborador.es_personal_fijo else 'Colaborador Externo',
+                            'puesto': ap.colaborador.puesto.nombre if ap.colaborador.puesto else 'Sin puesto',
+                            'tipo': 'colaborador'
+                        })
+                
+                # Beneficiarios
+                beneficiarios_data = []
+                for ab in evento.beneficiarios.all():
+                    benef = ab.beneficiario
+                    nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(benef)
+                    if benef.tipo and hasattr(benef.tipo, 'get_nombre_display'):
+                        tipo_display = benef.tipo.get_nombre_display()
+                    else:
+                        tipo_display = tipo_envio.title() if tipo_envio else ''
+                    beneficiarios_data.append({
+                        'id': str(benef.id),
+                        'tipo': tipo_envio,
+                        'nombre': nombre_display,
+                        'info_adicional': info_adicional,
+                        'tipo_display': tipo_display,
+                        'detalles': detalles
+                    })
+                
+                # Galería de imágenes (desde eventos_galeria)
+                evidencias_data = []
+                for imagen in evento.galeria_imagenes.all():
+                    evidencias_data.append({
+                        'id': str(imagen.id),
+                        'nombre': imagen.archivo_nombre,
+                        'url': imagen.url_almacenamiento,
+                        'tipo': imagen.archivo_tipo or '',
+                        'es_imagen': True,
+                        'descripcion': imagen.descripcion or ''
+                    })
+                
+                # Archivos del proyecto (evidencias no-imágenes + archivos de actividad_archivos)
+                archivos_data = []
+                # Evidencias que NO son imágenes (archivos)
+                for evidencia in evento.evidencias.filter(es_imagen=False):
+                    archivos_data.append({
+                        'id': str(evidencia.id),
+                        'nombre': evidencia.archivo_nombre,
+                        'url': evidencia.url_almacenamiento,
+                        'tipo': evidencia.archivo_tipo or 'application/octet-stream',
+                        'tamanio': evidencia.archivo_tamanio,
+                        'descripcion': evidencia.descripcion or '',
+                        'es_evidencia': True
+                    })
+                # Archivos de actividad_archivos
+                for archivo in evento.archivos.all():
+                    archivos_data.append({
+                        'id': str(archivo.id),
+                        'nombre': archivo.nombre_archivo,
+                        'url': archivo.url_almacenamiento,
+                        'tipo': archivo.archivo_tipo or 'application/octet-stream',
+                        'tamanio': archivo.archivo_tamanio,
+                        'descripcion': archivo.descripcion or '',
+                        'es_evidencia': False
+                    })
+                
+                # Ubicación
+                ubicacion = 'Sin ubicación'
+                if evento.comunidad:
+                    if evento.comunidad.region:
+                        ubicacion = f"{evento.comunidad.nombre}, {evento.comunidad.region.nombre}"
+                    else:
+                        ubicacion = evento.comunidad.nombre
+                
+                # Convertir fechas
+                try:
+                    if evento.fecha:
+                        fecha_str = evento.fecha.strftime('%Y-%m-%d')
+                        fecha_display = evento.fecha.strftime('%d/%m/%Y')
+                    else:
+                        fecha_str = ''
+                        fecha_display = ''
+                except:
+                    fecha_str = ''
+                    fecha_display = ''
+                
+                # Obtener cambios (siempre, incluso si está vacío)
+                cambios_data = obtener_cambios_evento(evento)
+                
+                # Construir objeto de evento
+                evento_data = {
+                    'id': str(evento.id),
+                    'nombre': evento.nombre or 'Sin nombre',
+                    'tipo': evento.tipo.nombre if evento.tipo else 'Sin tipo',
+                    'descripcion': evento.descripcion or '',
+                    'ubicacion': ubicacion,
+                    'comunidad': evento.comunidad.nombre if evento.comunidad else 'Sin comunidad',
+                    'region': evento.comunidad.region.nombre if evento.comunidad and evento.comunidad.region else None,
+                    'fecha': fecha_str,
+                    'fecha_display': fecha_display,
+                    'estado': evento.estado,
+                    'responsable': (evento.responsable.nombre if evento.responsable and evento.responsable.nombre else evento.responsable.username) if evento.responsable else 'Sin responsable',
+                    'personal': personal_data,
+                    'beneficiarios': beneficiarios_data,
+                    'evidencias': evidencias_data,
+                    'archivos': archivos_data,
+                    'portada': obtener_portada_evento(evento),
+                    'cambios': cambios_data  # Siempre incluir, incluso si está vacío
+                }
+                
+                # El frontend espera data.evento (no data.data)
+                return JsonResponse({
+                    'data': {
+                        'evento': evento_data
+                    },
+                    'total': 1
+                })
+                
+            except Actividad.DoesNotExist:
+                return JsonResponse({
+                    'error': 'Evento no encontrado'
+                }, status=404)
+        
         else:
             # Reporte genérico: lista de actividades
             actividades = actividades_query.select_related(
