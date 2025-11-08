@@ -21,7 +21,7 @@ dist/
 
 # Base de datos local (por si creas sqlite para pruebas)
 db.sqlite3
-tmp_remote_views.py
+
 # Variables de entorno (¡no subir credenciales!)
 .env
 .env.*
