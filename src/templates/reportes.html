@@ -6,7 +6,7 @@
 {% block header_subtitle %}Reportes y Estadísticas{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=3.10">
+<link rel="stylesheet" href="{% static 'css/reportes.css' %}?v=3.16">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {% endblock %}
 
@@ -260,44 +260,33 @@
         </div>
       </div>
 
-      <!-- Categoría 3: Reportes de Evidencia -->
+      <!-- Categoría 3: Reportes de Avances -->
       <div class="category-section">
-        <h3 class="category-title">Reportes de Evidencia</h3>
+        <h3 class="category-title">Reportes de Avances</h3>
         <div class="reports-grid">
-          <div class="report-card" data-report-type="actividades-con-evidencias">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-            </div>
-            <h4 class="card-title">Actividades con/sin Evidencias</h4>
-            <p class="card-description">Estado de evidencias en actividades</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="evidencias-por-actividad">
-            <div class="card-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-            </div>
-            <h4 class="card-title">Evidencias por Actividad</h4>
-            <p class="card-description">Cantidad de evidencias por actividad</p>
-            <button class="card-button">Generar Reporte</button>
-          </div>
-
-          <div class="report-card" data-report-type="avances-con-evidencias">
+          <div class="report-card" data-report-type="avances-eventos-generales">
             <div class="card-icon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
               </svg>
             </div>
-            <h4 class="card-title">Avances de Proyectos con Evidencias</h4>
-            <p class="card-description">Proyectos con evidencias y sus avances</p>
+            <h4 class="card-title">Avances de Eventos Generales</h4>
+            <p class="card-description">Listado de avances con descripción y evidencias</p>
+            <button class="card-button">Generar Reporte</button>
+          </div>
+
+          <div class="report-card" data-report-type="reporte-evento-individual">
+            <div class="card-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+            </div>
+            <h4 class="card-title">Reporte de Evento Individual</h4>
+            <p class="card-description">Detalles completos de un evento con avances y evidencias</p>
             <button class="card-button">Generar Reporte</button>
           </div>
         </div>
@@ -676,6 +665,128 @@
             </div>
           </div>
           
+          <!-- Formulario: Avances de Eventos Generales -->
+          <div class="report-form" id="form-avances-eventos-generales" style="display: none;">
+            <div class="filters-grid">
+              <!-- Período de Fechas -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Período de Fechas</label>
+                <select class="filter-select" id="filterPeriodoAvances">
+                  <option value="todo">Todo el tiempo</option>
+                  <option value="ultimo_mes">Último mes</option>
+                  <option value="ultima_semana">Esta última semana</option>
+                  <option value="rango">Rango de fechas</option>
+                </select>
+                <div class="date-range-container" id="dateRangeAvances" style="display: none; margin-top: 12px;">
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Inicio</label>
+                    <input type="date" class="filter-input" id="filterFechaInicioAvances">
+                  </div>
+                  <div class="filter-group">
+                    <label class="filter-label">Fecha Fin</label>
+                    <input type="date" class="filter-input" id="filterFechaFinAvances">
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Buscar Comunidad -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Buscar Comunidad</label>
+                <div class="search-input-container">
+                  <input type="text" class="filter-input filter-search" id="searchComunidadAvances" placeholder="Buscar comunidades...">
+                  <div class="search-results" id="searchResultsComunidadAvances" style="display: none;"></div>
+                </div>
+              </div>
+              
+              <!-- Filtrar por Evento -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Evento</label>
+                  <span class="toggle-icon" id="toggleIconEventosAvances" style="cursor: pointer;" onclick="toggleChecklist('eventosAvances')">▶</span>
+                </div>
+                <div id="selectedEventosAvancesTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchEventoAvances" placeholder="Buscar evento...">
+                </div>
+                <div id="eventosAvancesContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterEventosAvances" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+              </div>
+              
+              <!-- Tipo de Actividad -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Actividad</label>
+                <div class="filter-checkboxes" id="filterTipoActividadAvances">
+                  <label><input type="checkbox" value="Capacitación" checked> Capacitación</label>
+                  <label><input type="checkbox" value="Entrega" checked> Entrega</label>
+                  <label><input type="checkbox" value="Proyecto de Ayuda" checked> Proyecto de Ayuda</label>
+                </div>
+              </div>
+              
+              <!-- Filtrar por Colaborador -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Colaborador</label>
+                  <span class="toggle-icon" id="toggleIconColaboradoresAvances" style="cursor: pointer;" onclick="toggleChecklist('colaboradoresAvances')">▶</span>
+                </div>
+                <div id="selectedColaboradoresAvancesTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchColaboradorAvances" placeholder="Buscar colaborador...">
+                </div>
+                <div id="colaboradoresAvancesContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterColaboradoresAvances" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+              </div>
+              
+              <!-- Mostrar Archivos de Evidencias -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Mostrar Archivos de Evidencias</label>
+                <div class="filter-checkboxes">
+                  <label><input type="checkbox" id="filterMostrarEvidenciasAvances" checked> Sí</label>
+                </div>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('avances-eventos-generales')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('avances-eventos-generales')">Aplicar Filtros</button>
+            </div>
+          </div>
+          
+          <!-- Formulario: Reporte de Evento Individual -->
+          <div class="report-form" id="form-reporte-evento-individual" style="display: none;">
+            <div class="filters-grid">
+              <!-- Tipo de Actividad -->
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Actividad</label>
+                <div class="filter-checkboxes" id="filterTipoActividadIndividual">
+                  <label><input type="checkbox" value="todos" checked> Todos</label>
+                  <label><input type="checkbox" value="Capacitación"> Capacitación</label>
+                  <label><input type="checkbox" value="Entrega"> Entrega</label>
+                  <label><input type="checkbox" value="Proyecto de Ayuda"> Proyecto de Ayuda</label>
+                </div>
+              </div>
+              
+              <!-- Filtrar por Evento (solo uno) -->
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Seleccionar Evento</label>
+                  <span class="toggle-icon" id="toggleIconEventoIndividual" style="cursor: pointer;" onclick="toggleChecklist('eventoIndividual')">▶</span>
+                </div>
+                <div id="selectedEventoIndividualTag" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchEventoIndividual" placeholder="Buscar evento...">
+                </div>
+                <div id="eventoIndividualContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterEventoIndividual" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" onclick="resetFiltersForm('reporte-evento-individual')">Limpiar Filtros</button>
+              <button class="btn-primary" onclick="applyFiltersForm('reporte-evento-individual')">Aplicar Filtros</button>
+            </div>
+          </div>
+          
           <!-- Formulario genérico para otros reportes -->
           <div class="report-form" id="form-generic" style="display: none;">
             <div class="filters-grid">
@@ -780,6 +891,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/reportes.js' %}?v=3.14"></script>
+<script src="{% static 'js/reportes.js' %}?v=3.17"></script>
 {% endblock %}
 

@@ -314,12 +314,15 @@ def obtener_cambios_evento(evento):
         evidencias_qs = cambio.evidencias.all()
         print(f'📎 Evidencias encontradas para cambio {cambio.id}: {evidencias_qs.count()}')
         for evidencia in evidencias_qs:
+            archivo_tipo = evidencia.archivo_tipo or ''
+            es_imagen = archivo_tipo.startswith('image/') if archivo_tipo else False
             evidencias_data.append(
                 {
                     'id': str(evidencia.id),
                     'nombre': evidencia.archivo_nombre,
                     'url': evidencia.url_almacenamiento,
-                    'tipo': evidencia.archivo_tipo or '',
+                    'tipo': archivo_tipo,
+                    'es_imagen': es_imagen,
                     'descripcion': evidencia.descripcion or '',
                 }
             )

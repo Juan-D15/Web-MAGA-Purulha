@@ -1940,3 +1940,21 @@ CREATE INDEX idx_eventos_evidencias_cambios_creado_en ON eventos_evidencias_camb
 
 COMMENT ON TABLE eventos_evidencias_cambios IS 'Evidencias (archivos) asociadas a cambios realizados en eventos/actividades';
 
+
+
+CREATE TABLE eventos_cambios_colaboradores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    colaborador_id UUID REFERENCES colaboradores(id) ON DELETE SET NULL,
+    descripcion_cambio TEXT NOT NULL,
+    fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ãndices para la nueva tabla
+CREATE INDEX idx_eventos_cambios_colab_actividad ON eventos_cambios_colaboradores(actividad_id);
+CREATE INDEX idx_eventos_cambios_colab_colaborador ON eventos_cambios_colaboradores(colaborador_id);
+CREATE INDEX idx_eventos_cambios_colab_fecha ON eventos_cambios_colaboradores(fecha_cambio DESC);
+
+COMMENT ON TABLE eventos_cambios_colaboradores IS 'Cambios registrados por colaboradores en eventos/actividades';
+COMMENT ON COLUMN eventos_cambios_colaboradores.colaborador_id IS 'Colaborador que registró el cambio
