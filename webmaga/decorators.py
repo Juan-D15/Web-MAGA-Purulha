@@ -82,6 +82,38 @@ def permiso_gestionar_eventos_api(view_func):
     return wrapper
 
 
+def permiso_admin_o_personal_api(view_func):
+    """
+    Decorador genérico para APIs que requieren rol administrador o personal.
+    Devuelve respuestas JSON con códigos adecuados cuando no existen permisos.
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+
+        usuario_maga = get_usuario_maga(request.user)
+
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no encontrado'
+            }, status=401)
+
+        if usuario_maga.rol not in ['admin', 'personal']:
+            return JsonResponse({
+                'success': False,
+                'error': 'No tienes permisos para realizar esta acción'
+            }, status=403)
+
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
+
+
 def permiso_gestionar_eventos(view_func):
     """
     Decorador que permite solo a administradores gestionar eventos.
