@@ -190,6 +190,7 @@
       drawer.removeAttribute('inert');
       btnHamburger.setAttribute('aria-expanded', 'true');
       document.body.style.overflow = 'hidden';
+      drawerOpen = true;
     };
 
     const closeDrawer = () => {
@@ -198,9 +199,22 @@
       drawer.setAttribute('inert', '');
       btnHamburger.setAttribute('aria-expanded', 'false');
       document.body.style.overflow = '';
+      drawerOpen = false;
     };
 
-    btnHamburger.addEventListener('click', openDrawer);
+    let drawerOpen = false;
+
+    const handleDrawerToggle = () => {
+      if (drawerOpen) {
+        closeDrawer();
+        drawerOpen = false;
+      } else {
+        openDrawer();
+        drawerOpen = true;
+      }
+    };
+
+    btnHamburger.addEventListener('click', handleDrawerToggle);
     btnCloseDrawer.addEventListener('click', closeDrawer);
     drawer.addEventListener('click', (e) => {
       if (e.target === drawer) closeDrawer();
