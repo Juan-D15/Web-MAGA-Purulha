@@ -829,14 +829,26 @@ function handleFileSelect(event) {
   
   preview.innerHTML = `
     <div class="file-preview-item">
-      <div class="file-icon">${getFileIcon(file.name.split('.').pop())}</div>
+      <div class="file-icon">${getFileIcon(file.name.split('.').pop().toLowerCase())}</div>
       <div class="file-name">${file.name}</div>
+      <button type="button" class="file-preview-remove" data-role="region-file-remove">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        Quitar
+      </button>
     </div>
   `;
 }
 
 // Función para agregar archivo a la región
 async function addFileToRegion() {
+  if (!CAN_EDIT_REGIONS) {
+    showErrorMessage('No tienes permisos para agregar archivos.');
+    return;
+  }
+
   if (!currentRegionId) {
     showErrorMessage('No se pudo identificar la región seleccionada.');
     return;
@@ -1051,6 +1063,11 @@ function handleImageFileSelect(event) {
 }
 
 async function addImageToRegion() {
+  if (!CAN_EDIT_REGIONS) {
+    showErrorMessage('No tienes permisos para agregar imágenes.');
+    return;
+  }
+
   const fileInput = document.getElementById('imageFileInput');
   const description = document.getElementById('imageDescription').value;
   
@@ -1649,5 +1666,12 @@ document.addEventListener('click', function(e) {
     const fileId = fileDeleteButton.getAttribute('data-file-id');
     const encodedName = fileDeleteButton.getAttribute('data-file-name');
     confirmDeleteRegionFile(fileId, encodedName);
-          }
+    return;
+  }
+
+  const previewRemoveButton = e.target.closest('.file-preview-remove[data-role="region-file-remove"]');
+  if (previewRemoveButton) {
+    e.preventDefault();
+    clearFileForm();
+  }
 });

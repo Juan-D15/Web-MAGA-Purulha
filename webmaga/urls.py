@@ -29,6 +29,13 @@ urlpatterns = [
     path('api/region/<uuid:region_id>/archivo/agregar/', views.api_agregar_archivo_region, name='api-agregar-archivo-region'),
     path('api/region/<uuid:region_id>/archivo/<uuid:archivo_id>/eliminar/', views.api_eliminar_archivo_region, name='api-eliminar-archivo-region'),
     path('api/comunidades/', views.api_comunidades, name='api-comunidades'),
+    path('api/comunidad/<uuid:comunidad_id>/', views.api_comunidad_detalle, name='api-comunidad-detalle'),
+    path('api/comunidad/<uuid:comunidad_id>/datos/', views.api_actualizar_comunidad_datos, name='api-actualizar-comunidad-datos'),
+    path('api/comunidad/<uuid:comunidad_id>/galeria/agregar/', views.api_agregar_imagen_comunidad, name='api-agregar-imagen-comunidad'),
+    path('api/comunidad/<uuid:comunidad_id>/galeria/<uuid:imagen_id>/eliminar/', views.api_eliminar_imagen_comunidad, name='api-eliminar-imagen-comunidad'),
+    path('api/comunidad/<uuid:comunidad_id>/descripcion/', views.api_actualizar_comunidad_descripcion, name='api-actualizar-comunidad-descripcion'),
+    path('api/comunidad/<uuid:comunidad_id>/archivos/agregar/', views.api_agregar_archivo_comunidad, name='api-agregar-archivo-comunidad'),
+    path('api/comunidad/<uuid:comunidad_id>/archivos/<uuid:archivo_id>/eliminar/', views.api_eliminar_archivo_comunidad, name='api-eliminar-archivo-comunidad'),
     path('api/actividades/', views.api_actividades, name='api-actividades'),
     path('api/tipos-actividad/', views.api_tipos_actividad, name='api-tipos-actividad'),
     

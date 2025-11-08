@@ -2,7 +2,7 @@ from django.http import JsonResponse
 from django.db import connection
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from django.db.models import Count, Q, Sum, Avg, Max, Min, F
+from django.db.models import Count, Q, Sum, Avg, Max, Min, F, Prefetch
 from django.db.models.functions import TruncMonth, TruncYear, Extract
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
@@ -12,14 +12,16 @@ from django.contrib.auth import authenticate
 import os
 import json
 from datetime import datetime
+import unicodedata
+import re
 from .models import (
-    Region, Comunidad, Actividad, TipoActividad, 
+    Region, Comunidad, Actividad, TipoActividad,
     Beneficiario, BeneficiarioIndividual, BeneficiarioFamilia, BeneficiarioInstitucion,
     TipoBeneficiario, Usuario, TipoComunidad, ActividadPersonal,
     Colaborador, Puesto,
     ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
     EventoCambioColaborador, ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios,
-    RegionGaleria, RegionArchivo
+    RegionGaleria, RegionArchivo, ComunidadGaleria, ComunidadArchivo, ComunidadAutoridad
 )
 from .decorators import (
     solo_administrador,
@@ -285,6 +287,240 @@ def api_region_detalle(request, region_id):
     return response
 
 
+def _normalize_label(value):
+    if not value:
+        return ''
+    normalized = unicodedata.normalize('NFKD', value)
+    normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+    return normalized.strip().lower()
+
+
+_COMUNIDAD_TITULOS_PREDEFINIDOS = {
+    'poblacion',
+    'población',
+    'coordenadas',
+    'cocode',
+    'telefono cocode',
+    'teléfono cocode',
+    'tipo de comunidad',
+}
+
+
+def _serialize_comunidad_detalle(comunidad):
+    """Devuelve un diccionario serializado con la información completa de la comunidad."""
+    galeria_prefetch = getattr(comunidad, 'galeria_api', None)
+    if galeria_prefetch is None:
+        galeria_prefetch = comunidad.galeria.order_by('-creado_en').all()
+
+    fotos = [
+        {
+            'id': str(img.id),
+            'url': img.url_almacenamiento,
+            'description': img.descripcion or 'Imagen de la comunidad',
+        }
+        for img in galeria_prefetch
+    ]
+
+    cover_image = fotos[0]['url'] if fotos else DEFAULT_COMUNIDAD_IMAGE_LARGE
+
+    archivos_prefetch = getattr(comunidad, 'archivos_api', None)
+    if archivos_prefetch is None:
+        archivos_prefetch = comunidad.archivos.order_by('-creado_en').all()
+
+    archivos = [
+        {
+            'id': str(archivo.id),
+            'name': archivo.nombre_archivo,
+            'description': archivo.descripcion or '',
+            'type': archivo.archivo_tipo or 'archivo',
+            'url': archivo.url_almacenamiento,
+            'date': archivo.creado_en.isoformat() if archivo.creado_en else None,
+        }
+        for archivo in archivos_prefetch
+    ]
+
+    autoridades_prefetch = getattr(comunidad, 'autoridades_api', None)
+    if autoridades_prefetch is None:
+        autoridades_prefetch = comunidad.autoridades.filter(activo=True).order_by('nombre')
+
+    autoridades = [
+        {
+            'name': autoridad.nombre,
+            'role': autoridad.rol,
+            'phone': autoridad.telefono or '',
+        }
+        for autoridad in autoridades_prefetch
+    ]
+
+    actividades = (
+        Actividad.objects.filter(
+            eliminado_en__isnull=True,
+            comunidad=comunidad,
+        )
+        .select_related('tipo')
+        .order_by('-fecha')[:10]
+    )
+
+    proyectos = [
+        {
+            'name': actividad.nombre,
+            'type': actividad.tipo.nombre if actividad.tipo else 'Actividad',
+            'status': actividad.get_estado_display(),
+            'date': actividad.fecha.isoformat() if actividad.fecha else None,
+        }
+        for actividad in actividades
+    ]
+
+    poblacion_texto = f'{comunidad.poblacion:,} habitantes' if comunidad.poblacion is not None else ''
+
+    if comunidad.latitud is not None and comunidad.longitud is not None:
+        coordenadas_texto = f'{comunidad.latitud}, {comunidad.longitud}'
+    else:
+        coordenadas_texto = ''
+
+    data_cards = [
+        {
+            'icon': '👥',
+            'label': 'Población',
+            'value': poblacion_texto,
+            'is_default': True,
+            'has_value': bool(poblacion_texto),
+        },
+        {
+            'icon': '🧭',
+            'label': 'Coordenadas',
+            'value': coordenadas_texto,
+            'is_default': True,
+            'has_value': bool(coordenadas_texto),
+        },
+        {
+            'icon': '👤',
+            'label': 'COCODE',
+            'value': comunidad.cocode or '',
+            'is_default': True,
+            'has_value': bool(comunidad.cocode),
+        },
+        {
+            'icon': '📞',
+            'label': 'Teléfono COCODE',
+            'value': comunidad.telefono_cocode or '',
+            'is_default': True,
+            'has_value': bool(comunidad.telefono_cocode),
+        },
+        {
+            'icon': '🏘️',
+            'label': 'Tipo de Comunidad',
+            'value': comunidad.tipo.get_nombre_display() if comunidad.tipo else '',
+            'is_default': True,
+            'has_value': bool(comunidad.tipo),
+        },
+    ]
+
+    tarjetas_custom = []
+    tarjetas_qs = (
+        TarjetaDato.objects.filter(entidad_tipo='comunidad', entidad_id=comunidad.id)
+        .order_by('orden', 'creado_en')
+        .distinct()
+    )
+
+    ids_vistos = set()
+    for tarjeta in tarjetas_qs:
+        tarjeta_id = str(tarjeta.id)
+        if tarjeta_id in ids_vistos:
+            continue
+        ids_vistos.add(tarjeta_id)
+
+        titulo_norm = _normalize_label(tarjeta.titulo)
+        if titulo_norm in _COMUNIDAD_TITULOS_PREDEFINIDOS:
+            continue
+
+        tarjetas_custom.append(
+            {
+                'id': tarjeta_id,
+                'title': tarjeta.titulo,
+                'value': tarjeta.valor or '',
+                'icon': tarjeta.icono or '',
+                'order': tarjeta.orden,
+            }
+        )
+
+    tarjetas_custom.sort(key=lambda card: (card.get('order') or 0, card['title'].lower()))
+
+    coordinates = None
+    if comunidad.latitud is not None and comunidad.longitud is not None:
+        coordinates = f'{comunidad.latitud}, {comunidad.longitud}'
+
+    location_text = ''
+    if comunidad.region:
+        location_text = f'Región {comunidad.region.codigo} • {comunidad.region.nombre}'
+
+    return {
+        'id': str(comunidad.id),
+        'codigo': comunidad.codigo,
+        'nombre': comunidad.nombre,
+        'descripcion': comunidad.descripcion or '',
+        'region': {
+            'id': str(comunidad.region.id) if comunidad.region else None,
+            'codigo': comunidad.region.codigo if comunidad.region else None,
+            'nombre': comunidad.region.nombre if comunidad.region else None,
+        } if comunidad.region else None,
+        'tipo': comunidad.tipo.get_nombre_display() if comunidad.tipo else '',
+        'poblacion': comunidad.poblacion,
+        'latitud': float(comunidad.latitud) if comunidad.latitud is not None else None,
+        'longitud': float(comunidad.longitud) if comunidad.longitud is not None else None,
+        'coordinates': coordinates,
+        'cocode': comunidad.cocode or '',
+        'telefono_cocode': comunidad.telefono_cocode or '',
+        'photos': fotos,
+        'files': archivos,
+        'projects': proyectos,
+        'autoridades': autoridades,
+        'data': data_cards,
+        'custom_cards': tarjetas_custom,
+        'cover_image': cover_image,
+        'location': location_text,
+        'actualizado_en': comunidad.actualizado_en.isoformat() if comunidad.actualizado_en else None,
+        'creado_en': comunidad.creado_en.isoformat() if comunidad.creado_en else None,
+    }
+
+
+@require_http_methods(["GET"])
+def api_comunidad_detalle(request, comunidad_id):
+    """API: Obtener detalle completo de una comunidad"""
+    try:
+        comunidad = (
+            Comunidad.objects.select_related('region', 'tipo')
+            .prefetch_related(
+                Prefetch(
+                    'galeria',
+                    queryset=ComunidadGaleria.objects.order_by('-creado_en'),
+                    to_attr='galeria_api',
+                ),
+                Prefetch(
+                    'archivos',
+                    queryset=ComunidadArchivo.objects.order_by('-creado_en'),
+                    to_attr='archivos_api',
+                ),
+                Prefetch(
+                    'autoridades',
+                    queryset=ComunidadAutoridad.objects.filter(activo=True).order_by('nombre'),
+                    to_attr='autoridades_api',
+                ),
+            )
+            .get(id=comunidad_id, activo=True)
+        )
+    except Comunidad.DoesNotExist:
+        return JsonResponse({'error': 'Comunidad no encontrada'}, status=404)
+
+    payload = _serialize_comunidad_detalle(comunidad)
+
+    response = JsonResponse(payload)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
+
+
 @require_http_methods(["POST"])
 @permiso_admin_o_personal_api
 def api_actualizar_region_descripcion(request, region_id):
@@ -533,14 +769,37 @@ def api_tipos_actividad(request):
 def api_comunidades(request):
     """API: Listar todas las comunidades"""
     region_id = request.GET.get('region_id')
-    
-    comunidades_query = Comunidad.objects.filter(activo=True).select_related('tipo', 'region')
-    
+
+    comunidades_query = (
+        Comunidad.objects.filter(activo=True)
+        .select_related('tipo', 'region')
+        .annotate(
+            num_actividades=Count(
+                'actividades',
+                filter=Q(actividades__eliminado_en__isnull=True),
+                distinct=True,
+            )
+        )
+        .prefetch_related(
+            Prefetch(
+                'galeria',
+                queryset=ComunidadGaleria.objects.order_by('-creado_en'),
+                to_attr='galeria_api',
+            )
+        )
+        .order_by('region__codigo', 'nombre')
+    )
+
     if region_id:
         comunidades_query = comunidades_query.filter(region_id=region_id)
-    
+
     comunidades = []
     for com in comunidades_query:
+        primera_imagen = None
+        galeria = getattr(com, 'galeria_api', None)
+        if galeria:
+            primera_imagen = galeria[0].url_almacenamiento
+
         comunidades.append({
             'id': str(com.id),
             'codigo': com.codigo,
@@ -553,10 +812,19 @@ def api_comunidades(request):
             } if com.region else None,
             'poblacion': com.poblacion,
             'cocode': com.cocode,
-            'telefono_cocode': com.telefono_cocode
+            'telefono_cocode': com.telefono_cocode,
+            'has_projects': com.num_actividades > 0,
+            'num_actividades': com.num_actividades,
+            'actualizado_en': com.actualizado_en.isoformat() if com.actualizado_en else None,
+            'creado_en': com.creado_en.isoformat() if com.creado_en else None,
+            'imagen_url': primera_imagen or DEFAULT_COMUNIDAD_IMAGE_SMALL,
         })
-    
-    return JsonResponse(comunidades, safe=False)
+
+    response = JsonResponse(comunidades, safe=False)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 def api_actividades(request):
@@ -5435,3 +5703,555 @@ def api_exportar_reporte(request, report_type):
     return JsonResponse({
         'error': 'Funcionalidad de exportación aún no implementada'
     }, status=501)
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_actualizar_comunidad_datos(request, comunidad_id):
+    """API: Actualizar datos generales y tarjetas personalizadas de una comunidad."""
+    try:
+        comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+    except Comunidad.DoesNotExist:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Comunidad no encontrada',
+            },
+            status=404,
+        )
+
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Datos inválidos',
+            },
+            status=400,
+        )
+
+    coordenadas = (payload.get('coordenadas') or '').strip()
+    cocode = (payload.get('cocode') or '').strip()
+    telefono_cocode = (payload.get('telefono_cocode') or '').strip()
+
+    cocode = re.sub(r'\s+', ' ', cocode)
+    telefono_cocode = re.sub(r'\s+', '', telefono_cocode)
+    coordenadas = re.sub(r'\s+', ' ', coordenadas)
+    coordenadas = re.sub(r'\s*,\s*', ', ', coordenadas)
+
+    nombre_regex = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\s-]+$")
+    coords_regex = re.compile(r"^-?\d{1,3}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?$")
+
+    if not cocode:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'El nombre del COCODE es obligatorio.',
+            },
+            status=400,
+        )
+
+    if len(cocode) > 100:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'El nombre del COCODE no puede superar 100 caracteres.',
+            },
+            status=400,
+        )
+
+    if not nombre_regex.fullmatch(cocode):
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'El nombre del COCODE solo puede contener letras, espacios, apóstrofes o guiones.',
+            },
+            status=400,
+        )
+
+    if not telefono_cocode:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'El teléfono del COCODE es obligatorio.',
+            },
+            status=400,
+        )
+
+    if not re.fullmatch(r"\d{8}", telefono_cocode):
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'El teléfono del COCODE debe tener exactamente 8 dígitos numéricos.',
+            },
+            status=400,
+        )
+
+    if coordenadas and not coords_regex.fullmatch(coordenadas):
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Las coordenadas deben tener el formato "latitud, longitud" con números válidos.',
+            },
+            status=400,
+        )
+
+    poblacion = payload.get('poblacion')
+    if poblacion in (None, '', 'null'):
+        poblacion_valor = None
+    else:
+        try:
+            poblacion_valor = int(poblacion)
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {
+                    'success': False,
+                    'error': 'La población debe ser un número entero.',
+                },
+                status=400,
+            )
+
+    if coordenadas and (latitud is None or longitud is None):
+        partes = [p.strip() for p in coordenadas.split(',') if p.strip()]
+        if len(partes) == 2:
+            try:
+                latitud = float(partes[0])
+                longitud = float(partes[1])
+            except ValueError:
+                latitud = comunidad.latitud
+                longitud = comunidad.longitud
+        else:
+            latitud = comunidad.latitud
+            longitud = comunidad.longitud
+
+    if latitud in ('', None):
+        latitud = None
+    if longitud in ('', None):
+        longitud = None
+
+    comunidad.poblacion = poblacion_valor
+    comunidad.cocode = cocode or None
+    comunidad.telefono_cocode = telefono_cocode or None
+    comunidad.latitud = latitud
+    comunidad.longitud = longitud
+    comunidad.actualizado_en = timezone.now()
+    comunidad.save(
+        update_fields=[
+            'poblacion',
+            'cocode',
+            'telefono_cocode',
+            'latitud',
+            'longitud',
+            'actualizado_en',
+        ]
+    )
+
+    tarjetas_existentes = {
+        _normalize_label(tarjeta.titulo): tarjeta
+        for tarjeta in TarjetaDato.objects.filter(entidad_tipo='comunidad', entidad_id=comunidad.id)
+        if _normalize_label(tarjeta.titulo) in _COMUNIDAD_TITULOS_PREDEFINIDOS
+    }
+
+    if latitud is not None and longitud is not None:
+        coord_texto = f"{latitud}, {longitud}"
+    else:
+        coord_texto = (coordenadas or '').strip()
+
+    valor_poblacion = ''
+    if poblacion_valor is not None:
+        valor_poblacion = f"{poblacion_valor:,} habitantes"
+
+    predefined_cards = [
+        {
+            'titulo': 'Población',
+            'valor': valor_poblacion,
+            'icono': '👥',
+            'orden': 0,
+        },
+        {
+            'titulo': 'Coordenadas',
+            'valor': coord_texto,
+            'icono': '🧭',
+            'orden': 1,
+        },
+        {
+            'titulo': 'COCODE',
+            'valor': comunidad.cocode or '',
+            'icono': '👤',
+            'orden': 2,
+        },
+        {
+            'titulo': 'Teléfono COCODE',
+            'valor': comunidad.telefono_cocode or '',
+            'icono': '📞',
+            'orden': 3,
+        },
+        {
+            'titulo': 'Tipo de Comunidad',
+            'valor': comunidad.tipo.get_nombre_display() if comunidad.tipo else '',
+            'icono': '🏘️',
+            'orden': 4,
+        },
+    ]
+
+    for card in predefined_cards:
+        titulo_norm = _normalize_label(card['titulo'])
+        tarjeta_existente = tarjetas_existentes.get(titulo_norm)
+        valor_raw = card['valor']
+        if isinstance(valor_raw, str):
+            valor_limpio = valor_raw.strip()
+        else:
+            valor_limpio = str(valor_raw) if valor_raw is not None else ''
+
+        if tarjeta_existente:
+            tarjeta_existente.titulo = card['titulo']
+            tarjeta_existente.valor = valor_limpio
+            tarjeta_existente.icono = card['icono']
+            tarjeta_existente.orden = card['orden']
+            tarjeta_existente.save(update_fields=['titulo', 'valor', 'icono', 'orden', 'actualizado_en'])
+        else:
+            TarjetaDato.objects.create(
+                entidad_tipo='comunidad',
+                entidad_id=comunidad.id,
+                titulo=card['titulo'],
+                valor=valor_limpio,
+                icono=card['icono'],
+                orden=card['orden'],
+            )
+
+    payload_actualizado = _serialize_comunidad_detalle(comunidad)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Datos actualizados exitosamente.',
+            'comunidad': payload_actualizado,
+        }
+    )
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_agregar_imagen_comunidad(request, comunidad_id):
+    try:
+        comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+    except Comunidad.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Comunidad no encontrada'}, status=404)
+
+    usuario_maga = get_usuario_maga(request.user)
+    if not usuario_maga:
+        return JsonResponse({'success': False, 'error': 'Usuario no autenticado'}, status=401)
+
+    imagen = request.FILES.get('imagen')
+    if not imagen:
+        return JsonResponse({'success': False, 'error': 'No se ha enviado ninguna imagen'}, status=400)
+
+    if not imagen.content_type or not imagen.content_type.startswith('image/'):
+        return JsonResponse({'success': False, 'error': 'El archivo debe ser una imagen válida'}, status=400)
+
+    descripcion = (request.POST.get('descripcion') or '').strip()
+
+    galeria_dir = os.path.join(settings.MEDIA_ROOT, 'comunidades_galeria')
+    os.makedirs(galeria_dir, exist_ok=True)
+
+    fs = FileSystemStorage(location=galeria_dir)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+    extension = os.path.splitext(imagen.name)[1]
+    filename = f"{timestamp}_{comunidad_id}{extension}"
+    saved_name = fs.save(filename, imagen)
+    file_url = f"/media/comunidades_galeria/{saved_name}"
+
+    foto = ComunidadGaleria.objects.create(
+        comunidad=comunidad,
+        archivo_nombre=imagen.name,
+        url_almacenamiento=file_url,
+        descripcion=descripcion or None,
+        creado_por=usuario_maga,
+    )
+
+    comunidad.actualizado_en = timezone.now()
+    comunidad.save(update_fields=['actualizado_en'])
+
+    updated = (
+        Comunidad.objects.select_related('region', 'tipo')
+        .prefetch_related(
+            Prefetch(
+                'galeria', queryset=ComunidadGaleria.objects.order_by('-creado_en'), to_attr='galeria_api'
+            ),
+            Prefetch(
+                'archivos', queryset=ComunidadArchivo.objects.order_by('-creado_en'), to_attr='archivos_api'
+            ),
+            Prefetch(
+                'autoridades', queryset=ComunidadAutoridad.objects.filter(activo=True).order_by('nombre'), to_attr='autoridades_api'
+            ),
+        )
+        .get(id=comunidad_id, activo=True)
+    )
+
+    payload = _serialize_comunidad_detalle(updated)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Imagen agregada exitosamente',
+            'foto': {
+                'id': str(foto.id),
+                'url': foto.url_almacenamiento,
+                'description': foto.descripcion or 'Imagen de la comunidad',
+            },
+            'comunidad': payload,
+        }
+    )
+
+
+@require_http_methods(["DELETE"])
+@permiso_admin_o_personal_api
+def api_eliminar_imagen_comunidad(request, comunidad_id, imagen_id):
+    try:
+        foto = ComunidadGaleria.objects.get(id=imagen_id, comunidad_id=comunidad_id)
+    except ComunidadGaleria.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Imagen no encontrada'}, status=404)
+
+    ruta = foto.url_almacenamiento or ''
+    ruta_media = (settings.MEDIA_URL or '/media/').rstrip('/')
+    if ruta.startswith(ruta_media):
+        relative_path = ruta[len(ruta_media):].lstrip('/')
+    elif ruta.startswith('/'):
+        ruta_sin_slash = ruta.lstrip('/')
+        media_prefix = ruta_media.lstrip('/')
+        if ruta_sin_slash.startswith(media_prefix):
+            relative_path = ruta_sin_slash[len(media_prefix):].lstrip('/')
+        else:
+            relative_path = ruta_sin_slash
+    else:
+        relative_path = ruta
+
+    if relative_path:
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
+    foto.delete()
+
+    updated = (
+        Comunidad.objects.select_related('region', 'tipo')
+        .prefetch_related(
+            Prefetch(
+                'galeria', queryset=ComunidadGaleria.objects.order_by('-creado_en'), to_attr='galeria_api'
+            ),
+            Prefetch(
+                'archivos', queryset=ComunidadArchivo.objects.order_by('-creado_en'), to_attr='archivos_api'
+            ),
+            Prefetch(
+                'autoridades', queryset=ComunidadAutoridad.objects.filter(activo=True).order_by('nombre'), to_attr='autoridades_api'
+            ),
+        )
+        .get(id=comunidad_id, activo=True)
+    )
+
+    payload = _serialize_comunidad_detalle(updated)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Imagen eliminada correctamente',
+            'comunidad': payload,
+        }
+    )
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_actualizar_comunidad_descripcion(request, comunidad_id):
+    try:
+        comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+    except Comunidad.DoesNotExist:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Comunidad no encontrada',
+            },
+            status=404,
+        )
+
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Datos inválidos',
+            },
+            status=400,
+        )
+
+    descripcion = (payload.get('descripcion') or '').strip()
+
+    comunidad.descripcion = descripcion or ''
+    comunidad.actualizado_en = timezone.now()
+    comunidad.save(update_fields=['descripcion', 'actualizado_en'])
+
+    comunidad_actualizada = (
+        Comunidad.objects.select_related('region', 'tipo')
+        .prefetch_related(
+            Prefetch('galeria', queryset=ComunidadGaleria.objects.order_by('-creado_en'), to_attr='galeria_api'),
+            Prefetch('archivos', queryset=ComunidadArchivo.objects.order_by('-creado_en'), to_attr='archivos_api'),
+            Prefetch('autoridades', queryset=ComunidadAutoridad.objects.filter(activo=True).order_by('nombre'), to_attr='autoridades_api'),
+        )
+        .get(id=comunidad_id, activo=True)
+    )
+
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Descripción actualizada exitosamente.',
+            'comunidad': payload_actualizado,
+        }
+    )
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_agregar_archivo_comunidad(request, comunidad_id):
+    try:
+        comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+    except Comunidad.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Comunidad no encontrada'}, status=404)
+
+    usuario_maga = get_usuario_maga(request.user)
+    if not usuario_maga:
+        return JsonResponse({'success': False, 'error': 'Usuario no autenticado'}, status=401)
+
+    archivo = request.FILES.get('archivo')
+    if not archivo:
+        return JsonResponse({'success': False, 'error': 'No se ha enviado ningún archivo'}, status=400)
+
+    nombre = (request.POST.get('nombre') or '').strip()
+    descripcion = (request.POST.get('descripcion') or '').strip()
+
+    extension = os.path.splitext(archivo.name)[1].lower()
+    if not nombre:
+        nombre = os.path.splitext(archivo.name)[0]
+    archivo_tipo = extension.replace('.', '') if extension else (archivo.content_type or 'archivo')
+
+    archivos_dir = os.path.join(settings.MEDIA_ROOT, 'comunidades_archivos')
+    os.makedirs(archivos_dir, exist_ok=True)
+
+    fs = FileSystemStorage(location=archivos_dir)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+    filename = f"{timestamp}_{comunidad_id}{extension}"
+    saved_name = fs.save(filename, archivo)
+
+    relative_path = f"comunidades_archivos/{saved_name}"
+    media_url = (settings.MEDIA_URL or '/media/').rstrip('/')
+    file_url = f"{media_url}/{relative_path}"
+    if not file_url.startswith('/'):
+        file_url = f"/{file_url}"
+
+    ComunidadArchivo.objects.create(
+        comunidad=comunidad,
+        nombre_archivo=nombre,
+        archivo_tipo=archivo_tipo,
+        url_almacenamiento=file_url,
+        descripcion=descripcion,
+        creado_por=usuario_maga,
+    )
+
+    comunidad.actualizado_en = timezone.now()
+    comunidad.save(update_fields=['actualizado_en'])
+
+    comunidad_actualizada = (
+        Comunidad.objects.select_related('region', 'tipo')
+        .prefetch_related(
+            Prefetch('galeria', queryset=ComunidadGaleria.objects.order_by('-creado_en'), to_attr='galeria_api'),
+            Prefetch('archivos', queryset=ComunidadArchivo.objects.order_by('-creado_en'), to_attr='archivos_api'),
+            Prefetch('autoridades', queryset=ComunidadAutoridad.objects.filter(activo=True).order_by('nombre'), to_attr='autoridades_api'),
+        )
+        .get(id=comunidad_id, activo=True)
+    )
+
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Archivo agregado exitosamente',
+            'comunidad': payload_actualizado,
+        }
+    )
+
+
+@require_http_methods(["DELETE"])
+@permiso_admin_o_personal_api
+def api_eliminar_archivo_comunidad(request, comunidad_id, archivo_id):
+    try:
+        archivo = ComunidadArchivo.objects.get(id=archivo_id, comunidad_id=comunidad_id)
+    except ComunidadArchivo.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Archivo no encontrado'}, status=404)
+
+    comunidad = archivo.comunidad
+
+    ruta_url = archivo.url_almacenamiento or ''
+    media_url = (settings.MEDIA_URL or '/media/').rstrip('/')
+    relative_path = ''
+
+    if ruta_url.startswith(media_url):
+        relative_path = ruta_url[len(media_url):].lstrip('/')
+    elif ruta_url.startswith('/'):
+        ruta_sin_slash = ruta_url.lstrip('/')
+        media_prefix = media_url.lstrip('/')
+        if ruta_sin_slash.startswith(media_prefix):
+            relative_path = ruta_sin_slash[len(media_prefix):].lstrip('/')
+        else:
+            relative_path = ruta_sin_slash
+    else:
+        relative_path = ruta_url
+
+    if relative_path:
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
+    archivo.delete()
+
+    if comunidad:
+        comunidad.actualizado_en = timezone.now()
+        comunidad.save(update_fields=['actualizado_en'])
+
+    comunidad_actualizada = (
+        Comunidad.objects.select_related('region', 'tipo')
+        .prefetch_related(
+            Prefetch('galeria', queryset=ComunidadGaleria.objects.order_by('-creado_en'), to_attr='galeria_api'),
+            Prefetch('archivos', queryset=ComunidadArchivo.objects.order_by('-creado_en'), to_attr='archivos_api'),
+            Prefetch('autoridades', queryset=ComunidadAutoridad.objects.filter(activo=True).order_by('nombre'), to_attr='autoridades_api'),
+        )
+        .get(id=comunidad_id, activo=True)
+    )
+
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Archivo eliminado correctamente',
+            'comunidad': payload_actualizado,
+        }
+    )
+
+DEFAULT_COMUNIDAD_IMAGE_SMALL = (
+    'https://images.unsplash.com/photo-1523978591478-c753949ff840'
+    '?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
+)
+DEFAULT_COMUNIDAD_IMAGE_LARGE = (
+    'https://images.unsplash.com/photo-1523978591478-c753949ff840'
+    '?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+)

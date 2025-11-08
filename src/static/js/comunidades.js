@@ -3,186 +3,263 @@
 // ======= DATOS DE COMUNIDADES - CARGA DESDE BD =======
 console.log('📦 Comunidades.js - Usando datos desde la base de datos');
 
-// Los datos se cargarán desde la API
-let communitiesData = {
-  'san-jose': {
-    name: 'San José',
-    region: 'Región Norte',
-    type: 'Aldea',
-    population: 1250,
-    coordinates: '15.1234, -90.5678',
-    cocode: 'María González',
-    cocodePhone: '3015-6925',
-    location: 'Ubicada en la parte norte del municipio, a 15 km del centro',
-    description: `
-      <p>San José es una comunidad próspera ubicada en la región norte de Purulhá. Con una población de más de 1,200 habitantes, esta aldea se caracteriza por su fuerte sentido comunitario y su compromiso con el desarrollo sostenible.</p>
-      <p>La comunidad cuenta con servicios básicos como agua potable, electricidad y acceso a educación primaria. Los habitantes se dedican principalmente a la agricultura y la ganadería, siendo el maíz y el frijol sus cultivos principales.</p>
-    `,
-    photos: [
-      { url: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Vista general de la comunidad' },
-      { url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Centro comunitario' },
-      { url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Escuela local' }
-    ],
-    projects: [
-      { name: 'Capacitación Agrícola Sostenible', status: 'Activo', type: 'Capacitación' },
-      { name: 'Entrega de Semillas Mejoradas', status: 'Completado', type: 'Entrega' },
-      { name: 'Construcción de Sistema de Riego', status: 'En Progreso', type: 'Proyecto de Ayuda' }
-    ],
-    files: [
-      { 
-        name: 'Plan de Desarrollo Comunitario 2024', 
-        description: 'Documento oficial del plan de desarrollo para la comunidad',
-        type: 'pdf',
-        size: '2.3 MB',
-        date: '2024-11-15',
-        url: '#'
-      },
-      { 
-        name: 'Censo Poblacional 2024', 
-        description: 'Resultados del censo poblacional realizado en la comunidad',
-        type: 'xlsx',
-        size: '1.8 MB',
-        date: '2024-11-10',
-        url: '#'
-      },
-      { 
-        name: 'Acta de Reunión COCODE', 
-        description: 'Acta de la última reunión del COCODE',
-        type: 'docx',
-        size: '0.5 MB',
-        date: '2024-11-05',
-        url: '#'
-      }
-    ]
-  },
-  'el-progreso': {
-    name: 'El Progreso',
-    region: 'Región Sur',
-    type: 'Barrio',
-    population: 850,
-    coordinates: '15.0987, -90.5432',
-    cocode: 'Carlos Rodríguez',
-    cocodePhone: '3015-6926',
-    location: 'Ubicada en la zona sur, a 8 km del centro municipal',
-    description: `
-      <p>El Progreso es un barrio dinámico que ha experimentado un crecimiento significativo en los últimos años. Con una población joven y emprendedora, la comunidad se ha destacado por su participación activa en proyectos de desarrollo.</p>
-      <p>La comunidad cuenta con acceso a servicios de salud y educación secundaria. Los habitantes se dedican principalmente al comercio y la artesanía, contribuyendo al desarrollo económico local.</p>
-    `,
-    photos: [
-      { url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Vista del barrio' },
-      { url: 'https://images.unsplash.com/photo-1559027615-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Mercado local' }
-    ],
-    projects: [
-      { name: 'Taller de Artesanía', status: 'Activo', type: 'Capacitación' },
-      { name: 'Mejora de Infraestructura', status: 'Completado', type: 'Proyecto de Ayuda' }
-    ],
-    files: [
-      { 
-        name: 'Registro de Artesanos', 
-        description: 'Lista de artesanos registrados en la comunidad',
-        type: 'xlsx',
-        size: '0.8 MB',
-        date: '2024-11-12',
-        url: '#'
-      }
-    ]
-  },
-  'la-esperanza': {
-    name: 'La Esperanza',
-    region: 'Región Este',
-    type: 'Caserío',
-    population: 450,
-    coordinates: '15.1456, -90.5123',
-    cocode: 'Ana Martínez',
-    cocodePhone: '3015-6927',
-    location: 'Ubicada en la zona este, a 12 km del centro municipal',
-    description: `
-      <p>La Esperanza es un caserío pequeño pero muy unido, donde los habitantes han trabajado juntos para mejorar sus condiciones de vida. A pesar de su tamaño, la comunidad ha logrado implementar varios proyectos exitosos.</p>
-      <p>La comunidad se caracteriza por su tradición agrícola y su compromiso con la conservación del medio ambiente. Los habitantes han adoptado prácticas sostenibles en sus cultivos.</p>
-    `,
-    photos: [
-      { url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Vista del caserío' },
-      { url: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Cultivos locales' }
-    ],
-    projects: [
-      { name: 'Proyecto de Reforestación', status: 'Activo', type: 'Proyecto de Ayuda' },
-      { name: 'Capacitación en Agricultura Orgánica', status: 'Completado', type: 'Capacitación' }
-    ]
-  },
-  'los-pinos': {
-    name: 'Los Pinos',
-    region: 'Región Oeste',
-    type: 'Aldea',
-    population: 980,
-    coordinates: '15.0876, -90.5890',
-    cocode: 'Luis Hernández',
-    cocodePhone: '3015-6928',
-    location: 'Ubicada en la zona oeste, a 18 km del centro municipal',
-    description: `
-      <p>Los Pinos es una aldea con una rica tradición cultural y una fuerte identidad comunitaria. Los habitantes han preservado sus costumbres ancestrales mientras adoptan nuevas tecnologías para el desarrollo.</p>
-      <p>La comunidad cuenta con una organización comunitaria sólida y ha logrado implementar varios proyectos de infraestructura con éxito.</p>
-    `,
-    photos: [
-      { url: 'https://images.unsplash.com/photo-1559027615-cd4628902d4a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Vista de la aldea' },
-      { url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Centro cultural' }
-    ],
-    projects: [
-      { name: 'Construcción de Centro Comunitario', status: 'Completado', type: 'Proyecto de Ayuda' },
-      { name: 'Capacitación en Liderazgo', status: 'Activo', type: 'Capacitación' }
-    ]
-  },
-  'centro-panchisivic': {
-    name: 'Centro Panchisivic',
-    region: 'Región Central',
-    type: 'Aldea',
-    population: 2100,
-    coordinates: '15.1123, -90.5555',
-    cocode: 'Roberto García',
-    cocodePhone: '3015-6929',
-    location: 'Ubicada en el centro del municipio, a 5 km del centro municipal',
-    description: `
-      <p>Centro Panchisivic es una de las comunidades más grandes y desarrolladas del municipio. Con una población de más de 2,000 habitantes, cuenta con servicios completos y una economía diversificada.</p>
-      <p>La comunidad se ha convertido en un centro de referencia para otras comunidades cercanas, ofreciendo servicios de salud, educación y comercio.</p>
-    `,
-    photos: [
-      { url: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Vista del centro' },
-      { url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Servicios de salud' },
-      { url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', description: 'Centro educativo' }
-    ],
-    projects: [
-      { name: 'Mejora del Sistema de Salud', status: 'Activo', type: 'Proyecto de Ayuda' },
-      { name: 'Capacitación en Comercio', status: 'Completado', type: 'Capacitación' },
-      { name: 'Entrega de Equipos Médicos', status: 'Completado', type: 'Entrega' }
-    ]
-  }
-};
+// Configuración e in-memory cache
+const DEFAULT_COMMUNITY_IMAGE_LARGE = 'https://images.unsplash.com/photo-1523978591478-c753949ff840?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+const DEFAULT_COMMUNITY_IMAGE_SMALL = 'https://images.unsplash.com/photo-1523978591478-c753949ff840?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80';
+const COMMUNITIES_LIST_ENDPOINT = '/api/comunidades/';
+const COMMUNITY_DETAIL_ENDPOINT = (id) => `/api/comunidad/${id}/`;
 
-// Datos adicionales para la lista completa
-const allCommunitiesData = [
-  { id: 'san-jose', name: 'San José', region: 'Región Norte', type: 'Aldea', hasProjects: true, lastUpdate: '2024-11-28' },
-  { id: 'el-progreso', name: 'El Progreso', region: 'Región Sur', type: 'Barrio', hasProjects: true, lastUpdate: '2024-11-25' },
-  { id: 'la-esperanza', name: 'La Esperanza', region: 'Región Este', type: 'Caserío', hasProjects: true, lastUpdate: '2024-11-22' },
-  { id: 'los-pinos', name: 'Los Pinos', region: 'Región Oeste', type: 'Aldea', hasProjects: true, lastUpdate: '2024-11-20' },
-  { id: 'centro-panchisivic', name: 'Centro Panchisivic', region: 'Región Central', type: 'Aldea', hasProjects: true, lastUpdate: '2024-11-18' },
-  { id: 'eben-ezer', name: 'Eben-Ezer', region: 'Región Norte', type: 'Aldea', hasProjects: false, lastUpdate: '2024-11-15' },
-  { id: 'suquinay-ii', name: 'Suquinay II', region: 'Región Sur', type: 'Barrio', hasProjects: true, lastUpdate: '2024-11-12' },
-  { id: 'el-chol', name: 'El Chol', region: 'Región Este', type: 'Aldea', hasProjects: false, lastUpdate: '2024-11-10' },
-  { id: 'los-angeles', name: 'Los Ángeles', region: 'Región Oeste', type: 'Caserío', hasProjects: true, lastUpdate: '2024-11-08' },
-  { id: 'san-antonio', name: 'San Antonio', region: 'Región Central', type: 'Aldea', hasProjects: true, lastUpdate: '2024-11-05' },
-  { id: 'las-flores', name: 'Las Flores', region: 'Región Norte', type: 'Barrio', hasProjects: false, lastUpdate: '2024-11-03' }
-];
+const USER_AUTH = window.USER_AUTH || { isAuthenticated: false, isAdmin: false, isPersonal: false };
+const CAN_EDIT_COMMUNITIES = USER_AUTH.isAuthenticated && (USER_AUTH.isAdmin || USER_AUTH.isPersonal);
 
-// Sistema de permisos manejado por permisos.js y el backend
+function normalizeTitle(value = '') {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
 
-// Variables globales
+const BUILTIN_COMMUNITY_TITLES = ['Población', 'Coordenadas', 'COCODE', 'Teléfono COCODE', 'Tipo de Comunidad'];
+const BUILTIN_COMMUNITY_TITLES_NORMALIZED = new Set(BUILTIN_COMMUNITY_TITLES.map(normalizeTitle));
+
+let communitiesData = {};
+let allCommunitiesData = [];
+let filteredCommunities = [];
 let currentCommunityData = null;
-let filteredCommunities = [...allCommunitiesData];
+let isCommunitiesLoading = false;
+let isDetailLoading = false;
+
+function escapeHtml(string = '') {
+  return string
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatDescription(text) {
+  if (!text) {
+    return '<p>Sin descripción disponible.</p>';
+  }
+  const paragraphs = escapeHtml(text)
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0);
+
+  if (!paragraphs.length) {
+    return '<p>Sin descripción disponible.</p>';
+  }
+
+  return paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join('');
+}
+
+function getCookie(name) {
+  const cookies = document.cookie ? document.cookie.split('; ') : [];
+  for (let i = 0; i < cookies.length; i += 1) {
+    const parts = cookies[i].split('=');
+    const key = decodeURIComponent(parts[0]);
+    if (key === name) {
+      return decodeURIComponent(parts.slice(1).join('='));
+    }
+  }
+  return null;
+}
+
+async function fetchJson(url) {
+  const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}_=${Date.now()}`, {
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `Error HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+function normalizeCommunityDetailResponse(data) {
+  if (!data) {
+    return null;
+  }
+
+  const regionName = data.region && data.region.nombre ? data.region.nombre : 'Sin región asignada';
+  const regionCode = data.region && data.region.codigo ? data.region.codigo : '';
+  const regionDisplayName = regionName;
+
+  const photos = Array.isArray(data.photos)
+    ? data.photos.map((photo) => ({
+        id: photo.id || null,
+        url: photo.url,
+        description: photo.description || 'Imagen de la comunidad',
+      }))
+    : [];
+
+  const files = Array.isArray(data.files)
+    ? data.files.map((file) => ({
+        id: file.id || null,
+        name: file.name || 'Archivo',
+        description: file.description || '',
+        type: file.type || 'archivo',
+        url: file.url,
+        date: file.date ? formatDate(file.date) : 'Fecha no disponible',
+      }))
+    : [];
+
+  const projects = Array.isArray(data.projects) ? data.projects : [];
+  const authorities = Array.isArray(data.autoridades) ? data.autoridades : [];
+
+  const dataSummary = Array.isArray(data.data)
+    ? data.data.map((item) => ({
+        icon: item.icon || '📌',
+        label: item.label || '',
+        value: item.value !== undefined && item.value !== null ? String(item.value) : '',
+        isDefault: Boolean(item.is_default),
+        hasValue: Boolean(item.has_value),
+      }))
+    : [];
+
+  const customCards = Array.isArray(data.custom_cards)
+    ? data.custom_cards.map((card, index) => ({
+        id: card.id || null,
+        title: card.title || '',
+        value: card.value || '',
+        icon: card.icon || '',
+        order: typeof card.order === 'number' ? card.order : index,
+      }))
+    : [];
+
+  customCards.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  let coordinates = data.coordinates || '';
+  if (!coordinates && data.latitud !== null && data.latitud !== undefined && data.longitud !== null && data.longitud !== undefined) {
+    coordinates = `${data.latitud}, ${data.longitud}`;
+  }
+
+  const existingListEntry = allCommunitiesData.find((item) => item.id === data.id);
+  const coverImage = data.cover_image || (existingListEntry ? existingListEntry.image : DEFAULT_COMMUNITY_IMAGE_LARGE);
+
+  return {
+    id: data.id,
+    code: data.codigo,
+    name: data.nombre,
+    description: formatDescription(data.descripcion),
+    rawDescription: data.descripcion || '',
+    region: regionDisplayName,
+    regionName,
+    regionCode,
+    type: data.tipo || 'Sin tipo',
+    population: Number.isFinite(data.poblacion) ? data.poblacion : null,
+    latitud: data.latitud !== undefined ? data.latitud : null,
+    longitud: data.longitud !== undefined ? data.longitud : null,
+    coordinates,
+    cocode: data.cocode || '',
+    cocodePhone: data.telefono_cocode || '',
+    location: data.location || '',
+    photos,
+    files,
+    projects,
+    authorities,
+    dataSummary,
+    customCards,
+    coverImage,
+    image: coverImage,
+    lastUpdate: data.actualizado_en || null,
+    createdAt: data.creado_en || null,
+  };
+}
+
+async function fetchCommunitiesList(force = false) {
+  if (!force && allCommunitiesData.length > 0) {
+    return allCommunitiesData;
+  }
+
+  if (isCommunitiesLoading) {
+    return allCommunitiesData;
+  }
+
+  isCommunitiesLoading = true;
+  try {
+    const comunidades = await fetchJson(COMMUNITIES_LIST_ENDPOINT);
+    allCommunitiesData = comunidades.map((item) => ({
+      id: item.id,
+      name: item.nombre,
+      region: item.region && item.region.nombre ? item.region.nombre : 'Sin región',
+      regionCode: item.region && item.region.codigo ? item.region.codigo : '',
+      type: item.tipo || 'Sin tipo',
+      hasProjects: Boolean(item.has_projects),
+      lastUpdate: item.actualizado_en || item.creado_en || null,
+      image: item.imagen_url || DEFAULT_COMMUNITY_IMAGE_SMALL,
+    }));
+    filteredCommunities = [...allCommunitiesData];
+  } catch (error) {
+    console.error('Error al cargar comunidades:', error);
+    showErrorMessage('No se pudieron cargar las comunidades. Inténtalo nuevamente.');
+  } finally {
+    isCommunitiesLoading = false;
+  }
+  return allCommunitiesData;
+}
+
+async function fetchCommunityDetail(communityId, { force = false } = {}) {
+  if (!force && communitiesData[communityId]) {
+    return communitiesData[communityId];
+  }
+
+  if (isDetailLoading) {
+    return communitiesData[communityId];
+  }
+
+  isDetailLoading = true;
+  try {
+    const data = await fetchJson(COMMUNITY_DETAIL_ENDPOINT(communityId));
+    const normalized = normalizeCommunityDetailResponse(data);
+    if (normalized) {
+      communitiesData[communityId] = normalized;
+    }
+    return normalized;
+  } catch (error) {
+    console.error('Error al obtener la comunidad:', error);
+    throw error;
+  } finally {
+    isDetailLoading = false;
+  }
+}
+
+async function refreshCurrentCommunity(successMessage) {
+  if (!currentCommunityData) return;
+  try {
+    const updated = await fetchCommunityDetail(currentCommunityData.id, { force: true });
+    if (updated) {
+      currentCommunityData = updated;
+      loadCommunityDetail(updated);
+      updateCommunitiesCache(updated);
+      updateMainCommunityCard(updated);
+      const listView = document.getElementById('communitiesListView');
+      if (listView && listView.style.display !== 'none') {
+        loadCommunitiesList();
+      }
+      if (successMessage) {
+        showSuccessMessage(successMessage);
+      }
+    }
+  } catch (error) {
+    console.error('Error al actualizar la comunidad:', error);
+    showErrorMessage(error.message || 'No se pudo actualizar la información de la comunidad.');
+  }
+}
 
 // ======= FUNCIONES DE UTILIDAD =======
 
 // Función para formatear fechas
 function formatDate(dateString) {
+  if (!dateString) return '';
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
   return date.toLocaleDateString('es-GT', {
     year: 'numeric',
     month: 'long',
@@ -239,16 +316,23 @@ function hideModal(modalId) {
 // ======= VISTA DE LISTA DE COMUNIDADES =======
 
 // Función para mostrar vista de lista
-function showCommunitiesList() {
+async function showCommunitiesList() {
   const mainView = document.querySelector('.communities-main');
   const listView = document.getElementById('communitiesListView');
+  const detailView = document.getElementById('communityDetailView');
+  
+  if (detailView) {
+    detailView.style.display = 'none';
+  }
   
   // Ocultar vista principal
   mainView.style.display = 'none';
   
   // Mostrar vista de lista
   listView.style.display = 'block';
-  
+
+  await fetchCommunitiesList();
+
   // Cargar lista de comunidades
   loadCommunitiesList();
   
@@ -262,31 +346,39 @@ function loadCommunitiesList() {
   if (!communitiesList) return;
   
   communitiesList.innerHTML = '';
-  
+
+  if (!filteredCommunities.length) {
+    const emptyMessage = document.createElement('div');
+    emptyMessage.className = 'community-list-empty';
+    emptyMessage.innerHTML = '<p>No se encontraron comunidades.</p>';
+    communitiesList.appendChild(emptyMessage);
+    return;
+  }
+
   filteredCommunities.forEach(community => {
     const listItem = document.createElement('div');
     listItem.className = 'community-list-item';
     listItem.innerHTML = `
       <div class="community-list-item__image">
-        <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="${community.name}">
+        <img src="${community.image || DEFAULT_COMMUNITY_IMAGE_SMALL}" alt="${escapeHtml(community.name)}">
       </div>
       <div class="community-list-item__content">
         <div class="community-list-item__info">
-          <h3 class="community-list-item__name">${community.name}</h3>
+          <h3 class="community-list-item__name">${escapeHtml(community.name)}</h3>
           <div class="community-list-item__details">
             <div class="community-list-item__region">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                 <circle cx="12" cy="10" r="3"></circle>
               </svg>
-              ${community.region}
+              ${escapeHtml(community.region)}
             </div>
             <div class="community-list-item__type">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                 <polyline points="9,22 9,12 15,12 15,22"></polyline>
               </svg>
-              ${community.type}
+              ${escapeHtml(community.type)}
             </div>
             <div class="community-list-item__projects">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -317,6 +409,8 @@ function showMainView() {
   const listView = document.getElementById('communitiesListView');
   const detailView = document.getElementById('communityDetailView');
   
+  setDetailLoading(false);
+
   // Ocultar otras vistas
   listView.style.display = 'none';
   detailView.style.display = 'none';
@@ -330,8 +424,32 @@ function showMainView() {
 
 // ======= VISTA DETALLADA DE COMUNIDAD =======
 
+function setDetailLoading(isLoading, message = 'Cargando comunidad...') {
+  const detailView = document.getElementById('communityDetailView');
+  if (!detailView) return;
+  const detailContent = detailView.querySelector('.detail-content');
+  if (!detailContent) return;
+
+  let overlay = detailContent.querySelector('.loading-overlay');
+  if (isLoading) {
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'loading-overlay';
+      overlay.innerHTML = `
+        <div class="loading-spinner"></div>
+        <p class="loading-message">${message}</p>
+      `;
+      detailContent.appendChild(overlay);
+    } else {
+      overlay.querySelector('.loading-message').textContent = message;
+    }
+  } else if (overlay) {
+    overlay.remove();
+  }
+}
+
 // Función para mostrar vista detallada
-function showCommunityDetail(communityId) {
+async function showCommunityDetail(communityId) {
   const mainView = document.querySelector('.communities-main');
   const listView = document.getElementById('communitiesListView');
   const detailView = document.getElementById('communityDetailView');
@@ -343,11 +461,21 @@ function showCommunityDetail(communityId) {
   // Mostrar vista detallada
   detailView.style.display = 'block';
   
-  // Cargar datos de la comunidad
-  const community = communitiesData[communityId];
-  if (community) {
-    loadCommunityDetail(community);
-    currentCommunityData = community;
+  setDetailLoading(true);
+
+  try {
+    const community = await fetchCommunityDetail(communityId);
+    if (community) {
+      currentCommunityData = community;
+      loadCommunityDetail(community);
+    } else {
+      throw new Error('Comunidad no encontrada');
+    }
+  } catch (error) {
+    console.error('Error al mostrar comunidad:', error);
+    showErrorMessage('No se pudo cargar la información de la comunidad.');
+    setDetailLoading(false);
+    showMainView();
   }
   
   // Scroll al inicio
@@ -356,85 +484,151 @@ function showCommunityDetail(communityId) {
 
 // Función para cargar datos de la comunidad en la vista detallada
 function loadCommunityDetail(community) {
+  // Quitar loader si está activo
+  setDetailLoading(false);
+
   // Título y región
   document.getElementById('detailTitle').textContent = community.name;
   document.getElementById('detailRegion').textContent = community.region;
   
   // Galería de fotos con botones de eliminación
-  if (community.photos) {
+  if (community.photos && community.photos.length) {
     loadGalleryWithDeleteButtons(community.photos);
+  } else {
+    const galleryContainer = document.getElementById('detailGallery');
+    if (galleryContainer) {
+      galleryContainer.innerHTML = `
+        <div class="gallery-empty">
+          <p>No hay imágenes registradas para esta comunidad.</p>
+        </div>
+      `;
+    }
   }
   
   // Ubicación
   const locationContainer = document.getElementById('detailLocationInfo');
-  locationContainer.innerHTML = `
-    <div class="location-item">
-      <div class="location-icon">📍</div>
-      <div class="location-content">
-        <h4>Ubicación</h4>
-        <p>${community.location}</p>
+  if (locationContainer) {
+    const locationDetails = [];
+    if (community.location) {
+      locationDetails.push(`
+        <div class="location-item">
+          <div class="location-icon">📍</div>
+          <div class="location-content">
+            <h4>Ubicación</h4>
+            <p>${escapeHtml(community.location)}</p>
+          </div>
+        </div>
+      `);
+    }
+    if (community.coordinates) {
+      locationDetails.push(`
+        <div class="location-item">
+          <div class="location-icon">🧭</div>
+          <div class="location-content">
+            <h4>Coordenadas</h4>
+            <p>${escapeHtml(community.coordinates)}</p>
+          </div>
+        </div>
+      `);
+    }
+    locationContainer.innerHTML = locationDetails.join('') || `
+      <div class="location-item">
+        <div class="location-icon">ℹ️</div>
+        <div class="location-content">
+          <h4>Ubicación</h4>
+          <p>No hay información de ubicación disponible.</p>
+        </div>
       </div>
-    </div>
-  `;
+    `;
+  }
   
   // Datos generales
   const dataContainer = document.getElementById('detailData');
-  dataContainer.innerHTML = `
-    <div class="data-item">
-      <div class="data-icon">👥</div>
-      <div class="data-content">
-        <h4>Población</h4>
-        <p>${community.population.toLocaleString()} habitantes</p>
-      </div>
-    </div>
-    <div class="data-item">
-      <div class="data-icon">📍</div>
-      <div class="data-content">
-        <h4>Coordenadas</h4>
-        <p>${community.coordinates}</p>
-      </div>
-    </div>
-    <div class="data-item">
-      <div class="data-icon">👤</div>
-      <div class="data-content">
-        <h4>COCODE</h4>
-        <p>${community.cocode}</p>
-      </div>
-    </div>
-    <div class="data-item">
-      <div class="data-icon">📞</div>
-      <div class="data-content">
-        <h4>Teléfono COCODE</h4>
-        <p>${community.cocodePhone}</p>
-      </div>
-    </div>
-    <div class="data-item">
-      <div class="data-icon">🏘️</div>
-      <div class="data-content">
-        <h4>Tipo de Comunidad</h4>
-        <p>${community.type}</p>
-      </div>
-    </div>
-  `;
+  if (dataContainer) {
+    const summaryItems = [];
+
+    if (Array.isArray(community.dataSummary)) {
+      community.dataSummary.forEach((item) => {
+        summaryItems.push({
+          icon: item.icon || 'ℹ️',
+          label: item.label || '',
+          value: item.value || '',
+          isDefault: Boolean(item.isDefault),
+        });
+      });
+    }
+
+    if (Array.isArray(community.customCards)) {
+      community.customCards.forEach((card) => {
+        if (BUILTIN_COMMUNITY_TITLES_NORMALIZED.has(normalizeTitle(card.title))) {
+          return;
+        }
+        summaryItems.push({
+          icon: card.icon || '📌',
+          label: card.title || '',
+          value: card.value || '',
+          isCustom: true,
+        });
+      });
+    }
+
+    if (!summaryItems.length) {
+      summaryItems.push({
+        icon: 'ℹ️',
+        label: 'Información',
+        value: 'No hay datos generales disponibles.',
+      });
+    }
+
+    dataContainer.innerHTML = summaryItems.map((item) => {
+      const iconText = item.icon ? escapeHtml(item.icon) : 'ℹ️';
+      const labelText = escapeHtml(item.label || '');
+      const valueRaw = item.value === undefined || item.value === null ? '' : String(item.value).trim();
+      const valueText = escapeHtml(valueRaw || 'Sin datos disponibles');
+
+      return `
+        <div class="data-item${item.isDefault ? ' data-item--default' : ''}">
+          <div class="data-icon">${iconText}</div>
+          <div class="data-content">
+            <h4>${labelText}</h4>
+            <p>${valueText}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
   
   // Descripción
-  document.getElementById('detailDescription').innerHTML = community.description;
+  const descriptionEl = document.getElementById('detailDescription');
+  if (descriptionEl) {
+    descriptionEl.innerHTML = community.description;
+  }
   
   // Proyectos activos
   const projectsContainer = document.getElementById('detailProjects');
-  projectsContainer.innerHTML = '';
-  community.projects.forEach((project, index) => {
-    const projectItem = document.createElement('div');
-    projectItem.className = 'project-item';
-    projectItem.innerHTML = `
-      <div class="project-icon">${index + 1}</div>
-      <div class="project-info">
-        <h4>${project.name}</h4>
-        <p>${project.type} - ${project.status}</p>
-      </div>
-    `;
-    projectsContainer.appendChild(projectItem);
-  });
+  if (projectsContainer) {
+    projectsContainer.innerHTML = '';
+    if (community.projects && community.projects.length) {
+      community.projects.forEach((project, index) => {
+        const projectItem = document.createElement('div');
+        projectItem.className = 'project-item';
+        projectItem.innerHTML = `
+          <div class="project-icon">${index + 1}</div>
+          <div class="project-info">
+            <h4>${escapeHtml(project.name || '')}</h4>
+            <p>${escapeHtml(project.type || '')}${project.status ? ` • ${escapeHtml(project.status)}` : ''}</p>
+          </div>
+        `;
+        projectsContainer.appendChild(projectItem);
+      });
+    } else {
+      projectsContainer.innerHTML = `
+        <div class="projects-empty">
+          <p>No hay proyectos registrados para esta comunidad.</p>
+        </div>
+      `;
+    }
+  }
   
   // Archivos con botones de eliminación
   if (community.files && community.files.length > 0) {
@@ -468,12 +662,36 @@ function getFileIcon(fileType) {
 }
 
 // Función para abrir modal de imagen
-function openImageModal(imageUrl) {
-  window.open(imageUrl, '_blank');
+function openImageModal(imageUrl, description) {
+  const modal = document.getElementById('communityImageViewerModal');
+  const modalImg = document.getElementById('communityImageViewerImg');
+  const modalDescription = document.getElementById('communityImageViewerDescription');
+  const modalTitle = document.getElementById('communityImageViewerTitle');
+
+  if (!modal || !modalImg) {
+    window.open(imageUrl, '_blank');
+    return;
+  }
+
+  modalImg.src = imageUrl;
+  modalImg.alt = description || 'Imagen de la comunidad';
+  if (modalTitle) {
+    modalTitle.textContent = description || 'Imagen de la comunidad';
+  }
+  if (modalDescription) {
+    modalDescription.textContent = description || '';
+    modalDescription.style.display = description ? 'block' : 'none';
+  }
+
+  modal.classList.add('active');
 }
 
 // Función para volver a la vista principal desde la vista detallada
 function backFromDetail() {
+  if (currentCommunityData) {
+    updateMainCommunityCard(currentCommunityData);
+  }
+
   const mainView = document.querySelector('.communities-main');
   const detailView = document.getElementById('communityDetailView');
   
@@ -490,7 +708,11 @@ function backFromDetail() {
 // ======= FUNCIONES DE BÚSQUEDA Y FILTROS =======
 
 // Función para buscar comunidades
-function searchCommunities(query) {
+async function searchCommunities(query) {
+  if (!allCommunitiesData.length) {
+    await fetchCommunitiesList();
+  }
+
   if (!query.trim()) {
     filteredCommunities = [...allCommunitiesData];
   } else {
@@ -504,7 +726,11 @@ function searchCommunities(query) {
 }
 
 // Función para ordenar comunidades
-function sortCommunities(sortBy) {
+async function sortCommunities(sortBy) {
+  if (!allCommunitiesData.length) {
+    await fetchCommunitiesList();
+  }
+
   switch (sortBy) {
     case 'name-asc':
       filteredCommunities.sort((a, b) => a.name.localeCompare(b.name));
@@ -560,73 +786,244 @@ function sortCommunities(sortBy) {
 //   hideModal('adminCredentialsModal');
 // }
 
-// Función para mostrar modal de editar datos
 function showEditDataModal() {
-  if (currentCommunityData) {
-    // Cargar datos actuales en el modal
-    document.getElementById('editPopulation').value = currentCommunityData.population || '';
-    document.getElementById('editCoordinates').value = currentCommunityData.coordinates || '';
-    document.getElementById('editCocode').value = currentCommunityData.cocode || '';
-    document.getElementById('editCocodePhone').value = currentCommunityData.cocodePhone || '';
-    showModal('editDataModal');
+  if (!currentCommunityData) return;
+
+  const populationInput = document.getElementById('editPopulation');
+  const coordinatesInput = document.getElementById('editCoordinates');
+  const cocodeInput = document.getElementById('editCocode');
+  const cocodePhoneInput = document.getElementById('editCocodePhone');
+
+  if (populationInput) {
+    populationInput.value = currentCommunityData.population !== null && currentCommunityData.population !== undefined
+      ? currentCommunityData.population
+      : '';
   }
+  if (coordinatesInput) {
+    coordinatesInput.value = currentCommunityData.coordinates || '';
+  }
+  if (cocodeInput) {
+    cocodeInput.value = currentCommunityData.cocode || '';
+  }
+  if (cocodePhoneInput) {
+    cocodePhoneInput.value = currentCommunityData.cocodePhone || '';
+  }
+
+  showModal('editDataModal');
 }
 
-// Función para actualizar datos de la comunidad
-function updateCommunityData() {
-  const population = document.getElementById('editPopulation').value;
-  const coordinates = document.getElementById('editCoordinates').value;
-  const cocode = document.getElementById('editCocode').value;
-  const cocodePhone = document.getElementById('editCocodePhone').value;
-  
-  if (!population || !coordinates.trim()) {
-    showErrorMessage('Por favor completa todos los campos obligatorios');
+function updateCommunitiesCache(updatedCommunity) {
+  if (!updatedCommunity) return;
+
+  const listIndex = allCommunitiesData.findIndex((item) => item.id === updatedCommunity.id);
+  const entryUpdate = {
+    name: updatedCommunity.name,
+    region: updatedCommunity.regionName || 'Sin región',
+    regionCode: updatedCommunity.regionCode || '',
+    type: updatedCommunity.type,
+    lastUpdate: updatedCommunity.lastUpdate || new Date().toISOString(),
+    image: updatedCommunity.coverImage || updatedCommunity.image || DEFAULT_COMMUNITY_IMAGE_SMALL,
+    hasProjects: Array.isArray(updatedCommunity.projects) ? updatedCommunity.projects.length > 0 : false,
+  };
+
+  if (listIndex !== -1) {
+    allCommunitiesData[listIndex] = {
+      ...allCommunitiesData[listIndex],
+      ...entryUpdate,
+    };
+  }
+
+  filteredCommunities = filteredCommunities.map((item) =>
+    item.id === updatedCommunity.id ? { ...item, ...entryUpdate } : item
+  );
+}
+
+async function updateCommunityData() {
+  if (!currentCommunityData) return;
+
+  const populationInput = document.getElementById('editPopulation');
+  const coordinatesInput = document.getElementById('editCoordinates');
+  const cocodeInput = document.getElementById('editCocode');
+  const cocodePhoneInput = document.getElementById('editCocodePhone');
+
+  const populationValue = populationInput ? populationInput.value.trim() : '';
+  const coordinatesValue = coordinatesInput ? coordinatesInput.value.trim() : '';
+  const rawCocodeValue = cocodeInput ? cocodeInput.value.trim() : '';
+  const rawCocodePhone = cocodePhoneInput ? cocodePhoneInput.value.trim() : '';
+
+  const normalizedCocode = rawCocodeValue.replace(/\s+/g, ' ').trim();
+  const phoneDigits = rawCocodePhone.replace(/\s+/g, '');
+  let formattedCoordinates = coordinatesValue;
+  if (coordinatesValue) {
+    const parts = coordinatesValue.split(',');
+    if (parts.length === 2) {
+      formattedCoordinates = `${parts[0].trim()}, ${parts[1].trim()}`;
+    }
+  }
+
+  const errors = [];
+  const validators = [
+    () => {
+      if (!populationValue) {
+        errors.push('La población es obligatoria.');
+        return;
+      }
+      if (!/^\d+$/.test(populationValue)) {
+        errors.push('La población debe contener solo números.');
+        return;
+      }
+    },
+    () => {
+      if (!normalizedCocode) {
+        errors.push('El COCODE es obligatorio.');
+        return;
+      }
+      if (normalizedCocode.length > 100) {
+        errors.push('El COCODE no puede superar los 100 caracteres.');
+        return;
+      }
+      const nameRegex = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\s-]+$/;
+      if (!nameRegex.test(normalizedCocode)) {
+        errors.push('El COCODE solo puede contener letras y espacios.');
+      }
+    },
+    () => {
+      if (!phoneDigits) {
+        errors.push('El teléfono del COCODE es obligatorio.');
+        return;
+      }
+      if (!/^\d{8}$/.test(phoneDigits)) {
+        errors.push('El teléfono COCODE debe tener exactamente 8 dígitos numéricos.');
+      }
+    },
+    () => {
+      if (!formattedCoordinates) {
+        return;
+      }
+      const coordsRegex = /^-?\d{1,3}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?$/;
+      if (!coordsRegex.test(formattedCoordinates)) {
+        errors.push('Las coordenadas deben tener el formato "latitud, longitud" con números válidos.');
+      }
+    },
+  ];
+
+  validators.forEach((fn) => fn());
+
+  if (errors.length) {
+    showErrorMessage(errors[0]);
     return;
   }
-  
-  if (currentCommunityData) {
-    // Actualizar datos
-    currentCommunityData.population = parseInt(population);
-    currentCommunityData.coordinates = coordinates;
-    currentCommunityData.cocode = cocode;
-    currentCommunityData.cocodePhone = cocodePhone;
-    
-    // Recargar vista detallada
-    loadCommunityDetail(currentCommunityData);
-    showSuccessMessage('Datos actualizados exitosamente');
+
+  const payload = {
+    poblacion: populationValue !== '' ? populationValue : null,
+    coordenadas: formattedCoordinates,
+    cocode: normalizedCocode,
+    telefono_cocode: phoneDigits,
+  };
+
+  try {
+    const response = await fetch(`/api/comunidad/${currentCommunityData.id}/datos/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken') || '',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'No se pudieron actualizar los datos.');
+    }
+
+    const normalized = normalizeCommunityDetailResponse(result.comunidad);
+    if (!normalized) {
+      throw new Error('La respuesta del servidor no es válida.');
+    }
+
+    currentCommunityData = normalized;
+    communitiesData[normalized.id] = normalized;
+    updateCommunitiesCache(normalized);
+
+    const listView = document.getElementById('communitiesListView');
+    if (listView && listView.style.display !== 'none') {
+      loadCommunitiesList();
+    }
+
     hideModal('editDataModal');
+    showSuccessMessage(result.message || 'Datos actualizados correctamente.');
+    loadCommunityDetail(normalized);
+    updateMainCommunityCard(normalized);
+  } catch (error) {
+    console.error('Error al actualizar datos de la comunidad:', error);
+    showErrorMessage(error.message || 'No se pudieron actualizar los datos.');
   }
 }
 
 // Función para mostrar modal de editar descripción
 function showEditDescriptionModal() {
   if (currentCommunityData) {
-    // Cargar descripción actual en el modal
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = currentCommunityData.description || '';
-    document.getElementById('editDescriptionText').value = tempDiv.textContent || tempDiv.innerText || '';
+    const textarea = document.getElementById('editDescriptionText');
+    if (!textarea) return;
+
+    const rawDescription = currentCommunityData.rawDescription;
+    if (typeof rawDescription === 'string') {
+      textarea.value = rawDescription;
+    } else {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = currentCommunityData.description || '';
+      textarea.value = tempDiv.textContent || tempDiv.innerText || '';
+    }
     showModal('editDescriptionModal');
   }
 }
 
 // Función para actualizar descripción de la comunidad
 function updateCommunityDescription() {
-  const newDescription = document.getElementById('editDescriptionText').value;
-  
-  if (!newDescription.trim()) {
-    showErrorMessage('Por favor ingresa una descripción');
+  if (!currentCommunityData) {
     return;
   }
-  
-  if (currentCommunityData) {
-    // Actualizar descripción
-    currentCommunityData.description = `<p>${newDescription}</p>`;
-    
-    // Recargar vista detallada
-    loadCommunityDetail(currentCommunityData);
-    showSuccessMessage('Descripción actualizada exitosamente');
-    hideModal('editDescriptionModal');
+
+  const descriptionTextarea = document.getElementById('editDescriptionText');
+  if (!descriptionTextarea) {
+    return;
   }
+
+  const newDescription = descriptionTextarea.value.trim();
+
+  fetch(`/api/comunidad/${currentCommunityData.id}/descripcion/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken') || '',
+    },
+    body: JSON.stringify({ descripcion: newDescription }),
+  })
+    .then(async (response) => {
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'No se pudo actualizar la descripción.');
+      }
+      const normalized = normalizeCommunityDetailResponse(result.comunidad);
+      if (!normalized) {
+        throw new Error('La respuesta del servidor no es válida.');
+      }
+      currentCommunityData = normalized;
+      communitiesData[normalized.id] = normalized;
+      updateCommunitiesCache(normalized);
+      loadCommunityDetail(normalized);
+      updateMainCommunityCard(normalized);
+      const listView = document.getElementById('communitiesListView');
+      if (listView && listView.style.display !== 'none') {
+        loadCommunitiesList();
+      }
+      hideModal('editDescriptionModal');
+      showSuccessMessage(result.message || 'Descripción actualizada exitosamente.');
+    })
+    .catch((error) => {
+      console.error('Error al actualizar la descripción:', error);
+      showErrorMessage(error.message || 'No se pudo actualizar la descripción.');
+    });
 }
 
 // ======= FUNCIONES PARA AGREGAR IMÁGENES =======
@@ -638,9 +1035,18 @@ function showAddImageModal() {
 }
 
 function clearImageForm() {
-  document.getElementById('imageFile').value = '';
-  document.getElementById('imageDescription').value = '';
-  document.getElementById('imagePreview').innerHTML = '';
+  const imageInput = document.getElementById('imageFileInput');
+  if (imageInput) {
+    imageInput.value = '';
+  }
+  const imageDescription = document.getElementById('imageDescription');
+  if (imageDescription) {
+    imageDescription.value = '';
+  }
+  const imagePreview = document.getElementById('imagePreview');
+  if (imagePreview) {
+    imagePreview.innerHTML = '';
+  }
 }
 
 // ======= FUNCIONES PARA AGREGAR ARCHIVOS =======
@@ -652,10 +1058,18 @@ function showAddFileModal() {
 }
 
 function clearFileForm() {
-  document.getElementById('fileInput').value = '';
-  document.getElementById('fileName').value = '';
-  document.getElementById('fileDescription').value = '';
-  document.getElementById('filePreview').innerHTML = '';
+  const fileInput = document.getElementById('fileInput');
+  if (fileInput) {
+    fileInput.value = '';
+  }
+  const descriptionInput = document.getElementById('fileDescription');
+  if (descriptionInput) {
+    descriptionInput.value = '';
+  }
+  const preview = document.getElementById('filePreview');
+  if (preview) {
+    preview.innerHTML = '';
+  }
 }
 
 // Función para manejar la selección de archivos de imagen
@@ -680,27 +1094,39 @@ function handleImageFileSelect(event) {
 function handleFileSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
-  
+
   const preview = document.getElementById('filePreview');
-  const fileName = document.getElementById('fileName');
-  
-  // Auto-completar el nombre del archivo
-  if (!fileName.value) {
-    fileName.value = file.name.replace(/\.[^/.]+$/, ""); // Remover extensión
+  if (preview) {
+    const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+    preview.innerHTML = `
+      <div class="file-preview-item">
+        <div class="file-icon">${getFileIcon(extension)}</div>
+        <div class="file-name">${file.name}</div>
+        <button type="button" class="file-preview-remove" data-role="community-file-remove">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          Quitar
+        </button>
+      </div>
+    `;
   }
-  
-  preview.innerHTML = `
-    <div class="file-preview-item">
-      <div class="file-icon">${getFileIcon(file.name.split('.').pop())}</div>
-      <div class="file-name">${file.name}</div>
-    </div>
-  `;
 }
 
-// Función para agregar imagen a la comunidad
 function addImageToCommunity() {
+  if (!CAN_EDIT_COMMUNITIES) {
+    showErrorMessage('No tienes permisos para agregar imágenes.');
+    return;
+  }
+
   const fileInput = document.getElementById('imageFileInput');
   const description = document.getElementById('imageDescription').value;
+  
+  if (!currentCommunityData) {
+    showErrorMessage('Debe seleccionar una comunidad.');
+    return;
+  }
   
   if (!fileInput.files[0]) {
     showErrorMessage('Por favor selecciona una imagen');
@@ -708,67 +1134,80 @@ function addImageToCommunity() {
   }
   
   const file = fileInput.files[0];
-  const reader = new FileReader();
+  const formData = new FormData();
+  formData.append('imagen', file);
+  formData.append('descripcion', description);
   
-  reader.onload = function(e) {
-    if (currentCommunityData) {
-      if (!currentCommunityData.photos) {
-        currentCommunityData.photos = [];
+  fetch(`/api/comunidad/${currentCommunityData.id}/galeria/agregar/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken') || '',
+    },
+    body: formData,
+  })
+    .then(async (response) => {
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'No se pudo agregar la imagen');
       }
-      
-      currentCommunityData.photos.push({
-        url: e.target.result,
-        description: description || 'Imagen de la comunidad'
-      });
-      
-      loadCommunityDetail(currentCommunityData);
-      showSuccessMessage('Imagen agregada exitosamente');
+      clearImageForm();
       hideModal('addImageModal');
-    }
-  };
-  
-  reader.readAsDataURL(file);
+      await refreshCurrentCommunity(result.message || 'Imagen agregada exitosamente');
+    })
+    .catch((error) => {
+      console.error('Error al agregar imagen:', error);
+      showErrorMessage(error.message || 'No se pudo agregar la imagen');
+    });
 }
 
-// Función para agregar archivo a la comunidad
 function addFileToCommunity() {
+  if (!CAN_EDIT_COMMUNITIES) {
+    showErrorMessage('No tienes permisos para agregar archivos.');
+    return;
+  }
+
   const fileInput = document.getElementById('fileInput');
-  const fileName = document.getElementById('fileName').value;
-  const description = document.getElementById('fileDescription').value;
-  
-  if (!fileInput.files[0]) {
+  const descriptionInput = document.getElementById('fileDescription');
+
+  if (!currentCommunityData) {
+    showErrorMessage('Debe seleccionar una comunidad.');
+    return;
+  }
+
+  if (!fileInput || !fileInput.files[0]) {
     showErrorMessage('Por favor selecciona un archivo');
     return;
   }
-  
-  if (!fileName.trim()) {
-    showErrorMessage('Por favor ingresa un nombre para el archivo');
-    return;
-  }
-  
+
   const file = fileInput.files[0];
-  const fileType = file.name.split('.').pop().toLowerCase();
-  const fileSize = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-  const currentDate = new Date().toISOString().split('T')[0];
-  
-  if (currentCommunityData) {
-    if (!currentCommunityData.files) {
-      currentCommunityData.files = [];
-    }
-    
-    currentCommunityData.files.push({
-      name: fileName,
-      description: description || 'Archivo de la comunidad',
-      type: fileType,
-      size: fileSize,
-      date: currentDate,
-      url: '#' // En una implementación real, aquí se subiría el archivo
+  const description = descriptionInput ? descriptionInput.value.trim() : '';
+  const finalName = file.name;
+
+  const formData = new FormData();
+  formData.append('archivo', file);
+  formData.append('nombre', finalName);
+  formData.append('descripcion', description);
+
+  fetch(`/api/comunidad/${currentCommunityData.id}/archivos/agregar/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken') || '',
+    },
+    body: formData,
+  })
+    .then(async (response) => {
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'No se pudo agregar el archivo');
+      }
+      clearFileForm();
+      hideModal('addFileModal');
+      return refreshCurrentCommunity(result.message || 'Archivo agregado exitosamente');
+    })
+    .catch((error) => {
+      console.error('Error al agregar archivo:', error);
+      showErrorMessage(error.message || 'No se pudo agregar el archivo');
     });
-    
-    loadCommunityDetail(currentCommunityData);
-    showSuccessMessage('Archivo agregado exitosamente');
-    hideModal('addFileModal');
-  }
 }
 
 // ======= EVENT LISTENERS =======
@@ -814,6 +1253,10 @@ document.addEventListener('DOMContentLoaded', function() {
   if (editDataBtn) {
     editDataBtn.addEventListener('click', showEditDataModal);
   }
+  const confirmDataBtn = document.getElementById('confirmDataBtn');
+  if (confirmDataBtn) {
+    confirmDataBtn.addEventListener('click', updateCommunityData);
+  }
   
   // Botón de editar descripción
   const editDescriptionBtn = document.getElementById('editDescriptionBtn');
@@ -844,11 +1287,6 @@ document.addEventListener('DOMContentLoaded', function() {
   // }
   
   // Event listeners para editar datos
-  const confirmDataBtn = document.getElementById('confirmDataBtn');
-  if (confirmDataBtn) {
-    confirmDataBtn.addEventListener('click', updateCommunityData);
-  }
-  
   const cancelDataBtn = document.getElementById('cancelDataBtn');
   if (cancelDataBtn) {
     cancelDataBtn.addEventListener('click', () => hideModal('editDataModal'));
@@ -907,6 +1345,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (cancelImageBtn) {
     cancelImageBtn.addEventListener('click', function() {
       hideModal('addImageModal');
+      clearImageForm();
     });
   }
   
@@ -917,9 +1356,28 @@ document.addEventListener('DOMContentLoaded', function() {
   if (closeImageModal) {
     closeImageModal.addEventListener('click', function() {
       hideModal('addImageModal');
+      clearImageForm();
     });
   }
-  
+
+  const imageViewerModal = document.getElementById('communityImageViewerModal');
+  const closeImageViewerBtn = document.getElementById('closeCommunityImageViewer');
+  if (closeImageViewerBtn) {
+    closeImageViewerBtn.addEventListener('click', () => hideModal('communityImageViewerModal'));
+  }
+  if (imageViewerModal) {
+    imageViewerModal.addEventListener('click', (event) => {
+      if (event.target === imageViewerModal) {
+        hideModal('communityImageViewerModal');
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && imageViewerModal.classList.contains('active')) {
+        hideModal('communityImageViewerModal');
+      }
+    });
+  }
+
   // Botones del modal de archivo
   const cancelFileBtn = document.getElementById('cancelFileBtn');
   const confirmFileBtn = document.getElementById('confirmFileBtn');
@@ -928,6 +1386,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (cancelFileBtn) {
     cancelFileBtn.addEventListener('click', function() {
       hideModal('addFileModal');
+      clearFileForm();
     });
   }
   
@@ -938,9 +1397,60 @@ document.addEventListener('DOMContentLoaded', function() {
   if (closeFileModal) {
     closeFileModal.addEventListener('click', function() {
       hideModal('addFileModal');
+      clearFileForm();
     });
   }
 });
+
+function setupEditDataFormConstraints() {
+  const populationInput = document.getElementById('editPopulation');
+  if (populationInput) {
+    populationInput.addEventListener('input', () => {
+      const digitsOnly = populationInput.value.replace(/\D+/g, '');
+      populationInput.value = digitsOnly;
+    });
+  }
+
+  const cocodeInput = document.getElementById('editCocode');
+  if (cocodeInput) {
+    cocodeInput.addEventListener('input', () => {
+      let sanitized = cocodeInput.value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\s-]+/g, '');
+      sanitized = sanitized.replace(/\s+/g, ' ');
+      if (sanitized.length > 100) {
+        sanitized = sanitized.slice(0, 100);
+      }
+      cocodeInput.value = sanitized;
+    });
+  }
+
+  const phoneInput = document.getElementById('editCocodePhone');
+  if (phoneInput) {
+    phoneInput.addEventListener('input', () => {
+      let digits = phoneInput.value.replace(/\D+/g, '');
+      if (digits.length > 8) {
+        digits = digits.slice(0, 8);
+      }
+      phoneInput.value = digits;
+    });
+  }
+
+  const coordinatesInput = document.getElementById('editCoordinates');
+  if (coordinatesInput) {
+    coordinatesInput.addEventListener('input', () => {
+      let value = coordinatesInput.value.replace(/[^0-9,\.\-\s]/g, '');
+      const firstComma = value.indexOf(',');
+      if (firstComma !== -1) {
+        const before = value.slice(0, firstComma + 1);
+        const after = value
+          .slice(firstComma + 1)
+          .replace(/,/g, '');
+        value = `${before}${after}`;
+      }
+      value = value.replace(/\s+/g, ' ');
+      coordinatesInput.value = value;
+    });
+  }
+}
 
 // Función para agregar event listeners a los botones "Ver más"
 function addCommunityViewMoreListeners() {
@@ -971,6 +1481,7 @@ function addCommunityViewMoreListeners() {
 
 // Agregar event listeners cuando se cargue la página
 document.addEventListener('DOMContentLoaded', function() {
+  setupEditDataFormConstraints();
   addCommunityViewMoreListeners();
 });
 
@@ -1004,39 +1515,70 @@ function executeDeleteAction() {
 
 // Función para eliminar imagen de la galería
 function removeImageFromCommunity(imageIndex) {
+  if (!currentCommunityData || !Array.isArray(currentCommunityData.photos)) return;
+  const targetPhoto = currentCommunityData.photos[imageIndex];
+  if (!targetPhoto || !targetPhoto.id) {
+    showErrorMessage('No se pudo identificar la imagen a eliminar.');
+    return;
+  }
+
   showConfirmDeleteModal(
     '¿Estás seguro de que deseas eliminar esta imagen de la galería?',
     () => {
-      const currentCommunity = getCurrentCommunity();
-      if (currentCommunity && currentCommunity.photos) {
-        currentCommunity.photos.splice(imageIndex, 1);
-        loadCommunityDetail(currentCommunity);
-        showSuccessMessage('Imagen eliminada exitosamente');
-      }
+      fetch(`/api/comunidad/${currentCommunityData.id}/galeria/${targetPhoto.id}/eliminar/`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken') || '',
+        },
+      })
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'No se pudo eliminar la imagen');
+          }
+          hideModal('confirmDeleteModal');
+          await refreshCurrentCommunity(result.message || 'Imagen eliminada exitosamente');
+        })
+        .catch((error) => {
+          console.error('Error al eliminar imagen:', error);
+          showErrorMessage(error.message || 'No se pudo eliminar la imagen');
+        });
     }
   );
 }
 
 // Función para eliminar archivo
 function removeFileFromCommunity(fileId) {
+  if (!currentCommunityData || !fileId) return;
+
   showConfirmDeleteModal(
     '¿Estás seguro de que deseas eliminar este archivo?',
     () => {
-      const currentCommunity = getCurrentCommunity();
-      if (currentCommunity && currentCommunity.files) {
-        currentCommunity.files = currentCommunity.files.filter(file => file.id !== fileId);
-        loadCommunityDetail(currentCommunity);
-        showSuccessMessage('Archivo eliminado exitosamente');
-      }
+      fetch(`/api/comunidad/${currentCommunityData.id}/archivos/${fileId}/eliminar/`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken') || '',
+        },
+      })
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'No se pudo eliminar el archivo');
+          }
+          hideModal('confirmDeleteModal');
+          return refreshCurrentCommunity(result.message || 'Archivo eliminado correctamente');
+        })
+        .catch((error) => {
+          console.error('Error al eliminar archivo:', error);
+          showErrorMessage(error.message || 'No se pudo eliminar el archivo');
+        });
     }
   );
 }
 
 // Función para obtener la comunidad actual
 function getCurrentCommunity() {
-  // Esta función debería retornar la comunidad actualmente mostrada
-  // Por ahora retornamos una comunidad de ejemplo
-  return communitiesData['san-jose'];
+  return currentCommunityData;
 }
 
 // Función para mostrar mensaje de éxito
@@ -1063,16 +1605,26 @@ function loadGalleryWithDeleteButtons(photos) {
   photos.forEach((photo, index) => {
     const imageItem = document.createElement('div');
     imageItem.className = 'gallery-item';
-    imageItem.innerHTML = `
-      <img src="${photo.url}" alt="${photo.description}" onclick="openImageModal('${photo.url}')">
-      <div class="image-description">${photo.description}</div>
+    const photoUrl = photo.url || '';
+    const encodedUrl = encodeURI(photoUrl);
+    const description = photo.description || 'Imagen de la comunidad';
+    const controls = CAN_EDIT_COMMUNITIES ? `
       <button class="btn-remove-item" data-image-index="${index}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
       </button>
+    ` : '';
+    imageItem.innerHTML = `
+      <img src="${encodedUrl}" alt="${escapeHtml(description)}" data-photo-index="${index}">
+      <div class="image-description">${escapeHtml(description)}</div>
+      ${controls}
     `;
+    const img = imageItem.querySelector('img');
+    if (img) {
+      img.addEventListener('click', () => openImageModal(photoUrl, description));
+    }
     container.appendChild(imageItem);
   });
 }
@@ -1083,27 +1635,62 @@ function loadFilesWithDeleteButtons(files) {
   if (!container) return;
 
   container.innerHTML = '';
-  
-  files.forEach((file, index) => {
+
+  if (!files || !files.length) {
+    container.innerHTML = `
+      <div class="file-item">
+        <div class="file-info">
+          <p style="color: var(--text-muted); text-align: center; margin: 20px 0;">No hay archivos disponibles para esta comunidad.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  files.forEach((file) => {
     const fileItem = document.createElement('div');
     fileItem.className = 'file-item';
+    const fileType = (file.type || '').toLowerCase();
+    const fileDate = file.date ? formatDate(file.date) : 'Fecha no disponible';
+    const description = file.description ? escapeHtml(file.description) : '';
+    const fileName = escapeHtml(file.name || 'Archivo sin nombre');
+    const fileTypeLabel = fileType ? ` • ${fileType.toUpperCase()}` : '';
+    const fileDateText = fileDate === 'Fecha no disponible'
+      ? fileDate
+      : `Agregado el ${fileDate}${fileTypeLabel}`;
+
+    const actions = USER_AUTH.isAuthenticated
+      ? `
+        <div class="file-actions">
+          <a href="${file.url}" class="file-download-btn" download>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7,10 12,15 17,10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Descargar
+          </a>
+          ${CAN_EDIT_COMMUNITIES ? `
+            <button class="file-delete-btn" data-file-id="${file.id}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Eliminar
+            </button>
+          ` : ''}
+        </div>
+      `
+      : '';
+
     fileItem.innerHTML = `
-      <div class="file-icon">📄</div>
+      <div class="file-icon">${getFileIcon(fileType)}</div>
       <div class="file-info">
-        <h4>${file.name}</h4>
-        <p>${file.description}</p>
-        <div class="file-date">${file.date}</div>
+        <h4>${fileName}</h4>
+        ${description ? `<p>${description}</p>` : ''}
+        <div class="file-date">${fileDateText}</div>
       </div>
-      <div class="file-actions">
-        <a href="${file.url}" class="file-download-btn" download>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7,10 12,15 17,10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Descargar
-        </a>
-      </div>
+      ${actions}
     `;
     container.appendChild(fileItem);
   });
@@ -1111,13 +1698,25 @@ function loadFilesWithDeleteButtons(files) {
 
 // Event listeners para botones de eliminación (solo imágenes)
 document.addEventListener('click', function(e) {
-  if (e.target.closest('.btn-remove-item')) {
-    const button = e.target.closest('.btn-remove-item');
-    
-    if (button.hasAttribute('data-image-index')) {
-      const imageIndex = parseInt(button.getAttribute('data-image-index'));
+  const removeImageButton = e.target.closest('.btn-remove-item');
+  if (removeImageButton && removeImageButton.hasAttribute('data-image-index')) {
+    const imageIndex = parseInt(removeImageButton.getAttribute('data-image-index'), 10);
+    if (!Number.isNaN(imageIndex)) {
       removeImageFromCommunity(imageIndex);
     }
+    return;
+  }
+
+  const removeFileButton = e.target.closest('.file-delete-btn');
+  if (removeFileButton && removeFileButton.dataset.fileId) {
+    removeFileFromCommunity(removeFileButton.dataset.fileId);
+    return;
+  }
+
+  const previewRemoveButton = e.target.closest('.file-preview-remove[data-role="community-file-remove"]');
+  if (previewRemoveButton) {
+    e.preventDefault();
+    clearFileForm();
   }
 });
 
@@ -1126,7 +1725,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
   const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
   const closeConfirmModal = document.getElementById('closeConfirmModal');
-  const removeFileBtn = document.getElementById('removeFileBtn');
 
   if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener('click', executeDeleteAction);
@@ -1145,124 +1743,37 @@ document.addEventListener('DOMContentLoaded', function() {
       pendingDeleteAction = null;
     });
   }
-
-  if (removeFileBtn) {
-    removeFileBtn.addEventListener('click', function() {
-      showFileSelectionModal();
-    });
-  }
 });
 
-// ======= FUNCIONALIDAD DE SELECCIÓN DE ARCHIVOS =======
+function updateMainCommunityCard(community) {
+  if (!community || !community.id) return;
 
-// Función para mostrar modal de selección de archivos
-function showFileSelectionModal() {
-  const currentCommunity = getCurrentCommunity();
-  if (!currentCommunity || !currentCommunity.files || currentCommunity.files.length === 0) {
-    showSuccessMessage('No hay archivos para eliminar');
+  const buttons = document.querySelectorAll(`.community-card__btn[data-community-id="${community.id}"]`);
+  if (!buttons.length) {
     return;
   }
-  
-  loadFileSelectionList(currentCommunity.files);
-  showModal('fileSelectionModal');
-}
 
-// Función para cargar la lista de archivos en el modal de selección
-function loadFileSelectionList(files) {
-  const container = document.getElementById('fileSelectionList');
-  if (!container) return;
+  buttons.forEach((button) => {
+    const card = button.closest('.community-card');
+    if (!card) return;
 
-  container.innerHTML = '';
-  
-  files.forEach((file, index) => {
-    const fileItem = document.createElement('div');
-    fileItem.className = 'selection-item';
-    fileItem.innerHTML = `
-      <input type="checkbox" class="selection-checkbox" id="file-${index}" data-file-index="${index}">
-      <div class="file-icon">📄</div>
-      <div class="file-info">
-        <h4>${file.name}</h4>
-        <p>${file.description}</p>
-        <div class="file-date">${file.date}</div>
-      </div>
-    `;
-    container.appendChild(fileItem);
-  });
-  
-  setupFileSelectionHandlers();
-}
+    const titleEl = card.querySelector('.community-card__title');
+    if (titleEl) {
+      titleEl.textContent = community.name;
+    }
 
-// Función para configurar los manejadores de selección de archivos
-function setupFileSelectionHandlers() {
-  const selectionItems = document.querySelectorAll('#fileSelectionList .selection-item');
-  const checkboxes = document.querySelectorAll('#fileSelectionList .selection-checkbox');
-  
-  selectionItems.forEach((item, index) => {
-    item.addEventListener('click', function(e) {
-      if (e.target.type !== 'checkbox') {
-        const checkbox = this.querySelector('.selection-checkbox');
-        checkbox.checked = !checkbox.checked;
-        this.classList.toggle('selected', checkbox.checked);
+    const regionEl = card.querySelector('.community-card__region');
+    if (regionEl) {
+      regionEl.textContent = community.regionName || 'Sin región asignada';
+    }
+
+    const imgEl = card.querySelector('img');
+    if (imgEl) {
+      const newSrc = community.coverImage || community.image || DEFAULT_COMMUNITY_IMAGE_SMALL;
+      if (newSrc) {
+        imgEl.src = newSrc;
       }
-    });
-  });
-  
-  checkboxes.forEach((checkbox, index) => {
-    checkbox.addEventListener('change', function() {
-      const item = this.closest('.selection-item');
-      item.classList.toggle('selected', this.checked);
-    });
+      imgEl.alt = community.name;
+    }
   });
 }
-
-// Función para obtener los índices de archivos seleccionados
-function getSelectedFileIndices() {
-  const checkboxes = document.querySelectorAll('#fileSelectionList .selection-checkbox:checked');
-  return Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-file-index')));
-}
-
-// Event listeners para el modal de selección de archivos
-document.addEventListener('DOMContentLoaded', function() {
-  const closeFileSelectionModal = document.getElementById('closeFileSelectionModal');
-  const cancelFileSelectionBtn = document.getElementById('cancelFileSelectionBtn');
-  const confirmFileSelectionBtn = document.getElementById('confirmFileSelectionBtn');
-
-  if (closeFileSelectionModal) {
-    closeFileSelectionModal.addEventListener('click', function() {
-      hideModal('fileSelectionModal');
-    });
-  }
-
-  if (cancelFileSelectionBtn) {
-    cancelFileSelectionBtn.addEventListener('click', function() {
-      hideModal('fileSelectionModal');
-    });
-  }
-
-  if (confirmFileSelectionBtn) {
-    confirmFileSelectionBtn.addEventListener('click', function() {
-      const selectedIndices = getSelectedFileIndices();
-      
-      if (selectedIndices.length === 0) {
-        showSuccessMessage('Selecciona al menos un archivo para eliminar');
-        return;
-      }
-      
-      showConfirmDeleteModal(
-        `¿Estás seguro de que deseas eliminar ${selectedIndices.length} archivo(s) seleccionado(s)?`,
-        () => {
-          const currentCommunity = getCurrentCommunity();
-          if (currentCommunity && currentCommunity.files) {
-            // Eliminar archivos en orden descendente para mantener los índices correctos
-            selectedIndices.sort((a, b) => b - a).forEach(index => {
-              currentCommunity.files.splice(index, 1);
-            });
-            loadCommunityDetail(currentCommunity);
-            hideModal('fileSelectionModal');
-            showSuccessMessage(`${selectedIndices.length} archivo(s) eliminado(s) exitosamente`);
-          }
-        }
-      );
-    });
-  }
-});

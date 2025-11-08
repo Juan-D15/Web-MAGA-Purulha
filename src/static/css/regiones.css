@@ -1504,6 +1504,27 @@ html {
   word-break: break-word;
 }
 
+.file-preview-remove {
+  margin-top: 12px;
+  background: rgba(255, 99, 132, 0.12);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 99, 132, 0.4);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.3s ease;
+}
+
+.file-preview-remove:hover {
+  background: rgba(255, 99, 132, 0.2);
+  border-color: rgba(255, 99, 132, 0.6);
+}
+
 /* ======= ESTILOS PARA BOTONES DE ELIMINACIÓN ======= */
 .btn-remove-item {
   background: rgba(220, 53, 69, 0.1);

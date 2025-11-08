@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login as auth_login, logout as aut
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 
 from .decorators import (
     get_usuario_maga,
@@ -15,6 +15,7 @@ from .forms import LoginForm
 from .models import (
     Actividad,
     Comunidad,
+    ComunidadGaleria,
     Region,
     RegionGaleria,
     TipoActividad,
@@ -40,16 +41,57 @@ def index(request):
 
 def comunidades(request):
     """Vista de comunidades con datos reales"""
-    comunidades_list = (
-        Comunidad.objects.filter(activo=True)
-        .select_related('tipo', 'region')
-        .prefetch_related('autoridades')
-        .order_by('region__codigo', 'nombre')
+    galeria_prefetch = Prefetch(
+        'galeria',
+        queryset=ComunidadGaleria.objects.order_by('-creado_en'),
+        to_attr='galeria_prefetch',
     )
 
+    comunidades_qs = (
+        Comunidad.objects.filter(activo=True)
+        .select_related('tipo', 'region')
+        .prefetch_related('autoridades', galeria_prefetch)
+    )
+
+    comunidades_list = list(
+        comunidades_qs.order_by('region__codigo', 'nombre')
+    )
+
+    ultimas_comunidades = list(
+        comunidades_qs.order_by('-actualizado_en', '-creado_en')[:3]
+    )
+
+    default_image_large = (
+        'https://images.unsplash.com/photo-1523978591478-c753949ff840'
+        '?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+    )
+    default_image_small = (
+        'https://images.unsplash.com/photo-1523978591478-c753949ff840'
+        '?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
+    )
+
+    def asignar_imagen(comunidad, fallback_url):
+        galeria = getattr(comunidad, 'galeria_prefetch', None)
+        if galeria:
+            comunidad.imagen_url = galeria[0].url_almacenamiento
+        else:
+            comunidad.imagen_url = fallback_url
+
+    for comunidad in comunidades_list:
+        asignar_imagen(comunidad, default_image_small)
+
+    for comunidad in ultimas_comunidades:
+        asignar_imagen(comunidad, default_image_large)
+
+    ultimas_ids = {str(comunidad.id) for comunidad in ultimas_comunidades}
+    comunidades_secundarias = [
+        comunidad for comunidad in comunidades_list if str(comunidad.id) not in ultimas_ids
+    ]
+
     context = {
-        'comunidades': comunidades_list,
-        'total_comunidades': comunidades_list.count(),
+        'ultimas_comunidades': ultimas_comunidades,
+        'comunidades': comunidades_secundarias,
+        'total_comunidades': len(comunidades_list),
         'regiones': Region.objects.all().order_by('codigo'),
         'tipos_comunidad': TipoComunidad.objects.all(),
     }
