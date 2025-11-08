@@ -1,3 +1,23 @@
+function openImageViewer(url, description) {
+  const viewerImg = document.getElementById('imageViewerImg');
+  const viewerDesc = document.getElementById('imageViewerDescription');
+  const viewerTitle = document.getElementById('imageViewerTitle');
+
+  if (viewerImg) {
+    viewerImg.src = url;
+  }
+
+  if (viewerDesc) {
+    viewerDesc.textContent = description || '';
+    viewerDesc.style.display = 'none';
+  }
+
+  if (viewerTitle) {
+    viewerTitle.textContent = description || 'Imagen de la región';
+  }
+
+  showModal('imageViewerModal');
+}
 // ======= DATOS DE REGIONES - CARGA DESDE BD =======
 console.log('📦 Regiones.js - Cargando datos desde la base de datos');
 
@@ -6,6 +26,24 @@ let regionsData = {}; // Se llenará dinámicamente desde la API
 let currentRegionData = null;
 let currentRegionId = null;
 let allRegions = []; // Todas las regiones para la lista completa
+
+const USER_AUTH = window.USER_AUTH || { isAuthenticated: false, isAdmin: false, isPersonal: false };
+const CAN_EDIT_REGIONS = USER_AUTH.isAuthenticated && (USER_AUTH.isAdmin || USER_AUTH.isPersonal);
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatDescription(text) {
+  if (!text) return '';
+  return `<p>${escapeHtml(text).replace(/\r?\n/g, '<br>')}</p>`;
+}
 
 // ======= FUNCIONES DE NAVEGACIÓN =======
 async function showRegionsList() {
@@ -101,7 +139,8 @@ async function showRegionDetail(regionId) {
       location: regionData.location,
       photos: regionData.photos || [],
       data: regionData.data || [],
-      description: regionData.descripcion ? `<p>${regionData.descripcion}</p>` : '',
+      rawDescription: regionData.descripcion || '',
+      description: regionData.descripcion ? formatDescription(regionData.descripcion) : '',
       projects: regionData.projects || [],
       communities: regionData.communities || [],
       files: regionData.files || []
@@ -113,8 +152,8 @@ async function showRegionDetail(regionId) {
       loadingOverlay.remove();
     }
     
-    loadRegionDetail(currentRegionData);
-    window.scrollTo(0, 0);
+  loadRegionDetail(currentRegionData);
+  window.scrollTo(0, 0);
   } catch (error) {
     console.error('❌ Error al cargar detalle de región:', error);
     
@@ -163,7 +202,7 @@ function backToList() {
 async function loadRegionsFromAPI() {
   console.log('🔄 Iniciando carga de regiones desde API (actualización dinámica)...');
   try {
-    const response = await fetch('/api/regiones/');
+    const response = await fetch(`/api/regiones/?_=${Date.now()}`);
     console.log('📡 Respuesta recibida:', response.status, response.statusText);
     
     if (!response.ok) {
@@ -196,12 +235,14 @@ async function loadRegionsFromAPI() {
     console.log('📊 Total de regiones procesadas:', allRegions.length);
     console.log('📋 Primeras 3 regiones:', allRegions.slice(0, 3));
     
-    // Actualizar la lista completa solo si estamos en la vista de lista
+    // Actualizar la lista y el grid según corresponda
     const listView = document.getElementById('regionsListView');
     if (listView && listView.style.display !== 'none') {
       console.log('🔄 Actualizando lista de regiones...');
       loadRegionsList();
     }
+
+    loadRegionsGrid();
     
     console.log('✅ Regiones cargadas exitosamente:', Object.keys(regionsData).length);
   } catch (error) {
@@ -214,7 +255,7 @@ async function loadRegionsFromAPI() {
 async function loadFeaturedRegions() {
   console.log('🔄 Cargando últimas regiones...');
   try {
-    const response = await fetch('/api/regiones/recientes/?limite=2');
+    const response = await fetch(`/api/regiones/recientes/?limite=2&_=${Date.now()}`);
     console.log('📡 Respuesta últimas regiones:', response.status);
     
     if (!response.ok) {
@@ -430,14 +471,11 @@ function loadRegionDetail(region) {
   if (detailTitle) detailTitle.textContent = tituloPrincipal;
   if (detailCode) detailCode.textContent = subtitulo;
   
-  // Galería de imágenes con botones de eliminación
-  if (region.photos && region.photos.length > 0) {
-    loadGalleryWithDeleteButtons(region.photos);
+  const photos = region.photos || [];
+  if (CAN_EDIT_REGIONS) {
+    loadGalleryWithDeleteButtons(photos);
   } else {
-    const gallery = document.getElementById('detailGallery');
-    if (gallery) {
-      gallery.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay imágenes disponibles</p>';
-    }
+    loadGallery(photos);
   }
   
   // Ubicación
@@ -445,7 +483,7 @@ function loadRegionDetail(region) {
   
   // Mapa de la región (esperar un poco para asegurar que el DOM esté listo)
   setTimeout(() => {
-    loadRegionMap(region.id);
+  loadRegionMap(region.id);
   }, 100);
   
   // Datos generales
@@ -463,15 +501,8 @@ function loadRegionDetail(region) {
   // Comunidades
   loadCommunities(region.communities);
   
-  // Archivos con botones de eliminación
-  if (region.files && region.files.length > 0) {
-    loadFilesWithDeleteButtons(region.files);
-  } else {
-    const filesContainer = document.getElementById('detailFiles');
-    if (filesContainer) {
-      filesContainer.innerHTML = '<p class="no-files">No hay archivos disponibles</p>';
-    }
-  }
+  // Archivos
+  renderRegionFiles(region.files || []);
 }
 
 function loadGallery(photos) {
@@ -480,11 +511,16 @@ function loadGallery(photos) {
   
   gallery.innerHTML = '';
   
+  if (!photos || photos.length === 0) {
+    gallery.innerHTML = '<p class="no-gallery-items">No hay imágenes disponibles</p>';
+    return;
+  }
+  
   photos.forEach(photo => {
     const galleryItem = document.createElement('div');
     galleryItem.className = 'gallery-item';
     galleryItem.innerHTML = `
-      <img src="${photo.url}" alt="${photo.description}" loading="lazy">
+      <img src="${photo.url}" alt="${photo.description}" loading="lazy" data-photo-url="${photo.url}">
     `;
     gallery.appendChild(galleryItem);
   });
@@ -511,72 +547,62 @@ function loadRegionMap(regionId) {
     console.warn('⚠️ No se encontró el elemento regionMapImage');
     return;
   }
-  
-  // Buscar la región en allRegions o en currentRegionData para obtener el código
-  let region = allRegions.find(r => r.id === regionId);
-  
-  // Si no se encuentra en allRegions, intentar obtener el código desde currentRegionData
-  if (!region && currentRegionData) {
-    // Intentar obtener el código desde la API
-    const codigo = currentRegionData.code || currentRegionData.codigo;
-    if (codigo) {
-      const codigoMatch = codigo.match(/\d+/);
-      const regionNumber = codigoMatch ? parseInt(codigoMatch[0], 10) : null;  // Convertir a entero para eliminar ceros iniciales
-      
-      if (regionNumber) {
-        const svgPath = `/static/svg/regiones/region${regionNumber}.svg`;
-        console.log('🗺️ Cargando mapa SVG:', svgPath, '(código:', codigo, 'número:', regionNumber, ')');
-        regionMapImage.src = svgPath;
-        regionMapImage.alt = `Mapa de la región ${regionNumber}`;
-        regionMapImage.style.display = 'block';
-        
-        regionMapImage.onerror = function() {
-          console.warn(`⚠️ No se pudo cargar el mapa SVG para la región ${regionNumber} (ruta: ${svgPath})`);
-          regionMapImage.style.display = 'none';
-        };
-        
-        regionMapImage.onload = function() {
-          console.log('✅ Mapa SVG cargado exitosamente:', svgPath);
-          regionMapImage.style.display = 'block';
-        };
-        return;
-      }
-    }
-  }
-  
-  if (region && region.codigo) {
-    // Extraer número del código (ej: 'REG-02' -> '02' -> 2, 'REG-1' -> '1' -> 1)
-    const codigoMatch = region.codigo.match(/\d+/);
-    const regionNumber = codigoMatch ? parseInt(codigoMatch[0], 10) : null;  // Convertir a entero para eliminar ceros iniciales
-    
-    if (regionNumber) {
-      // Construir la ruta del SVG (sin ceros iniciales)
-      const svgPath = `/static/svg/regiones/region${regionNumber}.svg`;
-      console.log('🗺️ Cargando mapa SVG:', svgPath, '(código:', region.codigo, 'número:', regionNumber, ')');
-      
-      // Cargar el SVG
-      regionMapImage.src = svgPath;
-      regionMapImage.alt = `Mapa de la ${region.nombre}`;
+
+  const fallbackImage =
+    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=60';
+
+  const getRegionNumberFromCode = (codigo) => {
+    if (!codigo) return null;
+    const codigoMatch = codigo.match(/\d+/);
+    return codigoMatch ? parseInt(codigoMatch[0], 10) : null;
+  };
+
+  const loadMapImage = (regionNumber, regionName = '') => {
+    if (!regionNumber) {
+      console.warn('⚠️ No se pudo obtener el número de la región para cargar el mapa');
+      regionMapImage.src = fallbackImage;
+      regionMapImage.alt = 'Mapa no disponible';
       regionMapImage.style.display = 'block';
-      
-      // Manejar errores de carga
-      regionMapImage.onerror = function() {
-        console.warn(`⚠️ No se pudo cargar el mapa SVG para la región ${regionNumber} (ruta: ${svgPath}, código original: ${region.codigo})`);
-        regionMapImage.style.display = 'none';
-      };
-      
-      regionMapImage.onload = function() {
-        console.log('✅ Mapa SVG cargado exitosamente:', svgPath);
-        regionMapImage.style.display = 'block';
-      };
-    } else {
-      console.warn('⚠️ No se pudo extraer el número de región del código:', region.codigo);
-      regionMapImage.style.display = 'none';
+      return;
     }
-  } else {
-    console.warn('⚠️ No se encontró la región o su código. Region:', region, 'currentRegionData:', currentRegionData);
-    regionMapImage.style.display = 'none';
+
+    const pngPath = `/static/img/regiones%20mapa/region${regionNumber}.png`;
+    console.log('🗺️ Cargando mapa PNG:', pngPath, '(región:', regionName || regionNumber, ')');
+
+    regionMapImage.style.display = 'block';
+    regionMapImage.src = pngPath;
+    regionMapImage.alt = `Mapa de la región ${regionName || regionNumber}`;
+
+    regionMapImage.onload = () => {
+      console.log('✅ Mapa PNG cargado exitosamente:', pngPath);
+      regionMapImage.style.display = 'block';
+    };
+
+    regionMapImage.onerror = () => {
+      console.warn(`⚠️ No se pudo cargar el mapa PNG para la región ${regionNumber} (ruta: ${pngPath}). Usando imagen de respaldo.`);
+      regionMapImage.src = fallbackImage;
+      regionMapImage.alt = 'Mapa no disponible';
+      regionMapImage.style.display = 'block';
+    };
+  };
+
+  const region = allRegions.find((r) => r.id === regionId);
+  if (region && region.codigo) {
+    loadMapImage(getRegionNumberFromCode(region.codigo), region.nombre);
+    return;
   }
+
+  if (currentRegionData) {
+    const codigo = currentRegionData.code || currentRegionData.codigo;
+    const nombre = currentRegionData.name || currentRegionData.nombre || '';
+    loadMapImage(getRegionNumberFromCode(codigo), nombre);
+    return;
+  }
+
+  console.warn('⚠️ No se encontró información suficiente para mostrar el mapa de la región', regionId);
+  regionMapImage.src = fallbackImage;
+  regionMapImage.alt = 'Mapa no disponible';
+  regionMapImage.style.display = 'block';
 }
 
 function loadData(data) {
@@ -639,27 +665,36 @@ function loadCommunities(communities) {
   });
 }
 
-function loadFiles(files) {
+function renderRegionFiles(files) {
   const filesContainer = document.getElementById('detailFiles');
   if (!filesContainer) return;
   
   filesContainer.innerHTML = '';
-  if (files && files.length > 0) {
-    files.forEach(file => {
+
+  if (!Array.isArray(files) || files.length === 0) {
+    filesContainer.innerHTML = '<p class="no-files">No hay archivos disponibles</p>';
+    return;
+  }
+
+  files.forEach((file) => {
       const fileItem = document.createElement('div');
       fileItem.className = 'file-item';
-      
-      // Calcular tamaño si no está disponible
-      const fileSize = file.size || 'N/A';
-      const fileDate = file.date ? formatDate(file.date) : 'Fecha no disponible';
-      
+
+    const fileType = (file.type || '').toLowerCase();
+    const fileDate = file.date ? formatDate(file.date) : 'Fecha no disponible';
+    const description = file.description ? escapeHtml(file.description) : '';
+    const rawFileName = file.name || 'Archivo sin nombre';
+    const fileName = escapeHtml(rawFileName);
+    const datasetFileName = encodeURIComponent(rawFileName);
+
       fileItem.innerHTML = `
-        <div class="file-icon">${getFileIcon(file.type)}</div>
+      <div class="file-icon">${getFileIcon(fileType)}</div>
         <div class="file-info">
-          <h4>${file.name}</h4>
-          <p>${file.description || ''}</p>
-          <div class="file-date">Agregado el ${fileDate}${fileSize !== 'N/A' ? ` • ${fileSize}` : ''}</div>
+        <h4>${fileName}</h4>
+        <p>${description}</p>
+        <div class="file-date">Agregado el ${fileDate}${fileType ? ` • ${fileType.toUpperCase()}` : ''}</div>
         </div>
+      ${USER_AUTH.isAuthenticated ? `
         <div class="file-actions">
           <a href="${file.url}" class="file-download-btn" download>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -669,42 +704,106 @@ function loadFiles(files) {
             </svg>
             Descargar
           </a>
+          ${CAN_EDIT_REGIONS ? `
+            <button class="file-delete-btn" data-file-id="${file.id}" data-file-name="${datasetFileName}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Eliminar
+            </button>
+          ` : ''}
         </div>
+      ` : ''}
       `;
+
       filesContainer.appendChild(fileItem);
     });
-  } else {
-    filesContainer.innerHTML = `
-      <div class="file-item">
-        <div class="file-info">
-          <p style="color: var(--text-muted); text-align: center; margin: 20px 0;">No hay archivos disponibles para esta región.</p>
-        </div>
-      </div>
-    `;
+}
+
+function getFileIcon(fileType) {
+  const icons = {
+    pdf: '📄',
+    doc: '📝',
+    docx: '📝',
+    xls: '📊',
+    xlsx: '📊',
+    ppt: '📋',
+    pptx: '📋',
+    txt: '📄',
+    default: '📁'
+  };
+
+  if (!fileType) {
+    return icons.default;
+  }
+
+  const normalized = fileType.includes('/') ? fileType.split('/').pop() : fileType;
+  return icons[normalized] || icons.default;
+}
+
+function formatDate(dateString) {
+  if (!dateString) return 'Fecha no disponible';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return 'Fecha no disponible';
+  }
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  return date.toLocaleDateString('es-ES', options);
+}
+
+function decodeFileName(encodedName) {
+  if (!encodedName) return 'este archivo';
+  try {
+    const decoded = decodeURIComponent(encodedName);
+    return decoded || 'este archivo';
+  } catch (error) {
+    return encodedName;
   }
 }
 
-// Función para obtener el icono del archivo
-function getFileIcon(fileType) {
-  const icons = {
-    'pdf': '📄',
-    'doc': '📝',
-    'docx': '📝',
-    'xls': '📊',
-    'xlsx': '📊',
-    'ppt': '📋',
-    'pptx': '📋',
-    'txt': '📄',
-    'default': '📁'
-  };
-  return icons[fileType] || icons.default;
+function confirmDeleteRegionFile(fileId, encodedName) {
+  if (!fileId) return;
+  const readableName = decodeFileName(encodedName);
+  showConfirmDeleteModal(
+    `¿Estás seguro de que deseas eliminar el archivo "${escapeHtml(readableName)}"?`,
+    async () => {
+      await performDeleteRegionFile(fileId, readableName);
+    }
+  );
 }
 
-// Función para formatear fechas
-function formatDate(dateString) {
-  const date = new Date(dateString);
-  const options = { year: 'numeric', month: 'long', day: 'numeric' };
-  return date.toLocaleDateString('es-ES', options);
+async function performDeleteRegionFile(fileId, fileName) {
+  if (!currentRegionId) {
+    showErrorMessage('No se pudo determinar la región actual.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/region/${currentRegionId}/archivo/${fileId}/eliminar/`, {
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken')
+      }
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+      const errorMessage = result.error || 'No se pudo eliminar el archivo.';
+      throw new Error(errorMessage);
+    }
+
+    if (currentRegionData && Array.isArray(currentRegionData.files)) {
+      currentRegionData.files = currentRegionData.files.filter((file) => file.id !== fileId);
+    }
+
+    renderRegionFiles(currentRegionData?.files || []);
+    showSuccessMessage(result.message || `Archivo "${fileName}" eliminado correctamente.`);
+  } catch (error) {
+    console.error('Error al eliminar archivo de región:', error);
+    showErrorMessage(error.message || 'Ocurrió un error al eliminar el archivo.');
+  }
 }
 
 // ======= FUNCIONES PARA AGREGAR ARCHIVOS =======
@@ -717,7 +816,6 @@ function showAddFileModal() {
 
 function clearFileForm() {
   document.getElementById('fileInput').value = '';
-  document.getElementById('fileName').value = '';
   document.getElementById('fileDescription').value = '';
   document.getElementById('filePreview').innerHTML = '';
 }
@@ -728,12 +826,6 @@ function handleFileSelect(event) {
   if (!file) return;
   
   const preview = document.getElementById('filePreview');
-  const fileName = document.getElementById('fileName');
-  
-  // Auto-completar el nombre del archivo
-  if (!fileName.value) {
-    fileName.value = file.name.replace(/\.[^/.]+$/, ""); // Remover extensión
-  }
   
   preview.innerHTML = `
     <div class="file-preview-item">
@@ -744,43 +836,68 @@ function handleFileSelect(event) {
 }
 
 // Función para agregar archivo a la región
-function addFileToRegion() {
-  const fileInput = document.getElementById('fileInput');
-  const fileName = document.getElementById('fileName').value;
-  const description = document.getElementById('fileDescription').value;
-  
-  if (!fileInput.files[0]) {
-    showErrorMessage('Por favor selecciona un archivo');
+async function addFileToRegion() {
+  if (!currentRegionId) {
+    showErrorMessage('No se pudo identificar la región seleccionada.');
     return;
   }
   
-  if (!fileName.trim()) {
-    showErrorMessage('Por favor ingresa un nombre para el archivo');
+  const fileInput = document.getElementById('fileInput');
+  const fileDescriptionInput = document.getElementById('fileDescription');
+  const confirmButton = document.getElementById('confirmFileBtn');
+
+  if (!fileInput || !fileInput.files[0]) {
+    showErrorMessage('Por favor selecciona un archivo.');
     return;
   }
   
   const file = fileInput.files[0];
-  const fileType = file.name.split('.').pop().toLowerCase();
-  const fileSize = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-  const currentDate = new Date().toISOString().split('T')[0];
-  
-  if (currentRegionData) {
-    if (!currentRegionData.files) {
-      currentRegionData.files = [];
+  const finalName = file.name;
+  const description = fileDescriptionInput ? fileDescriptionInput.value.trim() : '';
+
+  const formData = new FormData();
+  formData.append('archivo', file);
+  formData.append('nombre', finalName);
+  formData.append('descripcion', description);
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
     }
     
-    currentRegionData.files.push({
-      name: fileName,
-      description: description || 'Archivo de la región',
-      type: fileType,
-      size: fileSize,
-      date: currentDate,
-      url: '#' // En una implementación real, aquí se subiría el archivo
+  try {
+    const response = await fetch(`/api/region/${currentRegionId}/archivo/agregar/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: formData
     });
-    
-    loadRegionDetail(currentRegionData);
-    showSuccessMessage('Archivo agregado exitosamente');
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+      const errorMessage = result.error || 'No se pudo guardar el archivo.';
+      throw new Error(errorMessage);
+    }
+
+    if (currentRegionData) {
+      currentRegionData.files = currentRegionData.files || [];
+      currentRegionData.files.push(result.archivo);
+      renderRegionFiles(currentRegionData.files);
+    }
+
+    clearFileForm();
     hideModal('addFileModal');
+    showSuccessMessage(result.message || 'Archivo agregado exitosamente.');
+  } catch (error) {
+    console.error('Error al agregar archivo a la región:', error);
+    showErrorMessage(error.message || 'Ocurrió un error al guardar el archivo.');
+  } finally {
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = 'Agregar';
+    }
   }
 }
 
@@ -794,7 +911,7 @@ function searchRegions(query) {
   
   if (!queryLower) {
     // Si no hay búsqueda, mostrar todas las regiones
-    regionItems.forEach(item => {
+  regionItems.forEach(item => {
       item.style.display = 'flex';
     });
     // Eliminar mensaje de no resultados si existe
@@ -1030,8 +1147,11 @@ async function addImageToRegion() {
       await showRegionDetail(currentRegionId);
     }
     
+    await loadFeaturedRegions();
+    await loadRegionsFromAPI();
+
     showSuccessMessage(result.message || 'Imagen agregada exitosamente');
-    hideModal('addImageModal');
+      hideModal('addImageModal');
     clearImageForm();
     
     // Recargar la lista de regiones para actualizar la portada
@@ -1061,24 +1181,76 @@ function getCookie(name) {
 
 function showEditDescriptionModal() {
   if (currentRegionData) {
-    document.getElementById('editDescriptionText').value = currentRegionData.description.replace(/<[^>]*>/g, '');
+    const textarea = document.getElementById('editDescriptionText');
+    if (textarea) {
+      textarea.value = currentRegionData.rawDescription || '';
+    }
     showModal('editDescriptionModal');
   }
 }
 
-function updateRegionDescription() {
-  const newDescription = document.getElementById('editDescriptionText').value;
+async function updateRegionDescription() {
+  const textarea = document.getElementById('editDescriptionText');
+  if (!textarea) return;
   
-  if (!newDescription.trim()) {
+  const newDescription = textarea.value.trim();
+
+  if (!newDescription) {
     showErrorMessage('Por favor ingresa una descripción');
     return;
   }
   
-  if (currentRegionData) {
-    currentRegionData.description = `<p>${newDescription}</p>`;
-    document.getElementById('detailDescription').innerHTML = currentRegionData.description;
-    showSuccessMessage('Descripción actualizada exitosamente');
+  if (!currentRegionId || !currentRegionData) {
+    showErrorMessage('No se pudo identificar la región seleccionada');
+    return;
+  }
+
+  const csrfToken = getCookie('csrftoken');
+  if (!csrfToken) {
+    showErrorMessage('No se pudo obtener el token CSRF. Refresca la página e intenta de nuevo.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/region/${currentRegionId}/descripcion/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({ descripcion: newDescription })
+    });
+
+    let result = {};
+    try {
+      result = await response.json();
+    } catch (jsonError) {
+      console.warn('⚠️ No se pudo parsear la respuesta de actualización de descripción', jsonError);
+    }
+
+    if (!response.ok || !result.success) {
+      showErrorMessage(result.error || 'Error al actualizar la descripción de la región');
+      return;
+    }
+
+    currentRegionData.rawDescription = result.descripcion || newDescription;
+    currentRegionData.description = currentRegionData.rawDescription
+      ? formatDescription(currentRegionData.rawDescription)
+      : '';
+
+    const descElement = document.getElementById('detailDescription');
+    if (descElement) {
+      descElement.innerHTML = currentRegionData.description || '<p style="color: var(--text-muted);">No hay descripción disponible</p>';
+    }
+
+    showSuccessMessage(result.message || 'Descripción actualizada exitosamente');
     hideModal('editDescriptionModal');
+
+    await loadRegionsFromAPI();
+    await loadFeaturedRegions();
+  } catch (error) {
+    console.error('❌ Error al actualizar la descripción:', error);
+    showErrorMessage('Error al actualizar la descripción. Por favor, intenta de nuevo.');
   }
 }
 
@@ -1147,6 +1319,7 @@ function showErrorMessage(message) {
 // ======= INICIALIZACIÓN =======
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 DOM cargado, iniciando carga de regiones...');
+  loadFeaturedRegions();
   
   // Event listeners para navegación
   const btnVerTodas = document.getElementById('btnVerTodas');
@@ -1226,6 +1399,11 @@ document.addEventListener('DOMContentLoaded', function() {
     closeImageModal.addEventListener('click', () => hideModal('addImageModal'));
   }
   
+  const closeImageViewer = document.getElementById('closeImageViewer');
+  if (closeImageViewer) {
+    closeImageViewer.addEventListener('click', () => hideModal('imageViewerModal'));
+  }
+  
   const editDescriptionBtn = document.getElementById('editDescriptionBtn');
   if (editDescriptionBtn) {
     editDescriptionBtn.addEventListener('click', showEditDescriptionModal);
@@ -1274,6 +1452,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   
+  document.addEventListener('click', function(e) {
+    if (e.target.id === 'imageViewerModal' && e.target.classList.contains('modal')) {
+      hideModal('imageViewerModal');
+    }
+  });
+  
   // Event listeners para archivos
   const addFileBtn = document.getElementById('addFileBtn');
   if (addFileBtn) {
@@ -1311,7 +1495,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
   const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
   const closeConfirmModal = document.getElementById('closeConfirmModal');
-  const removeFileBtn = document.getElementById('removeFileBtn');
 
   if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener('click', executeDeleteAction);
@@ -1328,57 +1511,6 @@ document.addEventListener('DOMContentLoaded', function() {
     closeConfirmModal.addEventListener('click', function() {
       hideModal('confirmDeleteModal');
       pendingDeleteAction = null;
-    });
-  }
-
-  if (removeFileBtn) {
-    removeFileBtn.addEventListener('click', function() {
-      showFileSelectionModal();
-    });
-  }
-  
-  // Event listeners para modal de selección de archivos
-  const closeFileSelectionModal = document.getElementById('closeFileSelectionModal');
-  const cancelFileSelectionBtn = document.getElementById('cancelFileSelectionBtn');
-  const confirmFileSelectionBtn = document.getElementById('confirmFileSelectionBtn');
-
-  if (closeFileSelectionModal) {
-    closeFileSelectionModal.addEventListener('click', function() {
-      hideModal('fileSelectionModal');
-    });
-  }
-
-  if (cancelFileSelectionBtn) {
-    cancelFileSelectionBtn.addEventListener('click', function() {
-      hideModal('fileSelectionModal');
-    });
-  }
-
-  if (confirmFileSelectionBtn) {
-    confirmFileSelectionBtn.addEventListener('click', function() {
-      const checkboxes = document.querySelectorAll('#fileSelectionModal .file-checkbox:checked');
-      const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.value));
-      
-      if (selectedIndices.length === 0) {
-        showSuccessMessage('Selecciona al menos un archivo para eliminar');
-        return;
-      }
-      
-      showConfirmDeleteModal(
-        `¿Estás seguro de que deseas eliminar ${selectedIndices.length} archivo(s) seleccionado(s)?`,
-        () => {
-          const currentRegion = getCurrentRegion();
-          if (currentRegion && currentRegion.files) {
-            // Eliminar archivos en orden descendente para mantener los índices correctos
-            selectedIndices.sort((a, b) => b - a).forEach(index => {
-              currentRegion.files.splice(index, 1);
-            });
-            loadRegionDetail(currentRegion);
-            hideModal('fileSelectionModal');
-            showSuccessMessage(`${selectedIndices.length} archivo(s) eliminado(s) exitosamente`);
-          }
-        }
-      );
     });
   }
   
@@ -1400,9 +1532,14 @@ function showConfirmDeleteModal(message, callback) {
 }
 
 // Función para ejecutar la acción de eliminación
-function executeDeleteAction() {
-  if (pendingDeleteAction) {
-    pendingDeleteAction();
+async function executeDeleteAction() {
+  if (!pendingDeleteAction) return;
+
+  try {
+    await pendingDeleteAction();
+  } catch (error) {
+    console.error('Error al ejecutar acción de eliminación:', error);
+  } finally {
     hideModal('confirmDeleteModal');
     pendingDeleteAction = null;
   }
@@ -1423,21 +1560,6 @@ function removeImageFromRegion(imageIndex) {
   );
 }
 
-// Función para eliminar archivo
-function removeFileFromRegion(fileId) {
-  showConfirmDeleteModal(
-    '¿Estás seguro de que deseas eliminar este archivo?',
-    () => {
-      const currentRegion = getCurrentRegion();
-      if (currentRegion && currentRegion.files) {
-        currentRegion.files = currentRegion.files.filter(file => file.id !== fileId);
-        loadRegionDetail(currentRegion);
-        showSuccessMessage('Archivo eliminado exitosamente');
-      }
-    }
-  );
-}
-
 // Función para obtener la región actual
 function getCurrentRegion() {
   // Retornar la región actualmente mostrada
@@ -1450,12 +1572,17 @@ function loadGalleryWithDeleteButtons(photos) {
   if (!container) return;
 
   container.innerHTML = '';
+
+  if (!photos || photos.length === 0) {
+    container.innerHTML = '<p class="no-gallery-items">No hay imágenes disponibles</p>';
+    return;
+  }
   
   photos.forEach((photo, index) => {
     const imageItem = document.createElement('div');
     imageItem.className = 'gallery-item';
     imageItem.innerHTML = `
-      <img src="${photo.url}" alt="${photo.description}" onclick="openImageModal('${photo.url}')">
+      <img src="${photo.url}" alt="${photo.description}" data-photo-url="${photo.url}">
       <div class="image-description">${photo.description}</div>
       <button class="btn-remove-item" data-image-index="${index}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1502,87 +1629,25 @@ function loadFilesWithDeleteButtons(files) {
 
 // Event listeners para botones de eliminación (solo imágenes)
 document.addEventListener('click', function(e) {
-  if (e.target.closest('.btn-remove-item')) {
-    const button = e.target.closest('.btn-remove-item');
-    
-    if (button.hasAttribute('data-image-index')) {
-      const imageIndex = parseInt(button.getAttribute('data-image-index'));
+  const imageDeleteButton = e.target.closest('.btn-remove-item');
+  if (imageDeleteButton && imageDeleteButton.hasAttribute('data-image-index')) {
+    const imageIndex = parseInt(imageDeleteButton.getAttribute('data-image-index'), 10);
+    if (!Number.isNaN(imageIndex)) {
       removeImageFromRegion(imageIndex);
     }
   }
-});
 
-// Event listeners para modales de confirmación (se agregan al bloque principal DOMContentLoaded)
-
-// ======= FUNCIONALIDAD DE SELECCIÓN DE ARCHIVOS =======
-
-// Función para mostrar modal de selección de archivos
-function showFileSelectionModal() {
-  const currentRegion = getCurrentRegion();
-  if (!currentRegion || !currentRegion.files || currentRegion.files.length === 0) {
-    showSuccessMessage('No hay archivos para eliminar');
-    return;
+  const imageElement = e.target.closest('.gallery-item img');
+  if (imageElement && imageElement.getAttribute('data-photo-url')) {
+    const imageUrl = imageElement.getAttribute('data-photo-url');
+    const imageDescription = imageElement.getAttribute('alt') || '';
+    openImageViewer(imageUrl, imageDescription);
   }
-  
-  loadFileSelectionList(currentRegion.files);
-  showModal('fileSelectionModal');
-}
 
-// Función para cargar la lista de archivos en el modal de selección
-function loadFileSelectionList(files) {
-  const container = document.getElementById('fileSelectionList');
-  if (!container) return;
-
-  container.innerHTML = '';
-  
-  files.forEach((file, index) => {
-    const fileItem = document.createElement('div');
-    fileItem.className = 'selection-item';
-    fileItem.innerHTML = `
-      <input type="checkbox" class="selection-checkbox" id="file-${index}" data-file-index="${index}">
-      <div class="file-icon">📄</div>
-      <div class="file-info">
-        <h4>${file.name}</h4>
-        <p>${file.description}</p>
-        <div class="file-date">${file.date}</div>
-      </div>
-    `;
-    container.appendChild(fileItem);
-  });
-  
-  setupFileSelectionHandlers();
-}
-
-// Función para configurar los manejadores de selección de archivos
-function setupFileSelectionHandlers() {
-  const selectionItems = document.querySelectorAll('#fileSelectionList .selection-item');
-  const checkboxes = document.querySelectorAll('#fileSelectionList .selection-checkbox');
-  
-  selectionItems.forEach((item, index) => {
-    item.addEventListener('click', function(e) {
-      if (e.target.type !== 'checkbox') {
-        const checkbox = this.querySelector('.selection-checkbox');
-        checkbox.checked = !checkbox.checked;
-        this.classList.toggle('selected', checkbox.checked);
-      }
-    });
-  });
-  
-  checkboxes.forEach((checkbox, index) => {
-    checkbox.addEventListener('change', function() {
-      const item = this.closest('.selection-item');
-      item.classList.toggle('selected', this.checked);
-    });
-  });
-}
-
-// Función para obtener los índices de archivos seleccionados
-function getSelectedFileIndices() {
-  const checkboxes = document.querySelectorAll('#fileSelectionList .selection-checkbox:checked');
-  return Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-file-index')));
-}
-
-// Event listeners para el modal de selección de archivos (ya están en el bloque principal DOMContentLoaded)
-
-// FINAL VERSION: 2025-01-25 03:13 - Complete rewrite without any credential functions
-// All forms now open directly without any credential verification
+  const fileDeleteButton = e.target.closest('.file-delete-btn');
+  if (fileDeleteButton) {
+    const fileId = fileDeleteButton.getAttribute('data-file-id');
+    const encodedName = fileDeleteButton.getAttribute('data-file-name');
+    confirmDeleteRegionFile(fileId, encodedName);
+          }
+});

@@ -27,7 +27,8 @@ from .decorators import (
     permiso_gestionar_eventos_api,
     permiso_generar_reportes,
     usuario_autenticado,
-    get_usuario_maga
+    get_usuario_maga,
+    permiso_admin_o_personal_api,
 )
 from .views_utils import (
     aplicar_modificaciones_beneficiarios,
@@ -115,7 +116,7 @@ def api_regiones(request):
         # Obtener primera imagen de la galería si existe
         primera_imagen = None
         try:
-            galeria = RegionGaleria.objects.filter(region=region).first()
+            galeria = RegionGaleria.objects.filter(region=region).order_by('-creado_en').first()
             if galeria:
                 primera_imagen = galeria.url_almacenamiento
         except:
@@ -134,7 +135,11 @@ def api_regiones(request):
             'creado_en': region.creado_en.isoformat() if region.creado_en else None
         })
     
-    return JsonResponse(regiones, safe=False)
+    response = JsonResponse(regiones, safe=False)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 def api_regiones_recientes(request):
@@ -149,7 +154,7 @@ def api_regiones_recientes(request):
     for region in regiones_query:
         primera_imagen = None
         try:
-            galeria = RegionGaleria.objects.filter(region=region).first()
+            galeria = RegionGaleria.objects.filter(region=region).order_by('-creado_en').first()
             if galeria:
                 primera_imagen = galeria.url_almacenamiento
         except:
@@ -167,7 +172,11 @@ def api_regiones_recientes(request):
             'actualizado_en': region.actualizado_en.isoformat() if region.actualizado_en else None
         })
     
-    return JsonResponse(regiones, safe=False)
+    response = JsonResponse(regiones, safe=False)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 def api_region_detalle(request, region_id):
@@ -186,7 +195,7 @@ def api_region_detalle(request, region_id):
     
     # Obtener galería de imágenes
     fotos = []
-    for img in region.galeria.all():
+    for img in region.galeria.order_by('-creado_en').all():
         fotos.append({
             'id': str(img.id),
             'url': img.url_almacenamiento,
@@ -197,7 +206,7 @@ def api_region_detalle(request, region_id):
     
     # Obtener archivos
     archivos = []
-    for archivo in region.archivos.all():
+    for archivo in region.archivos.order_by('-creado_en').all():
         archivos.append({
             'id': str(archivo.id),
             'name': archivo.nombre_archivo,
@@ -250,7 +259,7 @@ def api_region_detalle(request, region_id):
             'value': region.comunidad_sede
         })
     
-    return JsonResponse({
+    response = JsonResponse({
         'id': str(region.id),
         'codigo': region.codigo,
         'nombre': region.nombre,
@@ -269,6 +278,49 @@ def api_region_detalle(request, region_id):
         'location': f'Región {region.codigo} - {region.nombre}',
         'actualizado_en': region.actualizado_en.isoformat() if region.actualizado_en else None,
         'creado_en': region.creado_en.isoformat() if region.creado_en else None
+    })
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_actualizar_region_descripcion(request, region_id):
+    """API: Actualizar la descripción de una región"""
+    try:
+        region = Region.objects.get(id=region_id)
+    except Region.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Región no encontrada'
+        }, status=404)
+
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Datos inválidos'
+        }, status=400)
+
+    descripcion = (payload.get('descripcion') or '').strip()
+
+    if not descripcion:
+        return JsonResponse({
+            'success': False,
+            'error': 'La descripción es requerida'
+        }, status=400)
+
+    region.descripcion = descripcion
+    region.actualizado_en = timezone.now()
+    region.save(update_fields=['descripcion', 'actualizado_en'])
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Descripción actualizada exitosamente',
+        'descripcion': region.descripcion
     })
 
 
@@ -324,6 +376,10 @@ def api_agregar_imagen_region(request, region_id):
             creado_por=usuario_maga
         )
         
+        # Actualizar timestamp de la región para reflejar el cambio
+        region.actualizado_en = timezone.now()
+        region.save(update_fields=['actualizado_en'])
+        
         return JsonResponse({
             'success': True,
             'message': 'Imagen agregada exitosamente',
@@ -347,6 +403,125 @@ def api_agregar_imagen_region(request, region_id):
             'success': False,
             'error': f'Error al agregar imagen: {str(e)}'
         }, status=500)
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_agregar_archivo_region(request, region_id):
+    """API: Agregar un archivo a la región y almacenarlo en media/regiones_archivos"""
+    try:
+        region = Region.objects.get(id=region_id)
+    except Region.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Región no encontrada'
+        }, status=404)
+
+    usuario_maga = get_usuario_maga(request.user)
+    if not usuario_maga:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no autenticado'
+        }, status=401)
+
+    archivo = request.FILES.get('archivo')
+    if not archivo:
+        return JsonResponse({
+            'success': False,
+            'error': 'No se ha enviado ningún archivo'
+        }, status=400)
+
+    nombre = (request.POST.get('nombre') or '').strip()
+    descripcion = (request.POST.get('descripcion') or '').strip()
+
+    # Determinar extensión y nombre visible
+    extension = os.path.splitext(archivo.name)[1].lower()
+    if not nombre:
+        nombre = os.path.splitext(archivo.name)[0]
+    archivo_tipo = extension.replace('.', '') if extension else (archivo.content_type or '')
+
+    # Preparar almacenamiento
+    archivos_dir = os.path.join(settings.MEDIA_ROOT, 'regiones_archivos')
+    os.makedirs(archivos_dir, exist_ok=True)
+
+    fs = FileSystemStorage(location=archivos_dir)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+    safe_extension = extension or ''
+    filename = f"{timestamp}_{region_id}{safe_extension}"
+    saved_name = fs.save(filename, archivo)
+
+    relative_path = f"regiones_archivos/{saved_name}"
+    media_url = (settings.MEDIA_URL or '/media/').rstrip('/')
+    file_url = f"{media_url}/{relative_path}"
+    if not file_url.startswith('/'):
+        file_url = f"/{file_url}"
+
+    region_archivo = RegionArchivo.objects.create(
+        region=region,
+        nombre_archivo=nombre,
+        archivo_tipo=archivo_tipo,
+        url_almacenamiento=file_url,
+        descripcion=descripcion,
+        creado_por=usuario_maga
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Archivo agregado exitosamente',
+        'archivo': {
+            'id': str(region_archivo.id),
+            'name': nombre,
+            'description': descripcion,
+            'type': archivo_tipo or 'archivo',
+            'url': file_url,
+            'date': region_archivo.creado_en.isoformat() if region_archivo.creado_en else None
+        }
+    })
+
+
+@require_http_methods(["DELETE"])
+@permiso_admin_o_personal_api
+def api_eliminar_archivo_region(request, region_id, archivo_id):
+    """API: Eliminar un archivo de la región y removerlo del sistema de archivos"""
+    try:
+        archivo = RegionArchivo.objects.get(id=archivo_id, region_id=region_id)
+    except RegionArchivo.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Archivo no encontrado'
+        }, status=404)
+
+    ruta_url = archivo.url_almacenamiento or ''
+    media_url = (settings.MEDIA_URL or '/media/').rstrip('/')
+    relative_path = ''
+
+    if ruta_url.startswith(media_url):
+        relative_path = ruta_url[len(media_url):].lstrip('/')
+    elif ruta_url.startswith('/'):
+        ruta_sin_slash = ruta_url.lstrip('/')
+        media_prefix = media_url.lstrip('/')
+        if ruta_sin_slash.startswith(media_prefix):
+            relative_path = ruta_sin_slash[len(media_prefix):].lstrip('/')
+        else:
+            relative_path = ruta_sin_slash
+    else:
+        relative_path = ruta_url
+
+    if relative_path:
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                # Si no se puede eliminar, continuar con la eliminación lógica
+                pass
+
+    archivo.delete()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Archivo eliminado correctamente'
+    })
 
 
 def api_tipos_actividad(request):
