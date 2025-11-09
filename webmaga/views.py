@@ -2611,13 +2611,13 @@ def api_listar_proyectos_por_tipo(request, tipo_actividad):
 @require_http_methods(["GET"])
 def api_ultimos_proyectos(request):
     """
-    Devuelve los últimos proyectos/eventos creados o actualizados (máximo 2)
+    Devuelve los últimos proyectos/eventos creados o actualizados (máximo 3)
     """
     try:
         from django.utils.timezone import localtime, is_aware, make_aware
         import pytz
         
-        # Obtener los últimos 2 eventos actualizados
+        # Obtener los últimos 3 eventos actualizados
         eventos = Actividad.objects.filter(
             eliminado_en__isnull=True
         ).select_related(
@@ -2626,7 +2626,7 @@ def api_ultimos_proyectos(request):
             'personal__usuario',
             'beneficiarios__beneficiario',
             'evidencias'
-        ).order_by('-actualizado_en')[:2]
+        ).order_by('-actualizado_en')[:3]
         
         proyectos_data = []
         for evento in eventos:

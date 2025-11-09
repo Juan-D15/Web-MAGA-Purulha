@@ -560,102 +560,213 @@ function renderizarUltimosProyectos(proyectos) {
 
   console.log('📊 Cantidad de proyectos:', proyectos ? proyectos.length : 0);
 
-  
+  featuredProjectsData = Array.isArray(proyectos)
+    ? proyectos.map(normalizeProjectForFeatured).filter(Boolean)
+    : [];
 
-  // Buscar el contenedor de últimos proyectos
-
-  const featuredGrid = document.querySelector('.latest-projects .projects-grid.featured');
-
-  
-
-  if (!featuredGrid) {
-
-    console.error('❌ No se encontró el grid de últimos proyectos');
-
-    return;
-
+  if (featuredProjectsData.length > 1) {
+    const uniqueProjects = [];
+    const seenIds = new Set();
+    featuredProjectsData.forEach((project) => {
+      if (!seenIds.has(project.id)) {
+        seenIds.add(project.id);
+        uniqueProjects.push(project);
+      }
+    });
+    featuredProjectsData = uniqueProjects;
   }
 
-  
+  renderFeaturedProjectsGrid();
 
-  console.log('✅ Grid encontrado:', featuredGrid);
+}
 
-  
 
-  // Limpiar contenido existente
+function renderFeaturedProjectsGrid() {
+  const featuredGrid = document.querySelector('.latest-projects .projects-grid.featured');
+
+  if (!featuredGrid) {
+    console.error('❌ No se encontró el grid de últimos proyectos');
+    return;
+  }
 
   featuredGrid.innerHTML = '';
 
-  
-
-  // Si no hay proyectos, mostrar mensaje
-
-  if (!proyectos || proyectos.length === 0) {
-
+  if (!featuredProjectsData.length) {
     console.warn('⚠️ No hay proyectos para renderizar');
-
     featuredGrid.innerHTML = `
-
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">
-
         <p>No hay proyectos recientes aún.</p>
-
       </div>
-
     `;
-
     return;
-
   }
 
-  
+  const projectsToRender = featuredProjectsData.slice(0, FEATURED_PROJECTS_LIMIT);
 
-  // Renderizar cada proyecto (máximo 2)
-
-  proyectos.forEach((proyecto, index) => {
-
+  projectsToRender.forEach((proyecto, index) => {
     try {
-
-      console.log(`🔄 Renderizando proyecto ${index + 1}:`, proyecto.nombre);
-
-    const card = crearTarjetaProyectoDestacado(proyecto);
-
+      console.log(`🔄 Renderizando proyecto destacado ${index + 1}:`, proyecto.nombre);
+      const card = crearTarjetaProyectoDestacado(proyecto);
       if (!card) {
-
         console.error(`❌ No se pudo crear la tarjeta para el proyecto ${index + 1}`);
-
         return;
-
       }
 
-    const imagenDestacada = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal;
+      const imagenDestacada =
+        (proyecto.portada && proyecto.portada.url) ||
+        proyecto.imagen_principal ||
+        null;
 
-    const imgTag = card.querySelector('img');
+      const imgTag = card.querySelector('img');
+      if (imgTag && imagenDestacada) {
+        imgTag.src = imagenDestacada;
+      }
 
-    if (imgTag && imagenDestacada) {
-
-      imgTag.src = imagenDestacada;
-
-    }
-
-    featuredGrid.appendChild(card);
-
-      console.log(`✅ Proyecto ${index + 1} agregado al DOM`);
-
+      featuredGrid.appendChild(card);
+      console.log(`✅ Proyecto destacado ${index + 1} agregado al DOM`);
     } catch (error) {
-
-      console.error(`❌ Error al renderizar proyecto ${index + 1}:`, error);
-
+      console.error(`❌ Error al renderizar proyecto destacado ${index + 1}:`, error);
       console.error('Stack trace:', error.stack);
-
     }
-
   });
 
-  
+  console.log(`✅ Renderizados ${projectsToRender.length} últimos proyectos`);
+}
 
-  console.log(`✅ Renderizados ${proyectos.length} últimos proyectos`);
 
+function normalizeProjectForFeatured(proyecto) {
+  if (!proyecto) {
+    return null;
+  }
+
+  const projectId = proyecto.id || proyecto.uuid || proyecto.pk;
+  if (!projectId) {
+    return null;
+  }
+
+  const nombre = proyecto.nombre || proyecto.name || 'Sin nombre';
+
+  let ubicacion = proyecto.ubicacion || proyecto.location || '';
+  if (!ubicacion) {
+    const comunidadNombre =
+      (proyecto.comunidad && (proyecto.comunidad.nombre || proyecto.comunidad.name)) ||
+      proyecto.comunidad_nombre ||
+      proyecto.community_name ||
+      '';
+    const regionNombre =
+      (proyecto.comunidad &&
+        proyecto.comunidad.region &&
+        (proyecto.comunidad.region.nombre || proyecto.comunidad.region.name)) ||
+      proyecto.region_nombre ||
+      proyecto.region ||
+      '';
+    if (comunidadNombre && regionNombre) {
+      ubicacion = `${comunidadNombre}, ${regionNombre}`;
+    } else if (comunidadNombre) {
+      ubicacion = comunidadNombre;
+    } else if (regionNombre) {
+      ubicacion = regionNombre;
+    }
+  }
+
+  const fecha =
+    proyecto.fecha ||
+    proyecto.fecha_evento ||
+    proyecto.fecha_inicio ||
+    proyecto.createdDate ||
+    proyecto.creado_en ||
+    proyecto.actualizado_en ||
+    '';
+
+  const fechaDisplay =
+    proyecto.fecha_display ||
+    proyecto.fecha_formatted ||
+    proyecto.fecha_formateada ||
+    proyecto.fecha_formato ||
+    proyecto.actualizado_en_formatted ||
+    proyecto.creado_en_formatted ||
+    fecha;
+
+  let portada = null;
+  const portadaFuente = proyecto.portada || proyecto.portada_url || proyecto.coverImage;
+  if (typeof portadaFuente === 'string') {
+    portada = { url: portadaFuente };
+  } else if (portadaFuente && typeof portadaFuente === 'object') {
+    const portadaUrl =
+      portadaFuente.url ||
+      portadaFuente.imagen_url ||
+      portadaFuente.image_url ||
+      portadaFuente.archivo_url ||
+      portadaFuente.path ||
+      null;
+    if (portadaUrl) {
+      portada = { url: portadaUrl };
+    }
+  }
+
+  let imagenPrincipal = proyecto.imagen_principal || proyecto.imagenPrincipal || null;
+  if (!imagenPrincipal && portada && portada.url) {
+    imagenPrincipal = portada.url;
+  }
+
+  if (!imagenPrincipal && Array.isArray(proyecto.evidencias)) {
+    const primeraImagen = proyecto.evidencias.find((item) => {
+      if (!item) return false;
+      if (item.es_imagen) return true;
+      const tipoArchivo = item.archivo_tipo || item.tipo;
+      if (tipoArchivo && typeof tipoArchivo === 'string') {
+        return tipoArchivo.startsWith('image/');
+      }
+      return Boolean(item.url || item.url_almacenamiento || item.imagen_url);
+    });
+
+    if (primeraImagen) {
+      imagenPrincipal =
+        primeraImagen.url ||
+        primeraImagen.url_almacenamiento ||
+        primeraImagen.imagen_url ||
+        primeraImagen.archivo_url ||
+        null;
+    }
+  }
+
+  return {
+    ...proyecto,
+    id: String(projectId),
+    nombre,
+    ubicacion: ubicacion || 'Sin ubicación',
+    fecha,
+    fecha_display: fechaDisplay || fecha,
+    imagen_principal: imagenPrincipal,
+    portada,
+  };
+}
+
+
+function promoteProjectToFeatured(proyecto) {
+  const normalized = normalizeProjectForFeatured(proyecto);
+  if (!normalized) {
+    return;
+  }
+
+  featuredProjectsData = featuredProjectsData.filter((item) => item.id !== normalized.id);
+  featuredProjectsData.unshift(normalized);
+
+  if (FEATURED_PROJECTS_LIMIT && featuredProjectsData.length > FEATURED_PROJECTS_LIMIT) {
+    featuredProjectsData = featuredProjectsData.slice(0, FEATURED_PROJECTS_LIMIT);
+  }
+
+  renderFeaturedProjectsGrid();
+}
+
+
+async function refreshLatestProjectsFromServer() {
+  try {
+    const ultimosProyectos = await cargarUltimosProyectos();
+    renderizarUltimosProyectos(ultimosProyectos);
+  } catch (error) {
+    console.error('❌ Error al refrescar los últimos proyectos:', error);
+  }
 }
 
 
@@ -836,6 +947,13 @@ async function loadProjectDetails(projectId) {
 
       mostrarDetalleProyecto(proyecto);
 
+      if (shouldRefreshLatestProjects) {
+        shouldRefreshLatestProjects = false;
+        promoteProjectToFeatured(proyecto);
+      }
+
+      return proyecto;
+
     } else {
 
       console.error('❌ Error al cargar proyecto:', data.error);
@@ -851,6 +969,9 @@ async function loadProjectDetails(projectId) {
     alert('Error al cargar el proyecto. Por favor, intenta de nuevo.');
 
   }
+
+  shouldRefreshLatestProjects = false;
+  return null;
 
 }
 
@@ -2486,6 +2607,9 @@ let currentProjectGalleryImages = [];
 let currentProjectGalleryPage = 0;
 let currentProjectGalleryCanManage = false;
 const PROJECT_GALLERY_PAGE_SIZE = 3;
+const FEATURED_PROJECTS_LIMIT = 3;
+let featuredProjectsData = [];
+let shouldRefreshLatestProjects = false;
 
 // Variable para almacenar archivos de evidencias seleccionados en el modal de cambios
 
@@ -4065,6 +4189,7 @@ async function addImageToProject() {
 
     hideModal('addImageModal');
 
+    shouldRefreshLatestProjects = true;
     await loadProjectDetails(currentProject.id);
 
     showSuccessMessage(uploadedCount === 1 ? 'Imagen agregada exitosamente' : 'Imágenes agregadas exitosamente');
@@ -4207,6 +4332,7 @@ async function eliminarImagenGaleria(imagenId) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert('Imagen eliminada exitosamente de la galería.');
@@ -4341,6 +4467,7 @@ async function updateProjectDescription() {
 
       // Recargar los detalles del proyecto para mostrar la descripción actualizada
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       hideModal('editDescriptionModal');
@@ -5501,6 +5628,7 @@ async function addPersonnelToProject() {
 
       // Recargar los detalles del evento
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
@@ -5688,6 +5816,7 @@ async function eliminarCambio(cambioId) {
 
       hideModal('confirmDeleteModal');
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
     } else {
@@ -6088,6 +6217,7 @@ async function addChangeToProject() {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
     } else {
@@ -6582,6 +6712,7 @@ async function addPersonnelToProject() {
 
       // Recargar los detalles del evento
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
@@ -8577,6 +8708,7 @@ async function saveProjectData() {
 
       // Recargar los detalles del proyecto para mostrar los cambios
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       hideModal('editDataModal');
@@ -8945,6 +9077,7 @@ async function addFileToProject() {
 
       // Recargar los detalles del proyecto para mostrar el nuevo archivo
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       hideModal('addFileModal');
@@ -9017,6 +9150,7 @@ async function eliminarArchivoProyecto(archivoId) {
 
       // Recargar los detalles del proyecto para actualizar la lista
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       showSuccessMessage('Archivo eliminado exitosamente.');
@@ -9393,6 +9527,7 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
       // Recargar los detalles del evento
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert('Personal eliminado exitosamente del evento.');
@@ -9939,6 +10074,7 @@ async function actualizarDescripcionCambio(cambioId, descripcion) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
@@ -10053,6 +10189,7 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
@@ -10489,6 +10626,7 @@ async function addEvidenceToChange() {
 
       // Recargar los detalles del proyecto para actualizar las evidencias
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
@@ -10573,6 +10711,7 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
