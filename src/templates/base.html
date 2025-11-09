@@ -136,7 +136,8 @@
     <div class="nav-user-dropdown-content" id="navUserLoggedIn" style="display: {% if user.is_authenticated %}block{% else %}none{% endif %};">
       <div class="nav-user-dropdown-header">
       <div class="nav-user-dropdown-avatar" id="navUserAvatar">
-        {% if usuario_maga %}{{ usuario_maga.username|first|upper }}{% else %}U{% endif %}
+        <span class="avatar-initial-text" id="navUserAvatarInitial">{% if usuario_maga %}{{ usuario_maga.username|first|upper }}{% else %}U{% endif %}</span>
+        <img id="navUserAvatarImage" src="" alt="Foto de perfil" style="display: none;">
       </div>
       <div>
         <h4 class="nav-user-dropdown-name" id="navUserName">
@@ -148,20 +149,20 @@
       </div>
     </div>
     <div class="nav-user-dropdown-menu">
-      <button class="nav-user-dropdown-item" id="navProfileBtn">
+      <a href="{% url 'webmaga:perfilusuario' %}" class="nav-user-dropdown-item" id="navProfileBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
           <circle cx="12" cy="7" r="4"></circle>
         </svg>
         Mi Perfil
-      </button>
-      <button class="nav-user-dropdown-item" id="navSettingsBtn">
+      </a>
+      <a href="{% url 'webmaga:configgeneral' %}" class="nav-user-dropdown-item" id="navSettingsBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"></circle>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
         </svg>
         Configuración
-      </button>
+      </a>
       <div class="nav-user-dropdown-divider"></div>
       <button class="nav-user-dropdown-item" id="navLogoutBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -189,6 +190,14 @@
         </div>
       </div>
       <div class="nav-user-dropdown-menu">
+        <a href="{% url 'webmaga:configgeneral' %}" class="nav-user-dropdown-item" id="navConfigBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Configuración
+        </a>
+        <div class="nav-user-dropdown-divider"></div>
         <button class="nav-user-dropdown-item nav-user-dropdown-primary" id="navLoginBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
@@ -268,7 +277,8 @@
             <button class="ddm__btn" aria-expanded="false">
             <div class="mobile-user-info">
               <div class="mobile-user-avatar" id="mobileUserAvatar">
-                {% if usuario_maga %}{{ usuario_maga.username|first|upper }}{% else %}U{% endif %}
+                <span class="avatar-initial-text" id="mobileUserAvatarInitial">{% if usuario_maga %}{{ usuario_maga.username|first|upper }}{% else %}U{% endif %}</span>
+                <img id="mobileUserAvatarImage" src="" alt="Foto de perfil" style="display: none;">
               </div>
               <span id="mobileUserName">
                 {% if usuario_maga %}{{ usuario_maga.username }}{% else %}Usuario{% endif %}
@@ -282,20 +292,20 @@
                 {% if usuario_maga %}{{ usuario_maga.email }}{% else %}usuario@maga.gt{% endif %}
               </div>
             </div>
-            <button class="ddm__item mobile-user-action" id="mobileProfileBtn">
+            <a href="{% url 'webmaga:perfilusuario' %}" class="ddm__item mobile-user-action" id="mobileProfileBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                 <circle cx="12" cy="7" r="4"></circle>
               </svg>
               Mi Perfil
-            </button>
-            <button class="ddm__item mobile-user-action" id="mobileSettingsBtn">
+            </a>
+            <a href="{% url 'webmaga:configgeneral' %}" class="ddm__item mobile-user-action" id="mobileSettingsBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
               Configuración
-            </button>
+            </a>
             <button class="ddm__item mobile-user-action mobile-logout" id="mobileLogoutBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -325,6 +335,13 @@
               <div class="mobile-user-details">
                 <div class="mobile-user-email">Accede al sistema</div>
               </div>
+              <a href="{% url 'webmaga:configgeneral' %}" class="ddm__item mobile-user-action" id="mobileConfigBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                Configuración
+              </a>
               <button class="ddm__item mobile-user-action mobile-login" id="mobileLoginBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
@@ -422,7 +439,18 @@
         logout: '{% url "webmaga:logout" %}',
         gestioneseventos: '{% url "webmaga:gestioneseventos" %}',
         proyectos: '{% url "webmaga:proyectos" %}',
-        reportes: '{% url "webmaga:reportes-index" %}'
+        reportes: '{% url "webmaga:reportes-index" %}',
+        perfilusuario: '{% url "webmaga:perfilusuario" %}',
+        configgeneral: '{% url "webmaga:configgeneral" %}',
+        preguntasFrecuentes: '{% url "webmaga:preguntas-frecuentes" %}',
+        usuario: '{% url "webmaga:api-usuario" %}',
+        calendarEvents: '{% url "webmaga:api-calendar-events" %}',
+        eventsList: '{% url "webmaga:api-events-list" %}',
+        avances: '{% url "webmaga:api-avances" %}',
+        reminders: '{% url "webmaga:api-reminders" %}',
+        remindersPending: '{% url "webmaga:api-reminders-pending" %}',
+        marcarNotificacionEnviadaBase: '/api/reminders/',
+        collaborators: '{% url "webmaga:api-collaborators" %}'
       };
       
       var userAuth = {

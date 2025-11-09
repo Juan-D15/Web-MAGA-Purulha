@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
@@ -265,6 +266,37 @@ def reportes_index(request):
     return render(request, 'reportes.html', context)
 
 
+@login_required(login_url='webmaga:login')
+def perfilusuario(request):
+    """Vista de perfil de usuario - REQUIERE: Usuario autenticado"""
+    usuario_maga = get_usuario_maga(request.user)
+    
+    if not usuario_maga:
+        messages.error(request, 'No se encontró tu información de usuario.')
+        return redirect('webmaga:index')
+    
+    context = {
+        'usuario_maga': usuario_maga,
+    }
+    return render(request, 'perfilusuario.html', context)
+
+
+def configgeneral(request):
+    """Vista de configuración general - ACCESIBLE PARA TODOS"""
+    usuario_maga = get_usuario_maga(request.user) if request.user.is_authenticated else None
+    
+    context = {
+        'usuario_maga': usuario_maga,
+    }
+    return render(request, 'configgeneral.html', context)
+
+
+def preguntas_frecuentes(request):
+    """Vista de preguntas frecuentes - ACCESIBLE PARA TODOS"""
+    context = {}
+    return render(request, 'preguntas-frecuentes.html', context)
+
+
 __all__ = [
     'index',
     'comunidades',
@@ -277,5 +309,8 @@ __all__ = [
     'login_view',
     'logout_view',
     'reportes_index',
+    'perfilusuario',
+    'configgeneral',
+    'preguntas_frecuentes',
 ]
 

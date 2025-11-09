@@ -24,7 +24,7 @@ from .models import (
     ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
     EventoCambioColaborador, ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios,
     RegionGaleria, RegionArchivo, ComunidadGaleria, ComunidadArchivo, ComunidadAutoridad,
-    PasswordResetCode
+    PasswordResetCode, UsuarioFotoPerfil
 )
 from .decorators import (
     solo_administrador,
@@ -62,6 +62,8 @@ from .views_utils import (
 # =====================================================
 
 from .views_pages import (
+    configgeneral,
+    preguntas_frecuentes,
     index,
     comunidades,
     regiones,
@@ -73,6 +75,7 @@ from .views_pages import (
     login_view,
     logout_view,
     reportes_index,
+    perfilusuario,
 )
 
 
@@ -372,11 +375,25 @@ def api_usuario_actual(request):
             'error': 'Usuario MAGA no encontrado'
         }, status=404)
     
+    # Obtener colaborador vinculado si existe
+    colaborador_id = None
+    colaborador_nombre = None
+    if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+        colaborador_id = str(usuario_maga.colaborador.id)
+        colaborador_nombre = usuario_maga.colaborador.nombre
+    
     return JsonResponse({
         'autenticado': True,
+        'userId': str(usuario_maga.id),
         'username': usuario_maga.username,
+        'nombre': usuario_maga.nombre or '',
         'email': usuario_maga.email,
+        'telefono': usuario_maga.telefono or '',
         'rol': usuario_maga.rol,
+        'colaborador_id': colaborador_id,
+        'collaboratorId': colaborador_id,
+        'collaboratorName': colaborador_nombre,
+        'isAdmin': usuario_maga.rol == 'admin',
         'permisos': {
             'es_admin': usuario_maga.rol == 'admin',
             'es_personal': usuario_maga.rol == 'personal',
@@ -384,6 +401,309 @@ def api_usuario_actual(request):
             'puede_generar_reportes': True,
         }
     })
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_actualizar_perfil_usuario(request):
+    """API: Actualizar perfil del usuario actual y sincronizar con colaborador vinculado"""
+    usuario_maga = get_usuario_maga(request.user)
+    
+    if not usuario_maga:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado'
+        }, status=404)
+    
+    try:
+        import json
+        from django.db import transaction
+        data = json.loads(request.body or '{}')
+        
+        username = data.get('username', '').strip()
+        nombre = data.get('nombre', '').strip()
+        email = data.get('email', '').strip()
+        telefono = data.get('telefono', '').strip()
+        
+        # Validaciones
+        if not username:
+            return JsonResponse({
+                'success': False,
+                'error': 'El nombre de usuario es requerido'
+            }, status=400)
+        
+        if not email:
+            return JsonResponse({
+                'success': False,
+                'error': 'El email es requerido'
+            }, status=400)
+        
+        # Validar email único (excepto el mismo usuario)
+        if Usuario.objects.filter(email=email).exclude(id=usuario_maga.id).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'El email ya está en uso'
+            }, status=400)
+        
+        # Validar username único (excepto el mismo usuario)
+        if Usuario.objects.filter(username=username).exclude(id=usuario_maga.id).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'El nombre de usuario ya está en uso'
+            }, status=400)
+        
+        # Validar teléfono si se proporciona (8 dígitos)
+        if telefono and (not telefono.isdigit() or len(telefono) != 8):
+            return JsonResponse({
+                'success': False,
+                'error': 'El teléfono debe contener exactamente 8 dígitos'
+            }, status=400)
+        
+        # Obtener colaborador vinculado si existe
+        colaborador = None
+        if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+            colaborador = usuario_maga.colaborador
+        
+        # Validar email único en colaboradores si se está actualizando (excepto el colaborador vinculado)
+        if colaborador:
+            if Colaborador.objects.filter(correo=email).exclude(id=colaborador.id).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El email ya está en uso por otro colaborador'
+                }, status=400)
+        
+        # Actualizar en una transacción para mantener consistencia
+        with transaction.atomic():
+            # Actualizar usuario
+            usuario_maga.username = username
+            usuario_maga.nombre = nombre if nombre else None
+            usuario_maga.email = email
+            usuario_maga.telefono = telefono if telefono else None
+            usuario_maga.save()
+            
+            # Si tiene colaborador vinculado, sincronizar campos comunes (nombre, email, telefono)
+            # Estos campos siempre se sincronizan cuando se actualizan (incluso si se borran)
+            if colaborador:
+                # Sincronizar nombre: siempre usar el valor enviado (puede ser vacío)
+                colaborador.nombre = nombre if nombre else None
+                # Sincronizar email: siempre usar el nuevo valor (es requerido)
+                colaborador.correo = email
+                # Sincronizar teléfono: siempre usar el valor enviado (puede ser vacío)
+                colaborador.telefono = telefono if telefono else None
+                colaborador.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Perfil actualizado exitosamente' + (' (sincronizado con colaborador)' if colaborador else ''),
+            'usuario': {
+                'username': usuario_maga.username,
+                'nombre': usuario_maga.nombre or '',
+                'email': usuario_maga.email,
+                'telefono': usuario_maga.telefono or ''
+            },
+            'sincronizado_colaborador': colaborador is not None
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar perfil: {str(e)}'
+        }, status=500)
+
+
+@require_http_methods(["GET", "POST"])
+@permiso_admin_o_personal_api
+def api_foto_perfil(request):
+    """API: Obtener o subir/actualizar foto de perfil del usuario actual"""
+    usuario_maga = get_usuario_maga(request.user)
+    
+    if not usuario_maga:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado'
+        }, status=404)
+    
+    if request.method == 'GET':
+        # Obtener foto de perfil
+        try:
+            foto_perfil = UsuarioFotoPerfil.objects.get(usuario=usuario_maga)
+            return JsonResponse({
+                'success': True,
+                'foto_url': foto_perfil.url_almacenamiento,
+                'archivo_nombre': foto_perfil.archivo_nombre
+            })
+        except UsuarioFotoPerfil.DoesNotExist:
+            return JsonResponse({
+                'success': True,
+                'foto_url': None
+            })
+    
+    elif request.method == 'POST':
+        # Subir/actualizar foto de perfil
+        try:
+            foto = request.FILES.get('foto')
+            if not foto:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No se proporcionó ningún archivo'
+                }, status=400)
+            
+            # Validar tipo de archivo
+            allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+            if foto.content_type not in allowed_types:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP)'
+                }, status=400)
+            
+            # Validar tamaño (5MB máximo)
+            max_size = 5 * 1024 * 1024  # 5MB
+            if foto.size > max_size:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El archivo es demasiado grande. El tamaño máximo es 5MB'
+                }, status=400)
+            
+            # Crear directorio si no existe
+            perfiles_dir = os.path.join(settings.MEDIA_ROOT, 'perfiles_img')
+            os.makedirs(perfiles_dir, exist_ok=True)
+            
+            # Guardar archivo
+            fs = FileSystemStorage(location=perfiles_dir)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+            file_extension = os.path.splitext(foto.name)[1]
+            filename = f"{timestamp}_{usuario_maga.id}{file_extension}"
+            saved_name = fs.save(filename, foto)
+            file_url = f"/media/perfiles_img/{saved_name}"
+            
+            # Crear o actualizar registro en BD
+            foto_perfil, created = UsuarioFotoPerfil.objects.get_or_create(
+                usuario=usuario_maga,
+                defaults={
+                    'archivo_nombre': foto.name,
+                    'archivo_tipo': foto.content_type,
+                    'archivo_tamanio': foto.size,
+                    'url_almacenamiento': file_url
+                }
+            )
+            
+            if not created:
+                # Si ya existe, eliminar archivo anterior
+                old_url = foto_perfil.url_almacenamiento
+                if old_url:
+                    old_path = old_url.replace('/media/', settings.MEDIA_ROOT + '/')
+                    if os.path.exists(old_path):
+                        try:
+                            os.remove(old_path)
+                        except:
+                            pass
+                
+                # Actualizar registro
+                foto_perfil.archivo_nombre = foto.name
+                foto_perfil.archivo_tipo = foto.content_type
+                foto_perfil.archivo_tamanio = foto.size
+                foto_perfil.url_almacenamiento = file_url
+                foto_perfil.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Foto de perfil actualizada exitosamente',
+                'foto_url': file_url
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Error al subir la foto: {str(e)}'
+            }, status=500)
+
+
+@require_http_methods(["GET"])
+@permiso_admin_o_personal_api
+def api_usuario_estadisticas(request):
+    """API: Obtener estadísticas del usuario actual usando SOLO eventos_cambios_colaboradores"""
+    usuario_maga = get_usuario_maga(request.user)
+    
+    if not usuario_maga:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado'
+        }, status=404)
+    
+    try:
+        # Obtener colaborador vinculado al usuario
+        colaborador = None
+        if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+            colaborador = usuario_maga.colaborador
+        else:
+            # Si no tiene colaborador vinculado, no hay estadísticas que mostrar
+            return JsonResponse({
+                'success': True,
+                'total_eventos': 0,
+                'total_avances': 0,
+                'eventos': []
+            })
+        
+        # Obtener SOLO cambios de eventos_cambios_colaboradores para este colaborador
+        cambios_colaborador = EventoCambioColaborador.objects.filter(
+            colaborador=colaborador
+        ).select_related('actividad', 'actividad__tipo', 'actividad__comunidad', 'actividad__comunidad__region').order_by('fecha_cambio')
+        
+        # Inicializar contadores
+        total_eventos = set()
+        total_avances = 0
+        eventos_dict = {}
+        
+        for cambio in cambios_colaborador:
+            actividad = cambio.actividad
+            if not actividad or actividad.eliminado_en:
+                continue
+            
+            actividad_id = str(actividad.id)
+            total_eventos.add(actividad_id)
+            total_avances += 1
+            
+            if actividad_id not in eventos_dict:
+                eventos_dict[actividad_id] = {
+                    'evento_id': actividad_id,
+                    'nombre': actividad.nombre,
+                    'estado': actividad.estado,
+                    'tipo': actividad.tipo.nombre if actividad.tipo else '-',
+                    'comunidad': actividad.comunidad.nombre if actividad.comunidad else '-',
+                    'total_avances': 0,
+                    'fecha_primer_avance': None,
+                    'fecha_ultimo_avance': None
+                }
+            
+            eventos_dict[actividad_id]['total_avances'] += 1
+            
+            fecha_cambio = cambio.fecha_cambio
+            if fecha_cambio:
+                fecha_str = fecha_cambio.strftime('%Y-%m-%d')
+                if not eventos_dict[actividad_id]['fecha_primer_avance'] or fecha_str < eventos_dict[actividad_id]['fecha_primer_avance']:
+                    eventos_dict[actividad_id]['fecha_primer_avance'] = fecha_str
+                if not eventos_dict[actividad_id]['fecha_ultimo_avance'] or fecha_str > eventos_dict[actividad_id]['fecha_ultimo_avance']:
+                    eventos_dict[actividad_id]['fecha_ultimo_avance'] = fecha_str
+        
+        # Convertir eventos_dict a lista
+        eventos_list = list(eventos_dict.values())
+        
+        return JsonResponse({
+            'success': True,
+            'total_eventos': len(total_eventos),
+            'total_avances': total_avances,
+            'eventos': eventos_list
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener estadísticas: {str(e)}'
+        }, status=500)
 
 
 def api_regiones(request):
@@ -458,8 +778,6 @@ def api_regiones_recientes(request):
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
     return response
-
-
 def api_region_detalle(request, region_id):
     """API: Obtener detalle completo de una región"""
     try:
@@ -3042,19 +3360,22 @@ def api_ultimos_eventos_inicio(request):
         }, status=500)
 @require_http_methods(["GET"])
 def api_calendar_events(request):
-    """Eventos para el calendario entre start y end (YYYY-MM-DD). Solo eventos con estado 'en_progreso' o 'completado'."""
+    """Eventos para el calendario entre start y end (YYYY-MM-DD). Muestra todos los eventos sin importar estado."""
     start = request.GET.get('start')
     end = request.GET.get('end')
     if not start or not end:
         return JsonResponse([], safe=False)
     try:
-        # Solo eventos con estado 'en_progreso' o 'completado'
+        # Mostrar todos los eventos sin importar estado (en_progreso, completado, planificado, cancelado)
+        # Mostrar TODOS los eventos para TODOS los usuarios, sin filtros por usuario o colaborador
+        # Incluir eventos con fecha en el rango O eventos sin fecha pero creados en el rango
+        from django.db.models import Q
         actividades = Actividad.objects.filter(
-            eliminado_en__isnull=True,
-            fecha__gte=start,
-            fecha__lte=end,
-            estado__in=['en_progreso', 'completado']
-        ).select_related('tipo', 'comunidad', 'responsable')
+            eliminado_en__isnull=True
+        ).filter(
+            Q(fecha__gte=start, fecha__lte=end) | 
+            Q(fecha__isnull=True, creado_en__date__gte=start, creado_en__date__lte=end)
+        ).select_related('tipo', 'comunidad', 'comunidad__region', 'responsable')
 
         # Obtener IDs de actividades para consultas optimizadas
         actividad_ids = list(actividades.values_list('id', flat=True))
@@ -3093,8 +3414,16 @@ def api_calendar_events(request):
             
             responsables_texto = ', '.join(responsables_nombres) if responsables_nombres else None
 
+            # Usar fecha del evento si existe, sino usar fecha de creación como fallback
+            event_date = None
+            if a.fecha:
+                event_date = a.fecha.isoformat()
+            elif a.creado_en:
+                # Si no tiene fecha, usar la fecha de creación
+                event_date = a.creado_en.date().isoformat()
+            
             data.append({
-                'date': a.fecha.isoformat() if a.fecha else None,
+                'date': event_date,
                 'name': a.nombre,
                 'description': a.descripcion,
                 'status': a.estado,
@@ -3112,7 +3441,7 @@ def api_calendar_events(request):
 @require_http_methods(["GET", "POST"])
 @login_required
 def api_avances(request):
-    """Obtiene avances/cambios de eventos para el calendario por fecha."""
+    """Obtiene avances/cambios de eventos para el calendario por fecha. Consulta la tabla eventos_cambios_colaboradores."""
     date_str = request.GET.get('date')
     if not date_str:
         return JsonResponse([], safe=False)
@@ -3122,33 +3451,56 @@ def api_avances(request):
         import pytz
         from django.db import connection
         
-        # Buscar cambios cuya fecha_cambio (en zona horaria de Guatemala) corresponda al día solicitado
+        # Obtener información del usuario actual
+        is_admin = False
+        colaborador_usuario_id = None
+        try:
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                is_admin = usuario_maga.rol == 'admin'
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        except Exception:
+            pass
+        
+        # Construir la consulta base
+        query_base = """
+            SELECT ecc.id::text,
+                   ecc.actividad_id::text,
+                   ecc.colaborador_id::text,
+                   ecc.descripcion_cambio,
+                   ecc.fecha_cambio,
+                   a.nombre as evento_nombre,
+                   COALESCE(c.nombre, 'Colaborador') as colaborador_nombre
+            FROM eventos_cambios_colaboradores ecc
+            INNER JOIN actividades a ON a.id = ecc.actividad_id
+            LEFT JOIN colaboradores c ON c.id = ecc.colaborador_id
+            WHERE (ecc.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
+              AND a.eliminado_en IS NULL
+        """
+        
+        # Si no es admin, filtrar por actividades donde el colaborador del usuario está asignado
+        if not is_admin and colaborador_usuario_id:
+            query_base += """
+              AND ecc.actividad_id IN (
+                  SELECT DISTINCT ap.actividad_id
+                  FROM actividad_personal ap
+                  WHERE ap.colaborador_id = %s
+              )
+            """
+            params = [date_str, colaborador_usuario_id]
+        else:
+            params = [date_str]
+        
+        query_base += " ORDER BY ecc.fecha_cambio ASC"
+        
         with connection.cursor() as cur:
-            cur.execute(
-                """
-                SELECT ac.id::text,
-                       ac.actividad_id::text,
-                       ac.responsable_id::text,
-                       ac.descripcion_cambio,
-                       ac.fecha_cambio,
-                       a.nombre as evento_nombre,
-                       COALESCE(u.nombre, u.username) as responsable_nombre
-                FROM actividad_cambios ac
-                INNER JOIN actividades a ON a.id = ac.actividad_id
-                LEFT JOIN usuarios u ON u.id = ac.responsable_id
-                WHERE (ac.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
-                  AND a.eliminado_en IS NULL
-                ORDER BY ac.fecha_cambio ASC
-                """,
-                [date_str]
-            )
+            cur.execute(query_base, params)
             rows = cur.fetchall()
         
         results = []
         for row in rows:
-            cambio_id, actividad_id, responsable_id, descripcion, fecha_cambio, evento_nombre, responsable_nombre = row
-            colaborador_id = None
-            colaborador_nombre = None
+            cambio_id, actividad_id, colaborador_id, descripcion, fecha_cambio, evento_nombre, colaborador_nombre = row
             
             # Si no hay evento_nombre desde la consulta, obtenerlo manualmente (fallback)
             if not evento_nombre:
@@ -3158,12 +3510,10 @@ def api_avances(request):
                 except Actividad.DoesNotExist:
                     continue
             
-            # Determinar el responsable/colaborador a mostrar
+            # Determinar el colaborador a mostrar
             responsable_display = None
             if colaborador_nombre:
                 responsable_display = colaborador_nombre
-            elif responsable_nombre:
-                responsable_display = responsable_nombre
             else:
                 responsable_display = 'Sistema'
             
@@ -3202,63 +3552,88 @@ def api_reminders(request):
         if not date_str:
             return JsonResponse([], safe=False)
         
-        # Verificar si el usuario es admin
+        # Obtener información del usuario actual
         is_admin = False
         user_id = None
+        colaborador_usuario_id = None
         try:
-            with connection.cursor() as cur_user:
-                cur_user.execute(
-                    "SELECT id::text, rol FROM usuarios WHERE username = %s LIMIT 1",
-                    [getattr(request.user, 'username', None)]
-                )
-                user_row = cur_user.fetchone()
-                if user_row:
-                    user_id, user_rol = user_row
-                    is_admin = (user_rol == 'admin')
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                user_id = str(usuario_maga.id)
+                is_admin = usuario_maga.rol == 'admin'
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
         except Exception:
             pass
         
         try:
             with connection.cursor() as cur:
                 # Si es admin, mostrar todos los recordatorios del día
-                # Si no es admin, mostrar solo los suyos
                 if is_admin:
                     cur.execute(
                         """
                         SELECT r.id::text,
                                r.actividad_id::text,
                                r.created_by::text,
+                               COALESCE(u.nombre, u.username, 'Usuario desconocido') as created_by_name,
                                r.titulo,
                                r.descripcion,
                                r.due_at,
                                r.enviar_notificacion,
                                r.enviado
                         FROM recordatorios r
+                        LEFT JOIN usuarios u ON u.id = r.created_by
                         WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
                         ORDER BY r.due_at ASC
                         """,
                         [date_str]
                     )
                 else:
-                    # Solo los recordatorios del usuario actual
+                    # Para usuarios personales: mostrar recordatorios creados por ellos O donde su colaborador está incluido
                     if user_id:
-                        cur.execute(
-                            """
-                            SELECT r.id::text,
-                                   r.actividad_id::text,
-                                   r.created_by::text,
-                                   r.titulo,
-                                   r.descripcion,
-                                   r.due_at,
-                                   r.enviar_notificacion,
-                                   r.enviado
-                            FROM recordatorios r
-                            WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
-                              AND r.created_by = %s
-                            ORDER BY r.due_at ASC
-                            """,
-                            [date_str, user_id]
-                        )
+                        if colaborador_usuario_id:
+                            # Mostrar recordatorios creados por el usuario O donde su colaborador está en recordatorio_colaboradores
+                            cur.execute(
+                                """
+                                SELECT DISTINCT r.id::text,
+                                       r.actividad_id::text,
+                                       r.created_by::text,
+                                       COALESCE(u.nombre, u.username, 'Usuario desconocido') as created_by_name,
+                                       r.titulo,
+                                       r.descripcion,
+                                       r.due_at,
+                                       r.enviar_notificacion,
+                                       r.enviado
+                                FROM recordatorios r
+                                LEFT JOIN recordatorio_colaboradores rc ON rc.recordatorio_id = r.id
+                                LEFT JOIN usuarios u ON u.id = r.created_by
+                                WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
+                                  AND (r.created_by = %s OR rc.colaborador_id = %s)
+                                ORDER BY r.due_at ASC
+                                """,
+                                [date_str, user_id, colaborador_usuario_id]
+                            )
+                        else:
+                            # Si no tiene colaborador vinculado, solo mostrar los que creó
+                            cur.execute(
+                                """
+                                SELECT r.id::text,
+                                       r.actividad_id::text,
+                                       r.created_by::text,
+                                       COALESCE(u.nombre, u.username, 'Usuario desconocido') as created_by_name,
+                                       r.titulo,
+                                       r.descripcion,
+                                       r.due_at,
+                                       r.enviar_notificacion,
+                                       r.enviado
+                                FROM recordatorios r
+                                LEFT JOIN usuarios u ON u.id = r.created_by
+                                WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
+                                  AND r.created_by = %s
+                                ORDER BY r.due_at ASC
+                                """,
+                                [date_str, user_id]
+                            )
                     else:
                         # Si no hay user_id, no mostrar nada
                         rows = []
@@ -3268,7 +3643,7 @@ def api_reminders(request):
 
             results = []
             for row in rows:
-                rid, act_id, created_by, titulo, desc, due_at, enviar, enviado = row
+                rid, act_id, created_by, created_by_name, titulo, desc, due_at, enviar, enviado = row
                 # owners text
                 with connection.cursor() as cur2:
                     cur2.execute(
@@ -3310,6 +3685,7 @@ def api_reminders(request):
                     'description': desc or '',
                     'event_name': titulo or None,
                     'created_by': created_by,
+                    'created_by_name': created_by_name or 'Usuario desconocido',
                     'owners_text': owners_text
                 })
             return JsonResponse(results, safe=False)
@@ -3324,6 +3700,7 @@ def api_reminders(request):
         event_name = payload.get('event_name')
         description = payload.get('description') or ''
         owners = payload.get('owners') or []
+        recordar = payload.get('recordar', False)  # Opción de reenvío 10 minutos después
 
         # due_at timestamptz (zona horaria de Guatemala)
         try:
@@ -3363,16 +3740,41 @@ def api_reminders(request):
             if act:
                 actividad_id = str(act.id)
 
-        # Insertar recordatorio
+        # Insertar recordatorio (enviar_notificacion se usa para activar notificaciones, 
+        # y guardamos recordar en un campo adicional si existe, o lo guardamos en enviar_notificacion)
+        # Por ahora usaremos enviar_notificacion para activar notificaciones y agregaremos un campo para recordar
+        # Si no existe el campo recordar en la BD, lo guardaremos como metadata o usaremos enviar_notificacion
         with connection.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO recordatorios (actividad_id, created_by, titulo, descripcion, due_at)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                [actividad_id, created_by, event_name, description, due_at]
-            )
+            # Verificar si existe columna recordar, si no, usar enviar_notificacion para ambos
+            try:
+                cur.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='recordatorios' AND column_name='recordar'
+                """)
+                tiene_recordar = cur.fetchone() is not None
+            except:
+                tiene_recordar = False
+            
+            if tiene_recordar:
+                cur.execute(
+                    """
+                    INSERT INTO recordatorios (actividad_id, created_by, titulo, descripcion, due_at, enviar_notificacion, recordar)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    [actividad_id, created_by, event_name, description, due_at, True, recordar]
+                )
+            else:
+                # Si no existe el campo recordar, solo guardamos enviar_notificacion
+                cur.execute(
+                    """
+                    INSERT INTO recordatorios (actividad_id, created_by, titulo, descripcion, due_at, enviar_notificacion)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    [actividad_id, created_by, event_name, description, due_at, True]
+                )
             rid = cur.fetchone()[0]
         # Insertar involucrados
         if owners:
@@ -3388,10 +3790,304 @@ def api_reminders(request):
         return JsonResponse({'id': str(rid)})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+@require_http_methods(["GET"])
+@login_required
+def api_reminders_pending(request):
+    """Obtiene recordatorios pendientes para el usuario actual (para notificaciones).
+    Solo devuelve recordatorios donde el usuario está involucrado."""
+    try:
+        from django.utils.timezone import now
+        import pytz
+        from django.db import connection
+        
+        # Obtener información del usuario actual
+        user_id = None
+        colaborador_usuario_id = None
+        try:
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                user_id = str(usuario_maga.id)
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        except Exception:
+            pass
+        
+        if not user_id:
+            return JsonResponse([], safe=False)
+        
+        # Obtener recordatorios pendientes donde el usuario está involucrado
+        guatemala_tz = pytz.timezone('America/Guatemala')
+        ahora_guatemala = now().astimezone(guatemala_tz)
+        
+        with connection.cursor() as cur:
+            # Verificar si existe columna recordar
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='recordatorios' AND column_name='recordar'
+            """)
+            tiene_recordar = cur.fetchone() is not None
+            
+            if colaborador_usuario_id:
+                # Buscar recordatorios donde el colaborador del usuario está involucrado
+                # Incluir recordatorios que ya pasaron pero que tienen "recordar" activado (para reenvío)
+                # Solo incluir recordatorios que están dentro de los 15 minutos después de la hora
+                if tiene_recordar:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               COALESCE(r.recordar, FALSE) as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        INNER JOIN recordatorio_colaboradores rc ON rc.recordatorio_id = r.id
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND rc.colaborador_id = %s
+                          AND (
+                            -- Recordatorios futuros que no han sido enviados
+                            (r.due_at >= %s AND (r.enviado = FALSE OR r.enviado IS NULL))
+                            OR
+                            -- Recordatorios pasados con "recordar" activado, dentro de los 15 minutos
+                            (r.due_at < %s 
+                             AND r.due_at >= %s - INTERVAL '15 minutes'
+                             AND COALESCE(r.recordar, FALSE) = TRUE)
+                          )
+                        ORDER BY r.due_at ASC
+                        """,
+                        [colaborador_usuario_id, ahora_guatemala, ahora_guatemala, ahora_guatemala]
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               FALSE as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        INNER JOIN recordatorio_colaboradores rc ON rc.recordatorio_id = r.id
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND r.due_at >= %s
+                          AND rc.colaborador_id = %s
+                          AND (r.enviado = FALSE OR r.enviado IS NULL)
+                        ORDER BY r.due_at ASC
+                        """,
+                        [ahora_guatemala, colaborador_usuario_id]
+                    )
+            else:
+                # Si no tiene colaborador, solo buscar los que creó
+                if tiene_recordar:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               COALESCE(r.recordar, FALSE) as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND r.created_by = %s
+                          AND (
+                            -- Recordatorios futuros que no han sido enviados
+                            (r.due_at >= %s AND (r.enviado = FALSE OR r.enviado IS NULL))
+                            OR
+                            -- Recordatorios pasados con "recordar" activado, dentro de los 15 minutos
+                            (r.due_at < %s 
+                             AND r.due_at >= %s - INTERVAL '15 minutes'
+                             AND COALESCE(r.recordar, FALSE) = TRUE)
+                          )
+                        ORDER BY r.due_at ASC
+                        """,
+                        [user_id, ahora_guatemala, ahora_guatemala, ahora_guatemala]
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               FALSE as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND r.due_at >= %s
+                          AND r.created_by = %s
+                          AND (r.enviado = FALSE OR r.enviado IS NULL)
+                        ORDER BY r.due_at ASC
+                        """,
+                        [ahora_guatemala, user_id]
+                    )
+            
+            rows = cur.fetchall()
+        
+        results = []
+        for row in rows:
+            # Extraer datos de la fila según si tiene el campo recordar o no
+            if tiene_recordar:
+                if len(row) >= 8:
+                    rid, titulo, desc, due_at, enviar, enviado, recordar, evento_nombre = row
+                else:
+                    rid, titulo, desc, due_at, enviar, enviado, recordar = row
+                    evento_nombre = None
+            else:
+                if len(row) >= 8:
+                    rid, titulo, desc, due_at, enviar, enviado, recordar, evento_nombre = row[0], row[1], row[2], row[3], row[4], row[5], False, row[7]
+                else:
+                    rid, titulo, desc, due_at, enviar, enviado = row[0], row[1], row[2], row[3], row[4], row[5]
+                    recordar = False
+                    evento_nombre = row[7] if len(row) > 7 else None
+            
+            # Obtener personal involucrado
+            owners_names = []
+            with connection.cursor() as cur2:
+                cur2.execute(
+                    """
+                    SELECT c.nombre
+                    FROM recordatorio_colaboradores rc
+                    JOIN colaboradores c ON c.id = rc.colaborador_id
+                    WHERE rc.recordatorio_id = %s
+                    ORDER BY c.nombre
+                    """,
+                    [rid]
+                )
+                owners_names = [r[0] for r in cur2.fetchall()]
+            owners_text = ', '.join(owners_names) if owners_names else 'Sin personal asignado'
+            
+            # Convertir due_at a zona horaria de Guatemala
+            if due_at:
+                if due_at.tzinfo is None:
+                    due_at_guatemala = guatemala_tz.localize(due_at)
+                else:
+                    due_at_guatemala = due_at.astimezone(guatemala_tz)
+                
+                # Calcular tiempo hasta el recordatorio
+                tiempo_restante = (due_at_guatemala - ahora_guatemala).total_seconds()
+                
+                # Límite de 15 minutos (900 segundos) después de la hora del recordatorio
+                LIMITE_MINUTOS = 15
+                LIMITE_SEGUNDOS = LIMITE_MINUTOS * 60  # 900 segundos
+                
+                # Incluir recordatorios:
+                # 1. Que aún no han llegado (tiempo_restante > 0)
+                # 2. Que ya pasaron pero están dentro de los 15 minutos después de la hora (tiempo_restante < 0 pero abs(tiempo_restante) <= 900)
+                tiempo_absoluto = abs(tiempo_restante)
+                incluir = False
+                
+                if tiempo_restante > 0:
+                    # Aún no ha llegado, incluir
+                    incluir = True
+                elif tiempo_restante < 0:
+                    # Ya pasó, solo incluir si está dentro de los 15 minutos
+                    if tiempo_absoluto <= LIMITE_SEGUNDOS:
+                        incluir = True
+                    else:
+                        # Pasaron más de 15 minutos, no incluir
+                        incluir = False
+                
+                if incluir:
+                    # Formatear fecha y hora
+                    fecha_str = due_at_guatemala.strftime('%d/%m/%Y')
+                    hora_str = due_at_guatemala.strftime('%H:%M')
+                    
+                    results.append({
+                        'id': rid,
+                        'titulo': titulo or 'Recordatorio',
+                        'descripcion': desc or '',
+                        'due_at': due_at_guatemala.isoformat(),
+                        'due_at_timestamp': int(due_at_guatemala.timestamp() * 1000),  # En milisegundos
+                        'tiempo_restante_segundos': int(tiempo_restante),
+                        'recordar': bool(recordar) if recordar is not None else False,
+                        'evento_nombre': evento_nombre or 'Sin evento',
+                        'fecha': fecha_str,
+                        'hora': hora_str,
+                        'owners_text': owners_text,
+                        'enviado': bool(enviado) if enviado is not None else False
+                    })
+        
+        return JsonResponse(results, safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@login_required
+def api_marcar_notificacion_enviada(request, reminder_id):
+    """Marca una notificación como enviada para evitar duplicados"""
+    try:
+        from django.db import connection
+        
+        # Verificar que el recordatorio pertenece al usuario o está involucrado
+        user_id = None
+        colaborador_usuario_id = None
+        try:
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                user_id = str(usuario_maga.id)
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        except Exception:
+            pass
+        
+        if not user_id:
+            return JsonResponse({'error': 'Usuario no autenticado'}, status=401)
+        
+        # Verificar que el usuario está involucrado en el recordatorio
+        with connection.cursor() as cur:
+            if colaborador_usuario_id:
+                cur.execute("""
+                    SELECT COUNT(*) 
+                    FROM recordatorios r
+                    INNER JOIN recordatorio_colaboradores rc ON rc.recordatorio_id = r.id
+                    WHERE r.id = %s AND rc.colaborador_id = %s
+                """, [reminder_id, colaborador_usuario_id])
+            else:
+                cur.execute("""
+                    SELECT COUNT(*) 
+                    FROM recordatorios r
+                    WHERE r.id = %s AND r.created_by = %s
+                """, [reminder_id, user_id])
+            
+            count = cur.fetchone()[0]
+            if count == 0:
+                return JsonResponse({'error': 'No autorizado'}, status=403)
+            
+            # Marcar como enviado
+            cur.execute("""
+                UPDATE recordatorios 
+                SET enviado = TRUE 
+                WHERE id = %s
+            """, [reminder_id])
+        
+        return JsonResponse({'success': True})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 @require_http_methods(["DELETE"])
 @login_required
 def api_reminder_detail(request, reminder_id):
-    """Eliminar recordatorio si es admin o creador."""
+    """Eliminar recordatorio. Solo admin puede eliminar cualquier recordatorio. Usuarios personales solo pueden eliminar los que crearon."""
     try:
         # Obtener información del recordatorio
         with connection.cursor() as cur:
@@ -3401,24 +4097,19 @@ def api_reminder_detail(request, reminder_id):
                 return JsonResponse({'error': 'Not found'}, status=404)
             created_by = row[0]
         
-        # Verificar permisos: admin o creador
+        # Obtener información del usuario actual
         is_admin = False
-        is_creator = False
-        
-        # Obtener usuario actual desde la tabla usuarios
+        user_id = None
         try:
-            with connection.cursor() as cur_user:
-                cur_user.execute(
-                    "SELECT id::text, rol FROM usuarios WHERE username = %s LIMIT 1",
-                    [getattr(request.user, 'username', None)]
-                )
-                user_row = cur_user.fetchone()
-                if user_row:
-                    user_id, user_rol = user_row
-                    is_admin = (user_rol == 'admin')
-                    is_creator = (created_by == user_id)
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                user_id = str(usuario_maga.id)
+                is_admin = usuario_maga.rol == 'admin'
         except Exception:
             pass
+        
+        # Verificar permisos: admin puede eliminar cualquier recordatorio, usuarios personales solo los que crearon
+        is_creator = (created_by == user_id) if user_id else False
         
         if not (is_admin or is_creator):
             return JsonResponse({'error': 'Forbidden'}, status=403)
@@ -3435,29 +4126,103 @@ def api_reminder_detail(request, reminder_id):
 
 
 @require_http_methods(["GET"])
+@login_required
 def api_events_list(request):
     """Lista simple de eventos (id, name) para el formulario de recordatorios."""
-    qs = Actividad.objects.filter(eliminado_en__isnull=True).order_by('-creado_en')[:300]
-    data = [{'id': str(a.id), 'name': a.nombre} for a in qs]
-    return JsonResponse(data, safe=False)
+    try:
+        # Obtener información del usuario actual
+        is_admin = False
+        colaborador_usuario_id = None
+        try:
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                is_admin = usuario_maga.rol == 'admin'
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        except Exception:
+            pass
+        
+        # Si es admin, mostrar todos los eventos
+        if is_admin:
+            qs = Actividad.objects.filter(eliminado_en__isnull=True).order_by('-creado_en')[:300]
+        else:
+            # Si no es admin, solo mostrar eventos donde el colaborador del usuario está asignado
+            if colaborador_usuario_id:
+                qs = Actividad.objects.filter(
+                    eliminado_en__isnull=True,
+                    personal__colaborador_id=colaborador_usuario_id
+                ).distinct().order_by('-creado_en')[:300]
+            else:
+                # Si no tiene colaborador vinculado, no mostrar eventos
+                qs = Actividad.objects.none()
+        
+        data = [{'id': str(a.id), 'name': a.nombre} for a in qs]
+        return JsonResponse(data, safe=False)
+    except Exception as e:
+        return JsonResponse([], safe=False)
 
 
 @require_http_methods(["GET"])
+@login_required
 def api_collaborators(request):
-    """Lista de colaboradores activos para el formulario (id, nombre, puesto)."""
+    """Lista de colaboradores activos para el formulario (id, nombre, puesto). Filtra por evento si se proporciona evento_id."""
     try:
+        evento_id = request.GET.get('evento_id') or request.GET.get('event_id')
+        
         with connection.cursor() as cur:
-            cur.execute(
-                """
-                SELECT c.id::text, c.nombre, COALESCE(p.nombre,'') as puesto
-                FROM colaboradores c
-                LEFT JOIN puestos p ON p.id = c.puesto_id
-                WHERE c.activo = TRUE
-                ORDER BY c.nombre
-                """
-            )
+            if evento_id:
+                # Filtrar colaboradores del evento específico
+                # Incluir:
+                # 1. Colaboradores asignados directamente (ap.colaborador_id)
+                # 2. Colaboradores vinculados a usuarios asignados (ap.usuario_id -> usuario.colaborador_id)
+                cur.execute(
+                    """
+                    SELECT DISTINCT c.id::text, 
+                           c.nombre, 
+                           COALESCE(p.nombre,'') as puesto,
+                           COALESCE(u.username, '') as username
+                    FROM (
+                        -- Colaboradores asignados directamente
+                        SELECT ap.actividad_id, ap.colaborador_id as colab_id
+                        FROM actividad_personal ap
+                        WHERE ap.actividad_id = %s AND ap.colaborador_id IS NOT NULL
+                        
+                        UNION
+                        
+                        -- Colaboradores vinculados a usuarios asignados
+                        SELECT ap.actividad_id, c_linked.id as colab_id
+                        FROM actividad_personal ap
+                        INNER JOIN usuarios u ON u.id = ap.usuario_id
+                        INNER JOIN colaboradores c_linked ON c_linked.usuario_id = u.id
+                        WHERE ap.actividad_id = %s AND ap.usuario_id IS NOT NULL
+                    ) colaboradores_evento
+                    INNER JOIN colaboradores c ON c.id = colaboradores_evento.colab_id
+                    LEFT JOIN puestos p ON p.id = c.puesto_id
+                    LEFT JOIN usuarios u ON u.id = c.usuario_id
+                    WHERE c.activo = TRUE
+                    ORDER BY c.nombre
+                    """,
+                    [evento_id, evento_id]
+                )
+            else:
+                # Si no se proporciona evento_id, devolver lista vacía (el formulario requiere seleccionar evento primero)
+                return JsonResponse([], safe=False)
+            
             rows = cur.fetchall()
-        data = [{'id': r[0], 'name': r[1], 'puesto': r[2]} for r in rows]
+        
+        data = []
+        for r in rows:
+            colaborador_id, nombre, puesto, username = r
+            display_name = nombre
+            if username:
+                display_name = f"{nombre} ({username})"
+            data.append({
+                'id': colaborador_id,
+                'name': nombre,
+                'displayName': display_name,
+                'puesto': puesto,
+                'username': username
+            })
         return JsonResponse(data, safe=False)
     except Exception as e:
         return JsonResponse([], safe=False)
@@ -3781,8 +4546,6 @@ def api_eliminar_imagen_galeria(request, evento_id, imagen_id):
             'success': False,
             'error': f'Error al eliminar imagen: {str(e)}'
         }, status=500)
-
-
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_agregar_archivo(request, evento_id):
@@ -4546,8 +5309,6 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
             'success': False,
             'error': f'Error al eliminar cambio: {str(e)}'
         }, status=500)
-
-
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
@@ -4669,7 +5430,7 @@ def api_listar_colaboradores(request):
 @solo_administrador
 @require_http_methods(["GET"])
 def api_obtener_colaborador(request, colaborador_id):
-    """API: Obtener información de un colaborador específico"""
+    """API: Obtener información de un colaborador específico (solo admin)"""
     try:
         colaborador = Colaborador.objects.select_related('puesto', 'usuario').get(id=colaborador_id)
         
@@ -4704,6 +5465,59 @@ def api_obtener_colaborador(request, colaborador_id):
             'success': False,
             'error': f'Error al obtener colaborador: {str(e)}'
         }, status=500)
+
+
+@require_http_methods(["GET"])
+@permiso_admin_o_personal_api
+def api_usuario_colaborador(request):
+    """API: Obtener información del colaborador vinculado al usuario actual"""
+    usuario_maga = get_usuario_maga(request.user)
+    
+    if not usuario_maga:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado'
+        }, status=404)
+    
+    try:
+        # Obtener colaborador vinculado al usuario
+        colaborador = None
+        if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+            colaborador = usuario_maga.colaborador
+            
+            return JsonResponse({
+                'success': True,
+                'colaborador': {
+                    'id': str(colaborador.id),
+                    'nombre': colaborador.nombre,
+                    'puesto_id': str(colaborador.puesto.id) if colaborador.puesto else None,
+                    'puesto_nombre': colaborador.puesto.nombre if colaborador.puesto else None,
+                    'puesto_codigo': colaborador.puesto.codigo if colaborador.puesto else None,
+                    'descripcion': colaborador.descripcion or '',
+                    'telefono': colaborador.telefono or '',
+                    'correo': colaborador.correo or '',
+                    'dpi': colaborador.dpi or '',
+                    'es_personal_fijo': colaborador.es_personal_fijo,
+                    'activo': colaborador.activo,
+                }
+            })
+        else:
+            return JsonResponse({
+                'success': True,
+                'colaborador': None
+            })
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener colaborador: {str(e)}'
+        }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["POST"])
 def api_crear_colaborador(request):
     """API: Crear un nuevo colaborador"""
     try:
@@ -4783,6 +5597,8 @@ def api_crear_colaborador(request):
             'success': False,
             'error': f'Error al crear colaborador: {str(e)}'
         }, status=500)
+
+
 @require_http_methods(["GET"])
 def api_listar_puestos(request):
     """API: Listar todos los puestos activos"""
@@ -4924,6 +5740,8 @@ def api_obtener_usuario(request, usuario_id):
             'success': False,
             'error': f'Error al obtener usuario: {str(e)}'
         }, status=500)
+
+
 def api_actualizar_usuario(request, usuario_id):
     """API: Actualizar un usuario existente"""
     try:
@@ -5223,8 +6041,6 @@ def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
             'success': False,
             'error': f'Error al eliminar evidencia: {str(e)}'
         }, status=500)
-
-
 @solo_administrador
 @require_http_methods(["POST"])
 def api_actualizar_colaborador(request, colaborador_id):
@@ -5381,6 +6197,9 @@ def api_dashboard_stats(request):
         # Comunidades alcanzadas (distintas)
         comunidades_alcanzadas = actividades_base.values('comunidad_id').distinct().count()
         
+        # Total de comunidades del municipio (activas)
+        total_comunidades_municipio = Comunidad.objects.filter(activo=True).count()
+        
         # Trabajadores activos (usuarios activos + colaboradores activos)
         trabajadores_activos = Usuario.objects.filter(activo=True).count() + \
                               Colaborador.objects.filter(activo=True).count()
@@ -5505,6 +6324,7 @@ def api_dashboard_stats(request):
         return JsonResponse({
             'total_actividades': total_actividades,
             'comunidades_alcanzadas': comunidades_alcanzadas,
+            'total_comunidades_municipio': total_comunidades_municipio,
             'trabajadores_activos': trabajadores_activos,
             'beneficiarios_alcanzados': beneficiarios_alcanzados,
             'actividades_completadas_mes': actividades_completadas_mes,
@@ -6690,6 +7510,7 @@ def api_exportar_reporte(request, report_type):
     return JsonResponse({
         'error': 'Funcionalidad de exportación aún no implementada'
     }, status=501)
+
 def api_actualizar_comunidad_datos(request, comunidad_id):
     """API: Actualizar datos generales y tarjetas personalizadas de una comunidad."""
     try:
@@ -7138,6 +7959,8 @@ def api_actualizar_comunidad_descripcion(request, comunidad_id):
             'comunidad': payload_actualizado,
         }
     )
+
+
 def api_agregar_archivo_comunidad(request, comunidad_id):
     try:
         comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
