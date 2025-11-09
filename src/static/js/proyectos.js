@@ -1030,88 +1030,13 @@ function mostrarDetalleProyecto(proyecto) {
 
   const detailGallery = document.getElementById('detailGallery');
 
-  if (detailGallery && proyecto.evidencias) {
-
-    const imagenes = proyecto.evidencias.filter(e => e.es_imagen);
-
-    
-
-    // Verificar si el usuario tiene permisos (admin o personal)
-
+  if (detailGallery) {
     const puedeGestionar = puedeGestionarGaleria();
-
-    
-
-    if (imagenes.length === 0) {
-
-      detailGallery.innerHTML = '<p style="color: #6c757d; grid-column: 1 / -1;">No hay imágenes disponibles.</p>';
-
-    } else {
-
-      detailGallery.innerHTML = imagenes.map(img => `
-
-        <div class="gallery-item" style="position: relative; border-radius: 12px; overflow: hidden; width: 100%; max-width: 300px; height: 200px; background: rgba(255,255,255,0.05);">
-
-          <img src="${img.url}" alt="${img.nombre || img.archivo_nombre || 'Imagen'}" data-image-url="${img.url}" data-image-description="${img.descripcion || ''}" style="width: 100%; height: 100%; object-fit: cover; cursor: pointer;" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
-
-          ${img.descripcion ? `<div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 8px; color: white; font-size: 0.85rem; pointer-events: none;">${img.descripcion}</div>` : ''}
-
-          ${puedeGestionar ? `<button class="btn-remove-item" data-imagen-id="${img.id}" style="position: absolute; top: 8px; right: 8px; background: rgba(220, 53, 69, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;" title="Eliminar imagen" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>` : ''}
-
-        </div>
-
-      `).join('');
-
-      
-
-      // Agregar event listeners a las imágenes para mostrar en modal (todos los usuarios)
-
-      detailGallery.querySelectorAll('img[data-image-url]').forEach(imgElement => {
-
-        imgElement.addEventListener('click', function(e) {
-
-          // Evitar abrir el modal si se hizo clic en el botón de eliminar
-
-          if (e.target.closest('.btn-remove-item')) {
-
-            return;
-
-          }
-
-          const imageUrl = this.getAttribute('data-image-url');
-
-          const imageDescription = this.getAttribute('data-image-description') || '';
-
-          showImageViewModal(imageUrl, imageDescription);
-
-        });
-
-      });
-
-      
-
-      // Agregar event listeners a los botones de eliminar solo si el usuario tiene permisos
-
-      if (puedeGestionar) {
-
-        detailGallery.querySelectorAll('[data-imagen-id]').forEach(btn => {
-
-          btn.addEventListener('click', async function(e) {
-
-            e.stopPropagation();
-
-            const imagenId = this.getAttribute('data-imagen-id');
-
-            await eliminarImagenGaleria(imagenId);
-
-          });
-
-        });
-
-      }
-
-    }
-
+    const imagenes = Array.isArray(proyecto.evidencias)
+      ? proyecto.evidencias.filter(e => e.es_imagen)
+      : [];
+    currentProjectGalleryPage = 0;
+    renderProjectGalleryImages(imagenes, puedeGestionar);
   }
 
   
@@ -2557,6 +2482,10 @@ let currentProjectId = null;
 let pendingAction = null; // Para almacenar la acción pendiente después de verificar credenciales
 
 let pendingProjectGalleryImages = [];
+let currentProjectGalleryImages = [];
+let currentProjectGalleryPage = 0;
+let currentProjectGalleryCanManage = false;
+const PROJECT_GALLERY_PAGE_SIZE = 3;
 
 // Variable para almacenar archivos de evidencias seleccionados en el modal de cambios
 
@@ -3829,6 +3758,147 @@ function renderPendingProjectImages() {
   });
 }
 
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+
+function renderProjectGalleryImages(images, puedeGestionar) {
+  currentProjectGalleryImages = Array.isArray(images) ? images : [];
+  currentProjectGalleryCanManage = !!puedeGestionar;
+
+  const totalPages = Math.ceil(currentProjectGalleryImages.length / PROJECT_GALLERY_PAGE_SIZE);
+  if (totalPages === 0) {
+    currentProjectGalleryPage = 0;
+  } else if (currentProjectGalleryPage >= totalPages) {
+    currentProjectGalleryPage = totalPages - 1;
+  } else if (currentProjectGalleryPage < 0) {
+    currentProjectGalleryPage = 0;
+  }
+
+  renderProjectGalleryPage();
+}
+
+
+function renderProjectGalleryPage() {
+  const detailGallery = document.getElementById('detailGallery');
+
+  if (!detailGallery) {
+    return;
+  }
+
+  if (!currentProjectGalleryImages.length) {
+    detailGallery.innerHTML = '<p class="gallery-empty-state">No hay imágenes disponibles.</p>';
+    return;
+  }
+
+  const totalPages = Math.ceil(currentProjectGalleryImages.length / PROJECT_GALLERY_PAGE_SIZE);
+  if (totalPages === 0) {
+    currentProjectGalleryPage = 0;
+  } else if (currentProjectGalleryPage >= totalPages) {
+    currentProjectGalleryPage = totalPages - 1;
+  } else if (currentProjectGalleryPage < 0) {
+    currentProjectGalleryPage = 0;
+  }
+
+  const startIndex = currentProjectGalleryPage * PROJECT_GALLERY_PAGE_SIZE;
+  const visibleImages = currentProjectGalleryImages.slice(startIndex, startIndex + PROJECT_GALLERY_PAGE_SIZE);
+
+  const itemsHtml = visibleImages.map((img) => {
+    const descriptionText = escapeHtml(img.descripcion || '');
+    const descriptionHtml = descriptionText
+      ? `<div class="gallery-item-description">${descriptionText}</div>`
+      : '';
+    const removeButton = currentProjectGalleryCanManage
+      ? `<button class="btn-remove-item" data-imagen-id="${img.id}" title="Eliminar imagen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+         </button>`
+      : '';
+
+    const imageDescriptionAttr = escapeHtml(img.descripcion || '');
+
+    return `
+      <div class="gallery-item">
+        ${removeButton}
+        <img src="${img.url}" alt="${escapeHtml(img.nombre || img.archivo_nombre || 'Imagen')}" data-image-url="${img.url}" data-image-description="${imageDescriptionAttr}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+        ${descriptionHtml}
+      </div>
+    `;
+  }).join('');
+
+  const navHtml = totalPages > 1
+    ? `<div class="project-gallery-nav">
+        <button class="project-gallery-nav-btn" data-gallery-direction="prev" ${currentProjectGalleryPage === 0 ? 'disabled' : ''} aria-label="Ver imágenes anteriores">▲</button>
+        <button class="project-gallery-nav-btn" data-gallery-direction="next" ${currentProjectGalleryPage >= totalPages - 1 ? 'disabled' : ''} aria-label="Ver imágenes siguientes">▼</button>
+      </div>`
+    : '';
+
+  detailGallery.innerHTML = `
+    <div class="project-gallery-wrapper">
+      <div class="gallery-items-wrapper">
+        ${itemsHtml}
+      </div>
+      ${navHtml}
+    </div>
+  `;
+
+  detailGallery.querySelectorAll('img[data-image-url]').forEach((imgElement) => {
+    imgElement.addEventListener('click', function (e) {
+      if (e.target.closest('.btn-remove-item')) {
+        return;
+      }
+      const imageUrl = this.getAttribute('data-image-url');
+      const imageDescription = this.getAttribute('data-image-description') || '';
+      showImageViewModal(imageUrl, imageDescription);
+    });
+  });
+
+  if (currentProjectGalleryCanManage) {
+    detailGallery.querySelectorAll('[data-imagen-id]').forEach((btn) => {
+      btn.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        const imagenId = this.getAttribute('data-imagen-id');
+        await eliminarImagenGaleria(imagenId);
+      });
+    });
+  }
+}
+
+document.addEventListener('click', (event) => {
+  const navBtn = event.target.closest('.project-gallery-nav-btn');
+  if (!navBtn) {
+    return;
+  }
+
+  if (!currentProjectGalleryImages.length) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const direction = navBtn.getAttribute('data-gallery-direction');
+  const totalPages = Math.ceil(currentProjectGalleryImages.length / PROJECT_GALLERY_PAGE_SIZE);
+
+  if (direction === 'prev' && currentProjectGalleryPage > 0) {
+    currentProjectGalleryPage -= 1;
+    renderProjectGalleryPage();
+  } else if (direction === 'next' && currentProjectGalleryPage < totalPages - 1) {
+    currentProjectGalleryPage += 1;
+    renderProjectGalleryPage();
+  }
+});
 
 
 // Función para manejar selección de imagen
@@ -10880,16 +10950,4 @@ document.addEventListener('click', function(event) {
     }
     return;
   }
-});
-
-document.addEventListener('input', function(event) {
-  const descriptionInput = event.target.closest('.image-description-input');
-  if (!descriptionInput || !descriptionInput.dataset.index) {
-    return;
-  }
-  const index = parseInt(descriptionInput.dataset.index, 10);
-  if (Number.isNaN(index) || !pendingProjectGalleryImages[index]) {
-    return;
-  }
-  pendingProjectGalleryImages[index].description = descriptionInput.value;
 });
