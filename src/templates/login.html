@@ -8,7 +8,7 @@
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
+  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}?v=2">
 </head>
 <body style="margin: 0; padding: 0; background: #283446; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Manrope', sans-serif;">
   
@@ -72,6 +72,7 @@
           <button type="submit" class="btn-primary">Acceder</button>
           <a href="{% url 'webmaga:index' %}" class="btn-secondary" style="display: inline-block; text-align: center; text-decoration: none;">Volver</a>
         </div>
+        <div id="loginOfflineMessage" class="login-alert login-alert-info" style="display: none;"></div>
       </form>
 
       <div id="recoveryMessageContainer" class="recovery-alert" role="alert" aria-live="polite" style="display: none;">
@@ -141,73 +142,33 @@
     </div>
   </div>
 
-  <style>
-    /* Estilos para alertas de login */
-    .login-alert {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-    
-    .login-alert p {
-      margin: 0;
-    }
-    
-    .login-alert-danger {
-      background-color: #fee;
-      color: #c33;
-      border-left: 4px solid #c33;
-    }
+  <div id="djangoContextData"
+       data-url-mapa-completo="{% url 'webmaga:mapa-completo' %}"
+       data-url-login="{% url 'webmaga:login' %}"
+       data-url-logout="{% url 'webmaga:logout' %}"
+       data-url-gestiones="{% url 'webmaga:gestioneseventos' %}"
+       data-url-proyectos="{% url 'webmaga:proyectos' %}"
+       data-url-reportes="{% url 'webmaga:reportes-index' %}"
+       data-url-perfil="{% url 'webmaga:perfilusuario' %}"
+       data-url-config="{% url 'webmaga:configgeneral' %}"
+       data-url-preguntas="{% url 'webmaga:preguntas-frecuentes' %}"
+       data-url-usuario="{% url 'webmaga:api-usuario' %}"
+       data-url-calendar="{% url 'webmaga:api-calendar-events' %}"
+       data-url-events-list="{% url 'webmaga:api-events-list' %}"
+       data-url-avances="{% url 'webmaga:api-avances' %}"
+       data-url-reminders="{% url 'webmaga:api-reminders' %}"
+       data-url-reminders-pending="{% url 'webmaga:api-reminders-pending' %}"
+       data-url-marcar-notificacion="/api/reminders/"
+       data-url-collaborators="{% url 'webmaga:api-collaborators' %}"
+       data-user-authenticated="{% if user.is_authenticated %}true{% else %}false{% endif %}"
+       data-user-admin="{% if es_admin %}true{% else %}false{% endif %}"
+       data-user-personal="{% if es_personal %}true{% else %}false{% endif %}"
+       data-user-username="{{ usuario_maga.username|default:'' }}"
+       data-user-email="{{ usuario_maga.email|default:'' }}"
+       style="display:none;"></div>
 
-    .recovery-alert {
-      display: none;
-      align-items: center;
-      gap: 0;
-      padding: 14px 18px;
-      border-radius: 12px;
-      margin: 20px 0;
-      border: 1px solid transparent;
-      background: #e0f2fe;
-      color: #0f172a;
-      position: relative;
-    }
-
-    .recovery-alert p {
-      margin: 0;
-      font-size: 14px;
-      line-height: 1.55;
-    }
-
-    .recovery-alert-info {
-      background: #e0f2fe;
-      border-color: #38bdf8;
-      color: #0f172a;
-    }
-
-    .recovery-alert-success {
-      background: #dcfce7;
-      border-color: #22c55e;
-      color: #14532d;
-    }
-
-    .recovery-alert-warning {
-      background: #fef9c3;
-      border-color: #f59e0b;
-      color: #92400e;
-    }
-
-    .recovery-alert-error {
-      background: #fee2e2;
-      border-color: #f87171;
-      color: #7f1d1d;
-    }
-  </style>
-
-  <script src="{% static 'js/login.js' %}?v=2"></script>
+  <script src="{% static 'js/context-loader.js' %}?v=1"></script>
+  <script src="{% static 'js/offline-auth.js' %}?v=1"></script>
+  <script src="{% static 'js/login.js' %}?v=3"></script>
 </body>
 </html>

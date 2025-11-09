@@ -114,6 +114,89 @@
   display: block;
 }
 
+/* Alertas y mensajes */
+.login-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.login-alert p {
+  margin: 0;
+}
+
+.login-alert-danger {
+  background-color: #fee;
+  color: #c33;
+  border-left: 4px solid #c33;
+}
+
+.login-alert-info {
+  background-color: #e0f2fe;
+  color: #0f172a;
+  border-left: 4px solid #38bdf8;
+}
+
+.login-alert-success {
+  background-color: #dcfce7;
+  color: #14532d;
+  border-left: 4px solid #22c55e;
+}
+
+.login-alert-error {
+  background-color: #fee2e2;
+  color: #7f1d1d;
+  border-left: 4px solid #ef4444;
+}
+
+.recovery-alert {
+  display: none;
+  align-items: center;
+  gap: 0;
+  padding: 14px 18px;
+  border-radius: 12px;
+  margin: 20px 0;
+  border: 1px solid transparent;
+  background: #e0f2fe;
+  color: #0f172a;
+  position: relative;
+}
+
+.recovery-alert p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.recovery-alert-info {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0f172a;
+}
+
+.recovery-alert-success {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #14532d;
+}
+
+.recovery-alert-warning {
+  background: #fef9c3;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.recovery-alert-error {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #7f1d1d;
+}
+
 /* ======= ICONOS DE ENTRADA CON CSS ======= */
 .input-with-icon {
   position: relative;

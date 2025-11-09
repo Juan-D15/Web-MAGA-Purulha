@@ -16,6 +16,12 @@
 </head>
 <body>
 
+  <div id="offlineBanner" class="offline-banner" role="status" aria-live="assertive" aria-hidden="true">
+    <span class="offline-indicator"></span>
+    <span class="offline-text">Sin conexión a Internet</span>
+    <span class="offline-subtext">Tus cambios se guardarán y se enviarán automáticamente cuando vuelva la conexión.</span>
+  </div>
+
   <!-- ======= TOP / ENCABEZADO ======= -->
   <header class="topbar" role="banner">
     <div class="topbar__inner">
@@ -429,44 +435,34 @@
   </footer>
 
   <!-- ======= SCRIPTS BASE ======= -->
-  <!-- Script para pasar variables de Django al JavaScript -->
-  <script>
-    // Pasar variables de Django al JavaScript (disponible en todas las páginas)
-    (function() {
-      var djangoUrls = {
-        mapaCompleto: '{% url "webmaga:mapa-completo" %}',
-        login: '{% url "webmaga:login" %}',
-        logout: '{% url "webmaga:logout" %}',
-        gestioneseventos: '{% url "webmaga:gestioneseventos" %}',
-        proyectos: '{% url "webmaga:proyectos" %}',
-        reportes: '{% url "webmaga:reportes-index" %}',
-        perfilusuario: '{% url "webmaga:perfilusuario" %}',
-        configgeneral: '{% url "webmaga:configgeneral" %}',
-        preguntasFrecuentes: '{% url "webmaga:preguntas-frecuentes" %}',
-        usuario: '{% url "webmaga:api-usuario" %}',
-        calendarEvents: '{% url "webmaga:api-calendar-events" %}',
-        eventsList: '{% url "webmaga:api-events-list" %}',
-        avances: '{% url "webmaga:api-avances" %}',
-        reminders: '{% url "webmaga:api-reminders" %}',
-        remindersPending: '{% url "webmaga:api-reminders-pending" %}',
-        marcarNotificacionEnviadaBase: '/api/reminders/',
-        collaborators: '{% url "webmaga:api-collaborators" %}'
-      };
-      
-      var userAuth = {
-        isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
-        isAdmin: {% if es_admin %}true{% else %}false{% endif %},
-        isPersonal: {% if es_personal %}true{% else %}false{% endif %},
-        username: "{% if usuario_maga %}{{ usuario_maga.username }}{% else %}{% endif %}",
-        email: "{% if usuario_maga %}{{ usuario_maga.email }}{% else %}{% endif %}"
-      };
-      
-      // Hacer disponibles globalmente
-      window.DJANGO_URLS = djangoUrls;
-      window.USER_AUTH = userAuth;
-    })();
-  </script>
-  
+  <div id="djangoContextData"
+       data-url-mapa-completo="{% url 'webmaga:mapa-completo' %}"
+       data-url-login="{% url 'webmaga:login' %}"
+       data-url-logout="{% url 'webmaga:logout' %}"
+       data-url-gestiones="{% url 'webmaga:gestioneseventos' %}"
+       data-url-proyectos="{% url 'webmaga:proyectos' %}"
+       data-url-reportes="{% url 'webmaga:reportes-index' %}"
+       data-url-perfil="{% url 'webmaga:perfilusuario' %}"
+       data-url-config="{% url 'webmaga:configgeneral' %}"
+       data-url-preguntas="{% url 'webmaga:preguntas-frecuentes' %}"
+       data-url-usuario="{% url 'webmaga:api-usuario' %}"
+       data-url-calendar="{% url 'webmaga:api-calendar-events' %}"
+       data-url-events-list="{% url 'webmaga:api-events-list' %}"
+       data-url-avances="{% url 'webmaga:api-avances' %}"
+       data-url-reminders="{% url 'webmaga:api-reminders' %}"
+       data-url-reminders-pending="{% url 'webmaga:api-reminders-pending' %}"
+       data-url-marcar-notificacion="/api/reminders/"
+       data-url-collaborators="{% url 'webmaga:api-collaborators' %}"
+       data-user-authenticated="{% if user.is_authenticated %}true{% else %}false{% endif %}"
+       data-user-admin="{% if es_admin %}true{% else %}false{% endif %}"
+       data-user-personal="{% if es_personal %}true{% else %}false{% endif %}"
+       data-user-username="{{ usuario_maga.username|default:'' }}"
+       data-user-email="{{ usuario_maga.email|default:'' }}"
+       style="display:none;"></div>
+
+  <script src="{% static 'js/context-loader.js' %}?v=1"></script>
+  <script src="{% static 'js/offline-auth.js' %}"></script>
+  <script src="{% static 'js/offline-sync.js' %}"></script>
   <script src="{% static 'js/navigation.js' %}"></script>
   <script src="{% static 'js/admin-gestiones.js' %}"></script>
   

@@ -11,6 +11,7 @@ const recoveryState = {
 };
 const RECOVERY_ALERT_VARIANTS = ['recovery-alert-info', 'recovery-alert-success', 'recovery-alert-warning', 'recovery-alert-error'];
 let recoveryMessageTimeout = null;
+const LOGIN_ALERT_VARIANTS = ['login-alert-info', 'login-alert-success', 'login-alert-error'];
 
 // Función para alternar la visibilidad de la contraseña
 function togglePassword() {
@@ -236,6 +237,33 @@ function clearRecoveryMessage() {
   }
 }
 
+function showLoginInlineMessage(message, type = 'info') {
+  const container = document.getElementById('loginOfflineMessage');
+  if (!container) {
+    console.warn('Contenedor de mensajes de login no disponible. Mensaje:', message);
+    return;
+  }
+  container.classList.remove(...LOGIN_ALERT_VARIANTS);
+  const map = {
+    info: 'login-alert-info',
+    success: 'login-alert-success',
+    error: 'login-alert-error',
+  };
+  container.classList.add(map[type] || map.info);
+  container.textContent = message;
+  container.style.display = 'flex';
+}
+
+function clearLoginInlineMessage() {
+  const container = document.getElementById('loginOfflineMessage');
+  if (!container) {
+    return;
+  }
+  container.style.display = 'none';
+  container.textContent = '';
+  container.classList.remove(...LOGIN_ALERT_VARIANTS);
+}
+
 function resetRecoveryFlow() {
   recoveryState.email = null;
   recoveryState.token = null;
@@ -444,28 +472,73 @@ document.addEventListener('DOMContentLoaded', function() {
   detectOriginPage();
   resetRecoveryFlow();
   
-  // Formulario de login - DEJAR QUE DJANGO LO MANEJE
-  // El formulario se envía normalmente (sin preventDefault)
-  // Django validará las credenciales y manejará la redirección
+  // Formulario de login: interceptar para soportar modo offline
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
-    loginForm.addEventListener('submit', function(e) {
-      // Verificar si es el formulario del modal (sin action definida originalmente)
-      const isModal = this.closest('.login-modal') !== null;
-      
-      // Mostrar indicador de carga
+    loginForm.addEventListener('submit', async function(e) {
+      if (this.dataset.autoSubmitting === 'true') {
+        return;
+      }
+      e.preventDefault();
+      clearLoginInlineMessage();
+
+      const usernameInput = document.getElementById('usernameOrEmail');
+      const passwordInput = document.getElementById('password');
+      const rememberCheckbox = document.getElementById('rememberUser');
       const submitButton = this.querySelector('button[type="submit"]');
+
+      const usernameValue = usernameInput?.value?.trim() || '';
+      const passwordValue = passwordInput?.value || '';
+
+      if (!usernameValue || !passwordValue) {
+        showLoginInlineMessage('Ingresa tu usuario y contraseña para continuar.', 'error');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Acceder';
+        }
+        return;
+      }
+
       if (submitButton) {
         submitButton.disabled = true;
-        submitButton.textContent = 'Validando...';
+        submitButton.textContent = navigator.onLine ? 'Validando...' : 'Verificando...';
       }
-      
-      // Si es el modal y no tiene action, prevenir y redirigir manualmente
-      if (isModal && !this.hasAttribute('data-submitted')) {
-        // Marcar como enviado para evitar loops
-        this.setAttribute('data-submitted', 'true');
+
+      try {
+        if (!navigator.onLine) {
+          if (!window.OfflineAuth || typeof window.OfflineAuth.tryOfflineLogin !== 'function') {
+            throw new Error('Este dispositivo no cuenta con credenciales offline guardadas.');
+          }
+          const result = await window.OfflineAuth.tryOfflineLogin(usernameValue, passwordValue);
+          if (!result.success) {
+            throw new Error(result.error || 'No fue posible iniciar sesión en modo offline.');
+          }
+          showLoginInlineMessage('Sesión iniciada en modo offline. Redirigiendo…', 'success');
+          setTimeout(() => {
+            window.location.href = result.redirectUrl || '/';
+          }, 600);
+          return;
+        }
+
+        if (rememberCheckbox?.checked && window.OfflineAuth && typeof window.OfflineAuth.storeCredential === 'function') {
+          await window.OfflineAuth.storeCredential(usernameValue, passwordValue);
+        } else if (window.OfflineAuth && typeof window.OfflineAuth.removeCredential === 'function') {
+          window.OfflineAuth.removeCredential(usernameValue);
+        }
+
+        this.dataset.autoSubmitting = 'true';
+        if (submitButton) {
+          submitButton.textContent = 'Validando...';
+        }
+        HTMLFormElement.prototype.submit.call(this);
+      } catch (error) {
+        console.error('Error en flujo de login:', error);
+        showLoginInlineMessage(error.message || 'No fue posible iniciar sesión.', 'error');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Acceder';
+        }
       }
-      // NO hacer preventDefault() - dejar que el formulario se envíe normalmente
     });
   }
   

@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/auth/recovery/send-code/', views.api_enviar_codigo_recuperacion, name='api-enviar-codigo-recuperacion'),
     path('api/auth/recovery/verify-code/', views.api_verificar_codigo_recuperacion, name='api-verificar-codigo-recuperacion'),
     path('api/auth/recovery/reset-password/', views.api_resetear_password, name='api-resetear-password'),
+    path('api/auth/offline/register/', views.api_registrar_sesion_offline, name='api-registrar-sesion-offline'),
     
     # Vistas HTML
     path('', views.index, name='index'),
