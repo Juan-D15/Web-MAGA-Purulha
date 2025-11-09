@@ -7,6 +7,9 @@ urlpatterns = [
     # Autenticación
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('api/auth/recovery/send-code/', views.api_enviar_codigo_recuperacion, name='api-enviar-codigo-recuperacion'),
+    path('api/auth/recovery/verify-code/', views.api_verificar_codigo_recuperacion, name='api-verificar-codigo-recuperacion'),
+    path('api/auth/recovery/reset-password/', views.api_resetear_password, name='api-resetear-password'),
     
     # Vistas HTML
     path('', views.index, name='index'),

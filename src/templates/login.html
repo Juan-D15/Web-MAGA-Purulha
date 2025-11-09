@@ -74,6 +74,12 @@
         </div>
       </form>
 
+      <div id="recoveryMessageContainer" class="recovery-alert" role="alert" aria-live="polite" style="display: none;">
+        <div class="recovery-alert-body">
+          <p id="recoveryMessageText"></p>
+        </div>
+      </div>
+
       <!-- ======= FORMULARIO DE RECUPERACIÓN ======= -->
       <form id="forgotPasswordForm" class="forgot-password-form">
             <div class="form-group">
@@ -157,8 +163,51 @@
       color: #c33;
       border-left: 4px solid #c33;
     }
+
+    .recovery-alert {
+      display: none;
+      align-items: center;
+      gap: 0;
+      padding: 14px 18px;
+      border-radius: 12px;
+      margin: 20px 0;
+      border: 1px solid transparent;
+      background: #e0f2fe;
+      color: #0f172a;
+      position: relative;
+    }
+
+    .recovery-alert p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .recovery-alert-info {
+      background: #e0f2fe;
+      border-color: #38bdf8;
+      color: #0f172a;
+    }
+
+    .recovery-alert-success {
+      background: #dcfce7;
+      border-color: #22c55e;
+      color: #14532d;
+    }
+
+    .recovery-alert-warning {
+      background: #fef9c3;
+      border-color: #f59e0b;
+      color: #92400e;
+    }
+
+    .recovery-alert-error {
+      background: #fee2e2;
+      border-color: #f87171;
+      color: #7f1d1d;
+    }
   </style>
 
-  <script src="{% static 'js/login.js' %}"></script>
+  <script src="{% static 'js/login.js' %}?v=2"></script>
 </body>
 </html>

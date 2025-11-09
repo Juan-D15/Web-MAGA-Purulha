@@ -69,6 +69,49 @@ class Usuario(models.Model):
         return self.rol == 'admin'
 
 
+class PasswordResetCode(models.Model):
+    """Códigos temporales para recuperación de contraseña"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name='codigos_recuperacion',
+        db_column='usuario_id'
+    )
+    codigo = models.CharField(max_length=6)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    expira_en = models.DateTimeField()
+    verificado_en = models.DateTimeField(blank=True, null=True)
+    usado = models.BooleanField(default=False)
+    intentos = models.PositiveIntegerField(default=0)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    usado_en = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'password_reset_codes'
+        verbose_name = 'Código de Recuperación'
+        verbose_name_plural = 'Códigos de Recuperación'
+        indexes = [
+            models.Index(fields=['usuario', 'codigo']),
+            models.Index(fields=['usuario', 'token']),
+            models.Index(fields=['expira_en']),
+        ]
+
+    def __str__(self):
+        return f"Recuperación {self.usuario.username} - {self.codigo}"
+
+    def esta_vigente(self):
+        from django.utils import timezone
+        return (not self.usado) and self.expira_en >= timezone.now()
+
+    def marcar_usado(self):
+        from django.utils import timezone
+        self.usado = True
+        self.usado_en = timezone.now()
+        self.save(update_fields=['usado', 'usado_en'])
+
+
 class Colaborador(models.Model):
     """Colaboradores internos y externos vinculados a actividades"""
 

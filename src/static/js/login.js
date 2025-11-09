@@ -4,6 +4,13 @@
 let currentForm = 'login';
 let targetAction = null; // Para almacenar la acción que se quiere realizar después del login
 let originPage = null; // Para almacenar la página de origen
+const recoveryState = {
+  email: null,
+  token: null,
+  codeSent: false,
+};
+const RECOVERY_ALERT_VARIANTS = ['recovery-alert-info', 'recovery-alert-success', 'recovery-alert-warning', 'recovery-alert-error'];
+let recoveryMessageTimeout = null;
 
 // Función para alternar la visibilidad de la contraseña
 function togglePassword() {
@@ -110,6 +117,7 @@ function showLoginForm() {
   document.getElementById('loginForm').classList.add('active');
   document.getElementById('forgotPasswordForm').classList.remove('active');
   document.getElementById('resetPasswordForm').classList.remove('active');
+  clearRecoveryMessage();
 }
 
 // Función para mostrar el formulario de recuperación
@@ -118,6 +126,8 @@ function showForgotPassword() {
   document.getElementById('loginForm').classList.remove('active');
   document.getElementById('forgotPasswordForm').classList.add('active');
   document.getElementById('resetPasswordForm').classList.remove('active');
+  
+  resetRecoveryFlow();
   
   // Pre-llenar el email si está disponible en el login
   const usernameOrEmail = document.getElementById('usernameOrEmail').value;
@@ -132,6 +142,9 @@ function showResetPassword() {
   document.getElementById('loginForm').classList.remove('active');
   document.getElementById('forgotPasswordForm').classList.remove('active');
   document.getElementById('resetPasswordForm').classList.add('active');
+  document.getElementById('resetPasswordForm').reset();
+  validatePasswordStrength('');
+  document.getElementById('confirmPassword').style.borderColor = '';
 }
 
 // Función para validar la fortaleza de la contraseña
@@ -167,21 +180,147 @@ function validatePasswordMatch() {
   return false;
 }
 
-// Función para simular el envío de código de recuperación
-function sendRecoveryCode(email) {
-  // Simular envío de código
-  console.log(`Enviando código de recuperación a: ${email}`);
-  
-  // Simular código de 6 dígitos
-  const code = Math.floor(100000 + Math.random() * 900000);
-  console.log(`Código de recuperación: ${code}`);
-  
-  // Mostrar mensaje de éxito
-  alert(`Código enviado a ${email}. Código de prueba: ${code}`);
-  
-  // Habilitar el campo de código
-  document.getElementById('recoveryCode').disabled = false;
-  document.getElementById('recoveryCode').focus();
+function showRecoveryMessage(message, type = 'info') {
+  const container = document.getElementById('recoveryMessageContainer');
+  const textEl = document.getElementById('recoveryMessageText');
+ 
+  if (!container || !textEl) {
+    console.warn('Contenedor de mensajes de recuperación no disponible. Mensaje:', message);
+    return;
+  }
+ 
+  const variants = {
+    success: { className: 'recovery-alert-success' },
+    error: { className: 'recovery-alert-error' },
+    warning: { className: 'recovery-alert-warning' },
+    info: { className: 'recovery-alert-info' },
+  };
+ 
+  const selected = variants[type] || variants.info;
+ 
+  if (recoveryMessageTimeout) {
+    clearTimeout(recoveryMessageTimeout);
+    recoveryMessageTimeout = null;
+  }
+
+  container.classList.remove(...RECOVERY_ALERT_VARIANTS);
+  container.classList.add(selected.className);
+  textEl.textContent = message;
+  container.style.display = 'flex';
+  container.setAttribute('role', 'alert');
+
+  recoveryMessageTimeout = setTimeout(() => {
+    clearRecoveryMessage();
+  }, 4000);
+}
+
+function clearRecoveryMessage() {
+  const container = document.getElementById('recoveryMessageContainer');
+  const textEl = document.getElementById('recoveryMessageText');
+ 
+  if (!container) {
+    return;
+  }
+ 
+  if (recoveryMessageTimeout) {
+    clearTimeout(recoveryMessageTimeout);
+    recoveryMessageTimeout = null;
+  }
+
+  container.style.display = 'none';
+  container.classList.remove(...RECOVERY_ALERT_VARIANTS);
+  container.removeAttribute('role');
+ 
+  if (textEl) {
+    textEl.textContent = '';
+  }
+}
+
+function resetRecoveryFlow() {
+  recoveryState.email = null;
+  recoveryState.token = null;
+  recoveryState.codeSent = false;
+  clearRecoveryMessage();
+  const form = document.getElementById('forgotPasswordForm');
+  if (form) {
+    form.reset();
+  }
+  const emailInput = document.getElementById('recoveryEmail');
+  const codeInput = document.getElementById('recoveryCode');
+  const submitButton = document.querySelector('#forgotPasswordForm button[type="submit"]');
+  if (codeInput) {
+    codeInput.value = '';
+    codeInput.disabled = true;
+  }
+  if (emailInput) {
+    emailInput.removeAttribute('readonly');
+  }
+  if (submitButton) {
+    submitButton.textContent = 'Enviar Código';
+  }
+}
+
+async function requestRecoveryCode(email) {
+  const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+  const normalizedEmail = email.trim().toLowerCase();
+  const response = await fetch('/api/auth/recovery/send-code/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken,
+    },
+    body: JSON.stringify({ email: normalizedEmail }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'No pudimos enviar el código de verificación. Intenta nuevamente.');
+  }
+  recoveryState.email = normalizedEmail;
+  recoveryState.codeSent = true;
+  recoveryState.token = null;
+  return data;
+}
+
+async function verifyRecoveryCodeRequest(email, code) {
+  const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+  const response = await fetch('/api/auth/recovery/verify-code/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken,
+    },
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.success || !data.reset_token) {
+    throw new Error(data.error || 'El código ingresado no es válido.');
+  }
+  recoveryState.token = data.reset_token;
+  return data;
+}
+
+async function resetPasswordRequest(newPassword) {
+  if (!recoveryState.email || !recoveryState.token) {
+    throw new Error('Debes validar el código de verificación antes de cambiar la contraseña.');
+  }
+  const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+  const response = await fetch('/api/auth/recovery/reset-password/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken,
+    },
+    body: JSON.stringify({
+      email: recoveryState.email,
+      token: recoveryState.token,
+      password: newPassword,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'No fue posible actualizar la contraseña. Intenta nuevamente.');
+  }
+  return data;
 }
 
 // Función para validar credenciales con el backend de Django
@@ -303,6 +442,7 @@ function isFromGestionesAction() {
 document.addEventListener('DOMContentLoaded', function() {
   // Detectar la página de origen al cargar
   detectOriginPage();
+  resetRecoveryFlow();
   
   // Formulario de login - DEJAR QUE DJANGO LO MANEJE
   // El formulario se envía normalmente (sin preventDefault)
@@ -330,47 +470,109 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Formulario de recuperación
-  document.getElementById('forgotPasswordForm').addEventListener('submit', function(e) {
+  document.getElementById('forgotPasswordForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+    clearRecoveryMessage();
+    const emailInput = document.getElementById('recoveryEmail');
+    const codeInput = document.getElementById('recoveryCode');
+    const submitButton = this.querySelector('button[type="submit"]');
+    const email = emailInput.value.trim();
     
-    const email = document.getElementById('recoveryEmail').value;
-    const code = document.getElementById('recoveryCode').value;
-    
-    if (!code) {
-      // Enviar código
-      sendRecoveryCode(email);
-    } else {
-      // Validar código (simulado)
-      if (code.length === 6) {
+    if (!email) {
+      showRecoveryMessage('Ingresa un correo de recuperación válido.', 'warning');
+      return;
+    }
+
+    try {
+      submitButton.disabled = true;
+      if (!recoveryState.codeSent) {
+        submitButton.textContent = 'Enviando...';
+        const data = await requestRecoveryCode(email);
+        showRecoveryMessage(data.message || 'Enviamos el código a tu correo. Revisa tu bandeja de entrada.', 'success');
+        codeInput.disabled = false;
+        codeInput.focus();
+        emailInput.setAttribute('readonly', 'readonly');
+        submitButton.textContent = 'Verificar Código';
+      } else if (!recoveryState.token) {
+        const code = codeInput.value.trim();
+        if (code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
+          showRecoveryMessage('Ingresa el código de 6 dígitos que recibiste por correo.', 'warning');
+          return;
+        }
+        submitButton.textContent = 'Verificando...';
+        const data = await verifyRecoveryCodeRequest(recoveryState.email, code);
+        showRecoveryMessage(data.message || 'Código verificado correctamente.', 'success');
+        codeInput.value = '';
+        submitButton.textContent = 'Enviar Código';
         showResetPassword();
+        const resetForm = document.getElementById('resetPasswordForm');
+        if (resetForm) {
+          resetForm.dataset.email = recoveryState.email;
+        }
       } else {
-        alert('El código debe tener 6 dígitos.');
+        // Permitir reenviar un nuevo código en caso sea necesario
+        submitButton.textContent = 'Enviando...';
+        const data = await requestRecoveryCode(email);
+        showRecoveryMessage(data.message || 'Se envió un nuevo código a tu correo.', 'success');
+        codeInput.disabled = false;
+        codeInput.focus();
+        emailInput.setAttribute('readonly', 'readonly');
+        submitButton.textContent = 'Verificar Código';
+      }
+    } catch (error) {
+      showRecoveryMessage(error.message || 'Ocurrió un error al procesar la solicitud.', 'error');
+    } finally {
+      submitButton.disabled = false;
+      if (!recoveryState.codeSent) {
+        submitButton.textContent = 'Enviar Código';
+      } else if (!recoveryState.token) {
+        submitButton.textContent = 'Verificar Código';
       }
     }
   });
   
   // Formulario de cambio de contraseña
-  document.getElementById('resetPasswordForm').addEventListener('submit', function(e) {
+  document.getElementById('resetPasswordForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+    clearRecoveryMessage();
     
     const newPassword = document.getElementById('newPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
+    const submitButton = this.querySelector('button[type="submit"]');
     
-    // Validar fortaleza de contraseña
     if (!validatePasswordStrength(newPassword)) {
-      alert('La contraseña no cumple con los requisitos de seguridad.');
+      showRecoveryMessage('La contraseña no cumple con los requisitos de seguridad.', 'warning');
       return;
     }
     
-    // Validar que las contraseñas coincidan
     if (newPassword !== confirmPassword) {
-      alert('Las contraseñas no coinciden.');
+      showRecoveryMessage('Las contraseñas no coinciden.', 'warning');
+      return;
+    }
+
+    if (!recoveryState.email || !recoveryState.token) {
+      showRecoveryMessage('Debes verificar tu código antes de cambiar la contraseña.', 'warning');
+      showForgotPassword();
       return;
     }
     
-    // Simular cambio de contraseña
-    alert('Contraseña cambiada exitosamente. Ahora puedes iniciar sesión.');
+    try {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Guardando...';
+      const data = await resetPasswordRequest(newPassword);
+      showRecoveryMessage(data.message || 'La contraseña se actualizó correctamente.', 'success');
+      document.getElementById('resetPasswordForm').reset();
+      document.getElementById('forgotPasswordForm').reset();
+      validatePasswordStrength('');
+      document.getElementById('confirmPassword').style.borderColor = '';
+      resetRecoveryFlow();
     showLoginForm();
+    } catch (error) {
+      showRecoveryMessage(error.message || 'No se pudo actualizar la contraseña.', 'error');
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = 'Cambiar Contraseña';
+    }
   });
   
   // Validación de contraseña en tiempo real
@@ -402,4 +604,5 @@ document.addEventListener('DOMContentLoaded', function() {
   window.togglePassword = togglePassword;
   window.toggleNewPassword = toggleNewPassword;
   window.toggleConfirmPassword = toggleConfirmPassword;
+  window.clearRecoveryMessage = clearRecoveryMessage;
 });

@@ -5,13 +5,15 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q, Sum, Avg, Max, Min, F, Prefetch
 from django.db.models.functions import TruncMonth, TruncYear, Extract
 from django.core.files.storage import FileSystemStorage
+from django.core.mail import send_mail
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.contrib.auth import authenticate
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+import random
 import unicodedata
 import re
 from .models import (
@@ -21,7 +23,8 @@ from .models import (
     Colaborador, Puesto,
     ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
     EventoCambioColaborador, ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios,
-    RegionGaleria, RegionArchivo, ComunidadGaleria, ComunidadArchivo, ComunidadAutoridad
+    RegionGaleria, RegionArchivo, ComunidadGaleria, ComunidadArchivo, ComunidadAutoridad,
+    PasswordResetCode
 )
 from .decorators import (
     solo_administrador,
@@ -76,6 +79,282 @@ from .views_pages import (
 # =====================================================
 # VISTAS API JSON (para AJAX)
 # =====================================================
+
+def _parse_request_data(request):
+    """Obtiene datos de la petición soportando JSON y formularios."""
+    if request.content_type and 'application/json' in request.content_type:
+        try:
+            return json.loads(request.body.decode('utf-8') if request.body else '{}')
+        except json.JSONDecodeError:
+            return {}
+    if request.method == 'POST':
+        return request.POST.dict()
+    return {}
+
+
+def _generar_codigo_verificacion():
+    return f"{random.randint(0, 999999):06d}"
+
+
+@require_http_methods(["POST"])
+def api_enviar_codigo_recuperacion(request):
+    """Genera y envía un código de recuperación de contraseña por correo."""
+    data = _parse_request_data(request)
+    email = (data.get('email') or '').strip().lower()
+
+    if not email:
+        return JsonResponse({'success': False, 'error': 'El correo es obligatorio.'}, status=400)
+
+    try:
+        usuario = Usuario.objects.get(email__iexact=email, activo=True)
+    except Usuario.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Error al enviar el correo.'
+        }, status=404)
+
+    PasswordResetCode.objects.filter(usuario=usuario, usado=False).update(usado=True, usado_en=timezone.now())
+
+    codigo = _generar_codigo_verificacion()
+    expira_en = timezone.now() + timedelta(minutes=10)
+
+    registro = PasswordResetCode.objects.create(
+        usuario=usuario,
+        codigo=codigo,
+        expira_en=expira_en
+    )
+
+    destinatario = usuario.nombre or usuario.username or usuario.email
+    remitente = settings.DEFAULT_FROM_EMAIL or settings.EMAIL_HOST_USER or 'no-reply@maga-purulha.local'
+
+    asunto = 'Código de verificación - MAGA Purulhá'
+    mensaje_texto = (
+        f"Hola {destinatario},\n\n"
+        "Recibimos una solicitud para restablecer la contraseña de tu cuenta en la plataforma MAGA Purulhá.\n\n"
+        f"Tu código de verificación es: {codigo}\n"
+        "Introduce este código en la pantalla de recuperación para continuar.\n"
+        "El código tiene una vigencia de 10 minutos y solo puede usarse una vez.\n\n"
+        "Si tú no solicitaste este cambio, ignora este mensaje y tu contraseña seguirá siendo la misma.\n\n"
+        "Saludos,\n"
+        "Equipo MAGA Purulhá"
+    )
+
+    mensaje_html = f"""
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; margin:0; padding:24px; background:#f5f7fb; color:#1f2933;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px; margin:auto; background:#ffffff; border-radius:16px; box-shadow:0 18px 45px rgba(15,23,42,0.12); overflow:hidden;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#0f4c81,#155e98); padding:28px 32px;">
+            <h1 style="margin:0; font-size:24px; font-weight:700; color:#ffffff;">Código de verificación</h1>
+            <p style="margin:8px 0 0; font-size:14px; color:rgba(255,255,255,0.85);">
+              Ministerio de Agricultura, Ganadería y Alimentación — Purulhá
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <p style="margin:0 0 12px; font-size:16px;">Hola <strong>{destinatario}</strong>,</p>
+            <p style="margin:0 0 24px; font-size:14px; line-height:1.6; color:#334155;">
+              Recibimos una solicitud para restablecer la contraseña de tu cuenta. Introduce el siguiente código de verificación para continuar con el proceso:
+            </p>
+            <div style="text-align:center; margin:24px 0;">
+              <span style="display:inline-block; padding:18px 28px; background:linear-gradient(135deg,#0f4c81,#155e98); color:#ffffff; font-size:28px; letter-spacing:6px; border-radius:12px; font-weight:700;">
+                {codigo}
+              </span>
+            </div>
+            <p style="margin:0 0 16px; font-size:14px; line-height:1.6; color:#334155;">
+              ⚠️ Este código es válido por <strong>10 minutos</strong> y solo se puede utilizar una vez. Si no solicitaste este cambio, puedes ignorar este mensaje y tu contraseña seguirá siendo la misma.
+            </p>
+            <div style="margin:24px 0 0; padding:16px 20px; background:#f1f5f9; border-radius:12px;">
+              <p style="margin:0; font-size:13px; color:#475569;">¿Necesitas ayuda? Comunícate con el equipo de soporte del MAGA Purulhá.</p>
+            </div>
+            <p style="margin:32px 0 0; font-size:13px; color:#94a3b8; text-transform:uppercase; letter-spacing:1.5px;">Equipo MAGA Purulhá</p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:24px auto 0; max-width:520px; font-size:11px; color:#94a3b8; text-align:center;">Recibiste este correo porque se solicitó un restablecimiento de contraseña en la plataforma MAGA Purulhá.</p>
+    </div>
+    """
+
+    try:
+        send_mail(asunto, mensaje_texto, remitente, [usuario.email], fail_silently=False, html_message=mensaje_html)
+    except Exception as exc:
+        registro.marcar_usado()
+        return JsonResponse({
+            'success': False,
+            'error': 'No se pudo enviar el correo de verificación. Inténtalo nuevamente en unos minutos.',
+            'detail': str(exc)
+        }, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Enviamos un código de verificación a tu correo. Revisa la bandeja de entrada o spam.',
+        'expires_in_minutes': 10
+    })
+
+
+@require_http_methods(["POST"])
+def api_verificar_codigo_recuperacion(request):
+    """Valida el código ingresado por el usuario."""
+    data = _parse_request_data(request)
+    email = (data.get('email') or '').strip().lower()
+    codigo = (data.get('code') or data.get('codigo') or '').strip()
+
+    if not email or not codigo:
+        return JsonResponse({'success': False, 'error': 'Correo y código son obligatorios.'}, status=400)
+
+    if len(codigo) != 6 or not codigo.isdigit():
+        return JsonResponse({'success': False, 'error': 'El código debe tener 6 dígitos.'}, status=400)
+
+    try:
+        usuario = Usuario.objects.get(email__iexact=email, activo=True)
+    except Usuario.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Correo inválido.'}, status=404)
+
+    registro = PasswordResetCode.objects.filter(
+        usuario=usuario,
+        codigo=codigo
+    ).order_by('-creado_en').first()
+
+    if not registro:
+        return JsonResponse({'success': False, 'error': 'El código ingresado no es válido.'}, status=400)
+
+    if registro.usado:
+        return JsonResponse({'success': False, 'error': 'El código ya fue utilizado. Solicita uno nuevo.'}, status=400)
+
+    if registro.expira_en < timezone.now():
+        registro.usado = True
+        registro.usado_en = timezone.now()
+        registro.save(update_fields=['usado', 'usado_en'])
+        return JsonResponse({'success': False, 'error': 'El código expiró. Solicita uno nuevo.'}, status=400)
+
+    if registro.intentos >= 5:
+        registro.usado = True
+        registro.usado_en = timezone.now()
+        registro.save(update_fields=['usado', 'usado_en'])
+        return JsonResponse({'success': False, 'error': 'Se superó el límite de intentos. Solicita un nuevo código.'}, status=400)
+
+    registro.intentos += 1
+    registro.verificado_en = timezone.now()
+    registro.save(update_fields=['intentos', 'verificado_en'])
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Código verificado. Ahora puedes crear una nueva contraseña.',
+        'reset_token': str(registro.token)
+    })
+
+
+@require_http_methods(["POST"])
+def api_resetear_password(request):
+    """Permite establecer una nueva contraseña usando un token válido."""
+    from django.contrib.auth.models import User
+    from .authentication import hash_password_for_maga
+
+    data = _parse_request_data(request)
+    email = (data.get('email') or '').strip().lower()
+    token = data.get('token') or data.get('reset_token')
+    nueva_password = data.get('password') or data.get('new_password')
+
+    if not email or not token or not nueva_password:
+        return JsonResponse({'success': False, 'error': 'Correo, token y nueva contraseña son obligatorios.'}, status=400)
+
+    if len(nueva_password) < 8 or not any(c.isupper() for c in nueva_password) or not any(c.islower() for c in nueva_password) or not any(c.isdigit() for c in nueva_password):
+        return JsonResponse({
+            'success': False,
+            'error': 'La contraseña debe tener al menos 8 caracteres, incluir una mayúscula, una minúscula y un número.'
+        }, status=400)
+
+    try:
+        usuario = Usuario.objects.get(email__iexact=email, activo=True)
+    except Usuario.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Correo inválido.'}, status=404)
+
+    try:
+        registro = PasswordResetCode.objects.get(usuario=usuario, token=token)
+    except PasswordResetCode.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'El token proporcionado no es válido.'}, status=400)
+
+    if registro.usado:
+        return JsonResponse({'success': False, 'error': 'El token ya fue utilizado. Solicita un nuevo código.'}, status=400)
+
+    if registro.expira_en < timezone.now():
+        registro.usado = True
+        registro.usado_en = timezone.now()
+        registro.save(update_fields=['usado', 'usado_en'])
+        return JsonResponse({'success': False, 'error': 'El token expiró. Solicita un nuevo código.'}, status=400)
+
+    if not registro.verificado_en:
+        return JsonResponse({'success': False, 'error': 'Debes validar el código antes de cambiar la contraseña.'}, status=400)
+
+    nuevo_hash = hash_password_for_maga(nueva_password)
+    usuario.password_hash = nuevo_hash
+    usuario.actualizado_en = timezone.now()
+    usuario.save(update_fields=['password_hash', 'actualizado_en'])
+
+    try:
+        user_django = User.objects.get(username=usuario.username)
+        user_django.set_password(nueva_password)
+        user_django.is_active = usuario.activo
+        user_django.is_staff = usuario.rol == 'admin'
+        user_django.is_superuser = usuario.rol == 'admin'
+        user_django.save(update_fields=['password', 'is_active', 'is_staff', 'is_superuser'])
+    except User.DoesNotExist:
+        User.objects.create_user(
+            username=usuario.username,
+            email=usuario.email,
+            password=nueva_password,
+            is_staff=usuario.rol == 'admin',
+            is_superuser=usuario.rol == 'admin',
+            is_active=usuario.activo
+        )
+
+    registro.marcar_usado()
+
+    remitente = settings.DEFAULT_FROM_EMAIL or settings.EMAIL_HOST_USER or 'no-reply@maga-purulha.local'
+    asunto = '✅ Contraseña actualizada - MAGA Purulhá'
+    mensaje_texto = (
+        f"Hola {usuario.nombre or usuario.username or usuario.email},\n\n"
+        "Te confirmamos que la contraseña de tu cuenta se actualizó correctamente.\n\n"
+        "Si tú no realizaste este cambio, contacta inmediatamente al administrador del sistema.\n\n"
+        "Saludos,\n"
+        "Equipo MAGA Purulhá"
+    )
+
+    mensaje_html = f"""
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; margin:0; padding:24px; background:#f5f7fb; color:#1f2933;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px; margin:auto; background:#ffffff; border-radius:16px; box-shadow:0 18px 45px rgba(15,23,42,0.12); overflow:hidden;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#0f4c81,#155e98); padding:28px 32px;">
+            <h1 style="margin:0; font-size:24px; font-weight:700; color:#ffffff;">Contraseña actualizada</h1>
+            <p style="margin:8px 0 0; font-size:14px; color:rgba(255,255,255,0.85);">
+              Ministerio de Agricultura, Ganadería y Alimentación — Purulhá
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <p style="margin:0 0 12px; font-size:16px;">Hola <strong>{usuario.nombre or usuario.username or usuario.email}</strong>,</p>
+            <p style="margin:0 0 18px; font-size:14px; line-height:1.6; color:#334155;">
+              Te confirmamos que la contraseña de tu cuenta se actualizó correctamente. Ya puedes iniciar sesión con tu nueva contraseña.
+            </p>
+            <div style="margin:24px 0 0; padding:16px 20px; background:#f1f5f9; border-radius:12px;">
+              <p style="margin:0; font-size:13px; color:#475569;">Si tú no realizaste este cambio, ponte en contacto inmediatamente con el administrador del sistema para proteger tu cuenta.</p>
+            </div>
+            <p style="margin:32px 0 0; font-size:13px; color:#94a3b8; text-transform:uppercase; letter-spacing:1.5px;">Equipo MAGA Purulhá</p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:24px auto 0; max-width:520px; font-size:11px; color:#94a3b8; text-align:center;">Recibiste este correo como confirmación de seguridad después de un cambio de contraseña en la plataforma MAGA Purulhá.</p>
+    </div>
+    """
+
+    try:
+        send_mail(asunto, mensaje_texto, remitente, [usuario.email], fail_silently=True, html_message=mensaje_html)
+    except Exception:
+        pass
+
+    return JsonResponse({'success': True, 'message': 'La contraseña se actualizó correctamente. Ya puedes iniciar sesión.'})
+
 
 def api_usuario_actual(request):
     """API: Información del usuario actual y sus permisos"""
@@ -304,8 +583,6 @@ _COMUNIDAD_TITULOS_PREDEFINIDOS = {
     'teléfono cocode',
     'tipo de comunidad',
 }
-
-
 def _serialize_comunidad_detalle(comunidad):
     """Devuelve un diccionario serializado con la información completa de la comunidad."""
     galeria_prefetch = getattr(comunidad, 'galeria_api', None)
@@ -482,9 +759,6 @@ def _serialize_comunidad_detalle(comunidad):
         'actualizado_en': comunidad.actualizado_en.isoformat() if comunidad.actualizado_en else None,
         'creado_en': comunidad.creado_en.isoformat() if comunidad.creado_en else None,
     }
-
-
-@require_http_methods(["GET"])
 def api_comunidad_detalle(request, comunidad_id):
     """API: Obtener detalle completo de una comunidad"""
     try:
@@ -519,8 +793,6 @@ def api_comunidad_detalle(request, comunidad_id):
     response['Pragma'] = 'no-cache'
     response['Expires'] = '0'
     return response
-
-
 @require_http_methods(["POST"])
 @permiso_admin_o_personal_api
 def api_actualizar_region_descripcion(request, region_id):
@@ -639,7 +911,6 @@ def api_agregar_imagen_region(request, region_id):
             'success': False,
             'error': f'Error al agregar imagen: {str(e)}'
         }, status=500)
-
 @require_http_methods(["DELETE"])
 @permiso_admin_o_personal_api
 def api_eliminar_imagen_region(request, region_id, imagen_id):
@@ -689,8 +960,6 @@ def api_eliminar_imagen_region(request, region_id, imagen_id):
             'message': 'Imagen eliminada correctamente',
         }
     )
-
-
 @require_http_methods(["POST"])
 @permiso_admin_o_personal_api
 def api_agregar_archivo_region(request, region_id):
@@ -763,8 +1032,6 @@ def api_agregar_archivo_region(request, region_id):
             'date': region_archivo.creado_en.isoformat() if region_archivo.creado_en else None
         }
     })
-
-
 @require_http_methods(["DELETE"])
 @permiso_admin_o_personal_api
 def api_eliminar_archivo_region(request, region_id, archivo_id):
@@ -909,12 +1176,9 @@ def api_actividades(request):
         })
     
     return JsonResponse(actividades, safe=False)
-
-
 # =====================================================
 # VISTAS DE GESTIÓN DE EVENTOS
 # =====================================================
-
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_crear_evento(request):
@@ -1365,8 +1629,6 @@ def api_listar_personal(request):
         })
 
     return JsonResponse(personal_list, safe=False)
-
-
 @permiso_gestionar_eventos
 def api_listar_beneficiarios(request):
     """API: Listar beneficiarios disponibles"""
@@ -1416,8 +1678,6 @@ def api_listar_beneficiarios(request):
         })
 
     return JsonResponse(beneficiarios_list, safe=False)
-
-
 @permiso_gestionar_eventos
 @require_http_methods(["GET"])
 def api_obtener_beneficiario(request, beneficiario_id):
@@ -1472,7 +1732,6 @@ def api_obtener_beneficiario(request, beneficiario_id):
 # =====================================================
 # APIs PARA GESTIÓN DE EVENTOS (Listar, Editar, Eliminar)
 # =====================================================
-
 @permiso_gestionar_eventos
 @require_http_methods(["GET"])
 def api_listar_eventos(request):
@@ -1557,10 +1816,6 @@ def api_listar_eventos(request):
             'success': False,
             'error': f'Error al listar eventos: {str(e)}'
         }, status=500)
-
-
-@permiso_gestionar_eventos
-@require_http_methods(["GET"])
 def api_obtener_evento(request, evento_id):
     """Obtiene los detalles completos de un evento"""
     try:
@@ -1678,8 +1933,6 @@ def api_obtener_evento(request, evento_id):
             'success': False,
             'error': f'Error al obtener evento: {str(e)}'
         }, status=500)
-
-
 @permiso_gestionar_eventos_api
 @require_http_methods(["POST"])
 def api_actualizar_evento(request, evento_id):
@@ -2161,7 +2414,6 @@ def api_actualizar_evento(request, evento_id):
                     cambios_realizados.append('Imagen de portada actualizada')
                 except ValueError as portada_error:
                     raise ValueError(str(portada_error))
-
             if data.get('tarjetas_datos_nuevas'):
                 try:
                     tarjetas_nuevas = json.loads(data['tarjetas_datos_nuevas'])
@@ -2208,7 +2460,6 @@ def api_actualizar_evento(request, evento_id):
                             orden=orden_inicial + idx
                         )
                     cambios_realizados.append(f"Agregados {len(tarjetas_creadas_ids)} datos del proyecto")
-
             if data.get('tarjetas_datos_actualizadas'):
                 try:
                     tarjetas_actualizadas = json.loads(data['tarjetas_datos_actualizadas'])
@@ -2294,8 +2545,6 @@ def api_actualizar_evento(request, evento_id):
             'success': False,
             'error': f'Error al actualizar evento: {str(e)}'
         }, status=500)
-
-
 @permiso_gestionar_eventos
 @require_http_methods(["GET"])
 def api_cambios_recientes(request):
@@ -2362,9 +2611,6 @@ def api_cambios_recientes(request):
             'success': False,
             'error': f'Error al obtener cambios: {str(e)}'
         }, status=500)
-
-
-@require_http_methods(["POST"])
 def api_verificar_admin(request):
     """Verifica las credenciales del administrador antes de permitir acciones críticas"""
     try:
@@ -2452,8 +2698,6 @@ def api_eliminar_evento(request, evento_id):
             'success': False,
             'error': f'Error al eliminar evento: {str(e)}'
         }, status=500)
-
-
 @require_http_methods(["GET"])
 def api_listar_proyectos_por_tipo(request, tipo_actividad):
     """
@@ -2484,11 +2728,11 @@ def api_listar_proyectos_por_tipo(request, tipo_actividad):
             eliminado_en__isnull=True
         ).select_related(
             'tipo', 'comunidad', 'comunidad__region', 'responsable', 'portada'
-         ).prefetch_related(
+        ).prefetch_related(
              'personal__usuario',
              'beneficiarios__beneficiario',
              'evidencias'
-         ).order_by('-actualizado_en')
+        ).order_by('-actualizado_en')
         
         proyectos_data = []
         for evento in eventos:
@@ -2606,8 +2850,6 @@ def api_listar_proyectos_por_tipo(request, tipo_actividad):
             'success': False,
             'error': f'Error al listar proyectos: {str(e)}'
         }, status=500)
-
-
 @require_http_methods(["GET"])
 def api_ultimos_proyectos(request):
     """
@@ -2798,8 +3040,6 @@ def api_ultimos_eventos_inicio(request):
             'success': False,
             'error': f'Error al obtener últimos eventos: {str(e)}'
         }, status=500)
-
-
 @require_http_methods(["GET"])
 def api_calendar_events(request):
     """Eventos para el calendario entre start y end (YYYY-MM-DD). Solo eventos con estado 'en_progreso' o 'completado'."""
@@ -2955,10 +3195,6 @@ def api_avances(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
-
-@require_http_methods(["GET", "POST"])
-@login_required
 def api_reminders(request):
     """Lista o crea recordatorios usando tablas recordatorios y recordatorio_colaboradores."""
     if request.method == 'GET':
@@ -3152,8 +3388,6 @@ def api_reminders(request):
         return JsonResponse({'id': str(rid)})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
-
-
 @require_http_methods(["DELETE"])
 @login_required
 def api_reminder_detail(request, reminder_id):
@@ -3227,7 +3461,6 @@ def api_collaborators(request):
         return JsonResponse(data, safe=False)
     except Exception as e:
         return JsonResponse([], safe=False)
-
 @require_http_methods(["GET"])
 def api_obtener_detalle_proyecto(request, evento_id):
     """
@@ -3414,8 +3647,6 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'success': False,
             'error': f'Error al obtener proyecto: {str(e)}'
         }, status=500)
-
-
 @permiso_gestionar_eventos_api
 @require_http_methods(["POST"])
 def api_agregar_imagen_galeria(request, evento_id):
@@ -3724,12 +3955,9 @@ def api_actualizar_archivo_evento(request, evento_id, archivo_id):
             'es_evidencia': False,
         }
     })
-
-
 # =====================================================
 # APIs PARA GESTIÓN DE CAMBIOS
 # =====================================================
-
 @solo_administrador
 @require_http_methods(["GET"])
 def api_listar_usuarios(request):
@@ -3782,8 +4010,6 @@ def api_listar_usuarios(request):
             'success': False,
             'error': f'Error al listar usuarios: {str(e)}'
         }, status=500)
-
-
 @solo_administrador
 @require_http_methods(["POST"])
 def api_crear_usuario(request):
@@ -3918,8 +4144,6 @@ def api_crear_usuario(request):
             'success': False,
             'error': f'Error al crear usuario: {str(e)}'
         }, status=500)
-
-
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_crear_cambio(request, evento_id):
@@ -4262,8 +4486,6 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             'success': False,
             'error': f'Error al actualizar cambio: {str(e)}'
         }, status=500)
-
-
 @permiso_gestionar_eventos
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_cambio(request, evento_id, cambio_id):
@@ -4482,10 +4704,6 @@ def api_obtener_colaborador(request, colaborador_id):
             'success': False,
             'error': f'Error al obtener colaborador: {str(e)}'
         }, status=500)
-
-
-@solo_administrador
-@require_http_methods(["POST"])
 def api_crear_colaborador(request):
     """API: Crear un nuevo colaborador"""
     try:
@@ -4565,8 +4783,6 @@ def api_crear_colaborador(request):
             'success': False,
             'error': f'Error al crear colaborador: {str(e)}'
         }, status=500)
-
-
 @require_http_methods(["GET"])
 def api_listar_puestos(request):
     """API: Listar todos los puestos activos"""
@@ -4708,10 +4924,6 @@ def api_obtener_usuario(request, usuario_id):
             'success': False,
             'error': f'Error al obtener usuario: {str(e)}'
         }, status=500)
-
-
-@solo_administrador
-@require_http_methods(["POST"])
 def api_actualizar_usuario(request, usuario_id):
     """API: Actualizar un usuario existente"""
     try:
@@ -5150,9 +5362,6 @@ def api_eliminar_colaborador(request, colaborador_id):
             'success': False,
             'error': f'Error al eliminar colaborador: {str(e)}'
         }, status=500)
-
-
-@solo_administrador
 def api_dashboard_stats(request):
     """API para obtener estadísticas del dashboard ejecutivo"""
     try:
@@ -5315,8 +5524,6 @@ def api_dashboard_stats(request):
         return JsonResponse({
             'error': f'Error al obtener estadísticas: {str(e)}'
         }, status=500)
-
-
 @solo_administrador
 def api_generar_reporte(request, report_type):
     """API para generar reporte según tipo"""
@@ -5604,7 +5811,6 @@ def api_generar_reporte(request, report_type):
                 }
                 for item in resultado
             ]
-        
         elif report_type == 'actividad-de-personal':
             # Obtener filtros específicos
             colaboradores_filtro = request.GET.get('colaboradores', '').split(',') if request.GET.get('colaboradores') else []
@@ -5840,7 +6046,6 @@ def api_generar_reporte(request, report_type):
             
             # Ordenar por total de avances descendente (los sin avances van al final)
             data.sort(key=lambda x: (x['total_avances'], x['nombre']), reverse=True)
-        
         elif report_type == 'avances-eventos-generales':
             # Obtener filtros específicos
             comunidades_filtro = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
@@ -5986,7 +6191,6 @@ def api_generar_reporte(request, report_type):
                 'data': data,
                 'total': len(data)
             })
-        
         elif report_type == 'reporte-evento-individual':
             # Obtener el evento específico
             evento_id = request.GET.get('evento')
@@ -6150,322 +6354,6 @@ def api_generar_reporte(request, report_type):
                 return JsonResponse({
                     'error': 'Evento no encontrado'
                 }, status=404)
-        
-        elif report_type == 'comunidades':
-            # Obtener filtros
-            comunidades_ids = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
-            comunidades_ids = [cid.strip() for cid in comunidades_ids if cid.strip()]
-            
-            if not comunidades_ids:
-                return JsonResponse({
-                    'error': 'Debe seleccionar al menos una comunidad'
-                }, status=400)
-            
-            evento_id = request.GET.get('evento')
-            periodo = request.GET.get('periodo', 'todo')
-            fecha_inicio = request.GET.get('fecha_inicio')
-            fecha_fin = request.GET.get('fecha_fin')
-            tipos_actividad = request.GET.get('tipo_actividad', '').split(',') if request.GET.get('tipo_actividad') else []
-            tipos_actividad = [t.strip() for t in tipos_actividad if t.strip()]
-            
-            # Construir query base para actividades
-            actividades_query = Actividad.objects.filter(
-                eliminado_en__isnull=True
-            )
-            
-            # Filtrar por fecha según período
-            from django.utils import timezone
-            from datetime import timedelta
-            import pytz
-            
-            if periodo == 'ultimo_mes':
-                # Para DateField, usar date() está bien, pero asegurarse de incluir el día actual
-                fecha_inicio = (timezone.now() - timedelta(days=30)).date()
-                fecha_fin = timezone.now().date()  # Incluye el día actual
-            elif periodo == 'ultima_semana':
-                fecha_inicio = (timezone.now() - timedelta(days=7)).date()
-                fecha_fin = timezone.now().date()  # Incluye el día actual
-            elif periodo == 'rango' and fecha_inicio and fecha_fin:
-                try:
-                    from datetime import datetime
-                    fecha_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
-                    fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
-                except:
-                    fecha_inicio = None
-                    fecha_fin = None
-            
-            if fecha_inicio:
-                actividades_query = actividades_query.filter(fecha__gte=fecha_inicio)
-            if fecha_fin:
-                # Para DateField, fecha__lte con date() debería funcionar correctamente
-                actividades_query = actividades_query.filter(fecha__lte=fecha_fin)
-            
-            # Filtrar por tipo de actividad
-            if tipos_actividad:
-                actividades_query = actividades_query.filter(tipo__nombre__in=tipos_actividad)
-            
-            # Filtrar por evento si está seleccionado
-            if evento_id:
-                actividades_query = actividades_query.filter(id=evento_id)
-                # Si hay evento, solo mostrar comunidades relacionadas con ese evento
-                actividades_filtradas = actividades_query.prefetch_related(
-                    'comunidades_relacionadas__comunidad',
-                    'comunidades_relacionadas__comunidad__region',
-                    'comunidades_relacionadas__comunidad__tipo',
-                    'beneficiarios__beneficiario',
-                    'beneficiarios__beneficiario__tipo'
-                ).all()
-                
-                # Obtener comunidades relacionadas con el evento
-                comunidades_relacionadas_ids = set()
-                for actividad in actividades_filtradas:
-                    for cr in actividad.comunidades_relacionadas.all():
-                        if str(cr.comunidad.id) in comunidades_ids:
-                            comunidades_relacionadas_ids.add(cr.comunidad.id)
-                    # También incluir la comunidad principal si está en la lista
-                    if actividad.comunidad and str(actividad.comunidad.id) in comunidades_ids:
-                        comunidades_relacionadas_ids.add(actividad.comunidad.id)
-                
-                comunidades_query = Comunidad.objects.filter(
-                    id__in=comunidades_relacionadas_ids
-                ).select_related('region', 'tipo').prefetch_related('galeria', 'archivos')
-            else:
-                # Si no hay evento, filtrar por comunidades directamente
-                # Las actividades deben estar relacionadas con las comunidades seleccionadas
-                actividades_query = actividades_query.filter(
-                    Q(comunidad_id__in=comunidades_ids) |
-                    Q(comunidades_relacionadas__comunidad_id__in=comunidades_ids)
-                ).distinct()
-                
-                actividades_filtradas = actividades_query.prefetch_related(
-                    'comunidades_relacionadas__comunidad',
-                    'comunidades_relacionadas__comunidad__region',
-                    'comunidades_relacionadas__comunidad__tipo',
-                    'beneficiarios__beneficiario',
-                    'beneficiarios__beneficiario__tipo',
-                    'tipo'
-                ).all()
-                
-                comunidades_query = Comunidad.objects.filter(
-                    id__in=comunidades_ids
-                ).select_related('region', 'tipo').prefetch_related('galeria', 'archivos')
-            
-            # Construir datos de comunidades
-            comunidades_data = []
-            for comunidad in comunidades_query:
-                # Actividades relacionadas con esta comunidad
-                actividades_comunidad = []
-                for actividad in actividades_filtradas:
-                    # Verificar si la actividad está relacionada con esta comunidad
-                    relacionada = False
-                    if actividad.comunidad and actividad.comunidad.id == comunidad.id:
-                        relacionada = True
-                    else:
-                        for cr in actividad.comunidades_relacionadas.all():
-                            if cr.comunidad.id == comunidad.id:
-                                relacionada = True
-                                break
-                    
-                    if relacionada:
-                        actividades_comunidad.append(actividad)
-                
-                # Contar beneficiarios de esta comunidad en las actividades
-                beneficiarios_comunidad = []
-                beneficiarios_ids = set()
-                
-                for actividad in actividades_comunidad:
-                    for ab in actividad.beneficiarios.all():
-                        benef = ab.beneficiario
-                        # Solo incluir si el beneficiario pertenece a esta comunidad
-                        if benef.comunidad and benef.comunidad.id == comunidad.id:
-                            if benef.id not in beneficiarios_ids:
-                                beneficiarios_ids.add(benef.id)
-                                nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(benef)
-                                eventos_benef = []
-                                # Buscar todos los eventos donde está este beneficiario
-                                for act2 in actividades_filtradas:
-                                    if act2.beneficiarios.filter(beneficiario=benef).exists():
-                                        eventos_benef.append(act2.nombre)
-                                
-                                beneficiarios_comunidad.append({
-                                    'id': str(benef.id),
-                                    'nombre': nombre_display,
-                                    'tipo': tipo_envio or 'individual',
-                                    'eventos': eventos_benef
-                                })
-                
-                # Proyectos/Eventos
-                proyectos_data = []
-                for actividad in actividades_comunidad:
-                    fecha_str = actividad.fecha.strftime('%Y-%m-%d') if actividad.fecha else ''
-                    proyectos_data.append({
-                        'id': str(actividad.id),
-                        'nombre': actividad.nombre,
-                        'tipo': actividad.tipo.nombre if actividad.tipo else 'Sin tipo',
-                        'estado': actividad.estado,
-                        'fecha': fecha_str
-                    })
-                
-                # Tipo de comunidad
-                tipo_nombre = comunidad.tipo.nombre if comunidad.tipo else 'Sin tipo'
-                
-                comunidades_data.append({
-                    'id': str(comunidad.id),
-                    'nombre': comunidad.nombre,
-                    'cocode': comunidad.cocode or '-',
-                    'region': comunidad.region.nombre if comunidad.region else '-',
-                    'tipo': tipo_nombre,
-                    'numero_beneficiarios': len(beneficiarios_comunidad),
-                    'numero_proyectos': len(proyectos_data),
-                    'beneficiarios': beneficiarios_comunidad,
-                    'proyectos': proyectos_data
-                })
-            
-            return JsonResponse({
-                'data': {
-                    'comunidades': comunidades_data
-                },
-                'total': len(comunidades_data)
-            })
-        
-        elif report_type == 'actividad-usuarios':
-            # Obtener filtros
-            usuarios_ids = request.GET.get('usuarios', '').split(',') if request.GET.get('usuarios') else []
-            usuarios_ids = [uid.strip() for uid in usuarios_ids if uid.strip()]
-            
-            comunidades_ids = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
-            comunidades_ids = [cid.strip() for cid in comunidades_ids if cid.strip()]
-            
-            evento_id = request.GET.get('evento')
-            periodo = request.GET.get('periodo', 'todo')
-            fecha_inicio = request.GET.get('fecha_inicio')
-            fecha_fin = request.GET.get('fecha_fin')
-            tipos_actividad = request.GET.get('tipo_actividad', '').split(',') if request.GET.get('tipo_actividad') else []
-            tipos_actividad = [t.strip() for t in tipos_actividad if t.strip()]
-            
-            # Construir query base para cambios
-            cambios_query = ActividadCambio.objects.filter(
-                actividad__eliminado_en__isnull=True
-            ).select_related(
-                'actividad', 'actividad__tipo', 'actividad__comunidad', 'actividad__comunidad__region',
-                'responsable', 'responsable__puesto'
-            ).prefetch_related(
-                'actividad__comunidades_relacionadas__comunidad'
-            )
-            
-            # Filtrar por fecha según período
-            from django.utils import timezone
-            from datetime import timedelta, datetime, time
-            
-            # Calcular fechas según período (para DateTimeField, usar datetime completo)
-            if periodo == 'ultimo_mes':
-                fecha_inicio_dt = timezone.now() - timedelta(days=30)
-                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
-            elif periodo == 'ultima_semana':
-                fecha_inicio_dt = timezone.now() - timedelta(days=7)
-                fecha_fin_dt = timezone.now()  # Incluye todo el día actual
-            elif periodo == 'rango' and fecha_inicio and fecha_fin:
-                try:
-                    fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d')
-                    # Para fecha_fin, usar el final del día (23:59:59.999999)
-                    fecha_fin_dt = datetime.combine(datetime.strptime(fecha_fin, '%Y-%m-%d').date(), time.max)
-                    # Convertir a timezone-aware si es necesario
-                    if timezone.is_naive(fecha_inicio_dt):
-                        fecha_inicio_dt = timezone.make_aware(fecha_inicio_dt)
-                    if timezone.is_naive(fecha_fin_dt):
-                        fecha_fin_dt = timezone.make_aware(fecha_fin_dt)
-                except:
-                    fecha_inicio_dt = None
-                    fecha_fin_dt = None
-            else:
-                fecha_inicio_dt = None
-                fecha_fin_dt = None
-            
-            # Aplicar filtros de fecha (usar datetime para DateTimeField)
-            if fecha_inicio_dt:
-                cambios_query = cambios_query.filter(fecha_cambio__gte=fecha_inicio_dt)
-            if fecha_fin_dt:
-                cambios_query = cambios_query.filter(fecha_cambio__lte=fecha_fin_dt)
-            
-            # Filtrar por tipo de actividad
-            if tipos_actividad:
-                cambios_query = cambios_query.filter(actividad__tipo__nombre__in=tipos_actividad)
-            
-            # Filtrar por evento
-            if evento_id:
-                cambios_query = cambios_query.filter(actividad_id=evento_id)
-            # Si no hay evento, filtrar por comunidades
-            elif comunidades_ids:
-                cambios_query = cambios_query.filter(
-                    Q(actividad__comunidad_id__in=comunidades_ids) |
-                    Q(actividad__comunidades_relacionadas__comunidad_id__in=comunidades_ids)
-                ).distinct()
-            
-            # Obtener usuarios para el reporte
-            if usuarios_ids:
-                usuarios_query = Usuario.objects.filter(id__in=usuarios_ids).select_related('puesto', 'colaborador__puesto')
-            else:
-                # Si no se seleccionan usuarios, obtener todos los que tienen cambios
-                usuarios_con_cambios = cambios_query.values_list('responsable_id', flat=True).distinct()
-                usuarios_query = Usuario.objects.filter(id__in=usuarios_con_cambios).select_related('puesto', 'colaborador__puesto')
-            
-            # Construir datos de usuarios
-            usuarios_data = []
-            for usuario in usuarios_query:
-                # Filtrar cambios de este usuario
-                cambios_usuario = cambios_query.filter(responsable_id=usuario.id)
-                
-                # Si no hay cambios y se seleccionó el usuario, mostrar igual con sin_actividad
-                if cambios_usuario.count() == 0 and usuarios_ids and str(usuario.id) in usuarios_ids:
-                    usuarios_data.append({
-                        'id': str(usuario.id),
-                        'username': usuario.username,
-                        'nombre': usuario.nombre or usuario.username,
-                        'rol': usuario.rol,
-                        'rol_display': usuario.get_rol_display(),
-                        'puesto_nombre': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
-                        'puesto': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
-                        'total_cambios': 0,
-                        'sin_actividad': True,
-                        'cambios': []
-                    })
-                elif cambios_usuario.count() > 0:
-                    # Agrupar cambios por evento
-                    cambios_list = []
-                    for cambio in cambios_usuario:
-                        actividad = cambio.actividad
-                        fecha_display = cambio.fecha_cambio.strftime('%d/%m/%Y %H:%M') if cambio.fecha_cambio else '-'
-                        
-                        cambios_list.append({
-                            'id': str(cambio.id),
-                            'evento_id': str(actividad.id),
-                            'evento_nombre': actividad.nombre,
-                            'tipo_cambio': 'Cambio',
-                            'descripcion': cambio.descripcion_cambio or '-',
-                            'fecha': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else '',
-                            'fecha_display': fecha_display
-                        })
-                    
-                    usuarios_data.append({
-                        'id': str(usuario.id),
-                        'username': usuario.username,
-                        'nombre': usuario.nombre or usuario.username,
-                        'rol': usuario.rol,
-                        'rol_display': usuario.get_rol_display(),
-                        'puesto_nombre': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
-                        'puesto': usuario.puesto.nombre if usuario.puesto else (usuario.colaborador.puesto.nombre if hasattr(usuario, 'colaborador') and usuario.colaborador and usuario.colaborador.puesto else '-'),
-                        'total_cambios': len(cambios_list),
-                        'sin_actividad': False,
-                        'cambios': cambios_list
-                    })
-            
-            return JsonResponse({
-                'data': {
-                    'usuarios': usuarios_data
-                },
-                'total': len(usuarios_data)
-            })
-        
         elif report_type == 'reporte-general':
             # Obtener filtros
             periodo = request.GET.get('periodo', 'todo')
@@ -6802,10 +6690,6 @@ def api_exportar_reporte(request, report_type):
     return JsonResponse({
         'error': 'Funcionalidad de exportación aún no implementada'
     }, status=501)
-
-
-@require_http_methods(["POST"])
-@permiso_admin_o_personal_api
 def api_actualizar_comunidad_datos(request, comunidad_id):
     """API: Actualizar datos generales y tarjetas personalizadas de una comunidad."""
     try:
@@ -7073,10 +6957,6 @@ def api_actualizar_archivo_region(request, region_id, archivo_id):
             },
         }
     )
-
-
-@require_http_methods(["POST"])
-@permiso_admin_o_personal_api
 def api_agregar_imagen_comunidad(request, comunidad_id):
     try:
         comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
@@ -7258,10 +7138,6 @@ def api_actualizar_comunidad_descripcion(request, comunidad_id):
             'comunidad': payload_actualizado,
         }
     )
-
-
-@require_http_methods(["POST"])
-@permiso_admin_o_personal_api
 def api_agregar_archivo_comunidad(request, comunidad_id):
     try:
         comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
