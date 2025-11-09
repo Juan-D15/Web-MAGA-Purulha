@@ -640,6 +640,56 @@ def api_agregar_imagen_region(request, region_id):
             'error': f'Error al agregar imagen: {str(e)}'
         }, status=500)
 
+@require_http_methods(["DELETE"])
+@permiso_admin_o_personal_api
+def api_eliminar_imagen_region(request, region_id, imagen_id):
+    try:
+        imagen = RegionGaleria.objects.get(id=imagen_id, region_id=region_id)
+    except RegionGaleria.DoesNotExist:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Imagen no encontrada',
+            },
+            status=404,
+        )
+
+    ruta = imagen.url_almacenamiento or ''
+    ruta_media = (settings.MEDIA_URL or '/media/').rstrip('/')
+    if ruta.startswith(ruta_media):
+        relative_path = ruta[len(ruta_media):].lstrip('/')
+    elif ruta.startswith('/'):
+        ruta_sin_slash = ruta.lstrip('/')
+        media_prefix = ruta_media.lstrip('/')
+        if ruta_sin_slash.startswith(media_prefix):
+            relative_path = ruta_sin_slash[len(media_prefix):].lstrip('/')
+        else:
+            relative_path = ruta_sin_slash
+    else:
+        relative_path = ruta
+
+    if relative_path:
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
+    imagen.delete()
+
+    region = imagen.region
+    if region:
+        region.actualizado_en = timezone.now()
+        region.save(update_fields=['actualizado_en'])
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Imagen eliminada correctamente',
+        }
+    )
+
 
 @require_http_methods(["POST"])
 @permiso_admin_o_personal_api
@@ -3632,6 +3682,48 @@ def api_eliminar_archivo(request, evento_id, archivo_id):
             'success': False,
             'error': f'Error al eliminar archivo: {str(e)}'
         }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_actualizar_archivo_evento(request, evento_id, archivo_id):
+    """API: Actualizar descripción de un archivo del evento"""
+    try:
+        archivo = ActividadArchivo.objects.get(id=archivo_id, actividad_id=evento_id)
+    except ActividadArchivo.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Archivo no encontrado'
+        }, status=404)
+
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        payload = {}
+
+    descripcion = (payload.get('descripcion') or '').strip()
+
+    archivo.descripcion = descripcion or ''
+    archivo.save(update_fields=['descripcion'])
+
+    actividad = archivo.actividad
+    if actividad:
+        actividad.actualizado_en = timezone.now()
+        actividad.save(update_fields=['actualizado_en'])
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Descripción actualizada correctamente',
+        'archivo': {
+            'id': str(archivo.id),
+            'nombre': archivo.nombre_archivo,
+            'url': archivo.url_almacenamiento,
+            'tipo': archivo.archivo_tipo or 'application/octet-stream',
+            'tamanio': archivo.archivo_tamanio,
+            'descripcion': archivo.descripcion or '',
+            'es_evidencia': False,
+        }
+    })
 
 
 # =====================================================
@@ -6931,6 +7023,51 @@ def api_actualizar_comunidad_datos(request, comunidad_id):
         }
     )
 
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_actualizar_archivo_region(request, region_id, archivo_id):
+    """API: Actualizar la descripción de un archivo de región"""
+    try:
+        archivo = RegionArchivo.objects.get(id=archivo_id, region_id=region_id)
+    except RegionArchivo.DoesNotExist:
+        return JsonResponse(
+            {
+                'success': False,
+                'error': 'Archivo no encontrado',
+            },
+            status=404,
+        )
+
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        payload = {}
+
+    descripcion = (payload.get('descripcion') or '').strip()
+
+    archivo.descripcion = descripcion or ''
+    archivo.save(update_fields=['descripcion'])
+
+    region = archivo.region
+    if region:
+        region.actualizado_en = timezone.now()
+        region.save(update_fields=['actualizado_en'])
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Descripción de archivo actualizada correctamente',
+            'archivo': {
+                'id': str(archivo.id),
+                'name': archivo.nombre_archivo,
+                'description': archivo.descripcion or '',
+                'type': archivo.archivo_tipo or 'archivo',
+                'url': archivo.url_almacenamiento,
+                'date': archivo.creado_en.isoformat() if archivo.creado_en else None,
+            },
+        }
+    )
+
 
 @require_http_methods(["POST"])
 @permiso_admin_o_personal_api
@@ -7244,6 +7381,50 @@ def api_eliminar_archivo_comunidad(request, comunidad_id, archivo_id):
         {
             'success': True,
             'message': 'Archivo eliminado correctamente',
+            'comunidad': payload_actualizado,
+        }
+    )
+
+
+@require_http_methods(["POST"])
+@permiso_admin_o_personal_api
+def api_actualizar_archivo_comunidad(request, comunidad_id, archivo_id):
+    try:
+        archivo = ComunidadArchivo.objects.get(id=archivo_id, comunidad_id=comunidad_id)
+    except ComunidadArchivo.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Archivo no encontrado'}, status=404)
+
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        payload = {}
+
+    descripcion = (payload.get('descripcion') or '').strip()
+
+    archivo.descripcion = descripcion or ''
+    archivo.save(update_fields=['descripcion'])
+
+    comunidad = archivo.comunidad
+    if comunidad:
+        comunidad.actualizado_en = timezone.now()
+        comunidad.save(update_fields=['actualizado_en'])
+
+    comunidad_actualizada = (
+        Comunidad.objects.select_related('region', 'tipo')
+        .prefetch_related(
+            Prefetch('galeria', queryset=ComunidadGaleria.objects.order_by('-creado_en'), to_attr='galeria_api'),
+            Prefetch('archivos', queryset=ComunidadArchivo.objects.order_by('-creado_en'), to_attr='archivos_api'),
+            Prefetch('autoridades', queryset=ComunidadAutoridad.objects.filter(activo=True).order_by('nombre'), to_attr='autoridades_api'),
+        )
+        .get(id=comunidad_id, activo=True)
+    )
+
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+
+    return JsonResponse(
+        {
+            'success': True,
+            'message': 'Descripción de archivo actualizada correctamente',
             'comunidad': payload_actualizado,
         }
     )

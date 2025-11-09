@@ -29,6 +29,9 @@ let filteredCommunities = [];
 let currentCommunityData = null;
 let isCommunitiesLoading = false;
 let isDetailLoading = false;
+let pendingGalleryImages = [];
+let currentFileEdit = null;
+let FEATURED_COMMUNITIES_LIMIT = null;
 
 function escapeHtml(string = '') {
   return string
@@ -237,6 +240,7 @@ async function refreshCurrentCommunity(successMessage) {
       loadCommunityDetail(updated);
       updateCommunitiesCache(updated);
       updateMainCommunityCard(updated);
+      promoteCommunityToFeatured(updated);
       const listView = document.getElementById('communitiesListView');
       if (listView && listView.style.display !== 'none') {
         loadCommunitiesList();
@@ -945,6 +949,10 @@ async function updateCommunityData() {
     communitiesData[normalized.id] = normalized;
     updateCommunitiesCache(normalized);
 
+    loadCommunityDetail(normalized);
+    updateMainCommunityCard(normalized);
+    promoteCommunityToFeatured(normalized);
+
     const listView = document.getElementById('communitiesListView');
     if (listView && listView.style.display !== 'none') {
       loadCommunitiesList();
@@ -952,8 +960,6 @@ async function updateCommunityData() {
 
     hideModal('editDataModal');
     showSuccessMessage(result.message || 'Datos actualizados correctamente.');
-    loadCommunityDetail(normalized);
-    updateMainCommunityCard(normalized);
   } catch (error) {
     console.error('Error al actualizar datos de la comunidad:', error);
     showErrorMessage(error.message || 'No se pudieron actualizar los datos.');
@@ -1013,6 +1019,7 @@ function updateCommunityDescription() {
       updateCommunitiesCache(normalized);
       loadCommunityDetail(normalized);
       updateMainCommunityCard(normalized);
+      promoteCommunityToFeatured(normalized);
       const listView = document.getElementById('communitiesListView');
       if (listView && listView.style.display !== 'none') {
         loadCommunitiesList();
@@ -1034,19 +1041,69 @@ function showAddImageModal() {
   clearImageForm();
 }
 
+function renderPendingImages() {
+  const previewContainer = document.getElementById('imagePreview');
+  if (!previewContainer) {
+    return;
+  }
+
+  previewContainer.innerHTML = '';
+
+  if (!pendingGalleryImages.length) {
+    const emptyState = document.createElement('div');
+    emptyState.className = 'image-preview-empty';
+    emptyState.textContent = 'No has seleccionado imágenes.';
+    previewContainer.appendChild(emptyState);
+    return;
+  }
+
+  pendingGalleryImages.forEach((item, index) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-preview-item';
+    wrapper.dataset.index = index;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'image-preview-remove';
+    removeBtn.dataset.index = index;
+    removeBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    `;
+
+    const img = document.createElement('img');
+    img.src = item.previewUrl || '';
+    img.alt = 'Vista previa de la imagen seleccionada';
+
+    const descriptionWrapper = document.createElement('div');
+    descriptionWrapper.className = 'image-preview-description';
+
+    const descriptionInput = document.createElement('textarea');
+    descriptionInput.className = 'image-description-input';
+    descriptionInput.dataset.index = index;
+    descriptionInput.placeholder = 'Agrega una descripción...';
+    descriptionInput.rows = 2;
+    descriptionInput.value = item.description || '';
+
+    descriptionWrapper.appendChild(descriptionInput);
+
+    wrapper.appendChild(removeBtn);
+    wrapper.appendChild(img);
+    wrapper.appendChild(descriptionWrapper);
+
+    previewContainer.appendChild(wrapper);
+  });
+}
+
 function clearImageForm() {
   const imageInput = document.getElementById('imageFileInput');
   if (imageInput) {
     imageInput.value = '';
   }
-  const imageDescription = document.getElementById('imageDescription');
-  if (imageDescription) {
-    imageDescription.value = '';
-  }
-  const imagePreview = document.getElementById('imagePreview');
-  if (imagePreview) {
-    imagePreview.innerHTML = '';
-  }
+  pendingGalleryImages = [];
+  renderPendingImages();
 }
 
 // ======= FUNCIONES PARA AGREGAR ARCHIVOS =======
@@ -1074,20 +1131,42 @@ function clearFileForm() {
 
 // Función para manejar la selección de archivos de imagen
 function handleImageFileSelect(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const preview = document.getElementById('imagePreview');
-    preview.innerHTML = `
-      <div class="image-preview-item">
-        <img src="${e.target.result}" alt="Preview">
-        <div class="image-description">Vista previa</div>
-      </div>
-    `;
-  };
-  reader.readAsDataURL(file);
+  const input = event.target;
+  const files = Array.from(input.files || []);
+  if (!files.length) {
+    return;
+  }
+
+  const validImages = [];
+  let invalidFiles = 0;
+
+  files.forEach((file) => {
+    if (file && file.type && file.type.startsWith('image/')) {
+      validImages.push(file);
+    } else {
+      invalidFiles += 1;
+    }
+  });
+
+  validImages.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      pendingGalleryImages.push({
+        file,
+        previewUrl: e.target.result,
+        description: '',
+      });
+      renderPendingImages();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  if (invalidFiles > 0) {
+    showErrorMessage('Algunos archivos fueron descartados porque no son imágenes válidas.');
+  }
+
+  // Permitir volver a seleccionar los mismos archivos si se desea
+  input.value = '';
 }
 
 // Función para manejar la selección de archivos
@@ -1114,50 +1193,81 @@ function handleFileSelect(event) {
   }
 }
 
-function addImageToCommunity() {
+async function addImageToCommunity() {
   if (!CAN_EDIT_COMMUNITIES) {
     showErrorMessage('No tienes permisos para agregar imágenes.');
     return;
   }
 
-  const fileInput = document.getElementById('imageFileInput');
-  const description = document.getElementById('imageDescription').value;
-  
   if (!currentCommunityData) {
     showErrorMessage('Debe seleccionar una comunidad.');
     return;
   }
-  
-  if (!fileInput.files[0]) {
-    showErrorMessage('Por favor selecciona una imagen');
+
+  if (!pendingGalleryImages.length) {
+    showErrorMessage('Selecciona al menos una imagen antes de continuar.');
     return;
   }
-  
-  const file = fileInput.files[0];
-  const formData = new FormData();
-  formData.append('imagen', file);
-  formData.append('descripcion', description);
-  
-  fetch(`/api/comunidad/${currentCommunityData.id}/galeria/agregar/`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCookie('csrftoken') || '',
-    },
-    body: formData,
-  })
-    .then(async (response) => {
+
+  const confirmButton = document.getElementById('confirmImageBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
+
+  const imagesToUpload = [...pendingGalleryImages];
+  let uploadedCount = 0;
+
+  try {
+    for (const item of imagesToUpload) {
+      const formData = new FormData();
+      formData.append('imagen', item.file);
+      formData.append('descripcion', (item.description || '').trim());
+
+      const response = await fetch(`/api/comunidad/${currentCommunityData.id}/galeria/agregar/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken') || '',
+        },
+        body: formData,
+      });
+
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'No se pudo agregar la imagen');
       }
-      clearImageForm();
-      hideModal('addImageModal');
-      await refreshCurrentCommunity(result.message || 'Imagen agregada exitosamente');
-    })
-    .catch((error) => {
-      console.error('Error al agregar imagen:', error);
-      showErrorMessage(error.message || 'No se pudo agregar la imagen');
-    });
+
+      uploadedCount += 1;
+    }
+
+    clearImageForm();
+    hideModal('addImageModal');
+
+    const successMessage = imagesToUpload.length === 1
+      ? 'Imagen agregada exitosamente'
+      : 'Imágenes agregadas exitosamente';
+
+    await refreshCurrentCommunity(successMessage);
+  } catch (error) {
+    console.error('Error al agregar imagen:', error);
+    pendingGalleryImages = imagesToUpload.slice(uploadedCount);
+    renderPendingImages();
+
+    if (uploadedCount > 0) {
+      showErrorMessage(`${error.message || 'Ocurrió un problema al agregar las imágenes.'} Se subieron ${uploadedCount} imagen(es) antes del error.`);
+    } else {
+      showErrorMessage(error.message || 'No se pudieron agregar las imágenes.');
+    }
+  } finally {
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      if (originalLabel !== null) {
+        confirmButton.textContent = originalLabel;
+      }
+    }
+  }
 }
 
 function addFileToCommunity() {
@@ -1210,10 +1320,92 @@ function addFileToCommunity() {
     });
 }
 
+function showEditFileDescriptionModal(fileId, description) {
+  if (!CAN_EDIT_COMMUNITIES) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  currentFileEdit = {
+    id: fileId,
+    originalDescription: description || '',
+  };
+  textarea.value = description || '';
+  showModal('editFileDescriptionModal');
+  textarea.focus();
+}
+
+async function updateFileDescription() {
+  if (!CAN_EDIT_COMMUNITIES) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  if (!currentCommunityData || !currentFileEdit || !currentFileEdit.id) {
+    showErrorMessage('No se pudo identificar el archivo a editar.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  const newDescription = textarea.value.trim();
+
+  const confirmButton = document.getElementById('confirmFileDescriptionBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
+
+  try {
+    const response = await fetch(`/api/comunidad/${currentCommunityData.id}/archivos/${currentFileEdit.id}/actualizar/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken') || '',
+      },
+      body: JSON.stringify({ descripcion: newDescription }),
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'No se pudo actualizar la descripción del archivo.');
+    }
+
+    hideModal('editFileDescriptionModal');
+    currentFileEdit = null;
+    await refreshCurrentCommunity(result.message || 'Descripción actualizada correctamente.');
+  } catch (error) {
+    console.error('Error al actualizar la descripción del archivo:', error);
+    showErrorMessage(error.message || 'No se pudo actualizar la descripción del archivo.');
+  } finally {
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      if (originalLabel !== null) {
+        confirmButton.textContent = originalLabel;
+      }
+    }
+  }
+}
+
 // ======= EVENT LISTENERS =======
 
 // Event listeners para botones principales
 document.addEventListener('DOMContentLoaded', function() {
+  const featuredContainer = document.getElementById('featuredCommunitiesContainer');
+  if (featuredContainer && FEATURED_COMMUNITIES_LIMIT === null) {
+    FEATURED_COMMUNITIES_LIMIT = featuredContainer.children.length || 4;
+  }
+
   // Botón "Ver todas las comunidades"
   const btnVerTodas = document.getElementById('btnVerTodas');
   if (btnVerTodas) {
@@ -1398,6 +1590,27 @@ document.addEventListener('DOMContentLoaded', function() {
     closeFileModal.addEventListener('click', function() {
       hideModal('addFileModal');
       clearFileForm();
+    });
+  }
+
+  const confirmFileDescriptionBtn = document.getElementById('confirmFileDescriptionBtn');
+  if (confirmFileDescriptionBtn) {
+    confirmFileDescriptionBtn.addEventListener('click', updateFileDescription);
+  }
+
+  const cancelFileDescriptionBtn = document.getElementById('cancelFileDescriptionBtn');
+  if (cancelFileDescriptionBtn) {
+    cancelFileDescriptionBtn.addEventListener('click', () => {
+      hideModal('editFileDescriptionModal');
+      currentFileEdit = null;
+    });
+  }
+
+  const closeFileDescriptionModal = document.getElementById('closeFileDescriptionModal');
+  if (closeFileDescriptionModal) {
+    closeFileDescriptionModal.addEventListener('click', () => {
+      hideModal('editFileDescriptionModal');
+      currentFileEdit = null;
     });
   }
 });
@@ -1658,6 +1871,9 @@ function loadFilesWithDeleteButtons(files) {
     const fileDateText = fileDate === 'Fecha no disponible'
       ? fileDate
       : `Agregado el ${fileDate}${fileTypeLabel}`;
+    const safeDescriptionAttr = file.description
+      ? escapeHtml(file.description).replace(/"/g, '&quot;')
+      : '';
 
     const actions = USER_AUTH.isAuthenticated
       ? `
@@ -1671,6 +1887,13 @@ function loadFilesWithDeleteButtons(files) {
             Descargar
           </a>
           ${CAN_EDIT_COMMUNITIES ? `
+            <button class="file-edit-btn" data-file-id="${file.id}" data-file-description="${safeDescriptionAttr}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar
+            </button>
             <button class="file-delete-btn" data-file-id="${file.id}">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -1707,18 +1930,61 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  const pendingImageRemoveButton = e.target.closest('.image-preview-remove');
+  if (pendingImageRemoveButton && pendingImageRemoveButton.hasAttribute('data-index')) {
+    const pendingIndex = parseInt(pendingImageRemoveButton.getAttribute('data-index'), 10);
+    if (!Number.isNaN(pendingIndex)) {
+      pendingGalleryImages.splice(pendingIndex, 1);
+      renderPendingImages();
+    }
+    return;
+  }
+
   const removeFileButton = e.target.closest('.file-delete-btn');
   if (removeFileButton && removeFileButton.dataset.fileId) {
     removeFileFromCommunity(removeFileButton.dataset.fileId);
     return;
   }
 
-  const previewRemoveButton = e.target.closest('.file-preview-remove[data-role="community-file-remove"]');
-  if (previewRemoveButton) {
+  const editFileButton = e.target.closest('.file-edit-btn');
+  if (editFileButton && editFileButton.dataset.fileId) {
+    const description = editFileButton.dataset.fileDescription || '';
+    showEditFileDescriptionModal(
+      editFileButton.dataset.fileId,
+      description ? decodeHTMLEntities(description) : ''
+    );
+    return;
+  }
+
+  const filePreviewRemoveButton = e.target.closest('.file-preview-remove[data-role="community-file-remove"]');
+  if (filePreviewRemoveButton) {
     e.preventDefault();
     clearFileForm();
   }
 });
+
+document.addEventListener('input', (event) => {
+  const descriptionInput = event.target.closest('.image-description-input');
+  if (!descriptionInput || !descriptionInput.hasAttribute('data-index')) {
+    return;
+  }
+
+  const index = parseInt(descriptionInput.getAttribute('data-index'), 10);
+  if (Number.isNaN(index) || !pendingGalleryImages[index]) {
+    return;
+  }
+
+  pendingGalleryImages[index].description = descriptionInput.value;
+});
+
+function decodeHTMLEntities(html) {
+  if (!html) {
+    return '';
+  }
+  const txt = document.createElement('textarea');
+  txt.innerHTML = html;
+  return txt.value;
+}
 
 // Event listeners para modales de confirmación
 document.addEventListener('DOMContentLoaded', function() {
@@ -1776,4 +2042,50 @@ function updateMainCommunityCard(community) {
       imgEl.alt = community.name;
     }
   });
+}
+
+function promoteCommunityToFeatured(community) {
+  if (!community || !community.id) return;
+  const container = document.getElementById('featuredCommunitiesContainer');
+  if (!container) return;
+
+  const existingButton = container.querySelector(`.community-card__btn[data-community-id="${community.id}"]`);
+  let cardElement = existingButton ? existingButton.closest('.community-card') : null;
+
+  if (!cardElement) {
+    cardElement = document.createElement('div');
+    cardElement.className = 'community-card featured-card';
+    const imageUrl = community.coverImage || community.image || DEFAULT_COMMUNITY_IMAGE_LARGE;
+    const regionName = community.regionName || community.region || 'Sin región asignada';
+    cardElement.innerHTML = `
+      <div class="community-card__image">
+        <img src="${imageUrl}" alt="${escapeHtml(community.name)}" loading="eager">
+        <div class="community-card__overlay">
+          <div class="community-card__info">
+            <h3 class="community-card__title">${escapeHtml(community.name)}</h3>
+            <p class="community-card__region">${escapeHtml(regionName)}</p>
+          </div>
+          <button class="community-card__btn" data-community-id="${community.id}">Ver más</button>
+        </div>
+      </div>
+    `;
+    const button = cardElement.querySelector('.community-card__btn');
+    if (button) {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        const communityId = button.getAttribute('data-community-id');
+        if (communityId) {
+          showCommunityDetail(communityId);
+        }
+      });
+    }
+  }
+
+  container.prepend(cardElement);
+
+  if (FEATURED_COMMUNITIES_LIMIT && container.children.length > FEATURED_COMMUNITIES_LIMIT) {
+    while (container.children.length > FEATURED_COMMUNITIES_LIMIT) {
+      container.removeChild(container.lastElementChild);
+    }
+  }
 }

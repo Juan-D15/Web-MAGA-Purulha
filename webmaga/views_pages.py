@@ -110,7 +110,7 @@ def regiones(request):
 
     ultimas_regiones = Region.objects.annotate(
         num_comunidades=Count('comunidades', filter=Q(comunidades__activo=True))
-    ).order_by('-actualizado_en', '-creado_en')[:2]
+    ).order_by('-actualizado_en', '-creado_en')[:3]
 
     ultimas_regiones_ids = [str(r.id) for r in ultimas_regiones]
 
