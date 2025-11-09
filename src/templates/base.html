@@ -421,7 +421,13 @@
         logout: '{% url "webmaga:logout" %}',
         gestioneseventos: '{% url "webmaga:gestioneseventos" %}',
         proyectos: '{% url "webmaga:proyectos" %}',
-        reportes: '{% url "webmaga:reportes-index" %}'
+        reportes: '{% url "webmaga:reportes-index" %}',
+        usuario: '{% url "webmaga:api-usuario" %}',
+        calendarEvents: '{% url "webmaga:api-calendar-events" %}',
+        eventsList: '{% url "webmaga:api-events-list" %}',
+        avances: '{% url "webmaga:api-avances" %}',
+        reminders: '{% url "webmaga:api-reminders" %}',
+        collaborators: '{% url "webmaga:api-collaborators" %}'
       };
       
       var userAuth = {

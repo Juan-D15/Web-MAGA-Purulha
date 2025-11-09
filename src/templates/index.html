@@ -80,11 +80,134 @@
       right:auto!important;
       top:auto!important;
       bottom:auto!important;
+      overflow:visible!important;
+      visibility:visible!important;
+    }
+    /* Estilos específicos para recordatorios - asegurar visibilidad básica */
+    .cal-modal__body .event-card[data-reminder-id]{
+      overflow:visible!important;
+      visibility:visible!important;
+    }
+    .cal-modal__body .event-card[data-reminder-id] .reminder-card-content{
+      position:relative!important;
+      z-index:1!important;
+    }
+    .cal-modal__body .event-card[data-reminder-id] .reminder-card-info{
+      position:relative!important;
+      z-index:2!important;
+    }
+    .cal-modal__body .event-card[data-reminder-id] .reminder-delete-btn,
+    .cal-modal__body .event-card[data-reminder-id] .btn-danger{
+      position:relative!important;
+      z-index:3!important;
     }
     .event-card__title{margin:0 0 6px 0;font-weight:800;color:#eef5ff;word-wrap:break-word;overflow-wrap:break-word}
     .event-card__meta{font-size:12px;color:#a8b2c2;margin-bottom:8px;word-wrap:break-word;overflow-wrap:break-word}
     .event-card__desc{font-size:13px;color:#dfe9f7;word-wrap:break-word;overflow-wrap:break-word;white-space:pre-wrap}
     .modal-section{position:relative;width:100%!important;max-width:100%!important;margin:0!important;padding:0!important;box-sizing:border-box!important}
+    
+    /* Estilos específicos para recordatorios en desktop */
+    @media (min-width:769px){
+      /* Asegurar que las tarjetas de recordatorio se muestren correctamente */
+      .cal-modal__body .event-card[data-reminder-id]{
+        display:block!important;
+        visibility:visible!important;
+        opacity:1!important;
+      }
+      /* Contenedor del contenido interno - layout horizontal */
+      .cal-modal__body .event-card[data-reminder-id] .reminder-card-content{
+        display:flex!important;
+        flex-direction:row!important;
+        align-items:flex-start!important;
+        justify-content:space-between!important;
+        gap:12px!important;
+        width:100%!important;
+        box-sizing:border-box!important;
+      }
+      /* Información del recordatorio (izquierda) - debe ocupar el espacio disponible */
+      .cal-modal__body .event-card[data-reminder-id] .reminder-card-info{
+        flex:1 1 auto!important;
+        min-width:0!important;
+        max-width:calc(100% - 120px)!important;
+        display:flex!important;
+        flex-direction:column!important;
+        gap:6px!important;
+        overflow:visible!important;
+        visibility:visible!important;
+      }
+      /* Meta información (hora, evento, badge) - en línea horizontal */
+      .cal-modal__body .event-card[data-reminder-id] .reminder-meta,
+      .cal-modal__body .event-card[data-reminder-id] .event-card__meta.reminder-meta{
+        display:flex!important;
+        flex-direction:row!important;
+        align-items:center!important;
+        flex-wrap:wrap!important;
+        gap:8px!important;
+        margin-bottom:0!important;
+        line-height:1.4!important;
+        white-space:normal!important;
+        width:100%!important;
+        visibility:visible!important;
+        opacity:1!important;
+      }
+      /* Spans dentro de meta información */
+      .cal-modal__body .event-card[data-reminder-id] .reminder-meta > span,
+      .cal-modal__body .event-card[data-reminder-id] .event-card__meta.reminder-meta > span{
+        display:inline-block!important;
+        white-space:nowrap!important;
+        word-break:normal!important;
+        line-height:1.4!important;
+        visibility:visible!important;
+        opacity:1!important;
+      }
+      /* Badge de "Pasado" */
+      .cal-modal__body .event-card[data-reminder-id] .past-badge{
+        display:inline-block!important;
+        white-space:nowrap!important;
+        vertical-align:middle!important;
+        visibility:visible!important;
+        opacity:1!important;
+      }
+      /* Descripción del recordatorio - debe ser visible */
+      .cal-modal__body .event-card[data-reminder-id] .event-card__desc{
+        display:block!important;
+        visibility:visible!important;
+        opacity:1!important;
+        margin-top:0!important;
+        line-height:1.5!important;
+        white-space:normal!important;
+        word-break:break-word!important;
+        overflow-wrap:break-word!important;
+        width:100%!important;
+      }
+      /* Información de involucrados y creador - debe ser visible */
+      .cal-modal__body .event-card[data-reminder-id] .event-card__meta:not(.reminder-meta){
+        display:block!important;
+        visibility:visible!important;
+        opacity:1!important;
+        margin-top:0!important;
+        line-height:1.4!important;
+        white-space:normal!important;
+        word-break:break-word!important;
+        width:100%!important;
+      }
+      /* Botón de eliminar - a la derecha, no debe ocupar todo el espacio */
+      .cal-modal__body .event-card[data-reminder-id] .reminder-delete-btn,
+      .cal-modal__body .event-card[data-reminder-id] .btn-danger{
+        flex-shrink:0!important;
+        flex-grow:0!important;
+        align-self:flex-start!important;
+        margin-top:0!important;
+        white-space:nowrap!important;
+        padding:8px 14px!important;
+        font-size:0.875rem!important;
+        min-width:auto!important;
+        max-width:110px!important;
+        height:auto!important;
+        visibility:visible!important;
+        opacity:1!important;
+      }
+    }
     
     /* Responsive para modal del día */
     @media (max-width:768px){
@@ -577,6 +700,7 @@
   </section>
 
   <!-- ======= CALENDARIO DE ACTIVIDADES ======= -->
+  {% if user.is_authenticated %}
   <section class="calendar-section" id="calendario" style="margin-top: 40px;">
     <div class="calendar__inner">
       <div class="calendar__header">
@@ -605,6 +729,7 @@
       </div>
     </div>
   </section>
+  {% endif %}
   
   <!-- Modal de recordatorio -->
   <div class="reminder-modal" id="reminderModal" aria-hidden="true">
@@ -827,19 +952,58 @@
   window.addEventListener('resize', hideTooltip);
 
   /* ================= CALENDARIO DE ACTIVIDADES ================ */
+  // Verificar si el usuario está autenticado antes de inicializar el calendario
+  var isUserAuthenticated = {% if user.is_authenticated %}true{% else %}false{% endif %};
+  
+  // Cargar información del usuario actual
+  var CURRENT_USER = null;
+  var USER_API = (window.DJANGO_URLS && window.DJANGO_URLS.usuario) || '/api/usuario/';
+  
+  async function loadCurrentUser() {
+    try {
+      const res = await fetch(USER_API);
+      if (res.ok) {
+        const userData = await res.json();
+        CURRENT_USER = {
+          userId: userData.userId,
+          username: userData.username,
+          email: userData.email,
+          rol: userData.rol,
+          collaboratorId: userData.collaboratorId,
+          collaboratorName: userData.collaboratorName,
+          isAdmin: userData.isAdmin
+        };
+        window.CURRENT_USER = CURRENT_USER;
+        calendarDebugLog('✅ Usuario actual cargado:', CURRENT_USER);
+      } else {
+        console.warn('⚠️ No se pudo cargar información del usuario');
+      }
+    } catch (e) {
+      console.error('❌ Error al cargar usuario:', e);
+    }
+  }
+  
   // API para eventos del calendario (tabla: actividades)
-  const CAL_API = (window.DJANGO_URLS && window.DJANGO_URLS.calendarEvents) || '/api/calendar-events/';
+  var CAL_API = (window.DJANGO_URLS && window.DJANGO_URLS.calendarEvents) || '/api/calendar-events/';
   // API para lista de eventos
-  const EVENTS_LIST_API = (window.DJANGO_URLS && window.DJANGO_URLS.eventsList) || '/api/events-list/';
-  // API para avances de eventos (SOLO tabla: actividad_cambios)
-  // Esta API consulta exclusivamente la tabla actividad_cambios
-  const AVANCES_API = (window.DJANGO_URLS && window.DJANGO_URLS.avances) || '/api/avances/';
-  const calWeekdays = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-  const calWeekdaysContainer = document.getElementById('calWeekdays');
-  const calGrid = document.getElementById('calGrid');
-  const calCurrent = document.getElementById('calCurrent');
-  const calPrev = document.getElementById('calPrev');
-  const calNext = document.getElementById('calNext');
+  var EVENTS_LIST_API = (window.DJANGO_URLS && window.DJANGO_URLS.eventsList) || '/api/events-list/';
+  // API para avances de eventos (SOLO tabla: eventos_cambios_colaboradores)
+  // Esta API consulta exclusivamente la tabla eventos_cambios_colaboradores
+  var AVANCES_API = (window.DJANGO_URLS && window.DJANGO_URLS.avances) || '/api/avances/';
+  var calWeekdays = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  var calWeekdaysContainer = document.getElementById('calWeekdays');
+  var calGrid = document.getElementById('calGrid');
+  var calCurrent = document.getElementById('calCurrent');
+  var calPrev = document.getElementById('calPrev');
+  var calNext = document.getElementById('calNext');
+  
+  // Si no está autenticado, ocultar el calendario
+  if (!isUserAuthenticated) {
+    var calendarSection = document.getElementById('calendario');
+    if (calendarSection) {
+      calendarSection.style.display = 'none';
+    }
+  }
 
   // Modal elementos (detalle del día)
   const modal = document.createElement('div');
@@ -913,14 +1077,14 @@
       calendarDebugLog(`✅ ${events.length} eventos agregados al modal`);
     }
     
-    // Mostrar avances si se proporcionaron (SOLO de actividad_cambios)
+    // Mostrar avances si se proporcionaron (SOLO de eventos_cambios_colaboradores)
     if(avances && avances.length > 0){
       // Eliminar duplicados por ID primero
       const avancesSinDuplicados = eliminarDuplicadosAvances(avances);
       
-      // Filtrar solo avances válidos de actividad_cambios
+      // Filtrar solo avances válidos de eventos_cambios_colaboradores
       const avancesValidos = avancesSinDuplicados.filter(av => {
-        // Debe tener descripcion_cambio (descripcion) y fecha_cambio (fecha) de actividad_cambios
+        // Debe tener descripcion_cambio (descripcion) y fecha_cambio (fecha) de eventos_cambios_colaboradores
         return (av.descripcion || av.descripcion_cambio) && (av.fecha || av.fecha_cambio);
       });
       
@@ -951,13 +1115,13 @@
         card.style.wordWrap = 'break-word';
         card.style.borderLeft = '3px solid #ffc107';
           
-          // Asegurar que los campos estén correctamente mapeados desde actividad_cambios
-          const eventoNombre = av.evento_nombre || 'Sin evento';
-          const fecha = av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : '');
-          const hora = av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : '');
-          const descripcion = av.descripcion || av.descripcion_cambio || '';
-          const responsable = av.responsable || 'Sistema';
-          
+              // Asegurar que los campos estén correctamente mapeados desde eventos_cambios_colaboradores
+              const eventoNombre = av.evento_nombre || 'Sin evento';
+              const fecha = av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : '');
+              const hora = av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : '');
+              const descripcion = av.descripcion || av.descripcion_cambio || '';
+              const responsable = av.responsable || 'Sistema';
+              
         card.innerHTML = `
             <h4 class="event-card__title">${eventoNombre}</h4>
             <div class="event-card__meta">${fecha}${hora ? ' · ' + hora : ''}</div>
@@ -965,18 +1129,18 @@
             ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${responsable}</div>` : ''}
         `;
         avancesSection.appendChild(card);
-          calendarDebugLog(`✅ Avance de actividad_cambios agregado: ${eventoNombre}`);
+          calendarDebugLog(`✅ Avance de eventos_cambios_colaboradores agregado: ${eventoNombre}`);
       });
       
       if(eventsSection){
         avancesSection.style.marginTop = '20px';
       }
       calModalBody.appendChild(avancesSection);
-        calendarDebugLog(`✅ ${avancesValidos.length} avances de actividad_cambios agregados al modal`);
+        calendarDebugLog(`✅ ${avancesValidos.length} avances de eventos_cambios_colaboradores agregados al modal`);
       }
     }
     
-    // Cargar avances del día si no se proporcionaron (SOLO de actividad_cambios)
+    // Cargar avances del día si no se proporcionaron (SOLO de eventos_cambios_colaboradores)
     if(!avances){
       fetchDayAvances(dateLabel).then(avancesData => {
         if(avancesData && avancesData.length > 0){
@@ -985,9 +1149,9 @@
           // Eliminar duplicados por ID primero
           const avancesSinDuplicados = eliminarDuplicadosAvances(avancesData);
           
-          // Filtrar solo avances válidos de actividad_cambios
+          // Filtrar solo avances válidos de eventos_cambios_colaboradores
           const dayAvances = avancesSinDuplicados.filter(av => {
-            // Debe tener fecha y descripción (campos obligatorios de actividad_cambios)
+            // Debe tener fecha y descripción (campos obligatorios de eventos_cambios_colaboradores)
             if(!av.fecha && !av.fecha_cambio) return false;
             if(!av.descripcion && !av.descripcion_cambio) return false;
             
@@ -1024,7 +1188,7 @@
               card.style.display = 'block';
               card.style.borderLeft = '3px solid #ffc107';
               
-              // Asegurar que los campos estén correctamente mapeados desde actividad_cambios
+              // Asegurar que los campos estén correctamente mapeados desde eventos_cambios_colaboradores
               const eventoNombre = av.evento_nombre || 'Sin evento';
               const fecha = av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : '');
               const hora = av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : '');
@@ -1038,12 +1202,12 @@
                 ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${responsable}</div>` : ''}
               `;
               avancesSection.appendChild(card);
-              calendarDebugLog(`✅ Avance de actividad_cambios agregado al modal: ${eventoNombre}`);
+              calendarDebugLog(`✅ Avance de eventos_cambios_colaboradores agregado al modal: ${eventoNombre}`);
             });
           }
         }
       }).catch(error => {
-        console.error('❌ Error al cargar avances de actividad_cambios:', error);
+        console.error('❌ Error al cargar avances de eventos_cambios_colaboradores:', error);
       });
     }
     
@@ -1259,11 +1423,12 @@
       // Si es admin, mostrar quién creó el recordatorio
       let creatorInfo = '';
       if(isAdmin && r.created_by){
-        creatorInfo = `<div class="event-card__meta" style="font-size:11px;color:#a8b2c2;margin-top:4px">Creado por: ID ${r.created_by}</div>`;
+        const creatorName = r.created_by_name || r.created_by_username || 'Usuario desconocido';
+        creatorInfo = `<div class="event-card__meta" style="font-size:11px;color:#a8b2c2;margin-top:4px">Creado por: ${creatorName}</div>`;
       }
       
       const pastStyle = isPast ? 'opacity:0.7;' : '';
-      const pastBadge = isPast ? '<span style="background:#6c757d;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:6px">Pasado</span>' : '';
+      const pastBadge = isPast ? '<span class="past-badge" style="background:#6c757d;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;display:inline-block;white-space:nowrap;vertical-align:middle">Pasado</span>' : '';
       
       // Asegurar que la tarjeta tenga estilos correctos para el modal
       card.style.position = 'relative';
@@ -1279,26 +1444,85 @@
       card.style.overflowWrap = 'break-word';
       card.style.wordWrap = 'break-word';
       
-      card.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;${pastStyle}">
-          <div style="flex:1">
-            <div class="event-card__meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <span>${r.time || 'Sin hora'}</span>
-              ${r.event_name ? `<span>· ${r.event_name}</span>` : ''}
-              ${pastBadge}
-            </div>
-            ${r.description ? `<div class="event-card__desc" style="margin-top:6px">${r.description}</div>` : ''}
-            ${r.owners_text ? `<div class="event-card__meta" style="margin-top:6px;font-size:0.85rem">👥 Involucrados: ${r.owners_text}</div>` : ''}
-            ${creatorInfo}
-          </div>
-          <button class="btn-danger" data-rid="${r.id}" style="flex-shrink:0;padding:6px 12px;font-size:0.85rem" title="Eliminar recordatorio">
-            🗑️ Eliminar
-          </button>
-        </div>`;
+      // Debug: verificar datos del recordatorio
+      calendarDebugLog('🔍 Creando tarjeta de recordatorio con datos:', {
+        id: r.id,
+        time: r.time,
+        event_name: r.event_name,
+        description: r.description,
+        owners_text: r.owners_text,
+        canDelete: canDelete
+      });
       
-      // Siempre agregar listener de eliminación (el backend validará permisos)
-      const deleteBtn = card.querySelector('.btn-danger');
-      if(deleteBtn){
+      // Estructura HTML mejorada para recordatorios
+      const reminderContent = document.createElement('div');
+      reminderContent.className = 'reminder-card-content';
+      reminderContent.style.cssText = `display:flex;justify-content:space-between;align-items:flex-start;gap:12px;width:100%;${pastStyle}`;
+      
+      // Contenedor de información (izquierda)
+      const infoContainer = document.createElement('div');
+      infoContainer.className = 'reminder-card-info';
+      infoContainer.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;overflow:visible';
+      
+      // Meta información (hora, evento, badge)
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'event-card__meta reminder-meta';
+      metaDiv.style.cssText = 'display:flex;flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px;line-height:1.4;margin-bottom:0';
+      
+      const timeSpan = document.createElement('span');
+      timeSpan.textContent = r.time || 'Sin hora';
+      timeSpan.style.cssText = 'white-space:nowrap;flex-shrink:0';
+      metaDiv.appendChild(timeSpan);
+      
+      if(r.event_name){
+        const eventSpan = document.createElement('span');
+        eventSpan.textContent = `· ${r.event_name}`;
+        eventSpan.style.cssText = 'white-space:nowrap;flex-shrink:0';
+        metaDiv.appendChild(eventSpan);
+      }
+      
+      if(isPast && pastBadge){
+        metaDiv.insertAdjacentHTML('beforeend', pastBadge);
+      }
+      
+      infoContainer.appendChild(metaDiv);
+      
+      // Descripción
+      if(r.description){
+        const descDiv = document.createElement('div');
+        descDiv.className = 'event-card__desc';
+        descDiv.textContent = r.description;
+        descDiv.style.cssText = 'margin-top:0;line-height:1.5;word-break:break-word;overflow-wrap:break-word;white-space:normal';
+        infoContainer.appendChild(descDiv);
+      }
+      
+      // Involucrados
+      if(r.owners_text){
+        const ownersDiv = document.createElement('div');
+        ownersDiv.className = 'event-card__meta';
+        ownersDiv.textContent = `👥 Involucrados: ${r.owners_text}`;
+        ownersDiv.style.cssText = 'margin-top:0;font-size:0.85rem;line-height:1.4;white-space:normal;word-break:break-word';
+        infoContainer.appendChild(ownersDiv);
+      }
+      
+      // Información del creador
+      if(creatorInfo){
+        infoContainer.insertAdjacentHTML('beforeend', creatorInfo);
+      }
+      
+      reminderContent.appendChild(infoContainer);
+      
+      // Botón de eliminar (derecha)
+      let deleteBtn = null;
+      if(canDelete){
+        deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-danger reminder-delete-btn';
+        deleteBtn.setAttribute('data-rid', r.id);
+        deleteBtn.textContent = '🗑️ Eliminar';
+        deleteBtn.title = 'Eliminar recordatorio';
+        deleteBtn.style.cssText = 'flex-shrink:0;flex-grow:0;padding:8px 14px;font-size:0.875rem;white-space:nowrap;align-self:flex-start;height:auto;min-width:100px;max-width:110px';
+        
+        // Agregar listener de eliminación directamente al botón
         deleteBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1308,7 +1532,11 @@
             deleteReminder(r.id, dateLabel);
           }
         });
+        
+        reminderContent.appendChild(deleteBtn);
       }
+      
+      card.appendChild(reminderContent);
       
       return card;
     }catch(e){
@@ -1370,12 +1598,10 @@
       if(!res.ok) throw new Error('Error al cargar eventos');
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.results || []);
-      // Filtrar solo eventos con estado 'en_progreso' o 'completado'
+      // Mostrar todos los eventos sin importar estado (en_progreso, completado, planificado, cancelado)
       return list.map(normalizeEvent).filter(ev => {
-        if(!ev.date) return false;
-        const status = ev.status?.toLowerCase();
-        // Solo mostrar eventos con estado 'en_progreso' o 'completado'
-        return status === 'en_progreso' || status === 'completado';
+        // Solo verificar que tenga fecha, sin filtrar por estado
+        return ev.date !== null && ev.date !== undefined;
       });
     }catch(e){
       console.warn('No se pudieron cargar eventos del calendario:', e);
@@ -1438,27 +1664,24 @@
       cell.innerHTML = `<div class="cal-cell__date">${d}</div><div class="cal-cell__events"></div>`;
       const list = cell.querySelector('.cal-cell__events');
       
-      // Mostrar eventos del día (solo con estado 'en_progreso' o 'completado')
-      const dayEvents = (byDate.get(key) || []).filter(ev => {
-        const status = ev.status?.toLowerCase();
-        return status === 'en_progreso' || status === 'completado';
-      });
+      // Mostrar TODOS los eventos del día sin importar estado (en_progreso, completado, planificado, cancelado)
+      const dayEvents = byDate.get(key) || [];
       const itemsToShow = [];
       
-      // Agregar eventos (máximo 2) - solo los que pasaron el filtro
+      // Agregar eventos (máximo 2) - todos los eventos sin filtrar por estado
       dayEvents.slice(0, 2).forEach(ev => {
         itemsToShow.push({ type: 'event', data: ev });
       });
       
-      // Agregar avances del día (SOLO de actividad_cambios)
+      // Agregar avances del día (SOLO de eventos_cambios_colaboradores)
       // Máximo 1 si ya hay 2 eventos
-      // Los avances provienen exclusivamente de la tabla actividad_cambios
+      // Los avances provienen exclusivamente de la tabla eventos_cambios_colaboradores
       // Eliminar duplicados por ID antes de usar
       const avancesDelDia = avancesByDate.get(key) || [];
       const dayAvances = eliminarDuplicadosAvances(avancesDelDia).filter(av => {
-        // Validar que sea un avance válido de actividad_cambios
+        // Validar que sea un avance válido de eventos_cambios_colaboradores
         // Debe tener descripcion_cambio (descripcion) y fecha_cambio (fecha)
-        // Estos son campos obligatorios de la tabla actividad_cambios
+        // Estos son campos obligatorios de la tabla eventos_cambios_colaboradores
         return (av.descripcion || av.descripcion_cambio) && (av.fecha || av.fecha_cambio);
       });
       
@@ -1505,11 +1728,15 @@
           const ev = item.data;
         const pill = document.createElement('div');
         // Determinar el tipo de punto según el estado
-        let typeDot = 'cal-dot--event'; // verde por defecto
+        let typeDot = 'cal-dot--event'; // verde por defecto (para planificado, en_progreso, etc.)
         if(ev.status === 'completado' || ev.status === 'finalizado'){
           typeDot = 'cal-dot--finish'; // rojo para completados
         } else if(ev.status === 'en_progreso'){
           typeDot = 'cal-dot--event'; // verde para en progreso
+        } else if(ev.status === 'planificado'){
+          typeDot = 'cal-dot--event'; // verde para planificado
+        } else if(ev.status === 'cancelado'){
+          typeDot = 'cal-dot--event'; // verde para cancelado
         }
         const mine = ev._involvesUser === true;
           pill.className = 'cal-pill cal-pill--event' + (mine ? ' cal-pill--mine' : '');
@@ -1625,8 +1852,8 @@
   }
   
   // Función para cargar avances de un mes (optimizada con llamadas en paralelo)
-  // IMPORTANTE: SOLO datos de la tabla actividad_cambios
-  // Esta función usa fetchDayAvances que consulta exclusivamente actividad_cambios
+  // IMPORTANTE: SOLO datos de la tabla eventos_cambios_colaboradores
+  // Esta función usa fetchDayAvances que consulta exclusivamente eventos_cambios_colaboradores
   async function fetchMonthAvances(startDate, endDate){
     const avancesMap = new Map();
     try{
@@ -1651,10 +1878,10 @@
         const dateKey = fmtISO(d);
         const dateLabel = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
         dateKeys.push(dateKey);
-        // fetchDayAvances consulta SOLO actividad_cambios
+        // fetchDayAvances consulta SOLO eventos_cambios_colaboradores
         promises.push(
           fetchDayAvances(dateLabel).catch(e => {
-            console.warn(`Error al cargar avances de actividad_cambios para ${dateKey}:`, e);
+            console.warn(`Error al cargar avances de eventos_cambios_colaboradores para ${dateKey}:`, e);
             return [];
           })
         );
@@ -1663,17 +1890,17 @@
       // Ejecutar todas las llamadas en paralelo
       const results = await Promise.all(promises);
       
-      // Mapear resultados - agrupar por fecha real del avance (SOLO de actividad_cambios)
+      // Mapear resultados - agrupar por fecha real del avance (SOLO de eventos_cambios_colaboradores)
       // Usar Set para evitar duplicados por ID
       const avancesIdsAgregados = new Set();
       results.forEach((avances, index) => {
         if(avances && avances.length > 0){
-          // Para cada avance, validar que sea de actividad_cambios y usar su fecha real
+          // Para cada avance, validar que sea de eventos_cambios_colaboradores y usar su fecha real
           avances.forEach(av => {
             // Validar que tenga ID (requerido para evitar duplicados)
             if(!av.id) return;
             
-            // Validar que tenga los campos obligatorios de actividad_cambios
+            // Validar que tenga los campos obligatorios de eventos_cambios_colaboradores
             // descripcion_cambio es obligatorio en la tabla
             if(!av.descripcion && !av.descripcion_cambio) return;
             // fecha_cambio es obligatorio en la tabla
@@ -1702,7 +1929,7 @@
             const yaExiste = avancesDelDia.some(a => a.id === av.id);
             if(!yaExiste){
             avancesMap.get(avanceDate).push(av);
-              calendarDebugLog(`📍 Avance de actividad_cambios mapeado: ${av.evento_nombre || 'Sin nombre'} → fecha ${avanceDate}`);
+              calendarDebugLog(`📍 Avance de eventos_cambios_colaboradores mapeado: ${av.evento_nombre || 'Sin nombre'} → fecha ${avanceDate}`);
             } else {
               calendarDebugLog(`⚠️ Avance duplicado omitido en mapeo mensual (ID: ${av.id}):`, av.evento_nombre || 'Sin nombre');
             }
@@ -1719,9 +1946,9 @@
         }
       });
       
-      calendarDebugLog(`✅ Avances de actividad_cambios del mes cargados: ${avancesMap.size} días con avances`);
+      calendarDebugLog(`✅ Avances de eventos_cambios_colaboradores del mes cargados: ${avancesMap.size} días con avances`);
     }catch(e){
-      console.warn('Error al cargar avances de actividad_cambios del mes:', e);
+      console.warn('Error al cargar avances de eventos_cambios_colaboradores del mes:', e);
     }
     return avancesMap;
   }
@@ -1747,39 +1974,38 @@
   }
   
   // Función para cargar avances de un día específico
-  // IMPORTANTE: SOLO datos de la tabla actividad_cambios
-  // Esta función consulta la API /api/avances/ que devuelve exclusivamente registros de actividad_cambios
-  // Estructura de actividad_cambios:
+  // IMPORTANTE: SOLO datos de la tabla eventos_cambios_colaboradores
+  // Esta función consulta la API /api/avances/ que devuelve exclusivamente registros de eventos_cambios_colaboradores
+  // Estructura de eventos_cambios_colaboradores:
   //   - id (UUID)
   //   - actividad_id (UUID) → referencia a actividades
-  //   - responsable_id (UUID) → referencia a usuarios (opcional)
-  //   - colaborador_id (UUID) → referencia a colaboradores (opcional)
+  //   - colaborador_id (UUID) → referencia a colaboradores
   //   - descripcion_cambio (TEXT) → descripción del cambio
   //   - fecha_cambio (TIMESTAMPTZ) → fecha y hora del cambio
   //   - creado_en (TIMESTAMPTZ) → timestamp de creación
   async function fetchDayAvances(dateLabel){
     try{
       const dateISO = parseLabelToISO(dateLabel);
-      calendarDebugLog('🔍 Buscando avances (SOLO actividad_cambios) para fecha:', dateLabel, '→ ISO:', dateISO);
+      calendarDebugLog('🔍 Buscando avances (SOLO eventos_cambios_colaboradores) para fecha:', dateLabel, '→ ISO:', dateISO);
       
-      // Llamar a la API que consulta SOLO actividad_cambios
+      // Llamar a la API que consulta SOLO eventos_cambios_colaboradores
       const res = await fetch(`${AVANCES_API}?date=${dateISO}`);
       
       if(!res.ok){
-        console.warn('⚠️ Error al obtener avances de actividad_cambios:', res.status, res.statusText);
+        console.warn('⚠️ Error al obtener avances de eventos_cambios_colaboradores:', res.status, res.statusText);
         return [];
       }
       
       const data = await res.json();
       const avances = Array.isArray(data) ? data : (data.results || []);
       
-      calendarDebugLog('📥 Datos brutos recibidos de api_avances (actividad_cambios):', avances);
+      calendarDebugLog('📥 Datos brutos recibidos de api_avances (eventos_cambios_colaboradores):', avances);
       
-      // Validar que los avances tengan la estructura correcta de actividad_cambios
+      // Validar que los avances tengan la estructura correcta de eventos_cambios_colaboradores
       // La API devuelve campos mapeados: id, actividad_id, evento_nombre, fecha, hora, descripcion, responsable
-      // Estos campos provienen exclusivamente de actividad_cambios
+      // Estos campos provienen exclusivamente de eventos_cambios_colaboradores
       const avancesValidados = avances.filter(av => {
-        // Validar que tenga los campos obligatorios de actividad_cambios
+        // Validar que tenga los campos obligatorios de eventos_cambios_colaboradores
         // El campo descripcion_cambio es obligatorio en la tabla
         const tieneDescripcion = av.descripcion || av.descripcion_cambio;
         // El campo fecha_cambio es obligatorio en la tabla
@@ -1787,25 +2013,25 @@
         const esValido = tieneDescripcion && tieneFecha;
         
         if(!esValido){
-          calendarDebugLog('⚠️ Avance filtrado (no tiene estructura de actividad_cambios):', av);
+          calendarDebugLog('⚠️ Avance filtrado (no tiene estructura de eventos_cambios_colaboradores):', av);
         }
         
         return esValido;
       }).map(av => {
-        // Asegurar que los campos estén correctamente mapeados desde actividad_cambios
+        // Asegurar que los campos estén correctamente mapeados desde eventos_cambios_colaboradores
         // El backend ya devuelve: id, actividad_id, evento_nombre, fecha, hora, descripcion, responsable
         return {
-          id: av.id, // id de actividad_cambios
-          actividad_id: av.actividad_id, // actividad_id de actividad_cambios
+          id: av.id, // id de eventos_cambios_colaboradores
+          actividad_id: av.actividad_id, // actividad_id de eventos_cambios_colaboradores
           evento_nombre: av.evento_nombre || 'Sin evento', // nombre de la actividad relacionada
           fecha: av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : null), // fecha_cambio convertida
           hora: av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : ''), // hora de fecha_cambio
           descripcion: av.descripcion || av.descripcion_cambio || '', // descripcion_cambio
-          responsable: av.responsable || 'Sistema' // responsable_nombre o colaborador_nombre
+          responsable: av.responsable || 'Sistema' // colaborador_nombre
         };
       });
       
-      calendarDebugLog(`✅ Avances de actividad_cambios validados: ${avancesValidados.length} de ${avances.length} totales`);
+      calendarDebugLog(`✅ Avances de eventos_cambios_colaboradores validados: ${avancesValidados.length} de ${avances.length} totales`);
       
       // Eliminar duplicados por ID antes de retornar
       const avancesSinDuplicados = eliminarDuplicadosAvances(avancesValidados);
@@ -1815,16 +2041,26 @@
       }
       
       if(avancesSinDuplicados.length > 0){
-        calendarDebugLog('📋 Estructura de avances validados (actividad_cambios):', avancesSinDuplicados[0]);
+        calendarDebugLog('📋 Estructura de avances validados (eventos_cambios_colaboradores):', avancesSinDuplicados[0]);
       }
       return avancesSinDuplicados;
     }catch(e){
-      console.error('❌ Error en fetchDayAvances (actividad_cambios):', e);
+      console.error('❌ Error en fetchDayAvances (eventos_cambios_colaboradores):', e);
       return [];
     }
   }
 
-  function initCalendar(){
+  async function initCalendar(){
+    // Solo inicializar si el usuario está autenticado
+    if(!isUserAuthenticated){
+      return;
+    }
+    
+    // Cargar información del usuario antes de inicializar
+    if(!CURRENT_USER){
+      await loadCurrentUser();
+    }
+    
     renderWeekdays();
     const now = new Date();
     viewYear = now.getFullYear();
@@ -1840,9 +2076,15 @@
   }
 
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', initCalendar);
+    document.addEventListener('DOMContentLoaded', () => {
+      if(isUserAuthenticated){
+        initCalendar();
+      }
+    });
   } else {
-    initCalendar();
+    if(isUserAuthenticated){
+      initCalendar();
+    }
   }
 
   /* ======== Recordatorios y resaltado: helpers ======== */
@@ -1921,19 +2163,15 @@
       alert('Error al eliminar el recordatorio.');
     }
   }
-  async function loadCollaborators(){ 
-    try{ 
-      const res = await fetch(COLLAB_API);
-      if(!res.ok) return [];
-      const items = await res.json();
-      return Array.isArray(items)?items:(items.results||[]);
-    }catch(e){ 
-      console.warn('Error al cargar colaboradores:', e);
-      return [];
-    }
-  }
-  
   async function prepareReminderForm(defaultDateLabel){
+    // Cargar información del usuario si no está cargada
+    if(!CURRENT_USER){
+      await loadCurrentUser();
+    }
+    
+    const isAdmin = CURRENT_USER?.isAdmin === true;
+    const collaboratorId = CURRENT_USER?.collaboratorId;
+    
     // Resetear completamente el formulario
     const dateInput = document.getElementById('reminderDate');
     const timeInput = document.getElementById('reminderTime');
@@ -1976,10 +2214,26 @@
       defOption.selected = true;
       eventSelect.appendChild(defOption);
       
-    try{
-      const res = await fetch(EVENTS_LIST_API);
-      if(res.ok){
-        const evs = await res.json();
+      // Usar una función named para poder remover el listener si es necesario
+      async function handleEventSelectChange() {
+        const selectedOption = eventSelect.options[eventSelect.selectedIndex];
+        const selectedEventId = selectedOption ? selectedOption.getAttribute('data-id') : null;
+        await loadCollaboratorsForEvent(selectedEventId);
+      }
+      
+      // Remover listener anterior si existe (usar una propiedad para rastrear)
+      if(eventSelect._changeHandler){
+        eventSelect.removeEventListener('change', eventSelect._changeHandler);
+      }
+      
+      // Agregar nuevo listener y guardar referencia
+      eventSelect._changeHandler = handleEventSelectChange;
+      eventSelect.addEventListener('change', handleEventSelectChange);
+      
+      try{
+        const res = await fetch(EVENTS_LIST_API);
+        if(res.ok){
+          const evs = await res.json();
           // Usar Set para evitar duplicados por ID y nombre
           const seenIds = new Set();
           const seenNames = new Set();
@@ -1992,21 +2246,13 @@
               // Evitar duplicados por ID
               if(seenIds.has(e.id)) return;
               
-              // Evitar duplicados por nombre (aunque puede haber eventos con mismo nombre pero diferente ID)
-              // Si el nombre ya existe, agregarlo con un sufijo para distinguirlo
-              let displayName = e.name;
-              if(seenNames.has(e.name)){
-                // Si hay duplicado por nombre, mantenerlo pero asegurarse que el ID es único
-                displayName = e.name;
-              }
-              
               seenIds.add(e.id);
               seenNames.add(e.name);
               
               const opt = document.createElement('option');
               opt.value = e.name;
               opt.setAttribute('data-id', e.id);
-              opt.textContent = displayName;
+              opt.textContent = e.name;
               eventSelect.appendChild(opt);
             });
           }
@@ -2016,80 +2262,172 @@
       }
     }
     
-    // Limpiar y cargar colaboradores/personal involucrado como checklist
+    // Limpiar checklist de colaboradores (se cargará cuando se seleccione un evento)
     const ownersChecklist = document.getElementById('reminderOwnersChecklist');
     if(ownersChecklist){
-      // Limpiar completamente el checklist
       ownersChecklist.innerHTML = '';
-      
-      try{
-    const collabs = await loadCollaborators();
-        // Usar Set para evitar duplicados por ID
-        const seenIds = new Set();
-        
-        if(Array.isArray(collabs) && collabs.length > 0){
-          collabs.forEach(c => {
-            const cid = c.id || '';
-            // Solo agregar si tiene ID y no está duplicado
-            if(cid && !seenIds.has(cid)){
-              seenIds.add(cid);
-              
-              const checkboxDiv = document.createElement('div');
-              checkboxDiv.className = 'collaborator-checkbox';
-              
-              const checkbox = document.createElement('input');
-              checkbox.type = 'checkbox';
-              checkbox.id = `collab-${cid}`;
-              checkbox.value = cid;
-              checkbox.name = 'collaborators';
-              checkbox.checked = false; // Asegurar que no esté marcado por defecto
-              
-              // Agregar listener para ocultar error cuando se selecciona un checkbox
-              checkbox.addEventListener('change', () => {
-                const ownerCheckboxes = document.querySelectorAll('#reminderOwnersChecklist input[type="checkbox"]:checked');
-                const selectedCount = ownerCheckboxes.length;
-                const ownersError = document.getElementById('reminderOwnersError');
-                
-                if(selectedCount > 0){
-                  // Ocultar error si hay al menos uno seleccionado
-                  if(ownersError){
-                    ownersError.style.display = 'none';
-                  }
-                  if(ownersChecklist){
-                    ownersChecklist.style.border = '';
-                    ownersChecklist.style.borderRadius = '';
-                    ownersChecklist.style.padding = '';
-                  }
-                }
-              });
-              
-              const label = document.createElement('label');
-              label.htmlFor = `collab-${cid}`;
-              const nombre = c.name || c.nombre || 'Colaborador';
-              const puesto = c.puesto || '';
-              label.textContent = puesto ? `${nombre} (${puesto})` : nombre;
-              
-              checkboxDiv.appendChild(checkbox);
-              checkboxDiv.appendChild(label);
-              ownersChecklist.appendChild(checkboxDiv);
-            }
-          });
-        } else {
-          // Mostrar mensaje si no hay colaboradores
-          const emptyMsg = document.createElement('p');
-          emptyMsg.style.cssText = 'color:#a8b2c2;text-align:center;padding:12px;font-size:0.9rem';
-          emptyMsg.textContent = 'No hay colaboradores disponibles';
-          ownersChecklist.appendChild(emptyMsg);
-        }
-      }catch(e){
-        console.warn('Error al cargar colaboradores:', e);
-        const errorMsg = document.createElement('p');
-        errorMsg.style.cssText = 'color:#ff5d5d;text-align:center;padding:12px;font-size:0.9rem';
-        errorMsg.textContent = 'Error al cargar colaboradores';
-        ownersChecklist.appendChild(errorMsg);
-      }
+      const emptyMsg = document.createElement('p');
+      emptyMsg.style.cssText = 'color:#a8b2c2;text-align:center;padding:12px;font-size:0.9rem';
+      emptyMsg.textContent = 'Selecciona un evento para ver los colaboradores disponibles';
+      ownersChecklist.appendChild(emptyMsg);
     }
   }
+  
+  // Función para cargar colaboradores de un evento específico
+  async function loadCollaboratorsForEvent(eventId){
+    const ownersChecklist = document.getElementById('reminderOwnersChecklist');
+    if(!ownersChecklist) return;
+    
+    // Limpiar checklist
+    ownersChecklist.innerHTML = '';
+    
+    if(!eventId){
+      const emptyMsg = document.createElement('p');
+      emptyMsg.style.cssText = 'color:#a8b2c2;text-align:center;padding:12px;font-size:0.9rem';
+      emptyMsg.textContent = 'Selecciona un evento para ver los colaboradores disponibles';
+      ownersChecklist.appendChild(emptyMsg);
+      return;
+    }
+    
+    try{
+      // Cargar información del usuario si no está cargada
+      if(!CURRENT_USER){
+        await loadCurrentUser();
+      }
+      
+      const isAdmin = CURRENT_USER?.isAdmin === true || CURRENT_USER?.rol === 'admin';
+      const collaboratorId = CURRENT_USER?.collaboratorId;
+      
+      // Si es usuario personal (no admin), solo mostrar su propio colaborador
+      if(!isAdmin && collaboratorId){
+        const COLLAB_API = (window.DJANGO_URLS && window.DJANGO_URLS.collaborators) || '/api/collaborators/';
+        const res = await fetch(`${COLLAB_API}?evento_id=${eventId}`);
+        
+        if(!res.ok){
+          throw new Error('Error al cargar colaboradores');
+        }
+        
+        const collabs = await res.json();
+        
+        // Buscar solo el colaborador del usuario
+        const userCollaborator = Array.isArray(collabs) ? collabs.find(c => (c.id || '') === collaboratorId) : null;
+        
+        if(userCollaborator){
+          const cid = userCollaborator.id || '';
+          if(cid){
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.className = 'collaborator-checkbox';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `collab-${cid}`;
+            checkbox.value = cid;
+            checkbox.name = 'collaborators';
+            checkbox.checked = true;
+            checkbox.disabled = true;
+            checkboxDiv.style.opacity = '0.7';
+            
+            const label = document.createElement('label');
+            label.htmlFor = `collab-${cid}`;
+            const nombre = userCollaborator.name || userCollaborator.nombre || 'Colaborador';
+            const puesto = userCollaborator.puesto || '';
+            const username = userCollaborator.username || '';
+            
+            // Mostrar nombre con username si existe
+            let displayName = nombre;
+            if(username){
+              displayName = `${nombre} (${username})`;
+            }
+            label.textContent = puesto ? `${displayName} (${puesto})` : displayName;
+            
+            checkboxDiv.appendChild(checkbox);
+            checkboxDiv.appendChild(label);
+            ownersChecklist.appendChild(checkboxDiv);
+          }
+        } else {
+          const emptyMsg = document.createElement('p');
+          emptyMsg.style.cssText = 'color:#a8b2c2;text-align:center;padding:12px;font-size:0.9rem';
+          emptyMsg.textContent = 'No estás asignado a este evento';
+          ownersChecklist.appendChild(emptyMsg);
+        }
+        return; // Salir de la función para usuarios personales
+      }
+      
+      // Si es admin, cargar todos los colaboradores del evento
+      const COLLAB_API = (window.DJANGO_URLS && window.DJANGO_URLS.collaborators) || '/api/collaborators/';
+      const res = await fetch(`${COLLAB_API}?evento_id=${eventId}`);
+      
+      if(!res.ok){
+        throw new Error('Error al cargar colaboradores');
+      }
+      
+      const collabs = await res.json();
+      
+      if(Array.isArray(collabs) && collabs.length > 0){
+        collabs.forEach(c => {
+          const cid = c.id || '';
+          if(!cid) return;
+          
+          const checkboxDiv = document.createElement('div');
+          checkboxDiv.className = 'collaborator-checkbox';
+          
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = `collab-${cid}`;
+          checkbox.value = cid;
+          checkbox.name = 'collaborators';
+          checkbox.checked = false;
+          
+          // Agregar listener para ocultar error cuando se selecciona un checkbox
+          checkbox.addEventListener('change', () => {
+            const ownerCheckboxes = document.querySelectorAll('#reminderOwnersChecklist input[type="checkbox"]:checked');
+            const selectedCount = ownerCheckboxes.length;
+            const ownersError = document.getElementById('reminderOwnersError');
+            
+            if(selectedCount > 0){
+              if(ownersError){
+                ownersError.style.display = 'none';
+              }
+              if(ownersChecklist){
+                ownersChecklist.style.border = '';
+                ownersChecklist.style.borderRadius = '';
+                ownersChecklist.style.padding = '';
+              }
+            }
+          });
+          
+          const label = document.createElement('label');
+          label.htmlFor = `collab-${cid}`;
+          const nombre = c.name || c.nombre || 'Colaborador';
+          const puesto = c.puesto || '';
+          const username = c.username || '';
+          
+          // Mostrar nombre con username si existe
+          let displayName = nombre;
+          if(username){
+            displayName = c.displayName || `${nombre} (${username})`;
+          }
+          label.textContent = puesto ? `${displayName} (${puesto})` : displayName;
+          
+          checkboxDiv.appendChild(checkbox);
+          checkboxDiv.appendChild(label);
+          ownersChecklist.appendChild(checkboxDiv);
+        });
+      } else {
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.cssText = 'color:#a8b2c2;text-align:center;padding:12px;font-size:0.9rem';
+        emptyMsg.textContent = 'No hay colaboradores asignados a este evento';
+        ownersChecklist.appendChild(emptyMsg);
+      }
+    }catch(e){
+      console.warn('Error al cargar colaboradores:', e);
+      const errorMsg = document.createElement('p');
+      errorMsg.style.cssText = 'color:#ff5d5d;text-align:center;padding:12px;font-size:0.9rem';
+      errorMsg.textContent = 'Error al cargar colaboradores';
+      ownersChecklist.appendChild(errorMsg);
+    }
+  }
+  
   function openReminderModal(dateLabel){ 
     const m = document.getElementById('reminderModal'); 
     document.getElementById('reminderModalTitle').textContent='Añadir recordatorio'; 
@@ -2235,12 +2573,12 @@
   });
 
   // Resaltado de eventos para el usuario actual
-  const CURRENT = window.CURRENT_USER || { userId:null, collaboratorId:null, isAdmin:false };
   const _normalize = normalizeEvent;
   normalizeEvent = function(raw){
     const ev = _normalize(raw);
-    const userId = CURRENT.userId;
-    const collabId = CURRENT.collaboratorId || CURRENT.colaboradorId || CURRENT.collaborator_id;
+    const currentUser = window.CURRENT_USER || CURRENT_USER || { userId:null, collaboratorId:null, isAdmin:false };
+    const userId = currentUser.userId;
+    const collabId = currentUser.collaboratorId || currentUser.colaboradorId || currentUser.collaborator_id;
     const idsUsuarios = raw.usuarios_asignados_ids || raw.usuarios_ids || [];
     const idsColabs = raw.colaboradores_asignados_ids || raw.colaboradores_ids || [];
     const rId = raw.responsable_id; const cId = raw.colaborador_id;

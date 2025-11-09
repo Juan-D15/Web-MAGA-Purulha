@@ -93,11 +93,22 @@ def api_usuario_actual(request):
             'error': 'Usuario MAGA no encontrado'
         }, status=404)
     
+    # Obtener colaborador vinculado si existe
+    colaborador_id = None
+    colaborador_nombre = None
+    if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+        colaborador_id = str(usuario_maga.colaborador.id)
+        colaborador_nombre = usuario_maga.colaborador.nombre
+    
     return JsonResponse({
         'autenticado': True,
+        'userId': str(usuario_maga.id),
         'username': usuario_maga.username,
         'email': usuario_maga.email,
         'rol': usuario_maga.rol,
+        'collaboratorId': colaborador_id,
+        'collaboratorName': colaborador_nombre,
+        'isAdmin': usuario_maga.rol == 'admin',
         'permisos': {
             'es_admin': usuario_maga.rol == 'admin',
             'es_personal': usuario_maga.rol == 'personal',
@@ -2752,18 +2763,21 @@ def api_ultimos_eventos_inicio(request):
 
 @require_http_methods(["GET"])
 def api_calendar_events(request):
-    """Eventos para el calendario entre start y end (YYYY-MM-DD). Solo eventos con estado 'en_progreso' o 'completado'."""
+    """Eventos para el calendario entre start y end (YYYY-MM-DD). Muestra todos los eventos sin importar estado."""
     start = request.GET.get('start')
     end = request.GET.get('end')
     if not start or not end:
         return JsonResponse([], safe=False)
     try:
-        # Solo eventos con estado 'en_progreso' o 'completado'
+        # Mostrar todos los eventos sin importar estado (en_progreso, completado, planificado, cancelado)
+        # Mostrar TODOS los eventos para TODOS los usuarios, sin filtros por usuario o colaborador
+        # Incluir eventos con fecha en el rango O eventos sin fecha pero creados en el rango
+        from django.db.models import Q
         actividades = Actividad.objects.filter(
-            eliminado_en__isnull=True,
-            fecha__gte=start,
-            fecha__lte=end,
-            estado__in=['en_progreso', 'completado']
+            eliminado_en__isnull=True
+        ).filter(
+            Q(fecha__gte=start, fecha__lte=end) | 
+            Q(fecha__isnull=True, creado_en__date__gte=start, creado_en__date__lte=end)
         ).select_related('tipo', 'comunidad', 'responsable')
 
         # Obtener IDs de actividades para consultas optimizadas
@@ -2803,8 +2817,16 @@ def api_calendar_events(request):
             
             responsables_texto = ', '.join(responsables_nombres) if responsables_nombres else None
 
+            # Usar fecha del evento si existe, sino usar fecha de creación como fallback
+            event_date = None
+            if a.fecha:
+                event_date = a.fecha.isoformat()
+            elif a.creado_en:
+                # Si no tiene fecha, usar la fecha de creación
+                event_date = a.creado_en.date().isoformat()
+            
             data.append({
-                'date': a.fecha.isoformat() if a.fecha else None,
+                'date': event_date,
                 'name': a.nombre,
                 'description': a.descripcion,
                 'status': a.estado,
@@ -2822,7 +2844,7 @@ def api_calendar_events(request):
 @require_http_methods(["GET", "POST"])
 @login_required
 def api_avances(request):
-    """Obtiene avances/cambios de eventos para el calendario por fecha."""
+    """Obtiene avances/cambios de eventos para el calendario por fecha. Consulta la tabla eventos_cambios_colaboradores."""
     date_str = request.GET.get('date')
     if not date_str:
         return JsonResponse([], safe=False)
@@ -2832,33 +2854,56 @@ def api_avances(request):
         import pytz
         from django.db import connection
         
-        # Buscar cambios cuya fecha_cambio (en zona horaria de Guatemala) corresponda al día solicitado
+        # Obtener información del usuario actual
+        is_admin = False
+        colaborador_usuario_id = None
+        try:
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                is_admin = usuario_maga.rol == 'admin'
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        except Exception:
+            pass
+        
+        # Construir la consulta base
+        query_base = """
+            SELECT ecc.id::text,
+                   ecc.actividad_id::text,
+                   ecc.colaborador_id::text,
+                   ecc.descripcion_cambio,
+                   ecc.fecha_cambio,
+                   a.nombre as evento_nombre,
+                   COALESCE(c.nombre, 'Colaborador') as colaborador_nombre
+            FROM eventos_cambios_colaboradores ecc
+            INNER JOIN actividades a ON a.id = ecc.actividad_id
+            LEFT JOIN colaboradores c ON c.id = ecc.colaborador_id
+            WHERE (ecc.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
+              AND a.eliminado_en IS NULL
+        """
+        
+        # Si no es admin, filtrar por actividades donde el colaborador del usuario está asignado
+        if not is_admin and colaborador_usuario_id:
+            query_base += """
+              AND ecc.actividad_id IN (
+                  SELECT DISTINCT ap.actividad_id
+                  FROM actividad_personal ap
+                  WHERE ap.colaborador_id = %s
+              )
+            """
+            params = [date_str, colaborador_usuario_id]
+        else:
+            params = [date_str]
+        
+        query_base += " ORDER BY ecc.fecha_cambio ASC"
+        
         with connection.cursor() as cur:
-            cur.execute(
-                """
-                SELECT ac.id::text,
-                       ac.actividad_id::text,
-                       ac.responsable_id::text,
-                       ac.descripcion_cambio,
-                       ac.fecha_cambio,
-                       a.nombre as evento_nombre,
-                       COALESCE(u.nombre, u.username) as responsable_nombre
-                FROM actividad_cambios ac
-                INNER JOIN actividades a ON a.id = ac.actividad_id
-                LEFT JOIN usuarios u ON u.id = ac.responsable_id
-                WHERE (ac.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
-                  AND a.eliminado_en IS NULL
-                ORDER BY ac.fecha_cambio ASC
-                """,
-                [date_str]
-            )
+            cur.execute(query_base, params)
             rows = cur.fetchall()
         
         results = []
         for row in rows:
-            cambio_id, actividad_id, responsable_id, descripcion, fecha_cambio, evento_nombre, responsable_nombre = row
-            colaborador_id = None
-            colaborador_nombre = None
+            cambio_id, actividad_id, colaborador_id, descripcion, fecha_cambio, evento_nombre, colaborador_nombre = row
             
             # Si no hay evento_nombre desde la consulta, obtenerlo manualmente (fallback)
             if not evento_nombre:
@@ -2868,12 +2913,10 @@ def api_avances(request):
                 except Actividad.DoesNotExist:
                     continue
             
-            # Determinar el responsable/colaborador a mostrar
+            # Determinar el colaborador a mostrar
             responsable_display = None
             if colaborador_nombre:
                 responsable_display = colaborador_nombre
-            elif responsable_nombre:
-                responsable_display = responsable_nombre
             else:
                 responsable_display = 'Sistema'
             
@@ -2916,63 +2959,88 @@ def api_reminders(request):
         if not date_str:
             return JsonResponse([], safe=False)
         
-        # Verificar si el usuario es admin
+        # Obtener información del usuario actual
         is_admin = False
         user_id = None
+        colaborador_usuario_id = None
         try:
-            with connection.cursor() as cur_user:
-                cur_user.execute(
-                    "SELECT id::text, rol FROM usuarios WHERE username = %s LIMIT 1",
-                    [getattr(request.user, 'username', None)]
-                )
-                user_row = cur_user.fetchone()
-                if user_row:
-                    user_id, user_rol = user_row
-                    is_admin = (user_rol == 'admin')
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                user_id = str(usuario_maga.id)
+                is_admin = usuario_maga.rol == 'admin'
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
         except Exception:
             pass
         
         try:
             with connection.cursor() as cur:
                 # Si es admin, mostrar todos los recordatorios del día
-                # Si no es admin, mostrar solo los suyos
                 if is_admin:
                     cur.execute(
                         """
                         SELECT r.id::text,
                                r.actividad_id::text,
                                r.created_by::text,
+                               COALESCE(u.nombre, u.username, 'Usuario desconocido') as created_by_name,
                                r.titulo,
                                r.descripcion,
                                r.due_at,
                                r.enviar_notificacion,
                                r.enviado
                         FROM recordatorios r
+                        LEFT JOIN usuarios u ON u.id = r.created_by
                         WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
                         ORDER BY r.due_at ASC
                         """,
                         [date_str]
                     )
                 else:
-                    # Solo los recordatorios del usuario actual
+                    # Para usuarios personales: mostrar recordatorios creados por ellos O donde su colaborador está incluido
                     if user_id:
-                        cur.execute(
-                            """
-                            SELECT r.id::text,
-                                   r.actividad_id::text,
-                                   r.created_by::text,
-                                   r.titulo,
-                                   r.descripcion,
-                                   r.due_at,
-                                   r.enviar_notificacion,
-                                   r.enviado
-                            FROM recordatorios r
-                            WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
-                              AND r.created_by = %s
-                            ORDER BY r.due_at ASC
-                            """,
-                            [date_str, user_id]
-                        )
+                        if colaborador_usuario_id:
+                            # Mostrar recordatorios creados por el usuario O donde su colaborador está en recordatorio_colaboradores
+                            cur.execute(
+                                """
+                                SELECT DISTINCT r.id::text,
+                                       r.actividad_id::text,
+                                       r.created_by::text,
+                                       COALESCE(u.nombre, u.username, 'Usuario desconocido') as created_by_name,
+                                       r.titulo,
+                                       r.descripcion,
+                                       r.due_at,
+                                       r.enviar_notificacion,
+                                       r.enviado
+                                FROM recordatorios r
+                                LEFT JOIN recordatorio_colaboradores rc ON rc.recordatorio_id = r.id
+                                LEFT JOIN usuarios u ON u.id = r.created_by
+                                WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
+                                  AND (r.created_by = %s OR rc.colaborador_id = %s)
+                                ORDER BY r.due_at ASC
+                                """,
+                                [date_str, user_id, colaborador_usuario_id]
+                            )
+                        else:
+                            # Si no tiene colaborador vinculado, solo mostrar los que creó
+                            cur.execute(
+                                """
+                                SELECT r.id::text,
+                                       r.actividad_id::text,
+                                       r.created_by::text,
+                                       COALESCE(u.nombre, u.username, 'Usuario desconocido') as created_by_name,
+                                       r.titulo,
+                                       r.descripcion,
+                                       r.due_at,
+                                       r.enviar_notificacion,
+                                       r.enviado
+                                FROM recordatorios r
+                                LEFT JOIN usuarios u ON u.id = r.created_by
+                                WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
+                                  AND r.created_by = %s
+                                ORDER BY r.due_at ASC
+                                """,
+                                [date_str, user_id]
+                            )
                     else:
                         # Si no hay user_id, no mostrar nada
                         rows = []
@@ -2982,7 +3050,7 @@ def api_reminders(request):
 
             results = []
             for row in rows:
-                rid, act_id, created_by, titulo, desc, due_at, enviar, enviado = row
+                rid, act_id, created_by, created_by_name, titulo, desc, due_at, enviar, enviado = row
                 # owners text
                 with connection.cursor() as cur2:
                     cur2.execute(
@@ -3024,6 +3092,7 @@ def api_reminders(request):
                     'description': desc or '',
                     'event_name': titulo or None,
                     'created_by': created_by,
+                    'created_by_name': created_by_name or 'Usuario desconocido',
                     'owners_text': owners_text
                 })
             return JsonResponse(results, safe=False)
@@ -3107,7 +3176,7 @@ def api_reminders(request):
 @require_http_methods(["DELETE"])
 @login_required
 def api_reminder_detail(request, reminder_id):
-    """Eliminar recordatorio si es admin o creador."""
+    """Eliminar recordatorio. Solo admin puede eliminar cualquier recordatorio. Usuarios personales solo pueden eliminar los que crearon."""
     try:
         # Obtener información del recordatorio
         with connection.cursor() as cur:
@@ -3117,24 +3186,19 @@ def api_reminder_detail(request, reminder_id):
                 return JsonResponse({'error': 'Not found'}, status=404)
             created_by = row[0]
         
-        # Verificar permisos: admin o creador
+        # Obtener información del usuario actual
         is_admin = False
-        is_creator = False
-        
-        # Obtener usuario actual desde la tabla usuarios
+        user_id = None
         try:
-            with connection.cursor() as cur_user:
-                cur_user.execute(
-                    "SELECT id::text, rol FROM usuarios WHERE username = %s LIMIT 1",
-                    [getattr(request.user, 'username', None)]
-                )
-                user_row = cur_user.fetchone()
-                if user_row:
-                    user_id, user_rol = user_row
-                    is_admin = (user_rol == 'admin')
-                    is_creator = (created_by == user_id)
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                user_id = str(usuario_maga.id)
+                is_admin = usuario_maga.rol == 'admin'
         except Exception:
             pass
+        
+        # Verificar permisos: admin puede eliminar cualquier recordatorio, usuarios personales solo los que crearon
+        is_creator = (created_by == user_id) if user_id else False
         
         if not (is_admin or is_creator):
             return JsonResponse({'error': 'Forbidden'}, status=403)
@@ -3151,29 +3215,103 @@ def api_reminder_detail(request, reminder_id):
 
 
 @require_http_methods(["GET"])
+@login_required
 def api_events_list(request):
     """Lista simple de eventos (id, name) para el formulario de recordatorios."""
-    qs = Actividad.objects.filter(eliminado_en__isnull=True).order_by('-creado_en')[:300]
-    data = [{'id': str(a.id), 'name': a.nombre} for a in qs]
-    return JsonResponse(data, safe=False)
+    try:
+        # Obtener información del usuario actual
+        is_admin = False
+        colaborador_usuario_id = None
+        try:
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                is_admin = usuario_maga.rol == 'admin'
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        except Exception:
+            pass
+        
+        # Si es admin, mostrar todos los eventos
+        if is_admin:
+            qs = Actividad.objects.filter(eliminado_en__isnull=True).order_by('-creado_en')[:300]
+        else:
+            # Si no es admin, solo mostrar eventos donde el colaborador del usuario está asignado
+            if colaborador_usuario_id:
+                qs = Actividad.objects.filter(
+                    eliminado_en__isnull=True,
+                    personal__colaborador_id=colaborador_usuario_id
+                ).distinct().order_by('-creado_en')[:300]
+            else:
+                # Si no tiene colaborador vinculado, no mostrar eventos
+                qs = Actividad.objects.none()
+        
+        data = [{'id': str(a.id), 'name': a.nombre} for a in qs]
+        return JsonResponse(data, safe=False)
+    except Exception as e:
+        return JsonResponse([], safe=False)
 
 
 @require_http_methods(["GET"])
+@login_required
 def api_collaborators(request):
-    """Lista de colaboradores activos para el formulario (id, nombre, puesto)."""
+    """Lista de colaboradores activos para el formulario (id, nombre, puesto). Filtra por evento si se proporciona evento_id."""
     try:
+        evento_id = request.GET.get('evento_id') or request.GET.get('event_id')
+        
         with connection.cursor() as cur:
-            cur.execute(
-                """
-                SELECT c.id::text, c.nombre, COALESCE(p.nombre,'') as puesto
-                FROM colaboradores c
-                LEFT JOIN puestos p ON p.id = c.puesto_id
-                WHERE c.activo = TRUE
-                ORDER BY c.nombre
-                """
-            )
+            if evento_id:
+                # Filtrar colaboradores del evento específico
+                # Incluir:
+                # 1. Colaboradores asignados directamente (ap.colaborador_id)
+                # 2. Colaboradores vinculados a usuarios asignados (ap.usuario_id -> usuario.colaborador_id)
+                cur.execute(
+                    """
+                    SELECT DISTINCT c.id::text, 
+                           c.nombre, 
+                           COALESCE(p.nombre,'') as puesto,
+                           COALESCE(u.username, '') as username
+                    FROM (
+                        -- Colaboradores asignados directamente
+                        SELECT ap.actividad_id, ap.colaborador_id as colab_id
+                        FROM actividad_personal ap
+                        WHERE ap.actividad_id = %s AND ap.colaborador_id IS NOT NULL
+                        
+                        UNION
+                        
+                        -- Colaboradores vinculados a usuarios asignados
+                        SELECT ap.actividad_id, c_linked.id as colab_id
+                        FROM actividad_personal ap
+                        INNER JOIN usuarios u ON u.id = ap.usuario_id
+                        INNER JOIN colaboradores c_linked ON c_linked.usuario_id = u.id
+                        WHERE ap.actividad_id = %s AND ap.usuario_id IS NOT NULL
+                    ) colaboradores_evento
+                    INNER JOIN colaboradores c ON c.id = colaboradores_evento.colab_id
+                    LEFT JOIN puestos p ON p.id = c.puesto_id
+                    LEFT JOIN usuarios u ON u.id = c.usuario_id
+                    WHERE c.activo = TRUE
+                    ORDER BY c.nombre
+                    """,
+                    [evento_id, evento_id]
+                )
+            else:
+                # Si no se proporciona evento_id, devolver lista vacía (el formulario requiere seleccionar evento primero)
+                return JsonResponse([], safe=False)
+            
             rows = cur.fetchall()
-        data = [{'id': r[0], 'name': r[1], 'puesto': r[2]} for r in rows]
+        
+        data = []
+        for r in rows:
+            colaborador_id, nombre, puesto, username = r
+            display_name = nombre
+            if username:
+                display_name = f"{nombre} ({username})"
+            data.append({
+                'id': colaborador_id,
+                'name': nombre,
+                'displayName': display_name,
+                'puesto': puesto,
+                'username': username
+            })
         return JsonResponse(data, safe=False)
     except Exception as e:
         return JsonResponse([], safe=False)
