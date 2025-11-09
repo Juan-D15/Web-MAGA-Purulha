@@ -4,11 +4,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="{% static 'img/logos/maga_logo.png' %}" sizes="32x32" type="image/png">
   <title>{% block title %}Gestión de Eventos — Purulhá{% endblock %}</title>
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=13">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   
   {% block extra_css %}{% endblock %}
@@ -438,7 +439,7 @@
     })();
   </script>
   
-  <script src="{% static 'js/navigation.js' %}?v=3"></script>
+  <script src="{% static 'js/navigation.js' %}"></script>
   <script src="{% static 'js/admin-gestiones.js' %}"></script>
   
   {% block extra_js %}{% endblock %}
