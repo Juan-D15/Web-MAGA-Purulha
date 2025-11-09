@@ -29,6 +29,8 @@ let allRegions = []; // Todas las regiones para la lista completa
 
 const USER_AUTH = window.USER_AUTH || { isAuthenticated: false, isAdmin: false, isPersonal: false };
 const CAN_EDIT_REGIONS = USER_AUTH.isAuthenticated && (USER_AUTH.isAdmin || USER_AUTH.isPersonal);
+let pendingRegionGalleryImages = [];
+let currentRegionFileEdit = null;
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -168,6 +170,92 @@ async function showRegionDetail(regionId) {
   }
 }
 
+function showEditFileDescriptionModal(fileId, description) {
+  if (!CAN_EDIT_REGIONS) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  currentRegionFileEdit = {
+    id: fileId,
+    originalDescription: description || '',
+  };
+  textarea.value = description || '';
+  showModal('editFileDescriptionModal');
+  textarea.focus();
+}
+
+async function updateRegionFileDescription() {
+  if (!CAN_EDIT_REGIONS) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  if (!currentRegionId || !currentRegionFileEdit || !currentRegionFileEdit.id) {
+    showErrorMessage('No se pudo identificar el archivo a editar.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  const newDescription = textarea.value.trim();
+
+  const confirmButton = document.getElementById('confirmFileDescriptionBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
+
+  try {
+    const response = await fetch(`/api/region/${currentRegionId}/archivo/${currentRegionFileEdit.id}/actualizar/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken') || '',
+      },
+      body: JSON.stringify({ descripcion: newDescription }),
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'No se pudo actualizar la descripción del archivo.');
+    }
+
+    if (currentRegionData && Array.isArray(currentRegionData.files)) {
+      currentRegionData.files = currentRegionData.files.map((file) =>
+        file.id === currentRegionFileEdit.id
+          ? { ...file, description: newDescription }
+          : file
+      );
+      renderRegionFiles(currentRegionData.files);
+    }
+
+    hideModal('editFileDescriptionModal');
+    currentRegionFileEdit = null;
+    showSuccessMessage(result.message || 'Descripción actualizada correctamente.');
+  } catch (error) {
+    console.error('Error al actualizar la descripción del archivo:', error);
+    showErrorMessage(error.message || 'No se pudo actualizar la descripción del archivo.');
+  } finally {
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      if (originalLabel !== null) {
+        confirmButton.textContent = originalLabel;
+      }
+    }
+  }
+}
+
 function backToMain() {
   const mainView = document.querySelector('.regions-main');
   const listView = document.getElementById('regionsListView');
@@ -255,7 +343,7 @@ async function loadRegionsFromAPI() {
 async function loadFeaturedRegions() {
   console.log('🔄 Cargando últimas regiones...');
   try {
-    const response = await fetch(`/api/regiones/recientes/?limite=2&_=${Date.now()}`);
+    const response = await fetch(`/api/regiones/recientes/?limite=3&_=${Date.now()}`);
     console.log('📡 Respuesta últimas regiones:', response.status);
     
     if (!response.ok) {
@@ -686,12 +774,15 @@ function renderRegionFiles(files) {
     const rawFileName = file.name || 'Archivo sin nombre';
     const fileName = escapeHtml(rawFileName);
     const datasetFileName = encodeURIComponent(rawFileName);
+    const safeDescriptionAttr = file.description
+      ? escapeHtml(file.description).replace(/"/g, '&quot;')
+      : '';
 
       fileItem.innerHTML = `
       <div class="file-icon">${getFileIcon(fileType)}</div>
         <div class="file-info">
         <h4>${fileName}</h4>
-        <p>${description}</p>
+        ${description ? `<p>${description}</p>` : ''}
         <div class="file-date">Agregado el ${fileDate}${fileType ? ` • ${fileType.toUpperCase()}` : ''}</div>
         </div>
       ${USER_AUTH.isAuthenticated ? `
@@ -705,6 +796,13 @@ function renderRegionFiles(files) {
             Descargar
           </a>
           ${CAN_EDIT_REGIONS ? `
+            <button class="file-edit-btn" data-file-id="${file.id}" data-file-description="${safeDescriptionAttr}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Editar
+            </button>
             <button class="file-delete-btn" data-file-id="${file.id}" data-file-name="${datasetFileName}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -1039,27 +1137,107 @@ function showAddImageModal() {
   clearImageForm();
 }
 
+function renderPendingRegionImages() {
+  const previewContainer = document.getElementById('imagePreview');
+  if (!previewContainer) {
+    return;
+  }
+
+  previewContainer.innerHTML = '';
+
+  if (!pendingRegionGalleryImages.length) {
+    const emptyState = document.createElement('div');
+    emptyState.className = 'image-preview-empty';
+    emptyState.textContent = 'No has seleccionado imágenes.';
+    previewContainer.appendChild(emptyState);
+    return;
+  }
+
+  pendingRegionGalleryImages.forEach((item, index) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-preview-item';
+    wrapper.dataset.index = index;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'image-preview-remove';
+    removeBtn.dataset.index = index;
+    removeBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    `;
+
+    const img = document.createElement('img');
+    img.src = item.previewUrl || '';
+    img.alt = 'Vista previa de la imagen seleccionada';
+
+    const descriptionWrapper = document.createElement('div');
+    descriptionWrapper.className = 'image-preview-description';
+
+    const descriptionInput = document.createElement('textarea');
+    descriptionInput.className = 'image-description-input';
+    descriptionInput.dataset.index = index;
+    descriptionInput.placeholder = 'Agrega una descripción...';
+    descriptionInput.rows = 2;
+    descriptionInput.value = item.description || '';
+
+    descriptionWrapper.appendChild(descriptionInput);
+
+    wrapper.appendChild(removeBtn);
+    wrapper.appendChild(img);
+    wrapper.appendChild(descriptionWrapper);
+
+    previewContainer.appendChild(wrapper);
+  });
+}
+
 function clearImageForm() {
-  document.getElementById('imageFileInput').value = '';
-  document.getElementById('imageDescription').value = '';
-  document.getElementById('imagePreview').innerHTML = '';
+  const input = document.getElementById('imageFileInput');
+  if (input) {
+    input.value = '';
+  }
+  pendingRegionGalleryImages = [];
+  renderPendingRegionImages();
 }
 
 function handleImageFileSelect(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const preview = document.getElementById('imagePreview');
-    preview.innerHTML = `
-      <div class="image-preview-item">
-        <img src="${e.target.result}" alt="Preview">
-        <div class="image-description">Vista previa</div>
-      </div>
-    `;
-  };
-  reader.readAsDataURL(file);
+  const input = event.target;
+  const files = Array.from(input.files || []);
+  if (!files.length) {
+    return;
+  }
+
+  const validImages = [];
+  let invalidFiles = 0;
+
+  files.forEach((file) => {
+    if (file && file.type && file.type.startsWith('image/')) {
+      validImages.push(file);
+    } else {
+      invalidFiles += 1;
+    }
+  });
+
+  validImages.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      pendingRegionGalleryImages.push({
+        file,
+        previewUrl: e.target.result,
+        description: '',
+      });
+      renderPendingRegionImages();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  if (invalidFiles > 0) {
+    showErrorMessage('Algunos archivos fueron descartados porque no son imágenes válidas.');
+  }
+
+  input.value = '';
 }
 
 async function addImageToRegion() {
@@ -1068,115 +1246,96 @@ async function addImageToRegion() {
     return;
   }
 
-  const fileInput = document.getElementById('imageFileInput');
-  const description = document.getElementById('imageDescription').value;
-  
-  if (!fileInput.files[0]) {
-    showErrorMessage('Por favor selecciona una imagen');
-    return;
-  }
-  
   if (!currentRegionId) {
     showErrorMessage('No hay región seleccionada');
     return;
   }
-  
-  const file = fileInput.files[0];
-  
-  // Validar que sea una imagen
-  if (!file.type || !file.type.startsWith('image/')) {
-    showErrorMessage('El archivo debe ser una imagen (JPG, PNG, GIF, etc.)');
+
+  if (!pendingRegionGalleryImages.length) {
+    showErrorMessage('Selecciona al menos una imagen antes de continuar.');
     return;
   }
-  
+
+  const csrfToken = getCookie('csrftoken');
+  if (!csrfToken) {
+    showErrorMessage('Error de autenticación. Por favor, recarga la página.');
+    return;
+  }
+
+  const confirmButton = document.getElementById('confirmImageBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
+
+  const imagesToUpload = [...pendingRegionGalleryImages];
+  let uploadedCount = 0;
+
   try {
-    // Crear FormData para enviar la imagen
-    const formData = new FormData();
-    formData.append('imagen', file);
-    if (description) {
-      formData.append('descripcion', description);
-    }
-    
-    // Obtener token CSRF
-    const csrfToken = getCookie('csrftoken');
-    if (!csrfToken) {
-      console.error('❌ No se encontró el token CSRF');
-      showErrorMessage('Error de autenticación. Por favor, recarga la página.');
-      return;
-    }
-    
-    console.log('📤 Enviando imagen al servidor...');
-    console.log('📋 ID de la región:', currentRegionId);
-    console.log('📎 Nombre del archivo:', file.name);
-    
-    // Llamar a la API
-    const response = await fetch(`/api/region/${currentRegionId}/galeria/agregar/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken
-      },
-      body: formData
-    });
-    
-    console.log('📥 Respuesta recibida:', response.status, response.statusText);
-    
-    // Verificar si la respuesta es JSON válido
-    const contentType = response.headers.get('content-type');
-    let result;
-    
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text();
-      console.error('❌ Respuesta no es JSON:', text.substring(0, 500));
-      showErrorMessage('Error del servidor. Por favor, intenta de nuevo.');
-      return;
-    }
-    
-    // Parsear JSON
-    try {
-      result = await response.json();
-    } catch (e) {
-      console.error('❌ Error al parsear JSON:', e);
-      showErrorMessage('Error al procesar la respuesta del servidor.');
-      return;
-    }
-    
-    if (!response.ok || !result.success) {
-      const errorMsg = result.error || 'Error al agregar la imagen';
-      console.error('❌ Error:', errorMsg);
-      showErrorMessage(errorMsg);
-      return;
-    }
-    
-    console.log('✅ Imagen agregada exitosamente:', result.imagen);
-    
-    // Agregar la imagen a la lista local
-    if (currentRegionData && currentRegionData.photos) {
-      currentRegionData.photos.push({
-        id: result.imagen.id,
-        url: result.imagen.url,
-        description: result.imagen.descripcion || 'Imagen de la región'
+    for (const item of imagesToUpload) {
+      const formData = new FormData();
+      formData.append('imagen', item.file);
+      formData.append('descripcion', (item.description || '').trim());
+
+      const response = await fetch(`/api/region/${currentRegionId}/galeria/agregar/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+        },
+        body: formData,
       });
-      
-      // Recargar la galería
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'No se pudo agregar la imagen');
+      }
+
+      uploadedCount += 1;
+
+      if (currentRegionData && Array.isArray(currentRegionData.photos)) {
+        currentRegionData.photos.push({
+          id: result.imagen?.id || null,
+          url: result.imagen?.url || '',
+          description: result.imagen?.descripcion || result.imagen?.description || 'Imagen de la región',
+        });
+      }
+    }
+
+    if (currentRegionData && Array.isArray(currentRegionData.photos)) {
       loadGalleryWithDeleteButtons(currentRegionData.photos);
     } else {
-      // Recargar el detalle completo desde la API
       await showRegionDetail(currentRegionId);
     }
-    
+
+    clearImageForm();
+    hideModal('addImageModal');
+
+    const successMessage = imagesToUpload.length === 1
+      ? 'Imagen agregada exitosamente'
+      : 'Imágenes agregadas exitosamente';
+    showSuccessMessage(successMessage);
+
     await loadFeaturedRegions();
     await loadRegionsFromAPI();
-
-    showSuccessMessage(result.message || 'Imagen agregada exitosamente');
-      hideModal('addImageModal');
-    clearImageForm();
-    
-    // Recargar la lista de regiones para actualizar la portada
-    await loadRegionsFromAPI();
-    
   } catch (error) {
     console.error('❌ Error al agregar imagen:', error);
-    showErrorMessage('Error al agregar la imagen. Por favor, intenta de nuevo.');
+    pendingRegionGalleryImages = imagesToUpload.slice(uploadedCount);
+    renderPendingRegionImages();
+
+    if (uploadedCount > 0) {
+      showErrorMessage(`${error.message || 'Ocurrió un problema al agregar las imágenes.'} Se subieron ${uploadedCount} imagen(es) antes del error.`);
+    } else {
+      showErrorMessage(error.message || 'No se pudieron agregar las imágenes.');
+    }
+  } finally {
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      if (originalLabel !== null) {
+        confirmButton.textContent = originalLabel;
+      }
+    }
   }
 }
 
@@ -1507,6 +1666,27 @@ document.addEventListener('DOMContentLoaded', function() {
       hideModal('addFileModal');
     });
   }
+
+  const confirmFileDescriptionBtn = document.getElementById('confirmFileDescriptionBtn');
+  if (confirmFileDescriptionBtn) {
+    confirmFileDescriptionBtn.addEventListener('click', updateRegionFileDescription);
+  }
+
+  const cancelFileDescriptionBtn = document.getElementById('cancelFileDescriptionBtn');
+  if (cancelFileDescriptionBtn) {
+    cancelFileDescriptionBtn.addEventListener('click', () => {
+      hideModal('editFileDescriptionModal');
+      currentRegionFileEdit = null;
+    });
+  }
+
+  const closeFileDescriptionModal = document.getElementById('closeFileDescriptionModal');
+  if (closeFileDescriptionModal) {
+    closeFileDescriptionModal.addEventListener('click', () => {
+      hideModal('editFileDescriptionModal');
+      currentRegionFileEdit = null;
+    });
+  }
   
   // Event listeners para modales de confirmación
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
@@ -1564,15 +1744,41 @@ async function executeDeleteAction() {
 
 // Función para eliminar imagen de la galería
 function removeImageFromRegion(imageIndex) {
+  if (!currentRegionData || !Array.isArray(currentRegionData.photos)) return;
+  const targetPhoto = currentRegionData.photos[imageIndex];
+  if (!targetPhoto || !targetPhoto.id) {
+    showErrorMessage('No se pudo identificar la imagen a eliminar.');
+    return;
+  }
+
+  const regionId = currentRegionId || currentRegionData.id;
+  if (!regionId) {
+    showErrorMessage('No se pudo identificar la región actual.');
+    return;
+  }
+
   showConfirmDeleteModal(
     '¿Estás seguro de que deseas eliminar esta imagen de la galería?',
     () => {
-      const currentRegion = getCurrentRegion();
-      if (currentRegion && currentRegion.photos) {
-        currentRegion.photos.splice(imageIndex, 1);
-        loadRegionDetail(currentRegion);
-        showSuccessMessage('Imagen eliminada exitosamente');
-      }
+      fetch(`/api/region/${regionId}/galeria/${targetPhoto.id}/eliminar/`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken') || '',
+        },
+      })
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'No se pudo eliminar la imagen');
+          }
+          currentRegionData.photos = currentRegionData.photos.filter((photo, idx) => idx !== imageIndex);
+          loadGalleryWithDeleteButtons(currentRegionData.photos);
+          showSuccessMessage(result.message || 'Imagen eliminada correctamente');
+        })
+        .catch((error) => {
+          console.error('Error al eliminar imagen de la región:', error);
+          showErrorMessage(error.message || 'No se pudo eliminar la imagen');
+        });
     }
   );
 }
@@ -1598,16 +1804,26 @@ function loadGalleryWithDeleteButtons(photos) {
   photos.forEach((photo, index) => {
     const imageItem = document.createElement('div');
     imageItem.className = 'gallery-item';
-    imageItem.innerHTML = `
-      <img src="${photo.url}" alt="${photo.description}" data-photo-url="${photo.url}">
-      <div class="image-description">${photo.description}</div>
+    const photoUrl = photo.url || '';
+    const encodedUrl = encodeURI(photoUrl);
+    const description = photo.description || 'Imagen de la región';
+    const controls = CAN_EDIT_REGIONS ? `
       <button class="btn-remove-item" data-image-index="${index}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
       </button>
+    ` : '';
+    imageItem.innerHTML = `
+      <img src="${encodedUrl}" alt="${escapeHtml(description)}" data-photo-index="${index}">
+      <div class="image-description">${escapeHtml(description)}</div>
+      ${controls}
     `;
+    const img = imageItem.querySelector('img');
+    if (img) {
+      img.addEventListener('click', () => openImageViewer(photoUrl, description));
+    }
     container.appendChild(imageItem);
   });
 }
@@ -1654,6 +1870,16 @@ document.addEventListener('click', function(e) {
     }
   }
 
+  const pendingImageRemoveButton = e.target.closest('.image-preview-remove');
+  if (pendingImageRemoveButton && pendingImageRemoveButton.hasAttribute('data-index')) {
+    const pendingIndex = parseInt(pendingImageRemoveButton.getAttribute('data-index'), 10);
+    if (!Number.isNaN(pendingIndex)) {
+      pendingRegionGalleryImages.splice(pendingIndex, 1);
+      renderPendingRegionImages();
+    }
+    return;
+  }
+
   const imageElement = e.target.closest('.gallery-item img');
   if (imageElement && imageElement.getAttribute('data-photo-url')) {
     const imageUrl = imageElement.getAttribute('data-photo-url');
@@ -1669,9 +1895,42 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  const fileEditButton = e.target.closest('.file-edit-btn');
+  if (fileEditButton && fileEditButton.dataset.fileId) {
+    const description = fileEditButton.dataset.fileDescription || '';
+    showEditFileDescriptionModal(
+      fileEditButton.dataset.fileId,
+      description ? decodeHTMLEntities(description) : ''
+    );
+    return;
+  }
+
   const previewRemoveButton = e.target.closest('.file-preview-remove[data-role="region-file-remove"]');
   if (previewRemoveButton) {
     e.preventDefault();
     clearFileForm();
   }
 });
+
+document.addEventListener('input', (event) => {
+  const descriptionInput = event.target.closest('.image-description-input');
+  if (!descriptionInput || !descriptionInput.hasAttribute('data-index')) {
+    return;
+  }
+
+  const index = parseInt(descriptionInput.getAttribute('data-index'), 10);
+  if (Number.isNaN(index) || !pendingRegionGalleryImages[index]) {
+    return;
+  }
+
+  pendingRegionGalleryImages[index].description = descriptionInput.value;
+});
+
+function decodeHTMLEntities(html) {
+  if (!html) {
+    return '';
+  }
+  const txt = document.createElement('textarea');
+  txt.innerHTML = html;
+  return txt.value;
+}

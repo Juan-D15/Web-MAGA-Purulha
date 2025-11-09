@@ -560,102 +560,213 @@ function renderizarUltimosProyectos(proyectos) {
 
   console.log('📊 Cantidad de proyectos:', proyectos ? proyectos.length : 0);
 
-  
+  featuredProjectsData = Array.isArray(proyectos)
+    ? proyectos.map(normalizeProjectForFeatured).filter(Boolean)
+    : [];
 
-  // Buscar el contenedor de últimos proyectos
-
-  const featuredGrid = document.querySelector('.latest-projects .projects-grid.featured');
-
-  
-
-  if (!featuredGrid) {
-
-    console.error('❌ No se encontró el grid de últimos proyectos');
-
-    return;
-
+  if (featuredProjectsData.length > 1) {
+    const uniqueProjects = [];
+    const seenIds = new Set();
+    featuredProjectsData.forEach((project) => {
+      if (!seenIds.has(project.id)) {
+        seenIds.add(project.id);
+        uniqueProjects.push(project);
+      }
+    });
+    featuredProjectsData = uniqueProjects;
   }
 
-  
+  renderFeaturedProjectsGrid();
 
-  console.log('✅ Grid encontrado:', featuredGrid);
+}
 
-  
 
-  // Limpiar contenido existente
+function renderFeaturedProjectsGrid() {
+  const featuredGrid = document.querySelector('.latest-projects .projects-grid.featured');
+
+  if (!featuredGrid) {
+    console.error('❌ No se encontró el grid de últimos proyectos');
+    return;
+  }
 
   featuredGrid.innerHTML = '';
 
-  
-
-  // Si no hay proyectos, mostrar mensaje
-
-  if (!proyectos || proyectos.length === 0) {
-
+  if (!featuredProjectsData.length) {
     console.warn('⚠️ No hay proyectos para renderizar');
-
     featuredGrid.innerHTML = `
-
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">
-
         <p>No hay proyectos recientes aún.</p>
-
       </div>
-
     `;
-
     return;
-
   }
 
-  
+  const projectsToRender = featuredProjectsData.slice(0, FEATURED_PROJECTS_LIMIT);
 
-  // Renderizar cada proyecto (máximo 2)
-
-  proyectos.forEach((proyecto, index) => {
-
+  projectsToRender.forEach((proyecto, index) => {
     try {
-
-      console.log(`🔄 Renderizando proyecto ${index + 1}:`, proyecto.nombre);
-
-    const card = crearTarjetaProyectoDestacado(proyecto);
-
+      console.log(`🔄 Renderizando proyecto destacado ${index + 1}:`, proyecto.nombre);
+      const card = crearTarjetaProyectoDestacado(proyecto);
       if (!card) {
-
         console.error(`❌ No se pudo crear la tarjeta para el proyecto ${index + 1}`);
-
         return;
-
       }
 
-    const imagenDestacada = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal;
+      const imagenDestacada =
+        (proyecto.portada && proyecto.portada.url) ||
+        proyecto.imagen_principal ||
+        null;
 
-    const imgTag = card.querySelector('img');
+      const imgTag = card.querySelector('img');
+      if (imgTag && imagenDestacada) {
+        imgTag.src = imagenDestacada;
+      }
 
-    if (imgTag && imagenDestacada) {
-
-      imgTag.src = imagenDestacada;
-
-    }
-
-    featuredGrid.appendChild(card);
-
-      console.log(`✅ Proyecto ${index + 1} agregado al DOM`);
-
+      featuredGrid.appendChild(card);
+      console.log(`✅ Proyecto destacado ${index + 1} agregado al DOM`);
     } catch (error) {
-
-      console.error(`❌ Error al renderizar proyecto ${index + 1}:`, error);
-
+      console.error(`❌ Error al renderizar proyecto destacado ${index + 1}:`, error);
       console.error('Stack trace:', error.stack);
-
     }
-
   });
 
-  
+  console.log(`✅ Renderizados ${projectsToRender.length} últimos proyectos`);
+}
 
-  console.log(`✅ Renderizados ${proyectos.length} últimos proyectos`);
 
+function normalizeProjectForFeatured(proyecto) {
+  if (!proyecto) {
+    return null;
+  }
+
+  const projectId = proyecto.id || proyecto.uuid || proyecto.pk;
+  if (!projectId) {
+    return null;
+  }
+
+  const nombre = proyecto.nombre || proyecto.name || 'Sin nombre';
+
+  let ubicacion = proyecto.ubicacion || proyecto.location || '';
+  if (!ubicacion) {
+    const comunidadNombre =
+      (proyecto.comunidad && (proyecto.comunidad.nombre || proyecto.comunidad.name)) ||
+      proyecto.comunidad_nombre ||
+      proyecto.community_name ||
+      '';
+    const regionNombre =
+      (proyecto.comunidad &&
+        proyecto.comunidad.region &&
+        (proyecto.comunidad.region.nombre || proyecto.comunidad.region.name)) ||
+      proyecto.region_nombre ||
+      proyecto.region ||
+      '';
+    if (comunidadNombre && regionNombre) {
+      ubicacion = `${comunidadNombre}, ${regionNombre}`;
+    } else if (comunidadNombre) {
+      ubicacion = comunidadNombre;
+    } else if (regionNombre) {
+      ubicacion = regionNombre;
+    }
+  }
+
+  const fecha =
+    proyecto.fecha ||
+    proyecto.fecha_evento ||
+    proyecto.fecha_inicio ||
+    proyecto.createdDate ||
+    proyecto.creado_en ||
+    proyecto.actualizado_en ||
+    '';
+
+  const fechaDisplay =
+    proyecto.fecha_display ||
+    proyecto.fecha_formatted ||
+    proyecto.fecha_formateada ||
+    proyecto.fecha_formato ||
+    proyecto.actualizado_en_formatted ||
+    proyecto.creado_en_formatted ||
+    fecha;
+
+  let portada = null;
+  const portadaFuente = proyecto.portada || proyecto.portada_url || proyecto.coverImage;
+  if (typeof portadaFuente === 'string') {
+    portada = { url: portadaFuente };
+  } else if (portadaFuente && typeof portadaFuente === 'object') {
+    const portadaUrl =
+      portadaFuente.url ||
+      portadaFuente.imagen_url ||
+      portadaFuente.image_url ||
+      portadaFuente.archivo_url ||
+      portadaFuente.path ||
+      null;
+    if (portadaUrl) {
+      portada = { url: portadaUrl };
+    }
+  }
+
+  let imagenPrincipal = proyecto.imagen_principal || proyecto.imagenPrincipal || null;
+  if (!imagenPrincipal && portada && portada.url) {
+    imagenPrincipal = portada.url;
+  }
+
+  if (!imagenPrincipal && Array.isArray(proyecto.evidencias)) {
+    const primeraImagen = proyecto.evidencias.find((item) => {
+      if (!item) return false;
+      if (item.es_imagen) return true;
+      const tipoArchivo = item.archivo_tipo || item.tipo;
+      if (tipoArchivo && typeof tipoArchivo === 'string') {
+        return tipoArchivo.startsWith('image/');
+      }
+      return Boolean(item.url || item.url_almacenamiento || item.imagen_url);
+    });
+
+    if (primeraImagen) {
+      imagenPrincipal =
+        primeraImagen.url ||
+        primeraImagen.url_almacenamiento ||
+        primeraImagen.imagen_url ||
+        primeraImagen.archivo_url ||
+        null;
+    }
+  }
+
+  return {
+    ...proyecto,
+    id: String(projectId),
+    nombre,
+    ubicacion: ubicacion || 'Sin ubicación',
+    fecha,
+    fecha_display: fechaDisplay || fecha,
+    imagen_principal: imagenPrincipal,
+    portada,
+  };
+}
+
+
+function promoteProjectToFeatured(proyecto) {
+  const normalized = normalizeProjectForFeatured(proyecto);
+  if (!normalized) {
+    return;
+  }
+
+  featuredProjectsData = featuredProjectsData.filter((item) => item.id !== normalized.id);
+  featuredProjectsData.unshift(normalized);
+
+  if (FEATURED_PROJECTS_LIMIT && featuredProjectsData.length > FEATURED_PROJECTS_LIMIT) {
+    featuredProjectsData = featuredProjectsData.slice(0, FEATURED_PROJECTS_LIMIT);
+  }
+
+  renderFeaturedProjectsGrid();
+}
+
+
+async function refreshLatestProjectsFromServer() {
+  try {
+    const ultimosProyectos = await cargarUltimosProyectos();
+    renderizarUltimosProyectos(ultimosProyectos);
+  } catch (error) {
+    console.error('❌ Error al refrescar los últimos proyectos:', error);
+  }
 }
 
 
@@ -836,6 +947,13 @@ async function loadProjectDetails(projectId) {
 
       mostrarDetalleProyecto(proyecto);
 
+      if (shouldRefreshLatestProjects) {
+        shouldRefreshLatestProjects = false;
+        promoteProjectToFeatured(proyecto);
+      }
+
+      return proyecto;
+
     } else {
 
       console.error('❌ Error al cargar proyecto:', data.error);
@@ -851,6 +969,9 @@ async function loadProjectDetails(projectId) {
     alert('Error al cargar el proyecto. Por favor, intenta de nuevo.');
 
   }
+
+  shouldRefreshLatestProjects = false;
+  return null;
 
 }
 
@@ -1030,98 +1151,13 @@ function mostrarDetalleProyecto(proyecto) {
 
   const detailGallery = document.getElementById('detailGallery');
 
-  if (detailGallery && proyecto.evidencias) {
-
-    const imagenes = proyecto.evidencias.filter(e => e.es_imagen);
-
-    
-
-    // Verificar si el usuario tiene permisos (admin o personal)
-
+  if (detailGallery) {
     const puedeGestionar = puedeGestionarGaleria();
-
-    
-
-    if (imagenes.length === 0) {
-
-      detailGallery.innerHTML = '<p style="color: #6c757d; grid-column: 1 / -1;">No hay imágenes disponibles.</p>';
-
-    } else {
-
-      detailGallery.innerHTML = imagenes.map(img => `
-
-        <div class="gallery-item" style="position: relative; border-radius: 12px; overflow: hidden; width: 100%; max-width: 300px; height: 200px; background: rgba(255,255,255,0.05);">
-
-          <img src="${img.url}" alt="${img.nombre || img.archivo_nombre || 'Imagen'}" data-image-url="${img.url}" data-image-description="${img.descripcion || ''}" style="width: 100%; height: 100%; object-fit: cover; cursor: pointer;" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
-
-          ${img.descripcion ? `<div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 8px; color: white; font-size: 0.85rem;">${img.descripcion}</div>` : ''}
-
-          ${puedeGestionar ? `<button class="btn-remove-item" data-imagen-id="${img.id}" style="position: absolute; top: 8px; right: 8px; background: rgba(220, 53, 69, 0.9); color: white; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; transition: background 0.2s;" title="Eliminar imagen" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
-
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-
-            </svg>
-
-          </button>` : ''}
-
-        </div>
-
-      `).join('');
-
-      
-
-      // Agregar event listeners a las imágenes para mostrar en modal (todos los usuarios)
-
-      detailGallery.querySelectorAll('img[data-image-url]').forEach(imgElement => {
-
-        imgElement.addEventListener('click', function(e) {
-
-          // Evitar abrir el modal si se hizo clic en el botón de eliminar
-
-          if (e.target.closest('.btn-remove-item')) {
-
-            return;
-
-          }
-
-          const imageUrl = this.getAttribute('data-image-url');
-
-          const imageDescription = this.getAttribute('data-image-description') || '';
-
-          showImageViewModal(imageUrl, imageDescription);
-
-        });
-
-      });
-
-      
-
-      // Agregar event listeners a los botones de eliminar solo si el usuario tiene permisos
-
-      if (puedeGestionar) {
-
-        detailGallery.querySelectorAll('[data-imagen-id]').forEach(btn => {
-
-          btn.addEventListener('click', async function(e) {
-
-            e.stopPropagation();
-
-            const imagenId = this.getAttribute('data-imagen-id');
-
-            await eliminarImagenGaleria(imagenId);
-
-          });
-
-        });
-
-      }
-
-    }
-
+    const imagenes = Array.isArray(proyecto.evidencias)
+      ? proyecto.evidencias.filter(e => e.es_imagen)
+      : [];
+    currentProjectGalleryPage = 0;
+    renderProjectGalleryImages(imagenes, puedeGestionar);
   }
 
   
@@ -1303,6 +1339,9 @@ function mostrarDetalleProyecto(proyecto) {
         const tamanioTexto = archivo.tamanio ? formatFileSize(archivo.tamanio) : '';
 
         const puedeEliminar = puedeGestionar && !archivo.es_evidencia; // Solo se pueden eliminar archivos que NO sean evidencias Y si tiene permisos
+        const puedeEditar = puedeGestionar && !archivo.es_evidencia;
+        const descripcionVisible = archivo.descripcion ? escapeHtml(archivo.descripcion) : '';
+        const descripcionEncoded = archivo.descripcion ? encodeURIComponent(archivo.descripcion) : '';
 
         
 
@@ -1334,7 +1373,7 @@ function mostrarDetalleProyecto(proyecto) {
 
               </h4>
 
-              ${archivo.descripcion ? `<p style="margin: 0 0 4px 0; color: #b8c5d1; font-size: 0.85rem;">${archivo.descripcion}</p>` : ''}
+              ${archivo.descripcion ? `<p style="margin: 0 0 4px 0; color: #b8c5d1; font-size: 0.85rem;">${descripcionVisible}</p>` : ''}
 
               <div style="display: flex; gap: 12px; align-items: center; font-size: 0.8rem; color: #6c757d;">
 
@@ -1346,23 +1385,36 @@ function mostrarDetalleProyecto(proyecto) {
 
             </div>
 
-            ${puedeEliminar ? `
-
-              <button class="btn-danger btn-cover-remove" data-archivo-id="${archivo.id}" title="Eliminar archivo">
-
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-                  <polyline points="3 6 5 6 21 6"></polyline>
-
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-
-                </svg>
-
-                Eliminar
-
-              </button>
-
-            ` : ''}
+          ${puedeGestionar ? `
+          <div class="file-actions">
+            <a class="file-download-btn" href="${archivo.url}" target="_blank" rel="noopener noreferrer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7,10 12,15 17,10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Descargar
+            </a>
+              ${puedeEditar ? `
+                <button class="file-edit-btn" data-edit-archivo-id="${archivo.id}" data-archivo-descripcion="${descripcionEncoded}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                  </svg>
+                  Editar
+                </button>
+              ` : ''}
+              ${puedeEliminar ? `
+                <button class="btn-danger btn-cover-remove" data-archivo-id="${archivo.id}" data-file-id="${archivo.id}" title="Eliminar archivo">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Eliminar
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
 
           </div>
 
@@ -1372,9 +1424,21 @@ function mostrarDetalleProyecto(proyecto) {
 
       
 
-      // Agregar event listeners a los botones de eliminar solo si el usuario tiene permisos
+      // Agregar event listeners a los botones de editar/eliminar solo si el usuario tiene permisos
 
       if (puedeGestionar) {
+
+        detailFiles.querySelectorAll('[data-edit-archivo-id]').forEach(btn => {
+
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            const archivoId = this.getAttribute('data-edit-archivo-id');
+            const descripcion = this.getAttribute('data-archivo-descripcion');
+            const decoded = descripcion ? decodeURIComponent(descripcion) : '';
+            showEditProjectFileDescriptionModal(archivoId, decoded);
+          });
+
+        });
 
         detailFiles.querySelectorAll('[data-archivo-id]').forEach(btn => {
 
@@ -2566,7 +2630,55 @@ let currentProjectId = null;
 
 let pendingAction = null; // Para almacenar la acción pendiente después de verificar credenciales
 
+let pendingProjectGalleryImages = [];
+let currentProjectGalleryImages = [];
+let currentProjectGalleryPage = 0;
+let currentProjectGalleryCanManage = false;
+const PROJECT_GALLERY_PAGE_SIZE = 3;
+const FEATURED_PROJECTS_LIMIT = 3;
+let featuredProjectsData = [];
+let shouldRefreshLatestProjects = false;
 
+let currentProjectFileEdit = null;
+
+function getGuatemalaDateParts(sourceDate = new Date()) {
+  const baseFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Guatemala',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = baseFormatter.formatToParts(sourceDate);
+  const getValue = (type) => {
+    const part = parts.find((item) => item.type === type);
+    return part ? part.value : '';
+  };
+
+  const year = getValue('year');
+  const month = getValue('month');
+  const day = getValue('day');
+  const hour = getValue('hour');
+  const minute = getValue('minute');
+
+  const formatted = new Intl.DateTimeFormat('es-GT', {
+    timeZone: 'America/Guatemala',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(sourceDate);
+
+  return {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    formatted,
+  };
+}
 
 // Variable para almacenar archivos de evidencias seleccionados en el modal de cambios
 
@@ -3759,95 +3871,263 @@ function showAddImageModal() {
 // Función para limpiar formulario de imagen
 
 function clearImageForm() {
-
   const fileInput = document.getElementById('imageFileInput');
-
-  const descriptionInput = document.getElementById('imageDescription');
-
-  const imagePreview = document.getElementById('imagePreview');
-
-  
-
-  if (fileInput) fileInput.value = '';
-
-  if (descriptionInput) descriptionInput.value = '';
-
-  if (imagePreview) {
-
-    imagePreview.innerHTML = '';
-
-    imagePreview.style.display = 'none';
-
+  if (fileInput) {
+    fileInput.value = '';
   }
-
+  pendingProjectGalleryImages = [];
+  renderPendingProjectImages();
 }
 
+function renderPendingProjectImages() {
+  const previewContainer = document.getElementById('imagePreview');
+  if (!previewContainer) {
+    return;
+  }
+
+  previewContainer.innerHTML = '';
+
+  if (!pendingProjectGalleryImages.length) {
+    const emptyState = document.createElement('div');
+    emptyState.className = 'image-preview-empty';
+    emptyState.textContent = 'No has seleccionado imágenes.';
+    previewContainer.appendChild(emptyState);
+    return;
+  }
+
+  pendingProjectGalleryImages.forEach((item, index) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-preview-item';
+    wrapper.dataset.index = index;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'image-preview-remove';
+    removeBtn.dataset.index = index;
+    removeBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    `;
+
+    removeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetIndex = parseInt(removeBtn.dataset.index || '', 10);
+      if (!Number.isNaN(targetIndex)) {
+        pendingProjectGalleryImages.splice(targetIndex, 1);
+        renderPendingProjectImages();
+      }
+    });
+
+    const img = document.createElement('img');
+    img.src = item.previewUrl || '';
+    img.alt = 'Vista previa de la imagen seleccionada';
+    img.style.pointerEvents = 'none';
+
+    const descriptionWrapper = document.createElement('div');
+    descriptionWrapper.className = 'image-preview-description';
+
+    const descriptionInput = document.createElement('textarea');
+    descriptionInput.className = 'image-description-input';
+    descriptionInput.dataset.index = index;
+    descriptionInput.placeholder = 'Agrega una descripción...';
+    descriptionInput.rows = 2;
+    descriptionInput.value = item.description || '';
+
+    descriptionInput.addEventListener('input', () => {
+      const targetIndex = parseInt(descriptionInput.dataset.index || '', 10);
+      if (!Number.isNaN(targetIndex) && pendingProjectGalleryImages[targetIndex]) {
+        pendingProjectGalleryImages[targetIndex].description = descriptionInput.value;
+      }
+    });
+
+    descriptionWrapper.appendChild(descriptionInput);
+
+    wrapper.appendChild(removeBtn);
+    wrapper.appendChild(img);
+    wrapper.appendChild(descriptionWrapper);
+    previewContainer.appendChild(wrapper);
+  });
+}
+
+
+function escapeHtml(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+
+function renderProjectGalleryImages(images, puedeGestionar) {
+  currentProjectGalleryImages = Array.isArray(images) ? images : [];
+  currentProjectGalleryCanManage = !!puedeGestionar;
+
+  const totalPages = Math.ceil(currentProjectGalleryImages.length / PROJECT_GALLERY_PAGE_SIZE);
+  if (totalPages === 0) {
+    currentProjectGalleryPage = 0;
+  } else if (currentProjectGalleryPage >= totalPages) {
+    currentProjectGalleryPage = totalPages - 1;
+  } else if (currentProjectGalleryPage < 0) {
+    currentProjectGalleryPage = 0;
+  }
+
+  renderProjectGalleryPage();
+}
+
+
+function renderProjectGalleryPage() {
+  const detailGallery = document.getElementById('detailGallery');
+
+  if (!detailGallery) {
+    return;
+  }
+
+  if (!currentProjectGalleryImages.length) {
+    detailGallery.innerHTML = '<p class="gallery-empty-state">No hay imágenes disponibles.</p>';
+    return;
+  }
+
+  const totalPages = Math.ceil(currentProjectGalleryImages.length / PROJECT_GALLERY_PAGE_SIZE);
+  if (totalPages === 0) {
+    currentProjectGalleryPage = 0;
+  } else if (currentProjectGalleryPage >= totalPages) {
+    currentProjectGalleryPage = totalPages - 1;
+  } else if (currentProjectGalleryPage < 0) {
+    currentProjectGalleryPage = 0;
+  }
+
+  const startIndex = currentProjectGalleryPage * PROJECT_GALLERY_PAGE_SIZE;
+  const visibleImages = currentProjectGalleryImages.slice(startIndex, startIndex + PROJECT_GALLERY_PAGE_SIZE);
+
+  const itemsHtml = visibleImages.map((img) => {
+    const descriptionText = escapeHtml(img.descripcion || '');
+    const descriptionHtml = descriptionText
+      ? `<div class="gallery-item-description">${descriptionText}</div>`
+      : '';
+    const removeButton = currentProjectGalleryCanManage
+      ? `<button class="btn-remove-item" data-imagen-id="${img.id}" title="Eliminar imagen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+         </button>`
+      : '';
+
+    const imageDescriptionAttr = escapeHtml(img.descripcion || '');
+
+    return `
+      <div class="gallery-item">
+        ${removeButton}
+        <img src="${img.url}" alt="${escapeHtml(img.nombre || img.archivo_nombre || 'Imagen')}" data-image-url="${img.url}" data-image-description="${imageDescriptionAttr}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+        ${descriptionHtml}
+      </div>
+    `;
+  }).join('');
+
+  const navHtml = totalPages > 1
+    ? `<div class="project-gallery-nav">
+        <button class="project-gallery-nav-btn" data-gallery-direction="prev" ${currentProjectGalleryPage === 0 ? 'disabled' : ''} aria-label="Ver imágenes anteriores">▲</button>
+        <button class="project-gallery-nav-btn" data-gallery-direction="next" ${currentProjectGalleryPage >= totalPages - 1 ? 'disabled' : ''} aria-label="Ver imágenes siguientes">▼</button>
+      </div>`
+    : '';
+
+  detailGallery.innerHTML = `
+    <div class="project-gallery-wrapper">
+      <div class="gallery-items-wrapper">
+        ${itemsHtml}
+      </div>
+      ${navHtml}
+    </div>
+  `;
+
+  detailGallery.querySelectorAll('img[data-image-url]').forEach((imgElement) => {
+    imgElement.addEventListener('click', function (e) {
+      if (e.target.closest('.btn-remove-item')) {
+        return;
+      }
+      const imageUrl = this.getAttribute('data-image-url');
+      const imageDescription = this.getAttribute('data-image-description') || '';
+      showImageViewModal(imageUrl, imageDescription);
+    });
+  });
+
+  if (currentProjectGalleryCanManage) {
+    detailGallery.querySelectorAll('[data-imagen-id]').forEach((btn) => {
+      btn.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        const imagenId = this.getAttribute('data-imagen-id');
+        await eliminarImagenGaleria(imagenId);
+      });
+    });
+  }
+}
+
+document.addEventListener('click', (event) => {
+  const navBtn = event.target.closest('.project-gallery-nav-btn');
+  if (!navBtn) {
+    return;
+  }
+
+  if (!currentProjectGalleryImages.length) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const direction = navBtn.getAttribute('data-gallery-direction');
+  const totalPages = Math.ceil(currentProjectGalleryImages.length / PROJECT_GALLERY_PAGE_SIZE);
+
+  if (direction === 'prev' && currentProjectGalleryPage > 0) {
+    currentProjectGalleryPage -= 1;
+    renderProjectGalleryPage();
+  } else if (direction === 'next' && currentProjectGalleryPage < totalPages - 1) {
+    currentProjectGalleryPage += 1;
+    renderProjectGalleryPage();
+  }
+});
 
 
 // Función para manejar selección de imagen
 
 function handleImageSelect(event) {
+  const input = event.target;
+  const files = Array.from(input.files || []);
 
-  const file = event.target.files[0];
-
-  const imagePreview = document.getElementById('imagePreview');
-
-  
-
-  if (!file) {
-
-    if (imagePreview) {
-
-      imagePreview.innerHTML = '';
-
-      imagePreview.style.display = 'none';
-
-    }
-
+  if (!files.length) {
     return;
-
   }
 
-  
+  let invalidFiles = 0;
 
-  // Validar que sea una imagen
-
-  if (!file.type || !file.type.startsWith('image/')) {
-
-    showErrorMessage('El archivo debe ser una imagen (JPG, PNG, GIF, etc.)');
-
-    event.target.value = '';
-
-    if (imagePreview) {
-
-      imagePreview.innerHTML = '';
-
-      imagePreview.style.display = 'none';
-
+  files.forEach((file) => {
+    if (file && file.type && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        pendingProjectGalleryImages.push({
+          file,
+          previewUrl: e.target && e.target.result ? e.target.result : '',
+          description: '',
+        });
+        renderPendingProjectImages();
+      };
+      reader.readAsDataURL(file);
+    } else {
+      invalidFiles += 1;
     }
+  });
 
-    return;
-
+  if (invalidFiles > 0) {
+    showErrorMessage('Algunos archivos fueron descartados porque no son imágenes válidas.');
   }
 
-  
-
-  if (imagePreview) {
-
-    const reader = new FileReader();
-
-    reader.onload = function(e) {
-
-      imagePreview.innerHTML = `<img src="${e.target.result}" alt="Vista previa" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 10px;">`;
-
-      imagePreview.style.display = 'block';
-
-    };
-
-    reader.readAsDataURL(file);
-
-  }
-
+  input.value = '';
 }
 
 
@@ -3856,9 +4136,13 @@ function handleImageSelect(event) {
 
 async function addImageToProject() {
 
-  const fileInput = document.getElementById('imageFileInput');
+  if (!pendingProjectGalleryImages.length) {
 
-  const description = document.getElementById('imageDescription').value.trim();
+    showErrorMessage('Selecciona al menos una imagen antes de continuar.');
+
+    return;
+
+  }
 
   
 
@@ -3866,21 +4150,13 @@ async function addImageToProject() {
 
   let currentProject = getCurrentProject();
 
-  
-
-  // Si no se pudo obtener, intentar obtenerlo desde el URL o desde la vista actual
-
   if (!currentProject || !currentProject.id) {
-
-    // Intentar obtener el ID del evento desde el URL o desde elementos del DOM
 
     const detailTitle = document.getElementById('detailTitle');
 
     if (detailTitle && detailTitle.dataset.projectId) {
 
       const projectId = detailTitle.dataset.projectId;
-
-      console.log('📌 Obteniendo ID del proyecto desde dataset:', projectId);
 
       try {
 
@@ -3906,13 +4182,7 @@ async function addImageToProject() {
 
     }
 
-    
-
-    // Si aún no tenemos el proyecto, mostrar error
-
     if (!currentProject || !currentProject.id) {
-
-      console.error('❌ No se pudo obtener el proyecto actual:', currentProject);
 
       alert('Error: No se pudo obtener la información del evento. Por favor, recarga la página.');
 
@@ -3922,183 +4192,104 @@ async function addImageToProject() {
 
   }
 
-  
+  const csrfToken = getCookie('csrftoken');
 
-  console.log('📸 Agregando imagen al proyecto:', currentProject.id);
+  if (!csrfToken) {
 
-  
-
-  if (!fileInput.files[0]) {
-
-    showErrorMessage('Por favor selecciona una imagen');
+    showErrorMessage('Error de autenticación. Por favor, recarga la página.');
 
     return;
 
   }
 
-  
+  const confirmButton = document.getElementById('confirmImageBtn');
 
-  // Validar que sea una imagen
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
 
-  const file = fileInput.files[0];
+  if (confirmButton) {
 
-  if (!file.type || !file.type.startsWith('image/')) {
+    confirmButton.disabled = true;
 
-    showErrorMessage('El archivo debe ser una imagen (JPG, PNG, GIF, etc.)');
-
-    return;
+    confirmButton.textContent = 'Guardando...';
 
   }
 
-  
+  const imagesToUpload = [...pendingProjectGalleryImages];
+
+  let uploadedCount = 0;
 
   try {
 
-    // Crear FormData para enviar la imagen
+    for (const item of imagesToUpload) {
 
-    const formData = new FormData();
+      const formData = new FormData();
 
-    formData.append('imagen', file);
+      formData.append('imagen', item.file);
 
-    if (description) {
+      formData.append('descripcion', (item.description || '').trim());
 
-      formData.append('descripcion', description);
+      const response = await fetch(`/api/evento/${currentProject.id}/galeria/agregar/`, {
 
-    }
+        method: 'POST',
 
-    
+        headers: {
 
-    // Obtener token CSRF
+          'X-CSRFToken': csrfToken,
 
-    const csrfToken = getCookie('csrftoken');
+        },
 
-    if (!csrfToken) {
+        body: formData,
 
-      console.error('❌ No se encontró el token CSRF');
+      });
 
-      showErrorMessage('Error de autenticación. Por favor, recarga la página.');
+      const result = await response.json();
 
-      return;
+      if (!response.ok || !result.success) {
 
-    }
+        throw new Error(result.error || 'No se pudo agregar la imagen');
 
-    
+      }
 
-    console.log('📤 Enviando imagen al servidor...');
-
-    console.log('📋 ID del evento:', currentProject.id);
-
-    console.log('📎 Nombre del archivo:', file.name);
-
-    console.log('📏 Tamaño del archivo:', file.size);
-
-    
-
-    // Llamar a la API
-
-    const response = await fetch(`/api/evento/${currentProject.id}/galeria/agregar/`, {
-
-      method: 'POST',
-
-      headers: {
-
-        'X-CSRFToken': csrfToken
-
-      },
-
-      body: formData
-
-    });
-
-    
-
-    console.log('📥 Respuesta recibida:', response.status, response.statusText);
-
-    
-
-    // Verificar si la respuesta es JSON válido
-
-    const contentType = response.headers.get('content-type');
-
-    let result;
-
-    
-
-    if (!contentType || !contentType.includes('application/json')) {
-
-      const text = await response.text();
-
-      console.error('❌ Respuesta no es JSON:', text.substring(0, 500));
-
-      showErrorMessage('Error del servidor. Por favor, intenta de nuevo.');
-
-      return;
+      uploadedCount += 1;
 
     }
 
-    
+    clearImageForm();
 
-    // Parsear JSON
+    hideModal('addImageModal');
 
-    try {
+    shouldRefreshLatestProjects = true;
+    await loadProjectDetails(currentProject.id);
 
-      result = await response.json();
-
-      console.log('📦 Resultado:', result);
-
-    } catch (jsonError) {
-
-      console.error('❌ Error al parsear JSON:', jsonError);
-
-      showErrorMessage('Error al procesar la respuesta del servidor. Por favor, intenta de nuevo.');
-
-      return;
-
-    }
-
-    
-
-    if (!response.ok) {
-
-      console.error('❌ Error en la respuesta:', result);
-
-      showErrorMessage(result.error || `Error ${response.status}: ${response.statusText}`);
-
-      return;
-
-    }
-
-    
-
-    if (result.success) {
-
-      console.log('✅ Imagen agregada exitosamente');
-
-      // Recargar los detalles del proyecto para mostrar la nueva imagen
-
-      await loadProjectDetails(currentProject.id);
-
-      hideModal('addImageModal');
-
-      clearImageForm();
-
-      showSuccessMessage('Imagen agregada exitosamente a la galería.');
-
-    } else {
-
-      console.error('❌ Error en resultado:', result.error);
-
-      showErrorMessage(result.error || 'Error al agregar imagen.');
-
-    }
-
-    
+    showSuccessMessage(uploadedCount === 1 ? 'Imagen agregada exitosamente' : 'Imágenes agregadas exitosamente');
 
   } catch (error) {
 
     console.error('❌ Error al agregar imagen:', error);
 
-    showErrorMessage('Error al agregar imagen. Por favor, intenta de nuevo.');
+    pendingProjectGalleryImages = imagesToUpload.slice(uploadedCount);
+
+    renderPendingProjectImages();
+
+    if (uploadedCount > 0) {
+
+      showErrorMessage((error.message || 'Ocurrió un problema al agregar las imágenes.') + ' Se subieron ' + uploadedCount + ' imagen(es) antes del error.');
+
+    } else {
+
+      showErrorMessage(error.message || 'No se pudieron agregar las imágenes.');
+
+    }
+
+  } finally {
+
+    if (confirmButton) {
+
+      confirmButton.disabled = false;
+
+      confirmButton.textContent = originalLabel || 'Agregar';
+
+    }
 
   }
 
@@ -4210,6 +4401,7 @@ async function eliminarImagenGaleria(imagenId) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert('Imagen eliminada exitosamente de la galería.');
@@ -4344,6 +4536,7 @@ async function updateProjectDescription() {
 
       // Recargar los detalles del proyecto para mostrar la descripción actualizada
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       hideModal('editDescriptionModal');
@@ -5504,6 +5697,7 @@ async function addPersonnelToProject() {
 
       // Recargar los detalles del evento
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
@@ -5590,10 +5784,84 @@ function showAddChangeModal() {
 let editingCambioId = null;
 
 
+function resetChangeCurrentTimeControls() {
+  const checkbox = document.getElementById('changeUseCurrentTime');
+  const dateInput = document.getElementById('changeDate');
+  const timeInput = document.getElementById('changeTime');
+  const helper = document.getElementById('changeUseCurrentTimeHelper');
+
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+
+  if (dateInput) {
+    dateInput.disabled = false;
+    delete dateInput.dataset.prevValue;
+  }
+
+  if (timeInput) {
+    timeInput.disabled = false;
+    delete timeInput.dataset.prevValue;
+  }
+
+  if (helper) {
+    helper.style.display = 'none';
+  }
+}
+
+
+function toggleChangeUseCurrentTime(isChecked) {
+  const dateInput = document.getElementById('changeDate');
+  const timeInput = document.getElementById('changeTime');
+  const helper = document.getElementById('changeUseCurrentTimeHelper');
+
+  if (!dateInput || !timeInput) {
+    return;
+  }
+
+  if (isChecked) {
+    dateInput.dataset.prevValue = dateInput.value || '';
+    timeInput.dataset.prevValue = timeInput.value || '';
+
+    const guatemalaNow = getGuatemalaDateParts();
+
+    dateInput.value = `${guatemalaNow.year}-${guatemalaNow.month}-${guatemalaNow.day}`;
+    timeInput.value = `${guatemalaNow.hour}:${guatemalaNow.minute}`;
+
+    dateInput.disabled = true;
+    timeInput.disabled = true;
+
+    if (helper) {
+      helper.textContent = `Se registrará la fecha y hora actuales al guardar (${guatemalaNow.formatted}).`;
+      helper.style.display = 'block';
+    }
+  } else {
+    dateInput.disabled = false;
+    timeInput.disabled = false;
+
+    if (dateInput.dataset.prevValue !== undefined) {
+      dateInput.value = dateInput.dataset.prevValue;
+    }
+
+    if (timeInput.dataset.prevValue !== undefined) {
+      timeInput.value = timeInput.dataset.prevValue;
+    }
+
+    delete dateInput.dataset.prevValue;
+    delete timeInput.dataset.prevValue;
+
+    if (helper) {
+      helper.style.display = 'none';
+    }
+  }
+}
+
 
 // Función para limpiar formulario de cambio
 
 function clearChangeForm() {
+
+  resetChangeCurrentTimeControls();
 
   document.getElementById('changeDescription').value = '';
 
@@ -5691,6 +5959,7 @@ async function eliminarCambio(cambioId) {
 
       hideModal('confirmDeleteModal');
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
     } else {
@@ -5726,6 +5995,8 @@ function editarCambio(cambioId, cambio) {
   
 
   editingCambioId = cambioId;
+
+  resetChangeCurrentTimeControls();
 
   document.getElementById('changeModalTitle').textContent = 'Editar Cambio';
 
@@ -5965,13 +6236,21 @@ async function addChangeToProject() {
 
     
 
-    // Agregar fecha y hora si se especificaron
+    // Agregar fecha y hora si se especificaron o indicar que se use la actual
+
+    const useCurrentTimeCheckbox = document.getElementById('changeUseCurrentTime');
+
+    const useCurrentTime = useCurrentTimeCheckbox ? useCurrentTimeCheckbox.checked : false;
 
     const fechaCambio = document.getElementById('changeDate').value;
 
     const horaCambio = document.getElementById('changeTime').value;
 
-    if (fechaCambio && horaCambio) {
+    if (useCurrentTime) {
+
+      formData.append('usar_fecha_actual', 'true');
+
+    } else if (fechaCambio && horaCambio) {
 
       // Combinar fecha y hora en formato ISO para enviar al servidor
 
@@ -6091,6 +6370,7 @@ async function addChangeToProject() {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
     } else {
@@ -6585,6 +6865,7 @@ async function addPersonnelToProject() {
 
       // Recargar los detalles del evento
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
@@ -7347,6 +7628,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
+  const confirmFileDescriptionBtn = document.getElementById('confirmFileDescriptionBtn');
+
+  if (confirmFileDescriptionBtn) {
+
+    confirmFileDescriptionBtn.addEventListener('click', updateProjectFileDescription);
+
+  }
+
+  const changeUseCurrentTimeCheckbox = document.getElementById('changeUseCurrentTime');
+
+  if (changeUseCurrentTimeCheckbox) {
+
+    changeUseCurrentTimeCheckbox.addEventListener('change', (event) => {
+      toggleChangeUseCurrentTime(event.target.checked);
+    });
+
+  }
+
   
 
   // Event listener para el input de evidencias en el modal de cambios
@@ -7371,6 +7670,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
+  const closeFileDescriptionModal = document.getElementById('closeFileDescriptionModal');
+
+  if (closeFileDescriptionModal) {
+
+    closeFileDescriptionModal.addEventListener('click', () => {
+      currentProjectFileEdit = null;
+      hideModal('editFileDescriptionModal');
+    });
+
+  }
+
 
 
   const cancelFileBtn = document.getElementById('cancelFileBtn');
@@ -7378,6 +7688,17 @@ document.addEventListener('DOMContentLoaded', function() {
   if (cancelFileBtn) {
 
     cancelFileBtn.addEventListener('click', () => hideModal('addFileModal'));
+
+  }
+
+  const cancelFileDescriptionBtn = document.getElementById('cancelFileDescriptionBtn');
+
+  if (cancelFileDescriptionBtn) {
+
+    cancelFileDescriptionBtn.addEventListener('click', () => {
+      currentProjectFileEdit = null;
+      hideModal('editFileDescriptionModal');
+    });
 
   }
 
@@ -8580,6 +8901,7 @@ async function saveProjectData() {
 
       // Recargar los detalles del proyecto para mostrar los cambios
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       hideModal('editDataModal');
@@ -8948,6 +9270,7 @@ async function addFileToProject() {
 
       // Recargar los detalles del proyecto para mostrar el nuevo archivo
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       hideModal('addFileModal');
@@ -9020,6 +9343,7 @@ async function eliminarArchivoProyecto(archivoId) {
 
       // Recargar los detalles del proyecto para actualizar la lista
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       showSuccessMessage('Archivo eliminado exitosamente.');
@@ -9042,6 +9366,86 @@ async function eliminarArchivoProyecto(archivoId) {
 
 }
 
+
+function showEditProjectFileDescriptionModal(fileId, description) {
+  if (!puedeGestionarGaleria()) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  currentProjectFileEdit = {
+    id: fileId,
+    originalDescription: description || '',
+  };
+
+  textarea.value = description || '';
+  showModal('editFileDescriptionModal');
+  textarea.focus();
+}
+
+
+async function updateProjectFileDescription() {
+  if (!puedeGestionarGaleria()) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  const proyectoId = currentProjectId || (currentProjectData && currentProjectData.id);
+  if (!proyectoId || !currentProjectFileEdit || !currentProjectFileEdit.id) {
+    showErrorMessage('No se pudo identificar el archivo a editar.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  const newDescription = textarea.value.trim();
+  const confirmButton = document.getElementById('confirmFileDescriptionBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
+
+  try {
+    const response = await fetch(`/api/evento/${proyectoId}/archivo/${currentProjectFileEdit.id}/actualizar/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken') || '',
+      },
+      body: JSON.stringify({ descripcion: newDescription }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'No se pudo actualizar la descripción');
+    }
+
+    shouldRefreshLatestProjects = true;
+    await loadProjectDetails(proyectoId);
+    hideModal('editFileDescriptionModal');
+    showSuccessMessage('Descripción del archivo actualizada exitosamente.');
+    currentProjectFileEdit = null;
+  } catch (error) {
+    console.error('Error al actualizar descripción del archivo:', error);
+    showErrorMessage(error.message || 'Error al actualizar la descripción del archivo.');
+  } finally {
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Guardar cambios';
+    }
+  }
+}
 
 
 // Función obsoleta - mantener para compatibilidad pero no usar
@@ -9166,6 +9570,8 @@ function loadProjectFiles(files) {
 
   
 
+  const puedeGestionarGlobal = puedeGestionarGaleria();
+
   files.forEach(file => {
 
     const fileItem = document.createElement('div');
@@ -9217,68 +9623,74 @@ function loadProjectFiles(files) {
     
 
     const fileActions = document.createElement('div');
-
     fileActions.className = 'file-actions';
 
-    
+    const puedeEditar = puedeGestionarGlobal && !file.es_evidencia;
+    const puedeEliminar = puedeGestionarGlobal && !file.es_evidencia;
 
-    const downloadBtn = document.createElement('a');
+    if (puedeGestionarGlobal) {
+      const downloadBtn = document.createElement('a');
+      downloadBtn.className = 'file-download-btn';
+      downloadBtn.href = file.url;
+      downloadBtn.download = file.originalName;
+      downloadBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7,10 12,15 17,10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Descargar
+      `;
+      fileActions.appendChild(downloadBtn);
+    }
 
-    downloadBtn.className = 'file-download-btn';
+    if (puedeEditar) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'file-edit-btn';
+      editBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+        </svg>
+        Editar
+      `;
+      editBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showEditProjectFileDescriptionModal(file.id, file.description || '');
+      });
+      fileActions.appendChild(editBtn);
+    }
 
-    downloadBtn.href = file.url;
-
-    downloadBtn.download = file.originalName;
-
-    downloadBtn.innerHTML = `
-
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-
-        <polyline points="7,10 12,15 17,10"></polyline>
-
-        <line x1="12" y1="15" x2="12" y2="3"></line>
-
-      </svg>
-
-      Descargar
-
-    `;
-
-    
-
-    const removeBtn = document.createElement('button');
-
-    removeBtn.className = 'btn-remove-item';
-
-    removeBtn.setAttribute('data-file-id', file.id);
-
-    removeBtn.innerHTML = `
-
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-
-      </svg>
-
-    `;
-
-    
-
-    fileActions.appendChild(downloadBtn);
-
-    fileActions.appendChild(removeBtn);
-
-    
+    if (puedeEliminar) {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn-remove-item';
+      removeBtn.setAttribute('data-archivo-id', file.id);
+      removeBtn.setAttribute('data-file-id', file.id);
+      removeBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      `;
+      removeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showConfirmDeleteModal(
+          `¿Estás seguro de que deseas eliminar el archivo "${file.name}"? Esta acción no se puede deshacer.`,
+          async () => {
+            await eliminarArchivoProyecto(file.id);
+          }
+        );
+      });
+      fileActions.appendChild(removeBtn);
+    }
 
     fileItem.appendChild(fileIcon);
 
     fileItem.appendChild(fileInfo);
 
-    fileItem.appendChild(fileActions);
+    if (fileActions.childElementCount > 0) {
+      fileItem.appendChild(fileActions);
+    }
 
     
 
@@ -9396,6 +9808,7 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
       // Recargar los detalles del evento
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       alert('Personal eliminado exitosamente del evento.');
@@ -9942,6 +10355,7 @@ async function actualizarDescripcionCambio(cambioId, descripcion) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
@@ -10056,6 +10470,7 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
@@ -10492,6 +10907,7 @@ async function addEvidenceToChange() {
 
       // Recargar los detalles del proyecto para actualizar las evidencias
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
@@ -10576,6 +10992,7 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
       // Recargar los detalles del proyecto
 
+      shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
       
@@ -10736,7 +11153,7 @@ function renderExistingEvidences(evidencias) {
 
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
 
             <polyline points="15 3 21 3 21 9"></polyline>
 
@@ -10941,3 +11358,16 @@ function removeEvidenceFile(fileId) {
   renderEvidencesPreview();
 
 }
+
+document.addEventListener('click', function(event) {
+  const pendingRemoveButton = event.target.closest('.image-preview-remove');
+  if (pendingRemoveButton && pendingRemoveButton.dataset.index) {
+    event.preventDefault();
+    const index = parseInt(pendingRemoveButton.dataset.index, 10);
+    if (!Number.isNaN(index)) {
+      pendingProjectGalleryImages.splice(index, 1);
+      renderPendingProjectImages();
+    }
+    return;
+  }
+});
