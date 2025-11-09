@@ -1573,18 +1573,16 @@ html {
 
   .file-actions {
     width: 100%;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
   }
 
-  .file-actions a,
-  .file-actions button {
-    flex: 1 1 calc(33.333% - 8px);
+  .file-actions .file-download-btn,
+  .file-actions .file-edit-btn,
+  .file-actions .file-delete-btn {
+    width: 100%;
     justify-content: center;
-    white-space: nowrap;
-    text-align: center;
-    min-width: 100px;
   }
 }
 

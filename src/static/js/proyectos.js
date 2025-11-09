@@ -1339,6 +1339,9 @@ function mostrarDetalleProyecto(proyecto) {
         const tamanioTexto = archivo.tamanio ? formatFileSize(archivo.tamanio) : '';
 
         const puedeEliminar = puedeGestionar && !archivo.es_evidencia; // Solo se pueden eliminar archivos que NO sean evidencias Y si tiene permisos
+        const puedeEditar = puedeGestionar && !archivo.es_evidencia;
+        const descripcionVisible = archivo.descripcion ? escapeHtml(archivo.descripcion) : '';
+        const descripcionEncoded = archivo.descripcion ? encodeURIComponent(archivo.descripcion) : '';
 
         
 
@@ -1370,7 +1373,7 @@ function mostrarDetalleProyecto(proyecto) {
 
               </h4>
 
-              ${archivo.descripcion ? `<p style="margin: 0 0 4px 0; color: #b8c5d1; font-size: 0.85rem;">${archivo.descripcion}</p>` : ''}
+              ${archivo.descripcion ? `<p style="margin: 0 0 4px 0; color: #b8c5d1; font-size: 0.85rem;">${descripcionVisible}</p>` : ''}
 
               <div style="display: flex; gap: 12px; align-items: center; font-size: 0.8rem; color: #6c757d;">
 
@@ -1382,23 +1385,36 @@ function mostrarDetalleProyecto(proyecto) {
 
             </div>
 
-            ${puedeEliminar ? `
-
-              <button class="btn-danger btn-cover-remove" data-archivo-id="${archivo.id}" title="Eliminar archivo">
-
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-                  <polyline points="3 6 5 6 21 6"></polyline>
-
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-
-                </svg>
-
-                Eliminar
-
-              </button>
-
-            ` : ''}
+          ${puedeGestionar ? `
+          <div class="file-actions">
+            <a class="file-download-btn" href="${archivo.url}" target="_blank" rel="noopener noreferrer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7,10 12,15 17,10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Descargar
+            </a>
+              ${puedeEditar ? `
+                <button class="file-edit-btn" data-edit-archivo-id="${archivo.id}" data-archivo-descripcion="${descripcionEncoded}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                  </svg>
+                  Editar
+                </button>
+              ` : ''}
+              ${puedeEliminar ? `
+                <button class="btn-danger btn-cover-remove" data-archivo-id="${archivo.id}" data-file-id="${archivo.id}" title="Eliminar archivo">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Eliminar
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
 
           </div>
 
@@ -1408,9 +1424,21 @@ function mostrarDetalleProyecto(proyecto) {
 
       
 
-      // Agregar event listeners a los botones de eliminar solo si el usuario tiene permisos
+      // Agregar event listeners a los botones de editar/eliminar solo si el usuario tiene permisos
 
       if (puedeGestionar) {
+
+        detailFiles.querySelectorAll('[data-edit-archivo-id]').forEach(btn => {
+
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            const archivoId = this.getAttribute('data-edit-archivo-id');
+            const descripcion = this.getAttribute('data-archivo-descripcion');
+            const decoded = descripcion ? decodeURIComponent(descripcion) : '';
+            showEditProjectFileDescriptionModal(archivoId, decoded);
+          });
+
+        });
 
         detailFiles.querySelectorAll('[data-archivo-id]').forEach(btn => {
 
@@ -2610,6 +2638,47 @@ const PROJECT_GALLERY_PAGE_SIZE = 3;
 const FEATURED_PROJECTS_LIMIT = 3;
 let featuredProjectsData = [];
 let shouldRefreshLatestProjects = false;
+
+let currentProjectFileEdit = null;
+
+function getGuatemalaDateParts(sourceDate = new Date()) {
+  const baseFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Guatemala',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const parts = baseFormatter.formatToParts(sourceDate);
+  const getValue = (type) => {
+    const part = parts.find((item) => item.type === type);
+    return part ? part.value : '';
+  };
+
+  const year = getValue('year');
+  const month = getValue('month');
+  const day = getValue('day');
+  const hour = getValue('hour');
+  const minute = getValue('minute');
+
+  const formatted = new Intl.DateTimeFormat('es-GT', {
+    timeZone: 'America/Guatemala',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(sourceDate);
+
+  return {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    formatted,
+  };
+}
 
 // Variable para almacenar archivos de evidencias seleccionados en el modal de cambios
 
@@ -5715,10 +5784,84 @@ function showAddChangeModal() {
 let editingCambioId = null;
 
 
+function resetChangeCurrentTimeControls() {
+  const checkbox = document.getElementById('changeUseCurrentTime');
+  const dateInput = document.getElementById('changeDate');
+  const timeInput = document.getElementById('changeTime');
+  const helper = document.getElementById('changeUseCurrentTimeHelper');
+
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+
+  if (dateInput) {
+    dateInput.disabled = false;
+    delete dateInput.dataset.prevValue;
+  }
+
+  if (timeInput) {
+    timeInput.disabled = false;
+    delete timeInput.dataset.prevValue;
+  }
+
+  if (helper) {
+    helper.style.display = 'none';
+  }
+}
+
+
+function toggleChangeUseCurrentTime(isChecked) {
+  const dateInput = document.getElementById('changeDate');
+  const timeInput = document.getElementById('changeTime');
+  const helper = document.getElementById('changeUseCurrentTimeHelper');
+
+  if (!dateInput || !timeInput) {
+    return;
+  }
+
+  if (isChecked) {
+    dateInput.dataset.prevValue = dateInput.value || '';
+    timeInput.dataset.prevValue = timeInput.value || '';
+
+    const guatemalaNow = getGuatemalaDateParts();
+
+    dateInput.value = `${guatemalaNow.year}-${guatemalaNow.month}-${guatemalaNow.day}`;
+    timeInput.value = `${guatemalaNow.hour}:${guatemalaNow.minute}`;
+
+    dateInput.disabled = true;
+    timeInput.disabled = true;
+
+    if (helper) {
+      helper.textContent = `Se registrará la fecha y hora actuales al guardar (${guatemalaNow.formatted}).`;
+      helper.style.display = 'block';
+    }
+  } else {
+    dateInput.disabled = false;
+    timeInput.disabled = false;
+
+    if (dateInput.dataset.prevValue !== undefined) {
+      dateInput.value = dateInput.dataset.prevValue;
+    }
+
+    if (timeInput.dataset.prevValue !== undefined) {
+      timeInput.value = timeInput.dataset.prevValue;
+    }
+
+    delete dateInput.dataset.prevValue;
+    delete timeInput.dataset.prevValue;
+
+    if (helper) {
+      helper.style.display = 'none';
+    }
+  }
+}
+
 
 // Función para limpiar formulario de cambio
 
 function clearChangeForm() {
+
+  resetChangeCurrentTimeControls();
 
   document.getElementById('changeDescription').value = '';
 
@@ -5852,6 +5995,8 @@ function editarCambio(cambioId, cambio) {
   
 
   editingCambioId = cambioId;
+
+  resetChangeCurrentTimeControls();
 
   document.getElementById('changeModalTitle').textContent = 'Editar Cambio';
 
@@ -6091,13 +6236,21 @@ async function addChangeToProject() {
 
     
 
-    // Agregar fecha y hora si se especificaron
+    // Agregar fecha y hora si se especificaron o indicar que se use la actual
+
+    const useCurrentTimeCheckbox = document.getElementById('changeUseCurrentTime');
+
+    const useCurrentTime = useCurrentTimeCheckbox ? useCurrentTimeCheckbox.checked : false;
 
     const fechaCambio = document.getElementById('changeDate').value;
 
     const horaCambio = document.getElementById('changeTime').value;
 
-    if (fechaCambio && horaCambio) {
+    if (useCurrentTime) {
+
+      formData.append('usar_fecha_actual', 'true');
+
+    } else if (fechaCambio && horaCambio) {
 
       // Combinar fecha y hora en formato ISO para enviar al servidor
 
@@ -7475,6 +7628,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
+  const confirmFileDescriptionBtn = document.getElementById('confirmFileDescriptionBtn');
+
+  if (confirmFileDescriptionBtn) {
+
+    confirmFileDescriptionBtn.addEventListener('click', updateProjectFileDescription);
+
+  }
+
+  const changeUseCurrentTimeCheckbox = document.getElementById('changeUseCurrentTime');
+
+  if (changeUseCurrentTimeCheckbox) {
+
+    changeUseCurrentTimeCheckbox.addEventListener('change', (event) => {
+      toggleChangeUseCurrentTime(event.target.checked);
+    });
+
+  }
+
   
 
   // Event listener para el input de evidencias en el modal de cambios
@@ -7499,6 +7670,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
+  const closeFileDescriptionModal = document.getElementById('closeFileDescriptionModal');
+
+  if (closeFileDescriptionModal) {
+
+    closeFileDescriptionModal.addEventListener('click', () => {
+      currentProjectFileEdit = null;
+      hideModal('editFileDescriptionModal');
+    });
+
+  }
+
 
 
   const cancelFileBtn = document.getElementById('cancelFileBtn');
@@ -7506,6 +7688,17 @@ document.addEventListener('DOMContentLoaded', function() {
   if (cancelFileBtn) {
 
     cancelFileBtn.addEventListener('click', () => hideModal('addFileModal'));
+
+  }
+
+  const cancelFileDescriptionBtn = document.getElementById('cancelFileDescriptionBtn');
+
+  if (cancelFileDescriptionBtn) {
+
+    cancelFileDescriptionBtn.addEventListener('click', () => {
+      currentProjectFileEdit = null;
+      hideModal('editFileDescriptionModal');
+    });
 
   }
 
@@ -9174,6 +9367,86 @@ async function eliminarArchivoProyecto(archivoId) {
 }
 
 
+function showEditProjectFileDescriptionModal(fileId, description) {
+  if (!puedeGestionarGaleria()) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  currentProjectFileEdit = {
+    id: fileId,
+    originalDescription: description || '',
+  };
+
+  textarea.value = description || '';
+  showModal('editFileDescriptionModal');
+  textarea.focus();
+}
+
+
+async function updateProjectFileDescription() {
+  if (!puedeGestionarGaleria()) {
+    showErrorMessage('No tienes permisos para editar archivos.');
+    return;
+  }
+
+  const proyectoId = currentProjectId || (currentProjectData && currentProjectData.id);
+  if (!proyectoId || !currentProjectFileEdit || !currentProjectFileEdit.id) {
+    showErrorMessage('No se pudo identificar el archivo a editar.');
+    return;
+  }
+
+  const textarea = document.getElementById('editFileDescriptionInput');
+  if (!textarea) {
+    return;
+  }
+
+  const newDescription = textarea.value.trim();
+  const confirmButton = document.getElementById('confirmFileDescriptionBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
+
+  try {
+    const response = await fetch(`/api/evento/${proyectoId}/archivo/${currentProjectFileEdit.id}/actualizar/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken') || '',
+      },
+      body: JSON.stringify({ descripcion: newDescription }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'No se pudo actualizar la descripción');
+    }
+
+    shouldRefreshLatestProjects = true;
+    await loadProjectDetails(proyectoId);
+    hideModal('editFileDescriptionModal');
+    showSuccessMessage('Descripción del archivo actualizada exitosamente.');
+    currentProjectFileEdit = null;
+  } catch (error) {
+    console.error('Error al actualizar descripción del archivo:', error);
+    showErrorMessage(error.message || 'Error al actualizar la descripción del archivo.');
+  } finally {
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Guardar cambios';
+    }
+  }
+}
+
 
 // Función obsoleta - mantener para compatibilidad pero no usar
 
@@ -9297,6 +9570,8 @@ function loadProjectFiles(files) {
 
   
 
+  const puedeGestionarGlobal = puedeGestionarGaleria();
+
   files.forEach(file => {
 
     const fileItem = document.createElement('div');
@@ -9348,68 +9623,74 @@ function loadProjectFiles(files) {
     
 
     const fileActions = document.createElement('div');
-
     fileActions.className = 'file-actions';
 
-    
+    const puedeEditar = puedeGestionarGlobal && !file.es_evidencia;
+    const puedeEliminar = puedeGestionarGlobal && !file.es_evidencia;
 
-    const downloadBtn = document.createElement('a');
+    if (puedeGestionarGlobal) {
+      const downloadBtn = document.createElement('a');
+      downloadBtn.className = 'file-download-btn';
+      downloadBtn.href = file.url;
+      downloadBtn.download = file.originalName;
+      downloadBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7,10 12,15 17,10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Descargar
+      `;
+      fileActions.appendChild(downloadBtn);
+    }
 
-    downloadBtn.className = 'file-download-btn';
+    if (puedeEditar) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'file-edit-btn';
+      editBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+        </svg>
+        Editar
+      `;
+      editBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showEditProjectFileDescriptionModal(file.id, file.description || '');
+      });
+      fileActions.appendChild(editBtn);
+    }
 
-    downloadBtn.href = file.url;
-
-    downloadBtn.download = file.originalName;
-
-    downloadBtn.innerHTML = `
-
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-
-        <polyline points="7,10 12,15 17,10"></polyline>
-
-        <line x1="12" y1="15" x2="12" y2="3"></line>
-
-      </svg>
-
-      Descargar
-
-    `;
-
-    
-
-    const removeBtn = document.createElement('button');
-
-    removeBtn.className = 'btn-remove-item';
-
-    removeBtn.setAttribute('data-file-id', file.id);
-
-    removeBtn.innerHTML = `
-
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-
-      </svg>
-
-    `;
-
-    
-
-    fileActions.appendChild(downloadBtn);
-
-    fileActions.appendChild(removeBtn);
-
-    
+    if (puedeEliminar) {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn-remove-item';
+      removeBtn.setAttribute('data-archivo-id', file.id);
+      removeBtn.setAttribute('data-file-id', file.id);
+      removeBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      `;
+      removeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showConfirmDeleteModal(
+          `¿Estás seguro de que deseas eliminar el archivo "${file.name}"? Esta acción no se puede deshacer.`,
+          async () => {
+            await eliminarArchivoProyecto(file.id);
+          }
+        );
+      });
+      fileActions.appendChild(removeBtn);
+    }
 
     fileItem.appendChild(fileIcon);
 
     fileItem.appendChild(fileInfo);
 
-    fileItem.appendChild(fileActions);
+    if (fileActions.childElementCount > 0) {
+      fileItem.appendChild(fileActions);
+    }
 
     
 

@@ -1786,6 +1786,30 @@ html {
   color: rgba(255, 255, 255, 0.55);
 }
 
+.change-current-toggle {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.change-current-toggle__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--text-primary, #f1f5f9);
+  cursor: pointer;
+  user-select: none;
+}
+
+.change-current-toggle__label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .file-download-btn {
   background: rgba(255, 255, 255, 0.12);
   color: var(--text-100);
@@ -2602,18 +2626,25 @@ html {
 .file-item .file-actions {
   display: flex;
   gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.file-actions .file-download-btn,
+.file-actions .file-edit-btn,
+.file-actions .btn-remove-item {
+  width: 100%;
+  justify-content: center;
 }
 
 .file-item .btn-remove-item {
   background: rgba(220, 53, 69, 0.1);
   color: #dc3545;
   border: 1px solid rgba(220, 53, 69, 0.3);
-  padding: 6px 8px;
+  padding: 6px 16px;
   font-size: 12px;
-  min-width: auto;
+  min-width: 110px;
   height: auto;
 }
 
@@ -2644,8 +2675,17 @@ html {
   }
   
   .file-item .file-actions {
+    width: 100%;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+    align-items: stretch;
+  }
+
+  .file-actions .file-download-btn,
+  .file-actions .file-edit-btn,
+  .file-actions .btn-remove-item {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -3076,4 +3116,15 @@ html {
     min-width: 100px;
     text-align: center;
   }
+}
+
+.file-item .file-actions .file-download-btn,
+.file-item .file-actions .file-edit-btn {
+  min-width: 130px;
+}
+
+.file-item .file-actions .file-download-btn,
+.file-item .file-actions .file-edit-btn,
+.file-item .file-actions .btn-remove-item {
+  width: auto;
 }

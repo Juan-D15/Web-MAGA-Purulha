@@ -4002,7 +4002,9 @@ def api_crear_cambio(request, evento_id):
                 print(f'⚠️ Error al parsear fecha_cambio: {e}, usando fecha actual')
                 fecha_cambio = None
         
-        fecha_cambio_final = fecha_cambio if fecha_cambio else timezone.now()
+        usar_fecha_actual = request.POST.get('usar_fecha_actual') == 'true'
+
+        fecha_cambio_final = timezone.now() if usar_fecha_actual else (fecha_cambio if fecha_cambio else timezone.now())
         
         # Crear un cambio por cada colaborador seleccionado
         cambios_creados = []
@@ -4177,6 +4179,10 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 print(f'⚠️ Error al parsear fecha_cambio: {e}, manteniendo fecha existente')
                 fecha_cambio = None
         
+        usar_fecha_actual = request.POST.get('usar_fecha_actual') == 'true'
+        if usar_fecha_actual:
+            fecha_cambio = timezone.now()
+
         colaborador_id = request.POST.get('colaborador_id')
         
         if cambio_colaborador:
