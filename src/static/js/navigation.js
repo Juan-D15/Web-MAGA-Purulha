@@ -399,13 +399,12 @@
       }
     });
 
-    // Perfil
+    // Perfil - Ya es un enlace, solo cerrar el dropdown al hacer clic
     if (navProfileBtn) {
       navProfileBtn.addEventListener('click', () => {
         navUserDropdown.style.display = 'none';
         navUserDropdown.classList.remove('show');
         navUserIcon.classList.remove('active');
-        debugLog('Mostrar perfil del usuario');
       });
     }
 
@@ -482,11 +481,10 @@
     const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
     const mobileLoginBtn = document.getElementById('mobileLoginBtn');
 
-    // Perfil
+    // Perfil - Ya es un enlace, solo cerrar el drawer al hacer clic
     if (mobileProfileBtn) {
       mobileProfileBtn.addEventListener('click', () => {
         if (window.closeDrawer) window.closeDrawer();
-        debugLog('Mostrar perfil del usuario (móvil)');
       });
     }
 
@@ -525,9 +523,71 @@
   // ========== MOSTRAR INFO DE USUARIO ==========
   function initUserInfoDisplay() {
     // La visibilidad inicial ya se maneja en el template de Django
-    // Esta función solo se mantiene para posibles actualizaciones dinámicas futuras
+    // Cargar foto de perfil si el usuario está autenticado
+    if (window.USER_AUTH && window.USER_AUTH.isAuthenticated) {
+      loadProfilePhotoForNav();
+    }
     debugLog('User info display initialized');
   }
+
+  // ========== CARGAR FOTO DE PERFIL EN NAVEGACIÓN ==========
+  async function loadProfilePhotoForNav() {
+    // Esperar a que los elementos estén disponibles
+    const navAvatarInitial = document.getElementById('navUserAvatarInitial');
+    const navAvatarImage = document.getElementById('navUserAvatarImage');
+    const mobileAvatarInitial = document.getElementById('mobileUserAvatarInitial');
+    const mobileAvatarImage = document.getElementById('mobileUserAvatarImage');
+    
+    if (!navAvatarInitial || !navAvatarImage || !mobileAvatarInitial || !mobileAvatarImage) {
+      // Si los elementos no están disponibles, esperar un poco y reintentar
+      setTimeout(loadProfilePhotoForNav, 100);
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/usuario/foto-perfil/');
+      if (!response.ok) {
+        // Si no hay foto, mantener la inicial (ya está en el HTML)
+        return;
+      }
+      const data = await response.json();
+      
+      if (data.success && data.foto_url) {
+        updateProfilePhotoInNav(data.foto_url);
+      }
+    } catch (error) {
+      console.error('Error cargando foto de perfil:', error);
+      // En caso de error, mantener la inicial
+    }
+  }
+
+  // ========== ACTUALIZAR FOTO DE PERFIL EN NAVEGACIÓN ==========
+  function updateProfilePhotoInNav(fotoUrl) {
+    if (!fotoUrl) return;
+    
+    // Actualizar avatar en desktop
+    const navAvatarInitial = document.getElementById('navUserAvatarInitial');
+    const navAvatarImage = document.getElementById('navUserAvatarImage');
+    if (navAvatarInitial && navAvatarImage) {
+      navAvatarInitial.style.display = 'none';
+      navAvatarImage.src = fotoUrl;
+      navAvatarImage.style.display = 'block';
+      // Los estilos ya están en el CSS
+    }
+    
+    // Actualizar avatar en móvil
+    const mobileAvatarInitial = document.getElementById('mobileUserAvatarInitial');
+    const mobileAvatarImage = document.getElementById('mobileUserAvatarImage');
+    if (mobileAvatarInitial && mobileAvatarImage) {
+      mobileAvatarInitial.style.display = 'none';
+      mobileAvatarImage.src = fotoUrl;
+      mobileAvatarImage.style.display = 'block';
+      // Los estilos ya están en el CSS
+    }
+  }
+
+  // Exponer función globalmente para uso desde otras páginas
+  window.updateProfilePhoto = updateProfilePhotoInNav;
 
   // ========== FUNCIONES DE ADMINISTRADOR (GESTIONES) ==========
   function handleGestionesAction(action) {

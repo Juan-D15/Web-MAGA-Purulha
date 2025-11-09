@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Preguntas Frecuentes — MAGA Purulhá{% endblock %}
+
+{% block header_subtitle %}Preguntas Frecuentes{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/configgeneral.css' %}">
+<style>
+  .faq-main {
+    min-height: 100vh;
+    background: linear-gradient(180deg, var(--bg-900) 0%, var(--bg-800) 35%, var(--bg-900) 100%);
+    color: var(--text-100);
+    padding: 40px 0 80px;
+  }
+
+  .faq-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .faq-section {
+    margin-bottom: 40px;
+  }
+
+  .faq-item {
+    background: var(--background-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    padding: 24px;
+    margin-bottom: 16px;
+    transition: var(--transition);
+  }
+
+  .faq-item:hover {
+    box-shadow: var(--shadow-medium);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .faq-question {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-100);
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .faq-question-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    border-radius: 50%;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .faq-answer {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin: 0;
+    padding-left: 36px;
+  }
+
+  .faq-back {
+    margin-bottom: 32px;
+  }
+
+  .faq-back a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: var(--transition);
+  }
+
+  .faq-back a:hover {
+    color: var(--primary-hover);
+    gap: 12px;
+  }
+
+  @media (max-width: 768px) {
+    .faq-container {
+      padding: 0 16px;
+    }
+
+    .faq-item {
+      padding: 16px;
+    }
+
+    .faq-answer {
+      padding-left: 0;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ======= MAIN CONTENT ======= -->
+<main class="faq-main">
+  <div class="faq-container">
+    
+    <div class="faq-back">
+      <a href="{% url 'webmaga:configgeneral' %}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Volver a Configuración
+      </a>
+    </div>
+
+    <div class="config-header">
+      <h2 class="section-title">Preguntas Frecuentes</h2>
+      <p class="section-subtitle">Encuentra respuestas a las preguntas más comunes sobre el sistema</p>
+    </div>
+
+    <!-- ======= SECCIÓN: GENERAL ======= -->
+    <section class="faq-section">
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Qué es el Sistema de Gestión de Eventos MAGA Purulhá?
+        </h3>
+        <p class="faq-answer">
+          Es una plataforma web diseñada para gestionar y administrar eventos, proyectos y actividades 
+          de la Oficina Regional MAGA Purulhá. Permite el registro, seguimiento y reporte de todas las 
+          actividades realizadas en las diferentes comunidades y regiones.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Quién puede usar el sistema?
+        </h3>
+        <p class="faq-answer">
+          El sistema está disponible para todo el personal de la Oficina Regional MAGA Purulhá. 
+          Los usuarios pueden tener diferentes niveles de acceso según su rol (Administrador, Personal, etc.). 
+          Algunas funciones están disponibles para usuarios no autenticados.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Cómo puedo crear una cuenta?
+        </h3>
+        <p class="faq-answer">
+          Las cuentas de usuario son creadas por los administradores del sistema. Si necesitas una cuenta, 
+          contacta con el administrador del sistema o con tu supervisor.
+        </p>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN: USO DEL SISTEMA ======= -->
+    <section class="faq-section">
+      <h3 class="section-title" style="font-size: 1.5rem; margin-bottom: 24px;">Uso del Sistema</h3>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Cómo agrego un nuevo evento o proyecto?
+        </h3>
+        <p class="faq-answer">
+          Para agregar un nuevo evento, necesitas tener permisos de administrador. Accede al menú "Gestiones" 
+          y selecciona "Agregar Evento". Completa el formulario con la información requerida y guarda los cambios.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Cómo registro un avance de un evento?
+        </h3>
+        <p class="faq-answer">
+          Para registrar un avance, accede a la página del evento específico y utiliza la opción "Agregar Avance". 
+          Puedes incluir descripción, fecha, evidencia fotográfica y otros detalles relevantes.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Puedo editar o eliminar un evento después de crearlo?
+        </h3>
+        <p class="faq-answer">
+          Sí, los eventos pueden ser editados y eliminados por usuarios con permisos de administrador. 
+          Accede al menú "Gestiones" y selecciona "Editar Evento" para realizar modificaciones.
+        </p>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN: REPORTES ======= -->
+    <section class="faq-section">
+      <h3 class="section-title" style="font-size: 1.5rem; margin-bottom: 24px;">Reportes</h3>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Cómo genero un reporte?
+        </h3>
+        <p class="faq-answer">
+          Para generar reportes, necesitas tener permisos de administrador. Accede al menú "Gestiones" 
+          y selecciona "Crear Reporte". Elige el tipo de reporte que necesitas y configura los filtros 
+          según tus requerimientos.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Puedo exportar los reportes?
+        </h3>
+        <p class="faq-answer">
+          Sí, los reportes pueden ser exportados en diferentes formatos según el tipo de reporte. 
+          Busca la opción "Exportar" en la página de reportes para descargar el archivo.
+        </p>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN: PROBLEMAS TÉCNICOS ======= -->
+    <section class="faq-section">
+      <h3 class="section-title" style="font-size: 1.5rem; margin-bottom: 24px;">Problemas Técnicos</h3>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Qué hago si olvidé mi contraseña?
+        </h3>
+        <p class="faq-answer">
+          Si olvidaste tu contraseña, contacta con el administrador del sistema para que pueda restablecerla. 
+          Por seguridad, las contraseñas no pueden ser recuperadas directamente desde el sistema.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Qué navegadores son compatibles?
+        </h3>
+        <p class="faq-answer">
+          El sistema es compatible con los navegadores modernos más populares, incluyendo Google Chrome, 
+          Mozilla Firefox, Microsoft Edge y Safari. Se recomienda usar la última versión disponible de estos navegadores.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h3 class="faq-question">
+          <span class="faq-question-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </span>
+          ¿Cómo reporto un problema o error en el sistema?
+        </h3>
+        <p class="faq-answer">
+          Puedes reportar problemas o errores utilizando el formulario de "Asistencia Técnica" en la página 
+          de Configuración General. Describe el problema en detalle para que podamos ayudarte de la mejor manera.
+        </p>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN: CONTACTO ======= -->
+    <section class="faq-section">
+      <div class="config-card full-width">
+        <div class="config-card-header">
+          <div class="config-card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
+          <h3 class="config-card-title">¿No encontraste tu respuesta?</h3>
+        </div>
+        <div class="config-card-content">
+          <p class="config-card-description">
+            Si tienes alguna pregunta adicional o necesitas asistencia, no dudes en contactarnos. 
+            Puedes usar el formulario de asistencia técnica o contactar directamente al equipo.
+          </p>
+          <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <a href="{% url 'webmaga:configgeneral' %}#asistencia" class="btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              Contactar Soporte
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+{% endblock %}
+

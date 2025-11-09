@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mi Perfil — MAGA Purulhá{% endblock %}
+
+{% block header_subtitle %}Mi Perfil{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/perfilusuario.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- ======= MAIN CONTENT ======= -->
+<main class="perfil-main">
+  <div class="perfil-container">
+    
+    <!-- ======= SECCIÓN 1: INFORMACIÓN DEL USUARIO ======= -->
+    <section class="perfil-section">
+      <div class="perfil-header">
+        <h2 class="section-title">Mi Información</h2>
+      </div>
+      
+      <div class="perfil-content">
+        <!-- Foto de Perfil -->
+        <div class="perfil-foto-section">
+          <div class="perfil-avatar-container">
+            <div class="perfil-avatar" id="perfilAvatar">
+              <!-- La inicial se mostrará aquí si no hay foto -->
+              <span class="avatar-initial" id="avatarInitial">{{ usuario_maga.username|first|upper }}</span>
+              <!-- La imagen se mostrará aquí si hay foto -->
+              <img id="avatarImage" src="" alt="Foto de perfil" style="display: none;">
+            </div>
+            <button class="btn-cambiar-foto" id="btnCambiarFoto">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              Cambiar Foto
+            </button>
+            <input type="file" id="inputFotoPerfil" accept="image/jpeg,image/png,image/gif,image/webp" style="display: none;">
+          </div>
+        </div>
+
+        <!-- Datos del Usuario -->
+        <div class="perfil-datos">
+          <div class="datos-grid">
+            <div class="dato-item">
+              <label class="dato-label">Nombre de Usuario *</label>
+              <input type="text" id="datoUsername" class="dato-input" value="{{ usuario_maga.username }}" placeholder="Nombre de usuario">
+              <small class="dato-hint">Este campo es editable</small>
+            </div>
+            
+            <!-- Campos unificados: si hay colaborador vinculado, estos campos se sincronizan -->
+            <div class="dato-item">
+              <label class="dato-label">Nombre Completo</label>
+              <input type="text" id="datoNombre" class="dato-input" value="{{ usuario_maga.nombre|default:'' }}" placeholder="Nombre completo">
+              <small class="dato-hint" id="hintNombre">Este campo es editable<span id="syncHintNombre" style="display: none;"> - Se sincroniza con colaborador</span></small>
+            </div>
+            
+            <div class="dato-item">
+              <label class="dato-label">Email *</label>
+              <input type="email" id="datoEmail" class="dato-input" value="{{ usuario_maga.email }}" placeholder="email@ejemplo.com">
+              <small class="dato-hint" id="hintEmail">Este campo es editable<span id="syncHintEmail" style="display: none;"> - Se sincroniza con colaborador</span></small>
+            </div>
+            
+            <div class="dato-item">
+              <label class="dato-label">Teléfono</label>
+              <input type="tel" id="datoTelefono" class="dato-input" value="{{ usuario_maga.telefono|default:'' }}" placeholder="12345678" maxlength="8" pattern="[0-9]{8}">
+              <small class="dato-hint" id="hintTelefono">Este campo es editable (8 dígitos)<span id="syncHintTelefono" style="display: none;"> - Se sincroniza con colaborador</span></small>
+            </div>
+            
+            <div class="dato-item">
+              <label class="dato-label">Rol</label>
+              <div class="dato-value">
+                <span class="rol-badge rol-{{ usuario_maga.rol }}">{{ usuario_maga.get_rol_display }}</span>
+              </div>
+              <small class="dato-hint">Este campo no es editable</small>
+            </div>
+            
+            {% if usuario_maga.puesto %}
+            <div class="dato-item">
+              <label class="dato-label">Puesto</label>
+              <div class="dato-value" id="datoPuesto">{{ usuario_maga.puesto.nombre }}</div>
+              <small class="dato-hint">Este campo no es editable</small>
+            </div>
+            {% endif %}
+          </div>
+          
+          <!-- Botones de Acción -->
+          <div class="perfil-actions" style="margin-top: 24px; display: flex; gap: 12px;">
+            <button class="btn-primary" id="btnGuardarCambios" style="display: none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              Guardar Cambios
+            </button>
+            <button class="btn-secondary" id="btnCambiarPassword">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              Cambiar Contraseña
+            </button>
+          </div>
+
+          <!-- Datos Adicionales del Colaborador (solo campos NO duplicados) -->
+          <div id="colaboradorSection" style="display: none;">
+            <div class="datos-separator"></div>
+            <h3 class="datos-subtitle">Información Adicional del Colaborador</h3>
+            <div class="datos-grid">
+              <div class="dato-item">
+                <label class="dato-label">Puesto del Colaborador</label>
+                <div class="dato-value" id="datoColaboradorPuesto">-</div>
+                <small class="dato-hint">Este campo no es editable</small>
+              </div>
+              
+              <div class="dato-item">
+                <label class="dato-label">DPI</label>
+                <div class="dato-value" id="datoColaboradorDpi">-</div>
+                <small class="dato-hint">Este campo no es editable</small>
+              </div>
+              
+              <div class="dato-item">
+                <label class="dato-label">Descripción</label>
+                <div class="dato-value" id="datoColaboradorDescripcion">-</div>
+                <small class="dato-hint">Este campo no es editable</small>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN 2: ESTADÍSTICAS ======= -->
+    <section class="estadisticas-section">
+      <div class="estadisticas-header">
+        <h2 class="section-title">Estadísticas de Usuario</h2>
+      </div>
+      
+      <div class="estadisticas-content">
+        <div class="estadisticas-card">
+          <div class="estadisticas-header-card">
+            <h3 class="estadisticas-title" id="estadisticasUserName">{{ usuario_maga.username }}</h3>
+          </div>
+          
+          <div class="estadisticas-stats">
+            <div class="stat-item">
+              <span class="stat-label">Total de Proyectos Trabajados</span>
+              <span class="stat-value" id="statTotalProyectos">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Total de Avances Realizados</span>
+              <span class="stat-value" id="statTotalAvances">0</span>
+            </div>
+          </div>
+          
+          <!-- Eventos Detallados -->
+          <div class="eventos-section" id="eventosSection" style="display: none;">
+            <h4 class="eventos-title">Eventos en el que trabajó</h4>
+            <div class="eventos-grid" id="eventosGrid">
+              <!-- Los eventos se cargarán aquí dinámicamente -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/perfilusuario.js' %}"></script>
+{% endblock %}
+

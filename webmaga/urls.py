@@ -18,9 +18,16 @@ urlpatterns = [
     path('generarreportes/', views.generarreportes, name='generarreportes'),
     path('reportes/', views.reportes_index, name='reportes-index'),
     path('mapa-completo/', views.mapa_completo, name='mapa-completo'),
+    path('perfil/', views.perfilusuario, name='perfilusuario'),
+    path('config-general/', views.configgeneral, name='configgeneral'),
+    path('preguntas-frecuentes/', views.preguntas_frecuentes, name='preguntas-frecuentes'),
     
     # APIs JSON (para AJAX)
     path('api/usuario/', views.api_usuario_actual, name='api-usuario'),
+    path('api/usuario/actualizar-perfil/', views.api_actualizar_perfil_usuario, name='api-actualizar-perfil-usuario'),
+    path('api/usuario/foto-perfil/', views.api_foto_perfil, name='api-foto-perfil'),
+    path('api/usuario/estadisticas/', views.api_usuario_estadisticas, name='api-usuario-estadisticas'),
+    path('api/usuario/colaborador/', views.api_usuario_colaborador, name='api-usuario-colaborador'),
     path('api/regiones/', views.api_regiones, name='api-regiones'),
     path('api/regiones/recientes/', views.api_regiones_recientes, name='api-regiones-recientes'),
     path('api/region/<uuid:region_id>/', views.api_region_detalle, name='api-region-detalle'),
@@ -89,6 +96,8 @@ urlpatterns = [
     # APIs para Calendario
     path('api/calendar-events/', views.api_calendar_events, name='api-calendar-events'),
     path('api/reminders/', views.api_reminders, name='api-reminders'),
+    path('api/reminders/pending/', views.api_reminders_pending, name='api-reminders-pending'),
+    path('api/reminders/<uuid:reminder_id>/marcar-enviado/', views.api_marcar_notificacion_enviada, name='api-marcar-notificacion-enviada'),
     path('api/avances/', views.api_avances, name='api-avances'),
     path('api/reminders/<uuid:reminder_id>/', views.api_reminder_detail, name='api-reminder-detail'),
     path('api/events-list/', views.api_events_list, name='api-events-list'),

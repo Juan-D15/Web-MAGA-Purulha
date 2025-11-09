@@ -69,6 +69,32 @@ class Usuario(models.Model):
         return self.rol == 'admin'
 
 
+class UsuarioFotoPerfil(models.Model):
+    """Fotos de perfil de usuarios"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.OneToOneField(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name='foto_perfil',
+        db_column='usuario_id'
+    )
+    archivo_nombre = models.CharField(max_length=255)
+    archivo_tipo = models.CharField(max_length=100, blank=True, null=True)
+    archivo_tamanio = models.BigIntegerField(blank=True, null=True)
+    url_almacenamiento = models.TextField()
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'usuario_fotos_perfil'
+        verbose_name = 'Foto de Perfil'
+        verbose_name_plural = 'Fotos de Perfil'
+    
+    def __str__(self):
+        return f"Foto de {self.usuario.username}"
+
+
 class Colaborador(models.Model):
     """Colaboradores internos y externos vinculados a actividades"""
 

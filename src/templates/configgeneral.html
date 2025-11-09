@@ -1,0 +1,411 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Configuración General — MAGA Purulhá{% endblock %}
+
+{% block header_subtitle %}Configuración General{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/configgeneral.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- ======= MAIN CONTENT ======= -->
+<main class="config-main">
+  <div class="config-container">
+    
+    <!-- ======= SECCIÓN: CONFIGURACIONES GENERALES ======= -->
+    <section class="config-section">
+      <div class="config-header">
+        <h2 class="section-title">Configuraciones</h2>
+        <p class="section-subtitle">Personaliza tu experiencia en el sistema</p>
+      </div>
+      
+      <div class="config-grid">
+        <!-- Notificaciones -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <div class="config-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+            </div>
+            <h3 class="config-card-title">Notificaciones</h3>
+          </div>
+          <div class="config-card-content">
+            <p class="config-card-description">
+              Permite que el sistema te envíe notificaciones sobre eventos importantes, recordatorios y actualizaciones.
+            </p>
+            <button class="btn-primary" id="btnPermitirNotificaciones">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+              Permitir Notificaciones
+            </button>
+          </div>
+        </div>
+
+        <!-- Configurar Perfil -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <div class="config-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+            <h3 class="config-card-title">Mi Perfil</h3>
+          </div>
+          <div class="config-card-content">
+            <p class="config-card-description">
+              Gestiona tu información personal, foto de perfil y configuración de cuenta.
+            </p>
+            <a href="{% url 'webmaga:perfilusuario' %}" class="btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Configurar Perfil
+            </a>
+          </div>
+        </div>
+
+        <!-- Modo Claro/Oscuro -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <div class="config-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+            </div>
+            <h3 class="config-card-title">Tema</h3>
+          </div>
+          <div class="config-card-content">
+            <p class="config-card-description">
+              Cambia entre modo claro y oscuro para una mejor experiencia visual.
+            </p>
+            <div class="switch-container">
+              <label class="switch">
+                <input type="checkbox" id="toggleTheme" disabled>
+                <span class="slider"></span>
+              </label>
+              <span class="switch-label">Modo Oscuro (Próximamente)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preguntas Frecuentes -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <div class="config-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+            </div>
+            <h3 class="config-card-title">Preguntas Frecuentes</h3>
+          </div>
+          <div class="config-card-content">
+            <p class="config-card-description">
+              Consulta respuestas a las preguntas más comunes sobre el uso del sistema.
+            </p>
+            <a href="{% url 'webmaga:preguntas-frecuentes' %}" class="btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              Ver Preguntas Frecuentes
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN: ASISTENCIA TÉCNICA ======= -->
+    <section class="config-section">
+      <div class="config-header">
+        <h2 class="section-title">Asistencia Técnica</h2>
+        <p class="section-subtitle">Envía tus comentarios o reporta un problema</p>
+      </div>
+      
+      <div class="config-card full-width asistencia-card">
+        <div class="config-card-header asistencia-header expanded" id="asistenciaHeader">
+          <div class="config-card-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
+          <h3 class="config-card-title">Enviar Comentarios / Reportar Problema</h3>
+          <button class="asistencia-toggle" id="asistenciaToggle" aria-label="Expandir/Contraer formulario">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div class="config-card-content asistencia-content" id="asistenciaContent">
+          <form id="formAsistencia" class="asistencia-form">
+            <div class="form-group">
+              <label for="asistenciaNombre" class="form-label">Nombre *</label>
+              <input type="text" id="asistenciaNombre" class="form-input" placeholder="Tu nombre completo" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="asistenciaTipo" class="form-label">Tipo *</label>
+              <select id="asistenciaTipo" class="form-input" required>
+                <option value="">Selecciona un tipo</option>
+                <option value="comentario">Comentario</option>
+                <option value="problema">Reportar Problema</option>
+                <option value="sugerencia">Sugerencia</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="asistenciaMensaje" class="form-label">Mensaje *</label>
+              <textarea id="asistenciaMensaje" class="form-textarea" rows="6" placeholder="Describe tu comentario o problema en detalle..." required></textarea>
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                Enviar
+              </button>
+              <button type="reset" class="btn-secondary">
+                Limpiar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN: ACERCA DEL PROYECTO ======= -->
+    <section class="config-section">
+      <div class="config-header">
+        <h2 class="section-title">Acerca del Proyecto</h2>
+        <p class="section-subtitle">8vo Semestre · Ingeniería en Ciencias y Sistemas</p>
+      </div>
+      
+      <div class="config-grid">
+        <!-- Universidad -->
+        <div class="config-card full-width">
+          <div class="config-card-header">
+            <h3 class="config-card-title">Universidad</h3>
+          </div>
+          <div class="config-card-content">
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                    <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                  </svg>
+                </div>
+                <div class="info-text">Universidad San Carlos de Guatemala</div>
+              </div>
+              
+              <div class="info-item">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                </div>
+                <div class="info-text">Facultad de Ingeniería</div>
+              </div>
+              
+              <div class="info-item">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </div>
+                <div class="info-text">Centro Universitario del Norte</div>
+              </div>
+              
+              <div class="info-item">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                </div>
+                <div class="info-text">Cobán A.V., Guatemala</div>
+              </div>
+              
+              <div class="info-item">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                </div>
+                <div class="info-text">Ingeniería en Ciencias y Sistemas</div>
+              </div>
+              
+              <div class="info-item">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </div>
+                <div class="info-text">8vo Semestre</div>
+              </div>
+              
+              <div class="info-item">
+                <div class="info-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                </div>
+                <div class="info-text">Seminario — Proyecto Final 2025</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contacto del Equipo -->
+        <div class="config-card full-width">
+          <div class="config-card-header">
+            <h3 class="config-card-title">Contacto del Equipo</h3>
+          </div>
+          <div class="config-card-content">
+            <div class="info-item">
+              <div class="info-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+              </div>
+              <div class="info-text">ingS4cunor@protonmail.com</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= SECCIÓN: INFORMACIÓN PÚBLICA ======= -->
+    <section class="config-section">
+      <div class="config-header">
+        <h2 class="section-title">Información Pública</h2>
+        <p class="section-subtitle">Acceso a información y términos de uso</p>
+      </div>
+      
+      <div class="config-grid">
+        <!-- Ley de Acceso a la Información Pública -->
+        <div class="config-card full-width">
+          <div class="config-card-header">
+            <div class="config-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+            </div>
+            <h3 class="config-card-title">Ley de Acceso a la Información Pública</h3>
+          </div>
+          <div class="config-card-content">
+            <p class="config-card-description">
+              La Ley de Acceso a la Información Pública (Decreto 57-2008) garantiza el derecho de acceso a la información pública en Guatemala. 
+              Toda persona tiene derecho a solicitar y recibir información de los órganos, entidades y dependencias del Estado, 
+              así como de las entidades que reciban o administren fondos públicos.
+            </p>
+            <p class="config-card-description">
+              La información pública debe ser proporcionada de manera oportuna, veraz, completa y accesible, 
+              salvo las excepciones establecidas en la ley.
+            </p>
+            <button class="btn-secondary" id="btnDescargarLey" disabled>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Descargar Documento
+            </button>
+          </div>
+        </div>
+
+        <!-- Términos y Condiciones -->
+        <div class="config-card full-width">
+          <div class="config-card-header">
+            <div class="config-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+            </div>
+            <h3 class="config-card-title">Términos y Condiciones</h3>
+          </div>
+          <div class="config-card-content">
+            <div class="terminos-content">
+              <h4>Derechos de Autor</h4>
+              <p>©2024 Todos los derechos reservados, Oficina Regional MAGA Purulhá B.V. / Km 164.5 Purulhá B.V.</p>
+              
+              <h4>Uso del Sistema</h4>
+              <p>
+                El uso de este sistema está sujeto a los términos y condiciones establecidos. 
+                Los usuarios son responsables del uso adecuado de la información y funcionalidades proporcionadas.
+              </p>
+              
+              <h4>Privacidad</h4>
+              <p>
+                Nos comprometemos a proteger la privacidad de los usuarios. 
+                La información personal será tratada conforme a la legislación vigente en materia de protección de datos.
+              </p>
+              
+              <h4>Responsabilidad</h4>
+              <p>
+                La Oficina Regional MAGA Purulhá no se hace responsable por el uso indebido de la información 
+                proporcionada a través de este sistema. Los usuarios utilizan el sistema bajo su propia responsabilidad.
+              </p>
+              
+              <h4>Modificaciones</h4>
+              <p>
+                Nos reservamos el derecho de modificar estos términos y condiciones en cualquier momento. 
+                Se recomienda revisar periódicamente esta sección para estar informado de cualquier cambio.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/configgeneral.js' %}"></script>
+{% endblock %}
+

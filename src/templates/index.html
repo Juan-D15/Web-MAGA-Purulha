@@ -7,6 +7,7 @@
   <link rel="stylesheet"href="{% static 'css/styles.css' %}">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
+  <link rel="stylesheet" href="{% static 'css/reportes.css' %}">
   <style>
     /* Tooltip de regiones (copiado de mapa-completo) */
     .region-tooltip { position: absolute; background: linear-gradient(135deg, #0772d2, #0a5f9f); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 700; box-shadow: 0 8px 24px rgba(7,114,210,.4); border: 1px solid rgba(255,255,255,.2); backdrop-filter: blur(12px); pointer-events: none; z-index: 1000; opacity: 0; transform: translateY(8px) scale(.95); transition: all .3s cubic-bezier(.4,0,.2,1); white-space: nowrap; }
@@ -14,8 +15,24 @@
     .region-tooltip::after { content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:6px solid #0772d2; }
 
     /* ===== Calendario ===== */
-    .calendar-section{padding:40px 0;border-top:1px solid var(--border, #ffffff1f);background: radial-gradient(900px 400px at 90% 10%, #ffffff0a 0%, transparent 60%)}
-    .calendar__inner{max-width:1320px;margin:0 auto;padding:0 22px}
+    .calendar-section{
+      padding:40px 0;
+      border-top:1px solid var(--border, #ffffff1f);
+      background: radial-gradient(900px 400px at 90% 10%, #ffffff0a 0%, transparent 60%);
+      width:100%;
+      max-width:100%;
+      overflow-x:hidden;
+      box-sizing:border-box;
+    }
+    .calendar__inner{
+      max-width:1320px;
+      margin:0 auto;
+      padding:0 22px;
+      width:100%;
+      max-width:100%;
+      box-sizing:border-box;
+      overflow-x:hidden;
+    }
     .calendar__header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
     .calendar__title h2{margin:0;font-weight:800;color:#eef5ff;letter-spacing:.02em}
     .calendar__subtitle{margin:4px 0 0 0;color:#a8b2c2;font-weight:600;letter-spacing:.04em}
@@ -25,16 +42,101 @@
     .cal-btn:hover{background:#ffffff12}
     .cal-add-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;background:linear-gradient(135deg,#12b76a,#079455);border:1px solid #ffffff1f;color:#fff;font-weight:800;cursor:pointer}
 
-    .calendar{border:1px solid #ffffff1f;border-radius:16px;background:linear-gradient(180deg,#2f3a4c 0%,#2a3343 100%);box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden}
-    .calendar__weekdays{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid #ffffff1a;background:linear-gradient(180deg,#2b3748 0%,#243043 100%)}
-    .calendar__weekdays div{padding:12px 10px;text-align:center;font-weight:800;color:#dfe9f7;letter-spacing:.06em;text-transform:uppercase}
-    .calendar__grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0}
-    .cal-cell{position:relative;min-height:110px;border-right:1px solid #ffffff12;border-bottom:1px solid #ffffff12;padding:10px;cursor:pointer;background:transparent;transition:background .15s ease}
+    .calendar{
+      border:1px solid #ffffff1f;
+      border-radius:16px;
+      background:linear-gradient(180deg,#2f3a4c 0%,#2a3343 100%);
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      overflow:hidden;
+      width:100%;
+      max-width:100%;
+      box-sizing:border-box;
+    }
+    .calendar__weekdays{
+      display:grid;
+      grid-template-columns:repeat(7,1fr);
+      border-bottom:1px solid #ffffff1a;
+      background:linear-gradient(180deg,#2b3748 0%,#243043 100%);
+      width:100%;
+      box-sizing:border-box;
+    }
+    .calendar__weekdays div{
+      padding:12px 10px;
+      text-align:center;
+      font-weight:800;
+      color:#dfe9f7;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      box-sizing:border-box;
+      min-width:0;
+    }
+    .calendar__grid{
+      display:grid;
+      grid-template-columns:repeat(7,minmax(0,1fr));
+      gap:0;
+      width:100%;
+      max-width:100%;
+      box-sizing:border-box;
+    }
+    .cal-cell{
+      position:relative;
+      min-height:110px;
+      border-right:1px solid #ffffff12;
+      border-bottom:1px solid #ffffff12;
+      padding:10px;
+      cursor:pointer;
+      background:transparent;
+      transition:background .15s ease;
+      display:flex;
+      flex-direction:column;
+      box-sizing:border-box;
+    }
+    /* Eliminar borde derecho de la última columna (domingo) - cada 7ma celda */
+    .calendar__grid > .cal-cell:nth-child(7n){
+      border-right:none;
+    }
+    /* También eliminar borde de cualquier div que sea el último hijo y no tenga clase cal-cell */
+    .calendar__grid > div:not(.cal-cell):last-child{
+      border-right:none;
+    }
     .cal-cell:hover{background:#ffffff0d}
     .cal-cell.is-today{outline:2px solid #0772d2;outline-offset:-2px}
-    .cal-cell__date{font-weight:800;color:#eef5ff}
-    .cal-cell__events{margin-top:6px;display:flex;flex-direction:column;gap:6px;max-height:70px;overflow:auto}
-    .cal-pill{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 8px;border-radius:8px;background:#1d2531;border:1px solid #ffffff1f;color:#dfe9f7;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cal-cell__date{
+      font-weight:800;
+      color:#eef5ff;
+      flex-shrink:0;
+      margin-bottom:6px;
+    }
+    .cal-cell__events{
+      margin-top:0;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      max-height:70px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      flex:1;
+      min-height:0;
+    }
+    .cal-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      max-width:100%;
+      padding:6px 8px;
+      border-radius:8px;
+      background:#1d2531;
+      border:1px solid #ffffff1f;
+      color:#dfe9f7;
+      font-size:12px;
+      font-weight:700;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      flex-shrink:0;
+      min-width:0;
+      box-sizing:border-box;
+    }
     .cal-pill__text{display:inline-block}
     .cal-pill__short{display:none}
     .cal-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0} .cal-dot--event{background:#12b76a} .cal-dot--update{background:#ffc107} .cal-dot--finish{background:#ff5d5d}
@@ -268,19 +370,224 @@
 
     /* Responsive calendar */
     @media(max-width:900px){
+      .calendar-section{
+        overflow-x:hidden;
+        width:100%;
+        max-width:100%;
+      }
+      .calendar__inner{
+        overflow-x:hidden;
+        width:100%;
+        max-width:100%;
+      }
       .calendar__current{min-width:auto}
       .calendar__header{flex-direction:column;align-items:flex-start}
       .calendar__weekdays div{font-size:12px;padding:10px 6px}
-      .cal-cell{min-height:92px}
+      .calendar__grid{
+        grid-template-columns:repeat(7,minmax(0,1fr));
+      }
+      .cal-cell{
+        min-height:92px;
+        max-height:92px;
+        height:92px;
+        overflow:hidden;
+        display:flex;
+        flex-direction:column;
+        width:100%;
+        min-width:0;
+      }
+      .cal-cell__date{
+        flex-shrink:0;
+        font-size:13px;
+        margin-bottom:4px;
+        line-height:1.2;
+      }
+      .cal-cell__events{
+        flex:1 1 auto;
+        min-height:0;
+        max-height:60px;
+        overflow-y:auto;
+        overflow-x:hidden;
+        margin-top:4px;
+        width:100%;
+        box-sizing:border-box;
+      }
+      /* Scrollbar personalizado para eventos */
+      .cal-cell__events::-webkit-scrollbar{
+        width:3px;
+      }
+      .cal-cell__events::-webkit-scrollbar-track{
+        background:transparent;
+      }
+      .cal-cell__events::-webkit-scrollbar-thumb{
+        background:#ffffff2a;
+        border-radius:3px;
+      }
+      .cal-cell__events::-webkit-scrollbar-thumb:hover{
+        background:#ffffff40;
+      }
+      .cal-pill{
+        max-width:100%;
+        min-width:0;
+      }
     }
     @media(max-width:600px){
-      .calendar__grid{grid-template-columns:repeat(7,1fr)}
-      .cal-cell__events{max-height:56px}
-      .calendar__title h2{font-size:1.1rem}
-      .cal-add-btn{width:100%;justify-content:center}
+      .calendar-section{
+        padding:20px 0;
+        width:100%;
+        max-width:100%;
+        overflow-x:hidden;
+        box-sizing:border-box;
+      }
+      .calendar__inner{
+        padding:0 12px;
+        width:100%;
+        max-width:100%;
+        box-sizing:border-box;
+        overflow-x:hidden;
+      }
+      .calendar__grid{
+        grid-template-columns:repeat(7,minmax(0,1fr));
+        width:100%;
+        max-width:100%;
+        overflow-x:hidden;
+        box-sizing:border-box;
+      }
+      .calendar{
+        width:100%;
+        max-width:100%;
+        overflow:hidden;
+        box-sizing:border-box;
+      }
+      .calendar__weekdays{
+        width:100%;
+        max-width:100%;
+        display:grid;
+        grid-template-columns:repeat(7,minmax(0,1fr));
+        box-sizing:border-box;
+        overflow:hidden;
+      }
+      .calendar__weekdays div{
+        font-size:10px;
+        padding:8px 2px;
+        word-break:break-word;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        min-width:0;
+        box-sizing:border-box;
+      }
+      .cal-cell{
+        min-height:80px;
+        max-height:80px;
+        height:80px;
+        padding:6px 2px;
+        box-sizing:border-box;
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
+        width:100%;
+        min-width:0;
+      }
+      .cal-cell__date{
+        font-size:11px;
+        font-weight:800;
+        flex-shrink:0;
+        margin-bottom:2px;
+        line-height:1.2;
+      }
+      .cal-cell__events{
+        flex:1 1 auto;
+        min-height:0;
+        max-height:50px;
+        overflow-y:auto;
+        overflow-x:hidden;
+        margin-top:2px;
+        display:flex;
+        flex-direction:column;
+        gap:3px;
+        width:100%;
+        box-sizing:border-box;
+      }
+      .cal-pill{
+        padding:3px 5px;
+        font-size:10px;
+        max-width:100%;
+        min-width:0;
+        flex-shrink:0;
+        width:100%;
+        box-sizing:border-box;
+      }
       .cal-pill__text{display:none}
       .cal-pill__short{display:inline-block}
-      .cal-pill{padding:4px 6px;font-size:11px}
+      .cal-dot{
+        width:6px;
+        height:6px;
+        flex-shrink:0;
+      }
+      .calendar__title h2{font-size:1rem}
+      .cal-add-btn{
+        width:100%;
+        justify-content:center;
+        font-size:0.85rem;
+        padding:8px 12px;
+      }
+      /* Asegurar que todas las celdas tengan el mismo tamaño y no se salgan */
+      .calendar__grid > *{
+        width:100%;
+        min-width:0;
+        max-width:100%;
+        box-sizing:border-box;
+      }
+      /* Prevenir que las píldoras hagan crecer las celdas */
+      .cal-pill{
+        max-width:100%;
+        overflow:hidden;
+        text-overflow:ellipsis;
+      }
+    }
+    @media(max-width:480px){
+      .calendar-section{
+        padding:15px 0;
+      }
+      .calendar__inner{
+        padding:0 8px;
+      }
+      .cal-cell{
+        min-height:75px;
+        max-height:75px;
+        height:75px;
+        padding:5px 2px;
+      }
+      .cal-cell__date{
+        font-size:10px;
+        line-height:1.1;
+      }
+      .cal-cell__events{
+        max-height:45px;
+        gap:2px;
+        width:100%;
+        box-sizing:border-box;
+      }
+      .cal-pill{
+        padding:2px 4px;
+        font-size:9px;
+        max-width:100%;
+        width:100%;
+        box-sizing:border-box;
+      }
+      .calendar__weekdays div{
+        font-size:9px;
+        padding:6px 1px;
+      }
+      /* Asegurar que el calendario no se salga en pantallas muy pequeñas */
+      .calendar,
+      .calendar__grid,
+      .calendar__weekdays{
+        min-width:0;
+        width:100%;
+        max-width:100%;
+      }
     }
   </style>
 {% endblock %}
@@ -731,6 +1038,99 @@
   </section>
   {% endif %}
   
+  <!-- ======= ESTADÍSTICAS GENERALES DE LA OFICINA ======= -->
+  <section class="dashboard-section" id="dashboardSection" style="margin-top: 40px;">
+    <div class="reportes-container">
+      <div class="dashboard-header-container">
+        <h2 class="section-title">Estadísticas Generales de la Oficina</h2>
+      </div>
+      
+      <!-- Tarjetas de Métricas Principales -->
+      <div class="metrics-grid" id="metricsGrid">
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricTotalActividades">-</h3>
+            <p class="metric-label">Total de Actividades</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricComunidades">-</h3>
+            <p class="metric-label">Comunidades Alcanzadas</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricComunidadesMunicipio">-</h3>
+            <p class="metric-label">Comunidades del Municipio</p>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+          <div class="metric-content">
+            <h3 class="metric-value" id="metricBeneficiarios">-</h3>
+            <p class="metric-label">Beneficiarios Alcanzados</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráficos Principales -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3 class="chart-title">Distribución por Tipo</h3>
+          <div class="chart-container">
+            <canvas id="chartPorTipo"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3 class="chart-title">Actividades por Región (Top 5)</h3>
+          <div class="chart-container">
+            <canvas id="chartPorRegion"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3 class="chart-title">Estado de Actividades</h3>
+          <div class="chart-container">
+            <canvas id="chartEstado"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
   <!-- Modal de recordatorio -->
   <div class="reminder-modal" id="reminderModal" aria-hidden="true">
     <div class="reminder__panel" role="dialog" aria-modal="true">
@@ -764,6 +1164,12 @@
             <!-- Los checkboxes se generarán dinámicamente aquí -->
           </div>
           <div id="reminderOwnersError" style="display:none;color:#ff5d5d;font-size:0.85rem;margin-top:5px;">Este campo es obligatorio</div>
+        </div>
+        <div class="form-row">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="reminderRemember" style="width:18px;height:18px;cursor:pointer;">
+            <span>Recordar (reenviar notificación 10 minutos después)</span>
+          </label>
         </div>
         <div class="form-actions">
           <button class="btn-secondary" id="reminderCancelBtn">Cancelar</button>
@@ -2073,6 +2479,13 @@
       const label = `${pad(today.getDate())}/${pad(today.getMonth()+1)}/${today.getFullYear()}`;
       openReminderModal(label);
     });
+    
+    // Inicializar sistema de notificaciones después de cargar el calendario
+    if (!reminderCheckInterval) {
+      setTimeout(() => {
+        startNotificationSystem();
+      }, 1000);
+    }
   }
 
   if(document.readyState === 'loading'){
@@ -2552,7 +2965,14 @@
           'X-CSRFToken': CSRF_TOKEN || ''
         },
         credentials: 'same-origin',
-        body: JSON.stringify({ date, time, event_name: eventName, description: desc, owners })
+        body: JSON.stringify({ 
+          date, 
+          time, 
+          event_name: eventName, 
+          description: desc, 
+          owners,
+          recordar: document.getElementById('reminderRemember')?.checked || false
+        })
       });
       if(res.ok){
         const result = await res.json();
@@ -2639,10 +3059,981 @@
   window.addEventListener('load', function() {
     handleUrlAnchor();
   });
+
+  /* ========== SISTEMA DE NOTIFICACIONES DE RECORDATORIOS ========== */
+  
+  // Variables globales para notificaciones
+  let notificationPermission = 'default';
+  let reminderCheckInterval = null;
+  let scheduledNotifications = new Map(); // Map<reminderId -> {notificationId, timeoutId, isReenviar}>
+  
+  // Registrar Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/js/service-worker.js', { scope: '/' })
+      .then(registration => {
+        console.log('[Notificaciones] Service Worker registrado:', registration);
+        
+        // Escuchar mensajes del Service Worker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'CHECK_REMINDERS') {
+            checkPendingReminders();
+          }
+        });
+      })
+      .catch(error => {
+        console.error('[Notificaciones] Error al registrar Service Worker:', error);
+      });
+  }
+  
+  // Solicitar permisos de notificación
+  async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+      console.warn('[Notificaciones] Este navegador no soporta notificaciones');
+      return false;
+    }
+    
+    console.log('[Notificaciones] Estado actual de permisos:', Notification.permission);
+    
+    if (Notification.permission === 'granted') {
+      notificationPermission = 'granted';
+      console.log('[Notificaciones] Permisos ya otorgados');
+      return true;
+    }
+    
+    if (Notification.permission !== 'denied') {
+      console.log('[Notificaciones] Solicitando permisos...');
+      try {
+        const permission = await Notification.requestPermission();
+        notificationPermission = permission;
+        console.log('[Notificaciones] Respuesta del usuario:', permission);
+        
+        if (permission === 'granted') {
+          console.log('[Notificaciones] ✅ Permisos otorgados');
+          // Mostrar un mensaje de confirmación
+          if (document.visibilityState === 'visible') {
+            showInPageNotification('✅ Notificaciones activadas', 'Ahora recibirás recordatorios en tu dispositivo', 'permission-granted');
+          }
+        } else if (permission === 'denied') {
+          console.warn('[Notificaciones] ❌ Permisos denegados por el usuario');
+          if (document.visibilityState === 'visible') {
+            alert('Las notificaciones fueron denegadas. Para recibir recordatorios, por favor permite las notificaciones en la configuración de tu navegador.');
+          }
+        } else {
+          console.log('[Notificaciones] ⏸️ Permisos en estado "default" (usuario no ha respondido)');
+        }
+        
+        return permission === 'granted';
+      } catch (error) {
+        console.error('[Notificaciones] Error al solicitar permisos:', error);
+        return false;
+      }
+    } else {
+      console.warn('[Notificaciones] Permisos previamente denegados');
+      return false;
+    }
+  }
+  
+  // Verificar recordatorios pendientes
+  async function checkPendingReminders() {
+    if (!isUserAuthenticated || !CURRENT_USER) {
+      console.log('[Notificaciones] Usuario no autenticado o no cargado, saltando verificación');
+      return;
+    }
+    
+    try {
+      const PENDING_API = (window.DJANGO_URLS && window.DJANGO_URLS.remindersPending) || '/api/reminders/pending/';
+      console.log('[Notificaciones] Consultando API:', PENDING_API);
+      
+      const res = await fetch(PENDING_API, {
+        credentials: 'same-origin',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      
+      if (!res.ok) {
+        console.warn('[Notificaciones] Error en respuesta:', res.status, res.statusText);
+        return;
+      }
+      
+      const reminders = await res.json();
+      console.log('[Notificaciones] Recordatorios recibidos:', reminders);
+      
+      if (!Array.isArray(reminders)) {
+        console.warn('[Notificaciones] Respuesta no es un array:', reminders);
+        return;
+      }
+      
+      if (reminders.length === 0) {
+        console.log('[Notificaciones] No hay recordatorios pendientes');
+        return;
+      }
+      
+      console.log(`[Notificaciones] Procesando ${reminders.length} recordatorio(s) pendiente(s)`);
+      
+      const now = Date.now();
+      
+      reminders.forEach(reminder => {
+        const reminderId = reminder.id;
+        const dueAt = reminder.due_at_timestamp;
+        const tiempoRestante = reminder.tiempo_restante_segundos;
+        const recordar = reminder.recordar || false;
+        const yaEnviado = reminder.enviado || false;
+        
+        console.log('[Notificaciones] Procesando recordatorio:', { reminderId, dueAt, tiempoRestante, recordar, yaEnviado });
+        
+        // Si ya fue enviado y NO está marcado "recordar", saltarlo completamente
+        // Si está marcado "recordar", aún podemos enviar el reenvío si corresponde
+        if (yaEnviado && !recordar) {
+          console.log('[Notificaciones] Recordatorio ya enviado y sin "recordar", saltando:', reminderId);
+          return;
+        }
+        
+        // Si ya fue enviado y está marcado "recordar", verificar si ya se reenvió
+        // (esto se maneja en los casos específicos más abajo)
+        
+        // Verificar si este recordatorio ya está programado
+        const scheduled = scheduledNotifications.get(reminderId);
+        
+        // Límite de 15 minutos después de la hora del recordatorio
+        const LIMITE_MINUTOS = 15;
+        const LIMITE_SEGUNDOS = LIMITE_MINUTOS * 60; // 900 segundos
+        
+        // Si el recordatorio ya pasó (tiempoRestante < 0)
+        if (tiempoRestante < 0) {
+          // Verificar si pasaron más de 15 minutos
+          const tiempoAbsoluto = Math.abs(tiempoRestante);
+          if (tiempoAbsoluto > LIMITE_SEGUNDOS) {
+            console.log('[Notificaciones] Recordatorio expiró hace más de 15 minutos, saltando:', reminderId, `(${Math.round(tiempoAbsoluto / 60)} minutos)`);
+            return; // No enviar notificación si pasaron más de 15 minutos
+          }
+          
+          const minutosDesdeDueAt = tiempoAbsoluto / 60; // Minutos desde la hora del recordatorio
+          const MINUTOS_REENVIO = 10; // Minutos después de la hora para el reenvío
+          
+          // Verificar si ya se envió la notificación principal
+          const yaEnviadoPrincipal = scheduled && scheduled.sent;
+          const yaReenviado = scheduled && scheduled.reenviado;
+          
+          // Caso 1: Ya pasaron más de 10 minutos pero menos de 15
+          // Si está marcado "recordar", enviar SOLO el reenvío (no la principal)
+          if (minutosDesdeDueAt >= MINUTOS_REENVIO && recordar && !yaReenviado) {
+            console.log('[Notificaciones] Ya pasaron más de 10 minutos, enviando solo reenvío:', reminderId);
+            sendNotification(reminder, true, false); // Reenvío, no marcar como enviado
+            
+            // Marcar como reenviado y como enviado (para evitar duplicados)
+            if (!scheduled) {
+              scheduledNotifications.set(reminderId, {
+                notificationId: null,
+                timeoutId: null,
+                reenvioTimeoutId: null,
+                isReenviar: true,
+                sent: true, // Marcar como enviado para evitar que se envíe la principal después
+                reenviado: true
+              });
+            } else {
+              scheduled.sent = true;
+              scheduled.reenviado = true;
+            }
+            return; // Salir para evitar enviar la notificación principal
+          }
+          
+          // Caso 2: Pasaron menos de 10 minutos - enviar notificación principal
+          if (minutosDesdeDueAt < MINUTOS_REENVIO && !yaEnviadoPrincipal) {
+            console.log('[Notificaciones] Enviando notificación principal (pasaron menos de 10 minutos):', reminderId);
+            sendNotification(reminder, false, true); // Principal, marcar como enviado
+            
+            // Marcar como enviado
+            if (!scheduled) {
+              scheduledNotifications.set(reminderId, {
+                notificationId: null,
+                timeoutId: null,
+                reenvioTimeoutId: null,
+                isReenviar: false,
+                sent: true,
+                reenviado: false
+              });
+            } else {
+              scheduled.sent = true;
+            }
+            
+            // Si está marcado "recordar", programar reenvío en (10 - minutosDesdeDueAt) minutos
+            if (recordar && !yaReenviado) {
+              const minutosRestantes = MINUTOS_REENVIO - minutosDesdeDueAt;
+              const reenvioTime = now + (minutosRestantes * 60 * 1000);
+              
+              // Verificar que el reenvío no exceda los 15 minutos
+              const tiempoTotalHastaReenvio = minutosDesdeDueAt + minutosRestantes;
+              if (tiempoTotalHastaReenvio <= LIMITE_MINUTOS) {
+                console.log('[Notificaciones] Programando reenvío en', minutosRestantes, 'minutos');
+                scheduleNotification(reminder, reenvioTime, true);
+              } else {
+                console.log('[Notificaciones] Reenvío no programado: excedería los 15 minutos');
+              }
+            }
+          }
+          // Caso 3: Ya se envió la principal pero no el reenvío, y está marcado recordar
+          else if (yaEnviadoPrincipal && !yaReenviado && recordar) {
+            if (minutosDesdeDueAt >= MINUTOS_REENVIO) {
+              // Ya pasaron 10 minutos, enviar reenvío inmediatamente
+              console.log('[Notificaciones] Enviando reenvío (ya pasaron 10 minutos desde la hora):', reminderId);
+              sendNotification(reminder, true, false); // Reenvío
+              scheduled.reenviado = true;
+            } else {
+              // Aún no pasan 10 minutos, programar el reenvío
+              const minutosRestantes = MINUTOS_REENVIO - minutosDesdeDueAt;
+              const reenvioTime = now + (minutosRestantes * 60 * 1000);
+              
+              // Verificar que el reenvío no exceda los 15 minutos
+              const tiempoTotalHastaReenvio = minutosDesdeDueAt + minutosRestantes;
+              if (tiempoTotalHastaReenvio <= LIMITE_MINUTOS) {
+                console.log('[Notificaciones] Programando reenvío en', minutosRestantes, 'minutos');
+                scheduleNotification(reminder, reenvioTime, true);
+              } else {
+                console.log('[Notificaciones] El reenvío excedería los 15 minutos, cancelando:', reminderId);
+                scheduled.reenviado = true;
+              }
+            }
+          }
+          // Caso 4: No está marcado "recordar" y ya pasó el recordatorio - solo enviar principal una vez
+          else if (!recordar && !yaEnviadoPrincipal) {
+            console.log('[Notificaciones] Enviando notificación principal (sin recordar):', reminderId);
+            sendNotification(reminder, false, true); // Principal, marcar como enviado
+            
+            // Marcar como enviado
+            if (!scheduled) {
+              scheduledNotifications.set(reminderId, {
+                notificationId: null,
+                timeoutId: null,
+                reenvioTimeoutId: null,
+                isReenviar: false,
+                sent: true,
+                reenviado: true // Marcar como reenviado también para evitar intentos futuros
+              });
+            } else {
+              scheduled.sent = true;
+              scheduled.reenviado = true; // Evitar intentos futuros
+            }
+          }
+        } else {
+          // El recordatorio aún no ha llegado, programarlo
+          if (!scheduled || !scheduled.sent) {
+            scheduleNotification(reminder, dueAt, false);
+            
+            // Si está marcado "recordar", también programar el reenvío
+            // Pero solo si el reenvío no excederá los 15 minutos desde la hora del recordatorio
+            if (recordar) {
+              const reenvioTime = dueAt + (10 * 60 * 1000); // 10 minutos después
+              const tiempoHastaReenvio = (reenvioTime - now) / 1000; // en segundos
+              
+              // Verificar que el reenvío esté dentro de los 15 minutos desde la hora del recordatorio
+              // El tiempo hasta el reenvío debe ser <= 15 minutos (900 segundos)
+              if (tiempoHastaReenvio <= LIMITE_SEGUNDOS) {
+                const reenvioTimeoutId = setTimeout(() => {
+                  // Verificar nuevamente antes de enviar el reenvío
+                  const tiempoActual = Math.abs((reminder.due_at_timestamp - Date.now()) / 1000);
+                  if (tiempoActual <= LIMITE_SEGUNDOS) {
+                    sendNotification(reminder, true, false); // false = no marcar como enviado (es reenvío)
+                    const updated = scheduledNotifications.get(reminderId);
+                    if (updated) {
+                      updated.reenviado = true;
+                    }
+                  } else {
+                    console.log('[Notificaciones] Reenvío cancelado: excedió los 15 minutos desde la hora del recordatorio');
+                    const updated = scheduledNotifications.get(reminderId);
+                    if (updated) {
+                      updated.reenviado = true;
+                    }
+                  }
+                }, reenvioTime - now);
+                
+                if (!scheduled) {
+                  scheduledNotifications.set(reminderId, {
+                    notificationId: null,
+                    timeoutId: null,
+                    reenvioTimeoutId: reenvioTimeoutId,
+                    isReenviar: false,
+                    sent: false,
+                    reenviado: false
+                  });
+                } else {
+                  scheduled.reenvioTimeoutId = reenvioTimeoutId;
+                }
+              } else {
+                console.log('[Notificaciones] Reenvío no programado: excedería los 15 minutos desde la hora del recordatorio');
+              }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('[Notificaciones] Error al verificar recordatorios:', error);
+    }
+  }
+  
+  // Programar una notificación
+  function scheduleNotification(reminder, timestamp, isReenviar) {
+    const now = Date.now();
+    const delay = timestamp - now;
+    
+    // Límite de 15 minutos después de la hora del recordatorio
+    const LIMITE_MINUTOS = 15;
+    const LIMITE_SEGUNDOS = LIMITE_MINUTOS * 60;
+    
+    // Calcular tiempo desde la hora del recordatorio
+    const tiempoDesdeDueAt = Math.abs((reminder.due_at_timestamp - now) / 1000);
+    
+    console.log('[Notificaciones] Programando notificación:', { 
+      reminderId: reminder.id, 
+      timestamp, 
+      now, 
+      delay, 
+      isReenviar,
+      delaySegundos: Math.round(delay / 1000),
+      tiempoDesdeDueAtSegundos: Math.round(tiempoDesdeDueAt)
+    });
+    
+    // Si el recordatorio ya pasó, verificar que no exceda los 15 minutos
+    if (delay <= 0) {
+      if (tiempoDesdeDueAt > LIMITE_SEGUNDOS) {
+        console.log('[Notificaciones] Recordatorio expiró hace más de 15 minutos, cancelando notificación:', reminder.id);
+        return;
+      }
+      
+      // Ya pasó pero está dentro del límite, enviar inmediatamente
+      console.log('[Notificaciones] El recordatorio ya pasó, enviando notificación inmediatamente');
+      // Solo marcar como enviado si no es reenvío
+      sendNotification(reminder, isReenviar, !isReenviar);
+      
+      // Actualizar el registro
+      const reminderId = reminder.id;
+      const scheduled = scheduledNotifications.get(reminderId);
+      if (scheduled) {
+        if (isReenviar) {
+          scheduled.reenviado = true;
+        } else {
+          scheduled.sent = true;
+        }
+      } else {
+        scheduledNotifications.set(reminderId, {
+          notificationId: null,
+          timeoutId: null,
+          reenvioTimeoutId: null,
+          isReenviar: isReenviar,
+          sent: !isReenviar,
+          reenviado: isReenviar
+        });
+      }
+      return;
+    }
+    
+    const reminderId = reminder.id;
+    const timeoutId = setTimeout(() => {
+      // Verificar nuevamente antes de enviar que no hayan pasado más de 15 minutos
+      const tiempoActual = Math.abs((reminder.due_at_timestamp - Date.now()) / 1000);
+      if (tiempoActual > LIMITE_SEGUNDOS) {
+        console.log('[Notificaciones] Timeout cancelado: excedió los 15 minutos desde la hora del recordatorio:', reminderId);
+        return;
+      }
+      
+      console.log('[Notificaciones] Timeout ejecutado, enviando notificación:', { reminderId, isReenviar });
+      // Solo marcar como enviado si no es reenvío
+      sendNotification(reminder, isReenviar, !isReenviar);
+      
+      // Actualizar el registro
+      const scheduled = scheduledNotifications.get(reminderId);
+      if (scheduled) {
+        if (isReenviar) {
+          scheduled.reenviado = true;
+        } else {
+          scheduled.sent = true;
+        }
+      }
+    }, delay);
+    
+    console.log('[Notificaciones] Timeout programado:', { reminderId, timeoutId, delaySegundos: Math.round(delay / 1000) });
+    
+    // Guardar el timeout
+    if (!scheduledNotifications.has(reminderId)) {
+      scheduledNotifications.set(reminderId, {
+        notificationId: null,
+        timeoutId: isReenviar ? null : timeoutId,
+        reenvioTimeoutId: isReenviar ? timeoutId : null,
+        isReenviar: isReenviar,
+        sent: false,
+        reenviado: false
+      });
+    } else {
+      const scheduled = scheduledNotifications.get(reminderId);
+      if (isReenviar) {
+        scheduled.reenvioTimeoutId = timeoutId;
+      } else {
+        scheduled.timeoutId = timeoutId;
+      }
+    }
+  }
+  
+  // Enviar notificación
+  function sendNotification(reminder, isReenviar, marcarComoEnviado = false) {
+    if (notificationPermission !== 'granted') {
+      // Si no tenemos permiso, intentar solicitarlo
+      requestNotificationPermission().then(hasPermission => {
+        if (hasPermission) {
+          showNotification(reminder, isReenviar, marcarComoEnviado);
+        }
+      });
+      return;
+    }
+    
+    showNotification(reminder, isReenviar, marcarComoEnviado);
+  }
+  
+  // Mostrar la notificación
+  function showNotification(reminder, isReenviar, marcarComoEnviado = false) {
+    const title = isReenviar ? '🔔 Recordatorio (Recordar)' : '🔔 Recordatorio';
+    
+    // Construir el cuerpo de la notificación con toda la información
+    let bodyParts = [];
+    
+    // Descripción
+    if (reminder.descripcion) {
+      bodyParts.push(reminder.descripcion);
+    }
+    
+    // Evento
+    const evento = reminder.evento_nombre || reminder.titulo || 'Sin evento';
+    bodyParts.push(`📅 Evento: ${evento}`);
+    
+    // Fecha y hora
+    if (reminder.fecha && reminder.hora) {
+      bodyParts.push(`🕐 ${reminder.fecha} a las ${reminder.hora}`);
+    } else if (reminder.due_at) {
+      // Si no vienen formateados, formatear desde due_at
+      try {
+        const dueDate = new Date(reminder.due_at);
+        const fecha = dueDate.toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const hora = dueDate.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit' });
+        bodyParts.push(`🕐 ${fecha} a las ${hora}`);
+      } catch (e) {
+        console.warn('[Notificaciones] Error al formatear fecha:', e);
+      }
+    }
+    
+    // Personal involucrado
+    if (reminder.owners_text) {
+      bodyParts.push(`👥 Personal: ${reminder.owners_text}`);
+    }
+    
+    const body = bodyParts.join('\n') || 'Tienes un recordatorio';
+    const tag = `reminder-${reminder.id}${isReenviar ? '-reenviar' : ''}`;
+    
+    console.log('[Notificaciones] Mostrando notificación:', { title, body, tag, reminderId: reminder.id, reminder });
+    
+    // Notificación del navegador (si tenemos permiso) - ESTO FUNCIONA EN MODO INCÓGNITO
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          console.log('[Notificaciones] Creando notificación con permisos otorgados');
+          
+          const notification = new Notification(title, {
+            body: body,
+            icon: '/static/img/logos/logo_maga.png',
+            badge: '/static/img/logos/logo_maga.png',
+            tag: tag,
+            requireInteraction: false,
+            silent: false, // Asegurar que haga sonido
+            data: {
+              reminderId: reminder.id,
+              isReenviar: isReenviar
+            }
+          });
+          
+          console.log('[Notificaciones] ✅ Notificación del navegador creada exitosamente:', notification);
+          console.log('[Notificaciones] Contenido:', { title, body });
+          
+          notification.onclick = () => {
+            console.log('[Notificaciones] Notificación clickeada');
+            window.focus();
+            notification.close();
+          };
+          
+          notification.onshow = () => {
+            console.log('[Notificaciones] ✅ Notificación mostrada en Windows/dispositivo');
+            
+            // Marcar como enviado en el backend si es necesario (solo para notificaciones principales, no reenvíos)
+            if (marcarComoEnviado && !isReenviar) {
+              marcarNotificacionComoEnviada(reminder.id);
+            }
+          };
+          
+          notification.onerror = (error) => {
+            console.error('[Notificaciones] ❌ Error en notificación:', error);
+          };
+          
+          notification.onclose = () => {
+            console.log('[Notificaciones] Notificación cerrada');
+          };
+          
+          // Forzar que se muestre (algunos navegadores necesitan esto)
+          setTimeout(() => {
+            if (notification) {
+              console.log('[Notificaciones] Verificando estado de notificación después de 1 segundo');
+            }
+          }, 1000);
+          
+        } catch (error) {
+          console.error('[Notificaciones] ❌ Error al crear notificación:', error);
+          console.error('[Notificaciones] Detalles del error:', error.message, error.stack);
+        }
+      } else if (Notification.permission === 'default') {
+        // Intentar solicitar permiso de nuevo
+        console.log('[Notificaciones] Permiso no otorgado, solicitando...');
+        requestNotificationPermission().then(hasPermission => {
+          if (hasPermission) {
+            // Reintentar mostrar la notificación
+            console.log('[Notificaciones] Permiso otorgado, reintentando mostrar notificación');
+            showNotification(reminder, isReenviar, marcarComoEnviado);
+          } else {
+            console.warn('[Notificaciones] Permiso denegado por el usuario');
+          }
+        });
+      } else {
+        console.warn('[Notificaciones] ❌ Permisos de notificación denegados. El usuario debe habilitarlos en la configuración del navegador.');
+      }
+    } else {
+      console.warn('[Notificaciones] ❌ API de Notificaciones no disponible en este navegador');
+    }
+    
+    // También enviar al Service Worker para que muestre notificación incluso si la página no está activa
+    // (Esto puede no funcionar en modo incógnito, pero no es crítico)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        if (registration.active) {
+          registration.active.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: title,
+            body: body,
+            tag: tag,
+            data: {
+              reminderId: reminder.id,
+              isReenviar: isReenviar
+            }
+          });
+          console.log('[Notificaciones] Mensaje enviado al Service Worker');
+        }
+      }).catch(err => {
+        // Service Worker no disponible (modo incógnito), no es crítico
+        console.log('[Notificaciones] Service Worker no disponible (puede ser modo incógnito)');
+      });
+    }
+    
+    // También mostrar notificación en la web si el usuario está activo
+    if (document.visibilityState === 'visible') {
+      // Crear elemento de notificación en la página
+      showInPageNotification(title, body, reminder.id);
+    }
+  }
+  
+  // Mostrar notificación en la página
+  function showInPageNotification(title, body, reminderId) {
+    // Crear elemento de notificación
+    const notificationEl = document.createElement('div');
+    notificationEl.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #0772d2, #0a5f9f);
+      color: white;
+      padding: 16px 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(7,114,210,.4);
+      z-index: 10000;
+      max-width: 350px;
+      animation: slideInRight 0.3s ease-out;
+    `;
+    notificationEl.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="flex:1">
+          <div style="font-weight:800;margin-bottom:4px;font-size:14px">${title}</div>
+          <div style="font-size:13px;opacity:0.9">${body}</div>
+        </div>
+        <button style="background:transparent;border:none;color:white;cursor:pointer;font-size:20px;line-height:1" onclick="this.parentElement.parentElement.remove()">×</button>
+      </div>
+    `;
+    
+    document.body.appendChild(notificationEl);
+    
+    // Auto-eliminar después de 5 segundos
+    setTimeout(() => {
+      if (notificationEl.parentElement) {
+        notificationEl.style.animation = 'slideOutRight 0.3s ease-out';
+        setTimeout(() => notificationEl.remove(), 300);
+      }
+    }, 5000);
+  }
+  
+  // Agregar estilos de animación para notificaciones
+  if (!document.getElementById('notification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'notification-styles';
+    style.textContent = `
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      @keyframes slideOutRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // Marcar notificación como enviada en el backend
+  async function marcarNotificacionComoEnviada(reminderId) {
+    try {
+      const baseUrl = (window.DJANGO_URLS && window.DJANGO_URLS.marcarNotificacionEnviadaBase) || '/api/reminders/';
+      const finalUrl = `${baseUrl}${reminderId}/marcar-enviado/`;
+      
+      const res = await fetch(finalUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': CSRF_TOKEN || ''
+        },
+        credentials: 'same-origin'
+      });
+      
+      if (res.ok) {
+        console.log('[Notificaciones] ✅ Notificación marcada como enviada:', reminderId);
+      } else {
+        console.warn('[Notificaciones] ⚠️ No se pudo marcar como enviada:', reminderId);
+      }
+    } catch (error) {
+      console.error('[Notificaciones] ❌ Error al marcar como enviada:', error);
+    }
+  }
+  
+  // Escuchar mensajes del Service Worker para verificación en segundo plano
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'CHECK_REMINDERS_BACKGROUND') {
+        console.log('[Notificaciones] Verificación solicitada por Service Worker');
+        checkPendingReminders();
+      }
+    });
+  }
+  
+  // Inicializar sistema de notificaciones cuando el usuario esté autenticado
+  async function initNotificationSystem() {
+    console.log('[Notificaciones] Inicializando sistema...', { isUserAuthenticated, CURRENT_USER });
+    
+    if (!isUserAuthenticated) {
+      console.log('[Notificaciones] Usuario no autenticado, cancelando inicialización');
+      return;
+    }
+    
+    // Cargar usuario si no está cargado
+    if (!CURRENT_USER) {
+      console.log('[Notificaciones] Cargando usuario...');
+      await loadCurrentUser();
+    }
+    
+    if (!CURRENT_USER) {
+      console.warn('[Notificaciones] No se pudo cargar el usuario');
+      return;
+    }
+    
+    console.log('[Notificaciones] Usuario cargado:', CURRENT_USER);
+    
+    // Solicitar permisos inmediatamente
+    console.log('[Notificaciones] Solicitando permisos...');
+    const hasPermission = await requestNotificationPermission();
+    console.log('[Notificaciones] Permiso obtenido:', hasPermission, Notification.permission);
+    
+    // Verificar recordatorios inmediatamente
+    console.log('[Notificaciones] Verificando recordatorios pendientes...');
+    await checkPendingReminders();
+    
+    // Verificar cada 30 segundos (más frecuente para mejor respuesta)
+    if (reminderCheckInterval) {
+      clearInterval(reminderCheckInterval);
+    }
+    reminderCheckInterval = setInterval(async () => {
+      console.log('[Notificaciones] Verificación periódica de recordatorios...');
+      await checkPendingReminders();
+    }, 30000); // Cada 30 segundos
+    
+    // También verificar cuando la página se vuelve visible
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Notificaciones] Página visible, verificando recordatorios...');
+        checkPendingReminders();
+      }
+    });
+    
+    // Escuchar mensajes del Service Worker (si está disponible)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        if (registration.active) {
+          registration.active.postMessage({ type: 'CHECK_REMINDERS' });
+        }
+      }).catch(err => {
+        console.warn('[Notificaciones] Service Worker no disponible (puede ser modo incógnito):', err);
+      });
+    }
+  }
+  
+  // Inicializar cuando el DOM esté listo y el usuario autenticado
+  async function startNotificationSystem() {
+    if (!isUserAuthenticated) {
+      return;
+    }
+    
+    // Esperar a que se cargue el usuario si es necesario
+    if (!CURRENT_USER) {
+      await loadCurrentUser();
+    }
+    
+    // Inicializar el sistema
+    await initNotificationSystem();
+  }
+  
+  // Inicializar cuando el DOM esté listo
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (isUserAuthenticated) {
+        // Esperar un poco para asegurar que todo esté cargado
+        setTimeout(startNotificationSystem, 500);
+      }
+    });
+  } else {
+    if (isUserAuthenticated) {
+      setTimeout(startNotificationSystem, 500);
+    }
+  }
+  
 </script>
 
 <script src="{% static 'js/proyectos.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Script para Dashboard de Estadísticas Generales -->
+<script>
+// Variables globales para los gráficos del dashboard
+let dashboardCharts = {};
+
+// Función para cargar estadísticas del dashboard
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('/reportes/dashboard/stats/');
+        if (!response.ok) {
+            throw new Error('Error al cargar estadísticas del dashboard');
+        }
+        const data = await response.json();
+        renderDashboard(data);
+    } catch (error) {
+        console.error('Error cargando dashboard:', error);
+        // No mostrar error al usuario, solo dejar los valores en "-"
+    }
+}
+
+// Función para renderizar dashboard
+function renderDashboard(data) {
+    // Actualizar métricas (solo las que necesitamos)
+    const totalActividadesEl = document.getElementById('metricTotalActividades');
+    const comunidadesEl = document.getElementById('metricComunidades');
+    const comunidadesMunicipioEl = document.getElementById('metricComunidadesMunicipio');
+    const beneficiariosEl = document.getElementById('metricBeneficiarios');
+    
+    if (totalActividadesEl) {
+        totalActividadesEl.textContent = data.total_actividades || 0;
+    }
+    if (comunidadesEl) {
+        comunidadesEl.textContent = data.comunidades_alcanzadas || 0;
+    }
+    if (comunidadesMunicipioEl) {
+        comunidadesMunicipioEl.textContent = data.total_comunidades_municipio || 0;
+    }
+    if (beneficiariosEl) {
+        beneficiariosEl.textContent = data.beneficiarios_alcanzados || 0;
+    }
+    
+    // Renderizar gráficos (sin el de actividades por mes)
+    if (data.distribucion_por_tipo) {
+        renderChartPorTipo(data.distribucion_por_tipo);
+    }
+    if (data.actividades_por_region) {
+        renderChartPorRegion(data.actividades_por_region);
+    }
+    if (data.estado_actividades) {
+        renderChartEstado(data.estado_actividades);
+    }
+}
+
+// Gráfico: Distribución por Tipo
+function renderChartPorTipo(data) {
+    const canvas = document.getElementById('chartPorTipo');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (dashboardCharts.porTipo) {
+        dashboardCharts.porTipo.destroy();
+    }
+    
+    dashboardCharts.porTipo = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(data),
+            datasets: [{
+                data: Object.values(data),
+                backgroundColor: [
+                    '#007bff',
+                    '#28a745',
+                    '#ffc107',
+                    '#17a2b8',
+                    '#dc3545'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#eef5ff'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Gráfico: Actividades por Región (Top 5)
+function renderChartPorRegion(data) {
+    const canvas = document.getElementById('chartPorRegion');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (dashboardCharts.porRegion) {
+        dashboardCharts.porRegion.destroy();
+    }
+    
+    dashboardCharts.porRegion = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(item => item.region),
+            datasets: [{
+                label: 'Actividades',
+                data: data.map(item => item.total),
+                backgroundColor: '#007bff'
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#a8b2c2'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: '#a8b2c2'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Gráfico: Estado de Actividades
+function renderChartEstado(data) {
+    const canvas = document.getElementById('chartEstado');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    if (dashboardCharts.estado) {
+        dashboardCharts.estado.destroy();
+    }
+    
+    dashboardCharts.estado = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(data).map(key => {
+                // Traducir estados al español
+                const estados = {
+                    'planificado': 'Planificado',
+                    'en_progreso': 'En Progreso',
+                    'completado': 'Completado',
+                    'cancelado': 'Cancelado'
+                };
+                return estados[key] || key;
+            }),
+            datasets: [{
+                data: Object.values(data),
+                backgroundColor: [
+                    '#ffc107',
+                    '#17a2b8',
+                    '#28a745',
+                    '#dc3545'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#eef5ff'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Inicializar dashboard cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar si existe la sección del dashboard
+    const dashboardSection = document.getElementById('dashboardSection');
+    if (dashboardSection) {
+        // Cargar estadísticas del dashboard
+        loadDashboardStats();
+    }
+});
+</script>
 {% endblock %}
-```
-</script>
-</script>
