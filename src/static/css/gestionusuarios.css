@@ -442,6 +442,29 @@
   border-top: 1px solid var(--border-color);
 }
 
+#deleteUsuarioModal .modal-footer,
+#deleteColaboradorModal .modal-footer {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+#deleteUsuarioModal .modal-footer .btn-secondary,
+#deleteUsuarioModal .modal-footer .btn-danger,
+#deleteColaboradorModal .modal-footer .btn-secondary,
+#deleteColaboradorModal .modal-footer .btn-danger {
+  min-width: 150px;
+  min-height: 48px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-sizing: border-box;
+  font-weight: 600;
+}
+
 .modal-form {
   display: grid;
   gap: 20px;

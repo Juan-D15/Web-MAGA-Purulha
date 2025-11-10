@@ -1396,6 +1396,29 @@ label {
   border-top: 1px solid var(--border-color);
 }
 
+#confirmDeleteModal .modal-footer {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+#confirmDeleteModal .modal-footer .btn-secondary,
+#confirmDeleteModal .modal-footer .btn-danger {
+  min-width: 150px;
+  min-height: 48px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+#confirmDeleteModal .modal-footer .btn-secondary {
+  font-weight: 600;
+}
+
 .error-message {
   color: var(--danger-color);
   font-size: 14px;

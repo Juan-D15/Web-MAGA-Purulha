@@ -22,6 +22,11 @@ let colaboradoresList = [];
 let usuariosList = [];
 let colaboradorSeleccionado = null;
 
+let usuarioIdParaEliminar = null;
+let colaboradorIdParaEliminar = null;
+let deleteUsuarioBtnDefaultHTML = '';
+let deleteColaboradorBtnDefaultHTML = '';
+
 // Esperar a que el DOM esté completamente cargado
 document.addEventListener('DOMContentLoaded', function() {
     inicializarNavegacion();
@@ -421,6 +426,7 @@ function inicializarModalesEliminacion() {
     // Modal de eliminación de usuario
     const closeDeleteUsuarioModal = document.getElementById('closeDeleteUsuarioModal');
     const cancelDeleteUsuarioBtn = document.getElementById('cancelDeleteUsuarioBtn');
+    const executeDeleteUsuarioBtn = document.getElementById('executeDeleteUsuarioBtn');
     
     if (closeDeleteUsuarioModal) {
         closeDeleteUsuarioModal.addEventListener('click', cerrarModalEliminarUsuario);
@@ -428,6 +434,14 @@ function inicializarModalesEliminacion() {
     
     if (cancelDeleteUsuarioBtn) {
         cancelDeleteUsuarioBtn.addEventListener('click', cerrarModalEliminarUsuario);
+    }
+
+    if (executeDeleteUsuarioBtn && !executeDeleteUsuarioBtn.dataset.listenerAdded) {
+        if (!deleteUsuarioBtnDefaultHTML) {
+            deleteUsuarioBtnDefaultHTML = executeDeleteUsuarioBtn.innerHTML;
+        }
+        executeDeleteUsuarioBtn.addEventListener('click', () => eliminarUsuario());
+        executeDeleteUsuarioBtn.dataset.listenerAdded = 'true';
     }
     
     // Cerrar modal al hacer clic fuera
@@ -443,6 +457,7 @@ function inicializarModalesEliminacion() {
     // Modal de eliminación de colaborador
     const closeDeleteColaboradorModal = document.getElementById('closeDeleteColaboradorModal');
     const cancelDeleteColaboradorBtn = document.getElementById('cancelDeleteColaboradorBtn');
+    const executeDeleteColaboradorBtn = document.getElementById('executeDeleteColaboradorBtn');
     
     if (closeDeleteColaboradorModal) {
         closeDeleteColaboradorModal.addEventListener('click', cerrarModalEliminarColaborador);
@@ -450,6 +465,14 @@ function inicializarModalesEliminacion() {
     
     if (cancelDeleteColaboradorBtn) {
         cancelDeleteColaboradorBtn.addEventListener('click', cerrarModalEliminarColaborador);
+    }
+
+    if (executeDeleteColaboradorBtn && !executeDeleteColaboradorBtn.dataset.listenerAdded) {
+        if (!deleteColaboradorBtnDefaultHTML) {
+            deleteColaboradorBtnDefaultHTML = executeDeleteColaboradorBtn.innerHTML;
+        }
+        executeDeleteColaboradorBtn.addEventListener('click', () => eliminarColaborador());
+        executeDeleteColaboradorBtn.dataset.listenerAdded = 'true';
     }
     
     // Cerrar modal al hacer clic fuera
@@ -1403,37 +1426,64 @@ function cerrarModalEditarUsuario() {
     if (editUserPuestoGroup) editUserPuestoGroup.style.display = 'none';
 }
 
+function restoreDeleteUsuarioButton() {
+    const executeDeleteUsuarioBtn = document.getElementById('executeDeleteUsuarioBtn');
+    if (!executeDeleteUsuarioBtn) return;
+    executeDeleteUsuarioBtn.disabled = false;
+    if (deleteUsuarioBtnDefaultHTML) {
+        executeDeleteUsuarioBtn.innerHTML = deleteUsuarioBtnDefaultHTML;
+    } else {
+        executeDeleteUsuarioBtn.textContent = 'Eliminar Usuario';
+    }
+}
+
+function resetDeleteUsuarioModalState({ clearInputs = true } = {}) {
+    const errorMessage = document.getElementById('deleteUsuarioErrorMessage');
+    if (errorMessage) {
+        errorMessage.style.display = 'none';
+        errorMessage.textContent = '';
+    }
+
+    if (clearInputs) {
+        const usernameInput = document.getElementById('delete_usuario_username');
+        const passwordInput = document.getElementById('delete_usuario_password');
+        if (usernameInput) usernameInput.value = '';
+        if (passwordInput) passwordInput.value = '';
+    }
+
+    restoreDeleteUsuarioButton();
+}
+
 function confirmarEliminarUsuario(usuarioId, usuarioUsername) {
     const modal = document.getElementById('deleteUsuarioModal');
     const deleteUsuarioName = document.getElementById('deleteUsuarioName');
-    const executeDeleteUsuarioBtn = document.getElementById('executeDeleteUsuarioBtn');
     
     if (!modal) {
         mostrarMensaje('Modal de confirmación no encontrado', 'error');
         return;
     }
+
+    usuarioIdParaEliminar = usuarioId;
     
     if (deleteUsuarioName) {
-        deleteUsuarioName.textContent = usuarioUsername;
+        deleteUsuarioName.textContent = usuarioUsername || '';
     }
     
+    resetDeleteUsuarioModalState();
     modal.style.display = 'block';
-    
-    // Remover listeners anteriores
-    const newExecuteBtn = executeDeleteUsuarioBtn ? executeDeleteUsuarioBtn.cloneNode(true) : null;
-    if (executeDeleteUsuarioBtn && newExecuteBtn) {
-        executeDeleteUsuarioBtn.parentNode.replaceChild(newExecuteBtn, executeDeleteUsuarioBtn);
-        
-        newExecuteBtn.addEventListener('click', async () => {
-            await eliminarUsuario(usuarioId);
-        });
-    }
 }
 
-async function eliminarUsuario(usuarioId) {
+async function eliminarUsuario(usuarioId = null) {
+    const targetUsuarioId = usuarioId ?? usuarioIdParaEliminar;
+    if (!targetUsuarioId) {
+        mostrarMensaje('No se ha seleccionado un usuario para eliminar.', 'error');
+        return;
+    }
+
     const deleteUsuarioUsername = document.getElementById('delete_usuario_username');
     const deleteUsuarioPassword = document.getElementById('delete_usuario_password');
     const deleteUsuarioErrorMessage = document.getElementById('deleteUsuarioErrorMessage');
+    const executeDeleteUsuarioBtn = document.getElementById('executeDeleteUsuarioBtn');
     
     if (!deleteUsuarioUsername || !deleteUsuarioPassword) {
         mostrarMensaje('Error: Campos de confirmación no encontrados', 'error');
@@ -1451,6 +1501,11 @@ async function eliminarUsuario(usuarioId) {
         return;
     }
     
+    if (executeDeleteUsuarioBtn) {
+        executeDeleteUsuarioBtn.disabled = true;
+        executeDeleteUsuarioBtn.textContent = 'Verificando...';
+    }
+
     // Verificar credenciales de administrador
     try {
         const verifyResponse = await fetch('/api/verificar-admin/', {
@@ -1469,11 +1524,16 @@ async function eliminarUsuario(usuarioId) {
                 deleteUsuarioErrorMessage.textContent = verifyResult.error || 'Credenciales incorrectas';
                 deleteUsuarioErrorMessage.style.display = 'block';
             }
+            restoreDeleteUsuarioButton();
             return;
         }
-        
+
+        if (executeDeleteUsuarioBtn) {
+            executeDeleteUsuarioBtn.textContent = 'Eliminando...';
+        }
+
         // Si las credenciales son correctas, proceder con la eliminación
-        const response = await fetch(API_URLS.eliminarUsuario(usuarioId), {
+        const response = await fetch(API_URLS.eliminarUsuario(targetUsuarioId), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1486,10 +1546,6 @@ async function eliminarUsuario(usuarioId) {
         if (result.success) {
             mostrarMensaje('Usuario eliminado exitosamente', 'success');
             cerrarModalEliminarUsuario();
-            // Limpiar formulario
-            if (deleteUsuarioUsername) deleteUsuarioUsername.value = '';
-            if (deleteUsuarioPassword) deleteUsuarioPassword.value = '';
-            if (deleteUsuarioErrorMessage) deleteUsuarioErrorMessage.style.display = 'none';
             await cargarUsuarios();
             await cargarColaboradoresParaSelect(); // Actualizar lista de colaboradores
         } else {
@@ -1497,16 +1553,25 @@ async function eliminarUsuario(usuarioId) {
                 deleteUsuarioErrorMessage.textContent = result.error || 'Error al eliminar usuario';
                 deleteUsuarioErrorMessage.style.display = 'block';
             }
+            restoreDeleteUsuarioButton();
         }
     } catch (error) {
         console.error('Error al eliminar usuario:', error);
-        mostrarMensaje('Error al eliminar usuario: ' + error.message, 'error');
+        if (deleteUsuarioErrorMessage) {
+            deleteUsuarioErrorMessage.textContent = 'Error al eliminar usuario: ' + error.message;
+            deleteUsuarioErrorMessage.style.display = 'block';
+        } else {
+            mostrarMensaje('Error al eliminar usuario: ' + error.message, 'error');
+        }
+        restoreDeleteUsuarioButton();
     }
 }
 
-function cerrarModalEliminarUsuario() {
+function cerrarModalEliminarUsuario({ clearInputs = true } = {}) {
     const modal = document.getElementById('deleteUsuarioModal');
     if (modal) modal.style.display = 'none';
+    resetDeleteUsuarioModalState({ clearInputs });
+    usuarioIdParaEliminar = null;
 }
 
 // =====================================================
@@ -1645,37 +1710,64 @@ function cerrarModalEditarColaborador() {
     if (editColaboradorActivo) editColaboradorActivo.checked = true;
 }
 
+function restoreDeleteColaboradorButton() {
+    const executeDeleteColaboradorBtn = document.getElementById('executeDeleteColaboradorBtn');
+    if (!executeDeleteColaboradorBtn) return;
+    executeDeleteColaboradorBtn.disabled = false;
+    if (deleteColaboradorBtnDefaultHTML) {
+        executeDeleteColaboradorBtn.innerHTML = deleteColaboradorBtnDefaultHTML;
+    } else {
+        executeDeleteColaboradorBtn.textContent = 'Eliminar Colaborador';
+    }
+}
+
+function resetDeleteColaboradorModalState({ clearInputs = true } = {}) {
+    const errorMessage = document.getElementById('deleteColaboradorErrorMessage');
+    if (errorMessage) {
+        errorMessage.style.display = 'none';
+        errorMessage.textContent = '';
+    }
+
+    if (clearInputs) {
+        const usernameInput = document.getElementById('delete_colaborador_username');
+        const passwordInput = document.getElementById('delete_colaborador_password');
+        if (usernameInput) usernameInput.value = '';
+        if (passwordInput) passwordInput.value = '';
+    }
+
+    restoreDeleteColaboradorButton();
+}
+
 function confirmarEliminarColaborador(colaboradorId, colaboradorNombre) {
     const modal = document.getElementById('deleteColaboradorModal');
     const deleteColaboradorName = document.getElementById('deleteColaboradorName');
-    const executeDeleteColaboradorBtn = document.getElementById('executeDeleteColaboradorBtn');
     
     if (!modal) {
         mostrarMensaje('Modal de confirmación no encontrado', 'error');
         return;
     }
+
+    colaboradorIdParaEliminar = colaboradorId;
     
     if (deleteColaboradorName) {
-        deleteColaboradorName.textContent = colaboradorNombre;
+        deleteColaboradorName.textContent = colaboradorNombre || '';
     }
     
+    resetDeleteColaboradorModalState();
     modal.style.display = 'block';
-    
-    // Remover listeners anteriores
-    const newExecuteBtn = executeDeleteColaboradorBtn ? executeDeleteColaboradorBtn.cloneNode(true) : null;
-    if (executeDeleteColaboradorBtn && newExecuteBtn) {
-        executeDeleteColaboradorBtn.parentNode.replaceChild(newExecuteBtn, executeDeleteColaboradorBtn);
-        
-        newExecuteBtn.addEventListener('click', async () => {
-            await eliminarColaborador(colaboradorId);
-        });
-    }
 }
 
-async function eliminarColaborador(colaboradorId) {
+async function eliminarColaborador(colaboradorId = null) {
+    const targetColaboradorId = colaboradorId ?? colaboradorIdParaEliminar;
+    if (!targetColaboradorId) {
+        mostrarMensaje('No se ha seleccionado un colaborador para eliminar.', 'error');
+        return;
+    }
+
     const deleteColaboradorUsername = document.getElementById('delete_colaborador_username');
     const deleteColaboradorPassword = document.getElementById('delete_colaborador_password');
     const deleteColaboradorErrorMessage = document.getElementById('deleteColaboradorErrorMessage');
+    const executeDeleteColaboradorBtn = document.getElementById('executeDeleteColaboradorBtn');
     
     if (!deleteColaboradorUsername || !deleteColaboradorPassword) {
         mostrarMensaje('Error: Campos de confirmación no encontrados', 'error');
@@ -1693,6 +1785,11 @@ async function eliminarColaborador(colaboradorId) {
         return;
     }
     
+    if (executeDeleteColaboradorBtn) {
+        executeDeleteColaboradorBtn.disabled = true;
+        executeDeleteColaboradorBtn.textContent = 'Verificando...';
+    }
+
     // Verificar credenciales de administrador
     try {
         const verifyResponse = await fetch('/api/verificar-admin/', {
@@ -1711,11 +1808,16 @@ async function eliminarColaborador(colaboradorId) {
                 deleteColaboradorErrorMessage.textContent = verifyResult.error || 'Credenciales incorrectas';
                 deleteColaboradorErrorMessage.style.display = 'block';
             }
+            restoreDeleteColaboradorButton();
             return;
+        }
+
+        if (executeDeleteColaboradorBtn) {
+            executeDeleteColaboradorBtn.textContent = 'Eliminando...';
         }
         
         // Si las credenciales son correctas, proceder con la eliminación
-        const response = await fetch(API_URLS.eliminarColaborador(colaboradorId), {
+        const response = await fetch(API_URLS.eliminarColaborador(targetColaboradorId), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1728,10 +1830,6 @@ async function eliminarColaborador(colaboradorId) {
         if (result.success) {
             mostrarMensaje('Colaborador eliminado exitosamente', 'success');
             cerrarModalEliminarColaborador();
-            // Limpiar formulario
-            if (deleteColaboradorUsername) deleteColaboradorUsername.value = '';
-            if (deleteColaboradorPassword) deleteColaboradorPassword.value = '';
-            if (deleteColaboradorErrorMessage) deleteColaboradorErrorMessage.style.display = 'none';
             await cargarColaboradores();
             await cargarColaboradoresParaSelect(); // Actualizar lista de colaboradores
         } else {
@@ -1739,16 +1837,25 @@ async function eliminarColaborador(colaboradorId) {
                 deleteColaboradorErrorMessage.textContent = result.error || 'Error al eliminar colaborador';
                 deleteColaboradorErrorMessage.style.display = 'block';
             }
+            restoreDeleteColaboradorButton();
         }
     } catch (error) {
         console.error('Error al eliminar colaborador:', error);
-        mostrarMensaje('Error al eliminar colaborador: ' + error.message, 'error');
+        if (deleteColaboradorErrorMessage) {
+            deleteColaboradorErrorMessage.textContent = 'Error al eliminar colaborador: ' + error.message;
+            deleteColaboradorErrorMessage.style.display = 'block';
+        } else {
+            mostrarMensaje('Error al eliminar colaborador: ' + error.message, 'error');
+        }
+        restoreDeleteColaboradorButton();
     }
 }
 
-function cerrarModalEliminarColaborador() {
+function cerrarModalEliminarColaborador({ clearInputs = true } = {}) {
     const modal = document.getElementById('deleteColaboradorModal');
     if (modal) modal.style.display = 'none';
+    resetDeleteColaboradorModalState({ clearInputs });
+    colaboradorIdParaEliminar = null;
 }
 
 // =====================================================
