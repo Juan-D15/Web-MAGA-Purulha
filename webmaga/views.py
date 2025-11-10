@@ -960,10 +960,17 @@ def api_region_detalle(request, region_id):
     
     # Obtener proyectos activos de la región
     proyectos = []
-    actividades = Actividad.objects.filter(
-        eliminado_en__isnull=True,
-        comunidad__region=region
-    ).select_related('tipo').order_by('-fecha')[:10]
+    actividades = (
+        Actividad.objects.filter(eliminado_en__isnull=True)
+        .filter(
+            Q(comunidad__region=region) |
+            Q(comunidades_relacionadas__region=region)
+        )
+        .select_related('tipo')
+        .prefetch_related('comunidades_relacionadas')
+        .order_by('-fecha')
+        .distinct()[:10]
+    )
     
     for actividad in actividades:
         proyectos.append({
@@ -1083,12 +1090,15 @@ def _serialize_comunidad_detalle(comunidad):
     ]
 
     actividades = (
-        Actividad.objects.filter(
-            eliminado_en__isnull=True,
-            comunidad=comunidad,
+        Actividad.objects.filter(eliminado_en__isnull=True)
+        .filter(
+            Q(comunidad=comunidad) |
+            Q(comunidades_relacionadas__comunidad=comunidad)
         )
         .select_related('tipo')
-        .order_by('-fecha')[:10]
+        .prefetch_related('comunidades_relacionadas__comunidad')
+        .order_by('-fecha')
+        .distinct()[:10]
     )
 
     proyectos = [

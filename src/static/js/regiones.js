@@ -718,6 +718,15 @@ function loadProjects(projects) {
   if (!projectsContainer) return;
   
   projectsContainer.innerHTML = '';
+
+  if (!Array.isArray(projects) || projects.length === 0) {
+    projectsContainer.innerHTML = `
+      <div class="projects-empty">
+        <p>No hay proyectos activos registrados para esta región.</p>
+      </div>
+    `;
+    return;
+  }
   
   projects.forEach(project => {
     const projectItem = document.createElement('div');
@@ -738,6 +747,15 @@ function loadCommunities(communities) {
   if (!communitiesContainer) return;
   
   communitiesContainer.innerHTML = '';
+
+  if (!Array.isArray(communities) || communities.length === 0) {
+    communitiesContainer.innerHTML = `
+      <div class="communities-empty">
+        <p>No hay comunidades registradas para esta región.</p>
+      </div>
+    `;
+    return;
+  }
   
   communities.forEach(community => {
     const communityItem = document.createElement('div');
