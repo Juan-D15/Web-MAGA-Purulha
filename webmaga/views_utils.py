@@ -374,7 +374,16 @@ def eliminar_portada_evento(portada_inst):
     if not portada_inst:
         return False
 
-    archivo_path = os.path.join(settings.MEDIA_ROOT, portada_inst.url_almacenamiento.lstrip('/media/'))
+    relative_path = (portada_inst.url_almacenamiento or '').strip()
+    media_url = getattr(settings, 'MEDIA_URL', '') or ''
+    posibles_prefijos = [media_url, '/media/', 'media/']
+    for prefijo in posibles_prefijos:
+        if prefijo and relative_path.startswith(prefijo):
+            relative_path = relative_path[len(prefijo):]
+            break
+    relative_path = relative_path.lstrip('/')
+    archivo_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+
     if os.path.exists(archivo_path):
         try:
             os.remove(archivo_path)

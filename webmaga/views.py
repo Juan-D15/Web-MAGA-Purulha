@@ -100,6 +100,76 @@ def _generar_codigo_verificacion():
     return f"{random.randint(0, 999999):06d}"
 
 
+def _normalizar_ruta_media(url):
+    """Convierte una URL/relativa de MEDIA en una ruta absoluta del sistema de archivos."""
+    if not url:
+        return None
+
+    relative_path = str(url).strip()
+
+    if not relative_path:
+        return None
+
+    # Si ya apunta directamente dentro de MEDIA_ROOT, normalizar y devolver
+    media_root_normalizado = os.path.normpath(settings.MEDIA_ROOT)
+    ruta_normalizada = os.path.normpath(relative_path)
+    if ruta_normalizada.startswith(media_root_normalizado):
+        return ruta_normalizada
+
+    # Normalizar separadores para comparar prefijos de MEDIA_URL
+    relative_path = relative_path.replace('\\', '/')
+
+    media_url = getattr(settings, 'MEDIA_URL', '') or ''
+    posibles_prefijos = [
+        media_url,
+        media_url.lstrip('/'),
+        '/media/',
+        'media/',
+    ]
+    for prefijo in posibles_prefijos:
+        prefijo_normalizado = prefijo.replace('\\', '/')
+        if prefijo_normalizado and relative_path.startswith(prefijo_normalizado):
+            relative_path = relative_path[len(prefijo_normalizado):]
+            break
+
+    # Eliminar posibles separadores iniciales restantes
+    relative_path = relative_path.lstrip('/\\')
+    if not relative_path:
+        return None
+
+    return os.path.normpath(os.path.join(settings.MEDIA_ROOT, relative_path))
+
+
+def _eliminar_archivo_media(url):
+    """Elimina un archivo físico ubicado dentro de MEDIA_ROOT."""
+    file_path = _normalizar_ruta_media(url)
+    if not file_path:
+        return False
+
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            return True
+        except Exception as error:
+            print(f"⚠️ No se pudo eliminar el archivo '{file_path}': {error}")
+    return False
+
+
+def _eliminar_queryset_con_archivos(queryset):
+    """Elimina los registros de un queryset removiendo previamente los archivos físicos asociados."""
+    objetos = list(queryset)
+    if not objetos:
+        return 0
+
+    ids = []
+    for obj in objetos:
+        ids.append(obj.pk)
+        _eliminar_archivo_media(getattr(obj, 'url_almacenamiento', None))
+
+    queryset.model.objects.filter(pk__in=ids).delete()
+    return len(ids)
+
+
 @require_http_methods(["POST"])
 def api_enviar_codigo_recuperacion(request):
     """Genera y envía un código de recuperación de contraseña por correo."""
@@ -2620,36 +2690,14 @@ def api_actualizar_evento(request, evento_id):
                 try:
                     evidencias_ids_eliminar = json.loads(data['evidencias_eliminadas'])
                     if evidencias_ids_eliminar:
-                        # Obtener las evidencias antes de eliminarlas (para borrar archivos físicos)
                         evidencias_a_eliminar = Evidencia.objects.filter(
                             id__in=evidencias_ids_eliminar,
                             actividad=evento
                         )
-                        
-                        archivos_eliminados = 0
-                        for evidencia in evidencias_a_eliminar:
-                            # Intentar eliminar el archivo físico
-                            try:
-                                relative_path = evidencia.url_almacenamiento or ''
-                                if relative_path.startswith('/media/'):
-                                    relative_path = relative_path[len('/media/'):]
-                                elif relative_path.startswith('media/'):
-                                    relative_path = relative_path[len('media/'):]
-                                else:
-                                    relative_path = relative_path.lstrip('/')
-                                archivo_path = os.path.join(settings.MEDIA_ROOT, relative_path)
-                                if os.path.exists(archivo_path):
-                                    os.remove(archivo_path)
-                                    print(f"🗑️ Archivo físico eliminado: {archivo_path}")
-                            except Exception as e_file:
-                                print(f"⚠️ No se pudo eliminar el archivo físico: {e_file}")
-                            
-                            archivos_eliminados += 1
-                        
-                        # Eliminar registros de la base de datos
-                        evidencias_a_eliminar.delete()
-                        cambios_realizados.append(f"Removido {archivos_eliminados} evidencias")
-                        print(f"✅ Removidas {archivos_eliminados} evidencias del evento")
+                        eliminadas = _eliminar_queryset_con_archivos(evidencias_a_eliminar)
+                        if eliminadas:
+                            cambios_realizados.append(f"Removido {eliminadas} evidencias")
+                            print(f"✅ Removidas {eliminadas} evidencias del evento")
                 except (json.JSONDecodeError, ValueError) as e:
                     print(f"Error al eliminar evidencias: {e}")
                     pass
@@ -3066,6 +3114,33 @@ def api_eliminar_evento(request, evento_id):
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
         usuario_maga = get_usuario_maga(request.user)
         
+        # Eliminar portada (archivo físico + registro)
+        portada = getattr(evento, 'portada', None)
+        if portada:
+            eliminar_portada_evento(portada)
+
+        # Eliminar evidencias principales
+        _eliminar_queryset_con_archivos(evento.evidencias.all())
+
+        # Eliminar imágenes de galería
+        _eliminar_queryset_con_archivos(evento.galeria_imagenes.all())
+
+        # Eliminar archivos adjuntos
+        _eliminar_queryset_con_archivos(evento.archivos.all())
+
+        # Eliminar evidencias asociadas a cambios internos
+        for cambio in list(evento.cambios.all()):
+            _eliminar_queryset_con_archivos(cambio.evidencias.all())
+            cambio.delete()
+
+        # Eliminar evidencias asociadas a cambios de colaboradores
+        for cambio_colaborador in list(evento.cambios_colaboradores.all()):
+            _eliminar_queryset_con_archivos(cambio_colaborador.evidencias.all())
+            cambio_colaborador.delete()
+
+        # Limpieza adicional de evidencias de cambios (por seguridad)
+        _eliminar_queryset_con_archivos(evento.evidencias_cambios.all())
+
         # Soft delete - Marca el evento como eliminado con timestamp timezone-aware
         evento.eliminado_en = timezone.now()
         evento.save()
@@ -3074,7 +3149,7 @@ def api_eliminar_evento(request, evento_id):
         ActividadCambio.objects.create(
             actividad=evento,
             responsable=usuario_maga,
-            descripcion_cambio=f'Evento "{evento.nombre}" eliminado por {usuario_maga.username}'
+            descripcion_cambio=f'Evento "{evento.nombre}" eliminado por {usuario_maga.username if usuario_maga else "sistema"}'
         )
         
         return JsonResponse({
@@ -4626,12 +4701,7 @@ def api_eliminar_imagen_galeria(request, evento_id, imagen_id):
             }, status=404)
         
         # Eliminar archivo físico
-        file_path = os.path.join(settings.MEDIA_ROOT, imagen_galeria.url_almacenamiento.replace('/media/', ''))
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f'Error al eliminar archivo físico: {e}')
+        _eliminar_archivo_media(getattr(imagen_galeria, 'url_almacenamiento', None))
         
         # Eliminar registro de la BD
         imagen_galeria.delete()
@@ -4756,12 +4826,7 @@ def api_eliminar_archivo(request, evento_id, archivo_id):
             }, status=404)
         
         # Eliminar archivo físico
-        file_path = os.path.join(settings.MEDIA_ROOT, archivo.url_almacenamiento.replace('/media/', ''))
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f'Error al eliminar archivo físico: {e}')
+        _eliminar_archivo_media(getattr(archivo, 'url_almacenamiento', None))
         
         # Eliminar registro de la BD
         archivo.delete()
@@ -5382,12 +5447,7 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
             evidencias_iter = cambio.evidencias.all()
         
         for evidencia in evidencias_iter:
-            file_path = os.path.join(settings.MEDIA_ROOT, evidencia.url_almacenamiento.replace('/media/', ''))
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except Exception as e:
-                    print(f'Error al eliminar archivo físico de evidencia: {e}')
+            _eliminar_archivo_media(getattr(evidencia, 'url_almacenamiento', None))
         
         if cambio_colaborador:
             cambio_colaborador.delete()
@@ -6110,17 +6170,10 @@ def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
                 'error': 'Usuario no autenticado'
             }, status=401)
         
-        # Eliminar archivo físico
-        file_path = os.path.join(settings.MEDIA_ROOT, evidencia.url_almacenamiento.replace('/media/', ''))
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f'Error al eliminar archivo físico: {e}')
-        
-        # Eliminar registro de la BD
-        evidencia.delete()
-        
+        _eliminar_queryset_con_archivos(
+            EventosEvidenciasCambios.objects.filter(pk=evidencia.pk)
+        )
+
         return JsonResponse({
             'success': True,
             'message': 'Evidencia eliminada exitosamente'

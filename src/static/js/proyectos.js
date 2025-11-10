@@ -3166,6 +3166,11 @@ function showModal(modalId) {
 
     console.log('Modal mostrado correctamente');
 
+    const firstTextarea = modal.querySelector('textarea');
+    if (firstTextarea) {
+      setTimeout(() => firstTextarea.focus(), 120);
+    }
+
   } else {
 
     console.error('Modal no encontrado:', modalId);
@@ -3995,6 +4000,8 @@ function renderProjectGalleryPage() {
     return;
   }
 
+  detailGallery.classList.toggle('gallery-can-manage', currentProjectGalleryCanManage);
+
   if (!currentProjectGalleryImages.length) {
     detailGallery.innerHTML = '<p class="gallery-empty-state">No hay imágenes disponibles.</p>';
     return;
@@ -4017,8 +4024,10 @@ function renderProjectGalleryPage() {
     const descriptionHtml = descriptionText
       ? `<div class="gallery-item-description">${descriptionText}</div>`
       : '';
+    const encodedName = encodeURIComponent(img.nombre || img.archivo_nombre || '');
+    const imageUrlAttr = escapeHtml(img.url || '');
     const removeButton = currentProjectGalleryCanManage
-      ? `<button class="btn-remove-item" data-imagen-id="${img.id}" title="Eliminar imagen">
+      ? `<button class="btn-remove-item" data-imagen-id="${img.id}" data-image-name="${encodedName}" title="Eliminar imagen">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -4027,11 +4036,12 @@ function renderProjectGalleryPage() {
       : '';
 
     const imageDescriptionAttr = escapeHtml(img.descripcion || '');
+    const imageAltAttr = escapeHtml(img.nombre || img.archivo_nombre || 'Imagen');
 
     return `
-      <div class="gallery-item">
+      <div class="gallery-item" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}">
         ${removeButton}
-        <img src="${img.url}" alt="${escapeHtml(img.nombre || img.archivo_nombre || 'Imagen')}" data-image-url="${img.url}" data-image-description="${imageDescriptionAttr}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+        <img src="${imageUrlAttr}" alt="${imageAltAttr}" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
         ${descriptionHtml}
       </div>
     `;
@@ -4053,14 +4063,16 @@ function renderProjectGalleryPage() {
     </div>
   `;
 
-  detailGallery.querySelectorAll('img[data-image-url]').forEach((imgElement) => {
-    imgElement.addEventListener('click', function (e) {
+  detailGallery.querySelectorAll('.gallery-item').forEach((item) => {
+    item.addEventListener('click', function (e) {
       if (e.target.closest('.btn-remove-item')) {
         return;
       }
-      const imageUrl = this.getAttribute('data-image-url');
-      const imageDescription = this.getAttribute('data-image-description') || '';
-      showImageViewModal(imageUrl, imageDescription);
+      const imageUrl = this.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('src');
+      const imageDescription = this.getAttribute('data-image-description') || this.querySelector('img')?.getAttribute('data-image-description') || '';
+      if (imageUrl) {
+        showImageViewModal(imageUrl, imageDescription);
+      }
     });
   });
 
@@ -4069,10 +4081,22 @@ function renderProjectGalleryPage() {
       btn.addEventListener('click', async function (e) {
         e.stopPropagation();
         const imagenId = this.getAttribute('data-imagen-id');
-        await eliminarImagenGaleria(imagenId);
+        const imageName = decodeURIComponent(this.getAttribute('data-image-name') || '');
+        confirmarEliminacionImagenGaleria(imagenId, imageName);
       });
     });
   }
+}
+
+function confirmarEliminacionImagenGaleria(imagenId, imageName = '') {
+  const trimmedName = (imageName || '').trim();
+  const message = trimmedName
+    ? `¿Estás seguro de que deseas eliminar la imagen "${trimmedName}" de la galería?`
+    : '¿Estás seguro de que deseas eliminar esta imagen de la galería?';
+
+  showConfirmDeleteModal(message, async () => {
+    await eliminarImagenGaleria(imagenId);
+  });
 }
 
 document.addEventListener('click', (event) => {
@@ -4306,128 +4330,59 @@ async function addImageToProject() {
 // Función para eliminar imagen de la galería
 
 async function eliminarImagenGaleria(imagenId) {
-
-  // Obtener el proyecto actual
-
   let currentProject = getCurrentProject();
 
-  
-
-  // Si no se pudo obtener, intentar obtenerlo desde el URL o desde la vista actual
-
   if (!currentProject || !currentProject.id) {
-
-    // Intentar obtener el ID del evento desde el URL o desde elementos del DOM
-
     const detailTitle = document.getElementById('detailTitle');
 
     if (detailTitle && detailTitle.dataset.projectId) {
-
       const projectId = detailTitle.dataset.projectId;
-
       console.log('📌 Obteniendo ID del proyecto desde dataset:', projectId);
 
       try {
-
         const response = await fetch(`/api/proyecto/${projectId}/`);
-
         const data = await response.json();
 
         if (data.success) {
-
           currentProject = data.proyecto;
-
           currentProjectData = currentProject;
-
           currentProjectId = currentProject.id;
-
         }
-
       } catch (error) {
-
         console.error('Error al obtener proyecto:', error);
-
       }
-
     }
-
-    
-
-    // Si aún no tenemos el proyecto, mostrar error
 
     if (!currentProject || !currentProject.id) {
-
       console.error('❌ No se pudo obtener el proyecto actual:', currentProject);
-
-      alert('Error: No se pudo obtener la información del evento. Por favor, recarga la página.');
-
+      showErrorMessage('No se pudo obtener la información del evento. Por favor, recarga la página.');
       return;
-
     }
-
   }
-
-  
 
   console.log('🗑️ Eliminando imagen del proyecto:', currentProject.id);
 
-  
-
-  if (!confirm('¿Estás seguro de que deseas eliminar esta imagen de la galería?')) {
-
-    return;
-
-  }
-
-  
-
   try {
-
-    // Llamar a la API para eliminar
-
     const response = await fetch(`/api/evento/${currentProject.id}/galeria/${imagenId}/eliminar/`, {
-
       method: 'POST',
-
       headers: {
-
         'X-CSRFToken': getCookie('csrftoken')
-
       }
-
     });
-
-    
 
     const result = await response.json();
 
-    
-
     if (result.success) {
-
-      // Recargar los detalles del proyecto
-
       shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
-
-      alert('Imagen eliminada exitosamente de la galería.');
-
+      showSuccessMessage('Imagen eliminada exitosamente de la galería.');
     } else {
-
-      alert(result.error || 'Error al eliminar imagen.');
-
+      showErrorMessage(result.error || 'Error al eliminar la imagen de la galería.');
     }
-
-    
-
   } catch (error) {
-
     console.error('Error al eliminar imagen:', error);
-
-    alert('Error al eliminar imagen. Por favor, intenta de nuevo.');
-
+    showErrorMessage('Error al eliminar la imagen. Por favor, intenta de nuevo.');
   }
-
 }
 
 
@@ -4452,9 +4407,11 @@ function showEditDescriptionModal() {
 
   const descripcionActual = currentProject.descripcion || '';
 
-  // Limpiar cualquier HTML si existe
-
-  const descripcionTexto = descripcionActual.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+  const descripcionTexto = descripcionActual
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/<[^>]*>/g, '')
+    .trim();
 
   
 
@@ -4490,6 +4447,8 @@ async function updateProjectDescription() {
 
   }
 
+  // Normalizar saltos de línea a <br> para almacenarlos
+  const newDescriptionHtml = newDescription.replace(/\r?\n/g, '<br>');
   
 
   // Obtener el proyecto actual
@@ -4512,7 +4471,7 @@ async function updateProjectDescription() {
 
     const formData = new FormData();
 
-    formData.append('descripcion', newDescription);
+    formData.append('descripcion', newDescriptionHtml);
 
     
 
@@ -9973,16 +9932,27 @@ function showConfirmDeleteModal(message, callback) {
 
 function executeDeleteAction() {
 
-  if (pendingDeleteAction) {
-
-    pendingDeleteAction();
-
-    hideModal('confirmDeleteModal');
-
-    pendingDeleteAction = null;
-
+  if (!pendingDeleteAction) {
+    return;
   }
 
+  try {
+    const result = pendingDeleteAction();
+
+    if (result && typeof result.then === 'function') {
+      result.finally(() => {
+        hideModal('confirmDeleteModal');
+        pendingDeleteAction = null;
+      });
+    } else {
+      hideModal('confirmDeleteModal');
+      pendingDeleteAction = null;
+    }
+  } catch (error) {
+    console.error('Error al ejecutar la acción de eliminación:', error);
+    hideModal('confirmDeleteModal');
+    pendingDeleteAction = null;
+  }
 }
 
 
