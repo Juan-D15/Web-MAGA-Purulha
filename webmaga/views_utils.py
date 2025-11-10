@@ -294,65 +294,95 @@ def obtener_tarjetas_datos(evento):
 
 
 def obtener_cambios_evento(evento):
-    """Obtiene los cambios realizados en un evento por colaboradores."""
+    """Obtiene los cambios realizados en un evento agrupados por grupo (varios colaboradores)."""
     print(f'🔍 Buscando cambios (colaboradores) para evento {evento.id} - {evento.nombre}')
 
     cambios = (
         EventoCambioColaborador.objects.filter(actividad=evento)
         .select_related('colaborador')
         .prefetch_related('evidencias')
-        .order_by('-fecha_cambio')
+        .order_by('-fecha_cambio', '-creado_en')
     )
 
-    cambios_data = []
+    cambios_por_grupo = {}
+
     for cambio in cambios:
-        print(f'📝 Procesando cambio colaborador {cambio.id}: {cambio.descripcion_cambio[:50]}...')
+        grupo_uuid = getattr(cambio, 'grupo_id', None) or cambio.id
+        grupo_clave = str(grupo_uuid)
         colaborador = cambio.colaborador
+        colaborador_id_str = str(colaborador.id) if colaborador else None
         responsable_nombre = colaborador.nombre if colaborador else 'Colaborador desconocido'
 
-        evidencias_data = []
         evidencias_qs = cambio.evidencias.all()
         print(f'📎 Evidencias encontradas para cambio {cambio.id}: {evidencias_qs.count()}')
-        for evidencia in evidencias_qs:
-            archivo_tipo = evidencia.archivo_tipo or ''
-            es_imagen = archivo_tipo.startswith('image/') if archivo_tipo else False
-            evidencias_data.append(
-                {
-                    'id': str(evidencia.id),
-                    'nombre': evidencia.archivo_nombre,
-                    'url': evidencia.url_almacenamiento,
-                    'tipo': archivo_tipo,
-                    'es_imagen': es_imagen,
-                    'descripcion': evidencia.descripcion or '',
-                }
-            )
 
-        fecha_display = ''
-        if cambio.fecha_cambio:
-            import pytz
+        if grupo_clave not in cambios_por_grupo:
+            fecha_display = ''
+            if cambio.fecha_cambio:
+                import pytz
 
-            guatemala_tz = pytz.timezone('America/Guatemala')
-            if timezone.is_aware(cambio.fecha_cambio):
-                fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
-            else:
-                fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
-            fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+                guatemala_tz = pytz.timezone('America/Guatemala')
+                if timezone.is_aware(cambio.fecha_cambio):
+                    fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+                else:
+                    fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+                fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
 
-        cambios_data.append(
-            {
+            cambios_por_grupo[grupo_clave] = {
                 'id': str(cambio.id),
+                'ids': [],
+                'grupo_id': grupo_clave,
                 'descripcion': cambio.descripcion_cambio,
                 'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
                 'fecha_display': fecha_display,
-                'responsable': responsable_nombre,
-                'colaborador_id': str(colaborador.id) if colaborador else None,
-                'responsable_id': str(colaborador.id) if colaborador else None,
-                'evidencias': evidencias_data,
+                'responsables': [],
+                'responsables_display': '',
+                'colaboradores_ids': [],
+                'colaboradores': [],
+                'evidencias_dict': {},
             }
-        )
-        print(f'✅ Cambio colaborador agregado: {cambios_data[-1]["id"]}')
 
-    print(f'📦 Total de cambios de colaboradores retornados: {len(cambios_data)}')
+        grupo_data = cambios_por_grupo[grupo_clave]
+        grupo_data['ids'].append(str(cambio.id))
+
+        if colaborador_id_str and colaborador_id_str not in grupo_data['colaboradores_ids']:
+            grupo_data['colaboradores_ids'].append(colaborador_id_str)
+            grupo_data['colaboradores'].append({
+                'id': colaborador_id_str,
+                'nombre': colaborador.nombre,
+                'puesto': colaborador.puesto.nombre if colaborador and colaborador.puesto else '',
+                'rol_display': 'Personal Fijo' if colaborador and colaborador.es_personal_fijo else 'Colaborador Externo',
+            })
+
+        if responsable_nombre not in grupo_data['responsables']:
+            grupo_data['responsables'].append(responsable_nombre)
+
+        for evidencia in evidencias_qs:
+            evidencia_key = evidencia.url_almacenamiento or str(evidencia.id)
+            if evidencia_key in grupo_data['evidencias_dict']:
+                continue
+            archivo_tipo = evidencia.archivo_tipo or ''
+            es_imagen = archivo_tipo.startswith('image/') if archivo_tipo else False
+            grupo_data['evidencias_dict'][evidencia_key] = {
+                'id': str(evidencia.id),
+                'nombre': evidencia.archivo_nombre,
+                'url': evidencia.url_almacenamiento,
+                'tipo': archivo_tipo,
+                'es_imagen': es_imagen,
+                'descripcion': evidencia.descripcion or '',
+            }
+
+    cambios_data = []
+    for grupo in cambios_por_grupo.values():
+        grupo['evidencias'] = list(grupo.pop('evidencias_dict').values())
+        grupo['responsables_display'] = ', '.join(grupo['responsables'])
+        grupo['responsable'] = grupo['responsables_display']
+        grupo['responsable_id'] = grupo['colaboradores_ids'][0] if grupo['colaboradores_ids'] else None
+        cambios_data.append(grupo)
+        print(f'✅ Cambio agrupado agregado: {grupo["id"]} (grupo {grupo["grupo_id"]}) con {len(grupo["colaboradores_ids"])} colaborador(es)')
+
+    cambios_data.sort(key=lambda item: item['fecha_cambio'] or '', reverse=True)
+    print(f'📦 Total de cambios agrupados retornados: {len(cambios_data)}')
     return cambios_data
 
 

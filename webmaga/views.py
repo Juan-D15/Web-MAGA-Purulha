@@ -13,6 +13,7 @@ from django.contrib.auth import authenticate
 import os
 import json
 from datetime import datetime, timedelta
+import uuid
 import hashlib
 import random
 import unicodedata
@@ -5165,6 +5166,8 @@ def api_crear_cambio(request, evento_id):
 
         fecha_cambio_final = timezone.now() if usar_fecha_actual else (fecha_cambio if fecha_cambio else timezone.now())
         
+        # Crear un cambio por cada colaborador seleccionado, todos compartiendo el mismo grupo
+        grupo_uuid = uuid.uuid4()
         # Crear un cambio por cada colaborador seleccionado
         cambios_creados = []
         evidencias_data = []
@@ -5176,7 +5179,8 @@ def api_crear_cambio(request, evento_id):
                     actividad=evento,
                     colaborador=colaborador,
                     descripcion_cambio=descripcion,
-                    fecha_cambio=fecha_cambio_final
+                    fecha_cambio=fecha_cambio_final,
+                    grupo_id=grupo_uuid
                 )
                 cambios_creados.append(cambio_colaborador)
                 print(f'✅ Cambio creado para colaborador {colaborador.nombre}: {cambio_colaborador.id}')
@@ -5265,12 +5269,23 @@ def api_crear_cambio(request, evento_id):
             'cambio': {
                 'id': str(cambios_creados[0].id),  # Primer cambio para compatibilidad
                 'ids': cambios_ids,  # Todos los IDs de cambios creados
+                'grupo_id': str(grupo_uuid),
                 'descripcion': descripcion,
                 'fecha_cambio': fecha_cambio_final.isoformat() if fecha_cambio_final else None,
                 'fecha_display': fecha_display,
                 'responsable': responsable_nombre,
                 'responsables': responsables_nombres,  # Lista de nombres
+                'responsables_display': responsable_nombre,
                 'colaboradores_ids': [str(c.id) for c in colaboradores],
+                'colaboradores': [
+                    {
+                        'id': str(colaborador.id),
+                        'nombre': colaborador.nombre,
+                        'puesto': colaborador.puesto.nombre if colaborador.puesto else '',
+                        'rol_display': 'Personal Fijo' if colaborador.es_personal_fijo else 'Colaborador Externo',
+                    }
+                    for colaborador in colaboradores
+                ],
                 'cantidad_colaboradores': len(colaboradores),
                 'evidencias': evidencias_data
             }
@@ -5342,32 +5357,97 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
         if usar_fecha_actual:
             fecha_cambio = timezone.now()
 
-        colaborador_id = request.POST.get('colaborador_id')
-        
-        if cambio_colaborador:
-            if colaborador_id:
+        colaboradores_ids_str = request.POST.get('colaboradores_ids')
+        colaboradores_ids = []
+        if colaboradores_ids_str:
+            try:
+                colaboradores_ids = json.loads(colaboradores_ids_str)
+            except json.JSONDecodeError:
+                colaboradores_ids = []
+        elif request.POST.get('colaborador_id'):
+            colaboradores_ids = [request.POST.get('colaborador_id')]
+
+        colaboradores_objs = []
+        if colaboradores_ids:
+            for colaborador_id in colaboradores_ids:
                 try:
                     colaborador = Colaborador.objects.get(id=colaborador_id, activo=True)
-                    if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
-                        return JsonResponse({
-                            'success': False,
-                            'error': 'El colaborador seleccionado no está asignado a este evento'
-                        }, status=400)
-                    cambio_colaborador.colaborador = colaborador
                 except Colaborador.DoesNotExist:
                     return JsonResponse({
                         'success': False,
-                        'error': 'Colaborador no encontrado'
+                        'error': f'Colaborador con ID {colaborador_id} no encontrado'
                     }, status=404)
-            elif colaborador_id == '':
-                cambio_colaborador.colaborador = None
-            cambio_colaborador.descripcion_cambio = descripcion
-            if fecha_cambio:
-                cambio_colaborador.fecha_cambio = fecha_cambio
-            cambio_colaborador.save()
-            responsable_nombre = cambio_colaborador.colaborador.nombre if cambio_colaborador.colaborador else 'Colaborador desconocido'
+                if not ActividadPersonal.objects.filter(actividad=evento, colaborador=colaborador).exists():
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'El colaborador {colaborador.nombre} no está asignado a este evento'
+                    }, status=400)
+                colaboradores_objs.append(colaborador)
+
+        if cambio_colaborador:
+            grupo_uuid = cambio_colaborador.grupo_id
+            grupo_cambios_qs = EventoCambioColaborador.objects.filter(
+                actividad=evento,
+                grupo_id=grupo_uuid
+            ).select_related('colaborador').prefetch_related('evidencias')
+
+            cambios_por_colaborador = {}
+            for cambio_rel in grupo_cambios_qs:
+                key = str(cambio_rel.colaborador.id) if cambio_rel.colaborador else None
+                cambios_por_colaborador[key] = cambio_rel
+
+            if colaboradores_objs:
+                nuevos_o_actualizados = []
+                for colaborador in colaboradores_objs:
+                    key = str(colaborador.id)
+                    if key in cambios_por_colaborador:
+                        cambio_existente = cambios_por_colaborador[key]
+                        cambio_existente.descripcion_cambio = descripcion
+                        if fecha_cambio:
+                            cambio_existente.fecha_cambio = fecha_cambio
+                        cambio_existente.save(update_fields=['descripcion_cambio', 'fecha_cambio'])
+                        nuevos_o_actualizados.append(cambio_existente)
+                        del cambios_por_colaborador[key]
+                    else:
+                        cambio_nuevo = EventoCambioColaborador.objects.create(
+                            actividad=evento,
+                            colaborador=colaborador,
+                            descripcion_cambio=descripcion,
+                            fecha_cambio=fecha_cambio or cambio_colaborador.fecha_cambio,
+                            grupo_id=grupo_uuid
+                        )
+                        nuevos_o_actualizados.append(cambio_nuevo)
+
+                # Eliminar colaboradores que ya no forman parte del cambio
+                for cambio_restante in cambios_por_colaborador.values():
+                    evidencias_qs = cambio_restante.evidencias.all()
+                    _eliminar_queryset_con_archivos(evidencias_qs)
+                    cambio_restante.delete()
+
+                if nuevos_o_actualizados:
+                    cambio_colaborador = nuevos_o_actualizados[0]
+
+            else:
+                # No se enviaron colaboradores, mantener colaborador existente
+                cambio_colaborador.descripcion_cambio = descripcion
+                if fecha_cambio:
+                    cambio_colaborador.fecha_cambio = fecha_cambio
+                cambio_colaborador.save(update_fields=['descripcion_cambio', 'fecha_cambio'])
+
+            responsables_nombres = []
+            grupo_cambios_actualizados = EventoCambioColaborador.objects.filter(
+                actividad=evento,
+                grupo_id=grupo_uuid
+            ).select_related('colaborador')
+            for cambio_rel in grupo_cambios_actualizados:
+                if cambio_rel.colaborador:
+                    responsables_nombres.append(cambio_rel.colaborador.nombre)
+
+            responsable_nombre = ', '.join(responsables_nombres) if responsables_nombres else 'Colaborador desconocido'
             fecha_base = cambio_colaborador.fecha_cambio
             colaborador_response_id = str(cambio_colaborador.colaborador.id) if cambio_colaborador.colaborador else None
+            colaboradores_response_ids = [str(c.colaborador.id) for c in grupo_cambios_actualizados if c.colaborador]
+            grupo_uuid_response = str(grupo_uuid)
         else:
             # Cambio de usuario/responsable
             cambio.descripcion_cambio = descripcion
@@ -5378,6 +5458,8 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             responsable_nombre = cambio.responsable.nombre or cambio.responsable.username if cambio.responsable else 'Sistema'
             fecha_base = cambio.fecha_cambio
             colaborador_response_id = None
+            colaboradores_response_ids = []
+            grupo_uuid_response = None
         
         # Formatear fecha en zona horaria de Guatemala
         fecha_display = ''
@@ -5400,7 +5482,10 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 'fecha_display': fecha_display,
                 'responsable': responsable_nombre,
                 'colaborador_id': colaborador_response_id,
-                'responsable_id': colaborador_response_id if cambio_colaborador else (str(cambio.responsable.id) if cambio and cambio.responsable else None)
+                'responsable_id': colaborador_response_id if cambio_colaborador else (str(cambio.responsable.id) if cambio and cambio.responsable else None),
+                'responsables_display': responsable_nombre,
+                'colaboradores_ids': colaboradores_response_ids if cambio_colaborador else [],
+                'grupo_id': grupo_uuid_response,
             }
         })
         
@@ -5442,16 +5527,24 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
             }, status=401)
         
         if cambio_colaborador:
-            evidencias_iter = cambio_colaborador.evidencias.all()
+            grupo_uuid = cambio_colaborador.grupo_id
+            cambios_grupo = EventoCambioColaborador.objects.filter(
+                actividad=evento,
+                grupo_id=grupo_uuid
+            ).select_related('colaborador').prefetch_related('evidencias')
+            eliminados = 0
+            for cambio_rel in cambios_grupo:
+                evidencias_iter = cambio_rel.evidencias.all()
+                for evidencia in evidencias_iter:
+                    _eliminar_archivo_media(getattr(evidencia, 'url_almacenamiento', None))
+                cambio_rel.delete()
+                eliminados += 1
+            print(f'🗑️ Eliminados {eliminados} cambios pertenecientes al grupo {grupo_uuid}')
+            cambio_colaborador = None  # Ya eliminados
         else:
             evidencias_iter = cambio.evidencias.all()
-        
-        for evidencia in evidencias_iter:
-            _eliminar_archivo_media(getattr(evidencia, 'url_almacenamiento', None))
-        
-        if cambio_colaborador:
-            cambio_colaborador.delete()
-        else:
+            for evidencia in evidencias_iter:
+                _eliminar_archivo_media(getattr(evidencia, 'url_almacenamiento', None))
             cambio.delete()
         
         return JsonResponse({

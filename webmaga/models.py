@@ -650,6 +650,7 @@ class EventoCambioColaborador(models.Model):
     """Cambios realizados por colaboradores en actividades"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    grupo_id = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
     actividad = models.ForeignKey(
         Actividad,
         on_delete=models.CASCADE,

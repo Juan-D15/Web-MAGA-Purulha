@@ -3660,25 +3660,19 @@ function renderCambios(cambios) {
     changeItem.className = 'change-item clickable';
 
     changeItem.setAttribute('data-cambio-id', cambio.id);
+    if (cambio.grupo_id) {
+      changeItem.setAttribute('data-grupo-id', cambio.grupo_id);
+    }
 
     changeItem.innerHTML = `
-
       <div class="change-content">
-
         <div class="change-date">${cambio.fecha_display || cambio.fecha_cambio || 'Sin fecha'}</div>
-
         <div class="change-description">${cambio.descripcion || 'Sin descripción'}</div>
-
-        <div class="change-personnel">Por: ${cambio.responsable || 'Sin responsable'}</div>
-
+        <div class="change-personnel">Por: ${cambio.responsables_display || cambio.responsable || 'Sin responsable'}</div>
         ${cambio.evidencias && cambio.evidencias.length > 0 ? 
-
           `<div class="change-evidences-count">${cambio.evidencias.length} evidencia(s)</div>` : 
-
           '<div class="change-evidences-count">Sin evidencias</div>'
-
         }
-
       </div>
 
       ${puedeGestionar ? `
@@ -5726,6 +5720,8 @@ function getCookie(name) {
 function showAddChangeModal() {
 
   editingCambioId = null;
+  editingCambioGroupId = null;
+  editingCambioIds = [];
 
   document.getElementById('changeModalTitle').textContent = 'Agregar Cambio';
 
@@ -5747,6 +5743,8 @@ function showAddChangeModal() {
 // Variable para almacenar el ID del cambio que se está editando
 
 let editingCambioId = null;
+let editingCambioGroupId = null;
+let editingCambioIds = [];
 
 
 function resetChangeCurrentTimeControls() {
@@ -5851,6 +5849,8 @@ function clearChangeForm() {
   if (preview) preview.innerHTML = '';
 
   editingCambioId = null;
+  editingCambioGroupId = null;
+  editingCambioIds = [];
 
   document.getElementById('changeModalTitle').textContent = 'Agregar Cambio';
 
@@ -5958,8 +5958,9 @@ function editarCambio(cambioId, cambio) {
   }
 
   
-
-  editingCambioId = cambioId;
+  editingCambioGroupId = cambio.grupo_id || null;
+  editingCambioIds = Array.isArray(cambio.ids) && cambio.ids.length ? cambio.ids : [cambioId];
+  editingCambioId = editingCambioIds[0] || cambioId;
 
   resetChangeCurrentTimeControls();
 
@@ -6019,20 +6020,21 @@ function editarCambio(cambioId, cambio) {
 
   // Cargar colaborador seleccionado si existe
 
+  const colaboradoresSeleccionados = Array.isArray(cambio.colaboradores_ids) && cambio.colaboradores_ids.length
+    ? cambio.colaboradores_ids
+    : (cambio.colaborador_id ? [cambio.colaborador_id] : []);
+
   loadChangePersonnelList().then(() => {
-
-    if (cambio.colaborador_id) {
-
-      const checkbox = document.querySelector(`#changePersonnelList input[value="${cambio.colaborador_id}"]`);
-
+    colaboradoresSeleccionados.forEach((colaboradorId) => {
+      const checkbox = document.querySelector(`#changePersonnelList input[value="${colaboradorId}"]`);
       if (checkbox) {
-
         checkbox.checked = true;
-
+        const item = checkbox.closest('.selection-item');
+        if (item) {
+          item.classList.add('selected');
+        }
       }
-
-    }
-
+    });
   });
 
   
@@ -6199,6 +6201,13 @@ async function addChangeToProject() {
 
     formData.append('descripcion', description);
 
+    if (editingCambioId && editingCambioGroupId) {
+      formData.append('grupo_id', editingCambioGroupId);
+    }
+    if (editingCambioId && editingCambioIds && editingCambioIds.length) {
+      formData.append('cambio_ids', JSON.stringify(editingCambioIds));
+    }
+
     
 
     // Agregar fecha y hora si se especificaron o indicar que se use la actual
@@ -6326,6 +6335,10 @@ async function addChangeToProject() {
       }
 
       
+
+      editingCambioId = null;
+      editingCambioGroupId = null;
+      editingCambioIds = [];
 
       hideModal('addChangeModal');
 
@@ -10245,7 +10258,7 @@ function showChangeDetailsModal(cambio) {
 
   
 
-  document.getElementById('changeDetailsPersonnel').textContent = cambio.responsable || 'Sin responsable';
+  document.getElementById('changeDetailsPersonnel').textContent = cambio.responsables_display || cambio.responsable || 'Sin responsable';
 
   
 
