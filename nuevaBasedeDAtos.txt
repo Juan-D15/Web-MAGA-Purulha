@@ -2474,3 +2474,31 @@ CREATE INDEX idx_password_reset_codes_usuario_codigo
 
 CREATE INDEX idx_password_reset_codes_expira_en
     ON password_reset_codes (expira_en);
+
+-- =====================================================
+-- PATCH 2025-11-10: Agrupar cambios de colaboradores por grupo
+-- =====================================================
+ALTER TABLE eventos_cambios_colaboradores
+    ADD COLUMN IF NOT EXISTS grupo_id UUID DEFAULT uuid_generate_v4();
+
+WITH grouped AS (
+    SELECT
+        id,
+        FIRST_VALUE(id) OVER (
+            PARTITION BY actividad_id,
+                         trim(descripcion_cambio),
+                         date_trunc('second', fecha_cambio)
+            ORDER BY creado_en, id
+        ) AS group_leader
+    FROM eventos_cambios_colaboradores
+)
+UPDATE eventos_cambios_colaboradores ecc
+SET grupo_id = grouped.group_leader
+FROM grouped
+WHERE ecc.id = grouped.id;
+
+ALTER TABLE eventos_cambios_colaboradores
+    ALTER COLUMN grupo_id SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colaboradores_grupo
+    ON eventos_cambios_colaboradores(grupo_id);
