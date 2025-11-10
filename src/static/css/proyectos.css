@@ -1,3 +1,32 @@
+.project-detail-view .files-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.project-detail-view .files-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.project-detail-view .files-list::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 999px;
+}
+
+.project-detail-view .files-list::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+}
+
+.project-detail-view .files-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+@media (max-width: 768px) {
+  .project-detail-view .files-list {
+    max-height: 260px;
+  }
+}
 /* ======= ESTILOS ESPECÍFICOS PARA PROYECTOS ======= */
 
 :root {

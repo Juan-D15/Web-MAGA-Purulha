@@ -710,9 +710,13 @@ function normalizeProjectForFeatured(proyecto) {
   }
 
   if (!imagenPrincipal && Array.isArray(proyecto.evidencias)) {
-    const primeraImagen = proyecto.evidencias.find((item) => {
-      if (!item) return false;
-      if (item.es_imagen) return true;
+    const primeraGaleria = proyecto.evidencias.find((item) => item && item.es_galeria === true && (item.url || item.url_almacenamiento || item.imagen_url));
+    const primeraImagen = primeraGaleria || proyecto.evidencias.find((item) => {
+      if (!item || item.es_galeria === false) {
+        if (!item || !item.es_imagen) return false;
+        return Boolean(item.url || item.url_almacenamiento || item.imagen_url);
+      }
+      if (item.es_imagen === false) return false;
       const tipoArchivo = item.archivo_tipo || item.tipo;
       if (tipoArchivo && typeof tipoArchivo === 'string') {
         return tipoArchivo.startsWith('image/');
@@ -1065,7 +1069,9 @@ function mostrarDetalleProyecto(proyecto) {
 
     } else if (proyecto.evidencias && proyecto.evidencias.length > 0) {
 
-      const primeraImagen = proyecto.evidencias.find(e => e.es_imagen);
+      const primeraImagen =
+        proyecto.evidencias.find(e => e && e.es_galeria === true && e.es_imagen) ||
+        proyecto.evidencias.find(e => e && e.es_imagen);
 
       if (primeraImagen) {
 
@@ -1154,7 +1160,7 @@ function mostrarDetalleProyecto(proyecto) {
   if (detailGallery) {
     const puedeGestionar = puedeGestionarGaleria();
     const imagenes = Array.isArray(proyecto.evidencias)
-      ? proyecto.evidencias.filter(e => e.es_imagen)
+      ? proyecto.evidencias.filter(e => e && e.es_imagen && e.es_galeria !== false)
       : [];
     currentProjectGalleryPage = 0;
     renderProjectGalleryImages(imagenes, puedeGestionar);
@@ -1318,7 +1324,7 @@ function mostrarDetalleProyecto(proyecto) {
 
   const detailFiles = document.getElementById('detailFiles');
 
-  if (detailFiles && proyecto.archivos) {
+  if (detailFiles && Array.isArray(proyecto.archivos)) {
 
     // Verificar si el usuario tiene permisos (admin o personal)
 
@@ -1334,7 +1340,7 @@ function mostrarDetalleProyecto(proyecto) {
 
       detailFiles.innerHTML = proyecto.archivos.map(archivo => {
 
-        const extension = archivo.nombre.split('.').pop()?.toUpperCase() || 'FILE';
+        const extension = archivo.es_imagen ? 'IMG' : (archivo.nombre.split('.').pop()?.toUpperCase() || 'FILE');
 
         const tamanioTexto = archivo.tamanio ? formatFileSize(archivo.tamanio) : '';
 
@@ -1379,7 +1385,7 @@ function mostrarDetalleProyecto(proyecto) {
 
                 ${tamanioTexto ? `<span>${tamanioTexto}</span>` : ''}
 
-                ${archivo.es_evidencia ? '<span style="color: #6c757d;">(Evidencia)</span>' : '<span style="color: #28a745;">(Archivo del proyecto)</span>'}
+                ${archivo.es_imagen ? '<span style="color: #0ea5e9;">(Evidencia - Imagen)</span>' : (archivo.es_evidencia ? '<span style="color: #6c757d;">(Evidencia)</span>' : '<span style="color: #28a745;">(Archivo del proyecto)</span>')}
 
               </div>
 

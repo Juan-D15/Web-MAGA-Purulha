@@ -2268,17 +2268,22 @@ def api_obtener_evento(request, evento_id):
         # Evidencias (excluir imágenes de galería que ahora están en eventos_galeria)
         evidencias_data = []
         for evidencia in evento.evidencias.all():
-            # Excluir imágenes que están en la carpeta de galería (ahora están en eventos_galeria)
-            if '/media/galeria_img/' not in evidencia.url_almacenamiento:
-                evidencias_data.append({
-                    'id': str(evidencia.id),
-                    'nombre': evidencia.archivo_nombre,
-                    'archivo_nombre': evidencia.archivo_nombre,
-                    'url': evidencia.url_almacenamiento,
-                    'tipo': evidencia.archivo_tipo,
-                    'es_imagen': evidencia.es_imagen,
-                    'descripcion': evidencia.descripcion or ''
-                })
+            url = evidencia.url_almacenamiento or ''
+            url_lower = url.lower()
+            if '/media/evidencias/' not in url_lower:
+                continue
+            evidencias_data.append({
+                'id': str(evidencia.id),
+                'nombre': evidencia.archivo_nombre,
+                'archivo_nombre': evidencia.archivo_nombre,
+                'url': url,
+                'tipo': evidencia.archivo_tipo,
+                'es_imagen': evidencia.es_imagen,
+                'descripcion': evidencia.descripcion or '',
+                'es_galeria': False,
+                'es_evidencia': True,
+                'es_archivo': True
+            })
         
         comunidades_data = obtener_comunidades_evento(evento)
         comunidad_principal_id = comunidades_data[0]['comunidad_id'] if comunidades_data else (str(evento.comunidad.id) if evento.comunidad else None)
@@ -2625,7 +2630,14 @@ def api_actualizar_evento(request, evento_id):
                         for evidencia in evidencias_a_eliminar:
                             # Intentar eliminar el archivo físico
                             try:
-                                archivo_path = os.path.join(settings.MEDIA_ROOT, evidencia.url_almacenamiento.lstrip('/media/'))
+                                relative_path = evidencia.url_almacenamiento or ''
+                                if relative_path.startswith('/media/'):
+                                    relative_path = relative_path[len('/media/'):]
+                                elif relative_path.startswith('media/'):
+                                    relative_path = relative_path[len('media/'):]
+                                else:
+                                    relative_path = relative_path.lstrip('/')
+                                archivo_path = os.path.join(settings.MEDIA_ROOT, relative_path)
                                 if os.path.exists(archivo_path):
                                     os.remove(archivo_path)
                                     print(f"🗑️ Archivo físico eliminado: {archivo_path}")
@@ -4377,30 +4389,58 @@ def api_obtener_detalle_proyecto(request, evento_id):
         
         # Galería de imágenes (desde eventos_galeria)
         evidencias_data = []
+        galeria_urls = set()
+        galeria_nombres = set()
         for imagen in evento.galeria_imagenes.all():
+            if imagen.url_almacenamiento:
+                galeria_urls.add(imagen.url_almacenamiento)
+            if imagen.archivo_nombre:
+                galeria_nombres.add(imagen.archivo_nombre)
             evidencias_data.append({
                 'id': str(imagen.id),
                 'nombre': imagen.archivo_nombre,
                 'url': imagen.url_almacenamiento,
                 'tipo': imagen.archivo_tipo or '',
                 'es_imagen': True,
-                'descripcion': imagen.descripcion or ''
+                'descripcion': imagen.descripcion or '',
+                'es_galeria': True,
+                'es_evidencia': False
             })
         
-        # Archivos del proyecto (evidencias no-imágenes + archivos de actividad_archivos)
+        # Archivos del proyecto (todas las evidencias + archivos de actividad_archivos)
         archivos_data = []
-        # Evidencias que NO son imágenes (archivos) - excluir las de galería que ahora están en eventos_galeria
-        for evidencia in evento.evidencias.filter(es_imagen=False):
-            archivos_data.append({
+        evidencias_propias = []
+        for evidencia in evento.evidencias.all():
+            url = evidencia.url_almacenamiento or ''
+            url_lower = url.lower()
+            esta_en_galeria = url in galeria_urls or evidencia.archivo_nombre in galeria_nombres
+            es_archivo_evidencia = '/media/evidencias/' in url_lower
+
+            evidencias_propias.append({
                 'id': str(evidencia.id),
                 'nombre': evidencia.archivo_nombre,
-                'url': evidencia.url_almacenamiento,
-                'tipo': evidencia.archivo_tipo or 'application/octet-stream',
-                'tamanio': evidencia.archivo_tamanio,
+                'url': url,
+                'tipo': evidencia.archivo_tipo or '',
+                'es_imagen': evidencia.es_imagen,
                 'descripcion': evidencia.descripcion or '',
-                'es_evidencia': True,  # Marca que es de evidencias (no se puede eliminar)
-                'creado_en': evidencia.creado_en.isoformat() if evidencia.creado_en else None
+                'es_galeria': esta_en_galeria,
+                'es_evidencia': True,
+                'es_archivo': es_archivo_evidencia
             })
+
+            if es_archivo_evidencia:
+                archivos_data.append({
+                    'id': str(evidencia.id),
+                    'nombre': evidencia.archivo_nombre,
+                    'url': url,
+                    'tipo': evidencia.archivo_tipo or 'application/octet-stream',
+                    'tamanio': evidencia.archivo_tamanio,
+                    'descripcion': evidencia.descripcion or '',
+                    'es_evidencia': True,  # Marca que es de evidencias (no se puede eliminar)
+                    'es_imagen': evidencia.es_imagen,
+                    'es_galeria': esta_en_galeria,
+                    'creado_en': evidencia.creado_en.isoformat() if evidencia.creado_en else None
+                })
         # Archivos de actividad_archivos
         for archivo in evento.archivos.all():
             archivos_data.append({
@@ -4411,8 +4451,11 @@ def api_obtener_detalle_proyecto(request, evento_id):
                 'tamanio': archivo.archivo_tamanio,
                 'descripcion': archivo.descripcion or '',
                 'es_evidencia': False,  # Marca que es de actividad_archivos (se puede eliminar)
+                'es_imagen': False,
+                'es_galeria': False,
                 'creado_en': archivo.creado_en.isoformat() if archivo.creado_en else None
             })
+        evidencias_data.extend(evidencias_propias)
         
         # Ubicación
         ubicacion = 'Sin ubicación'
@@ -7157,18 +7200,24 @@ def api_generar_reporte(request, report_type):
                         'descripcion': imagen.descripcion or ''
                     })
                 
-                # Archivos del proyecto (evidencias no-imágenes + archivos de actividad_archivos)
+                # Archivos del proyecto (evidencias en /media/evidencias + archivos de actividad_archivos)
                 archivos_data = []
-                # Evidencias que NO son imágenes (archivos)
-                for evidencia in evento.evidencias.filter(es_imagen=False):
+                for evidencia in evento.evidencias.all():
+                    url = evidencia.url_almacenamiento or ''
+                    url_lower = url.lower()
+                    if '/media/evidencias/' not in url_lower:
+                        continue
                     archivos_data.append({
                         'id': str(evidencia.id),
                         'nombre': evidencia.archivo_nombre,
-                        'url': evidencia.url_almacenamiento,
+                        'url': url,
                         'tipo': evidencia.archivo_tipo or 'application/octet-stream',
                         'tamanio': evidencia.archivo_tamanio,
                         'descripcion': evidencia.descripcion or '',
-                        'es_evidencia': True
+                        'es_evidencia': True,
+                        'es_imagen': evidencia.es_imagen,
+                        'es_galeria': False,
+                        'creado_en': evidencia.creado_en.isoformat() if evidencia.creado_en else None
                     })
                 # Archivos de actividad_archivos
                 for archivo in evento.archivos.all():
@@ -7179,7 +7228,10 @@ def api_generar_reporte(request, report_type):
                         'tipo': archivo.archivo_tipo or 'application/octet-stream',
                         'tamanio': archivo.archivo_tamanio,
                         'descripcion': archivo.descripcion or '',
-                        'es_evidencia': False
+                        'es_evidencia': False,
+                        'es_imagen': False,
+                        'es_galeria': False,
+                        'creado_en': archivo.creado_en.isoformat() if archivo.creado_en else None
                     })
                 
                 # Ubicación
