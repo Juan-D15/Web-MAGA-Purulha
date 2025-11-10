@@ -2,6 +2,8 @@
   max-height: 320px;
   overflow-y: auto;
   padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.35) rgba(148, 163, 184, 0.15);
 }
 
 .project-detail-view .files-list::-webkit-scrollbar {
@@ -1243,6 +1245,11 @@ html {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.35) rgba(148, 163, 184, 0.15);
 }
 
 .change-item {
@@ -1311,6 +1318,38 @@ html {
   .change-date {
     min-width: auto;
   }
+
+.changes-timeline::-webkit-scrollbar {
+  width: 8px;
+}
+
+.changes-timeline::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 999px;
+}
+
+.changes-timeline::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+}
+
+.changes-timeline::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+@media (max-width: 768px) {
+  .changes-timeline {
+    max-height: 360px;
+    padding-right: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .changes-timeline {
+    max-height: 300px;
+    padding-right: 6px;
+  }
+}
 }
 
 /* ======= ESTILOS PARA GESTIÓN DE EVENTOS ======= */

@@ -1217,7 +1217,7 @@ async function addImageToCommunity() {
     confirmButton.textContent = 'Guardando...';
   }
 
-  SELECT = [...pendingGalleryImages];
+  const imagesToUpload = [...pendingGalleryImages];
   let uploadedCount = 0;
 
   try {
