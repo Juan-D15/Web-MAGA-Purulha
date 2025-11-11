@@ -513,7 +513,9 @@ SELECT 1;
 
 class Migration(migrations.Migration):
     dependencies = [
+        ('webmaga', '0005_usuariofotoperfil'),
         ('webmaga', '0002_db_objects'),
+        ('webmaga', '0002_actividadcomunidad_actividadportada_and_more'),
     ]
 
     # Pon False solo si fueras a usar operaciones que no permiten transacción

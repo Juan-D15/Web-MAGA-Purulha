@@ -367,15 +367,28 @@ def obtener_cambios_evento(evento):
             grupo_data['responsables'].append(responsable_nombre)
 
         # Agregar comunidad si existe y no está ya en la lista
-        print(f'🔍 Cambio {cambio.id}: comunidad_id={getattr(cambio, "comunidad_id", None)}, comunidad={cambio.comunidad}')
+        # Leer directamente desde comunidad_id de la tabla eventos_cambios_colaboradores
+        comunidad_id = getattr(cambio, 'comunidad_id', None)
+        print(f'🔍 Cambio {cambio.id}: comunidad_id={comunidad_id}, comunidad={cambio.comunidad}')
+        
+        if comunidad_id:
+            # Si tenemos el ID pero no el objeto, obtenerlo
+            if not cambio.comunidad:
+                from webmaga.models import Comunidad
+                try:
+                    cambio.comunidad = Comunidad.objects.get(id=comunidad_id)
+                except Comunidad.DoesNotExist:
+                    print(f'⚠️ Comunidad con ID {comunidad_id} no encontrada en la BD')
+                    cambio.comunidad = None
+        
         if cambio.comunidad:
             comunidad_nombre = cambio.comunidad.nombre
-            print(f'✅ Comunidad encontrada: {comunidad_nombre}')
+            print(f'✅ Comunidad encontrada: {comunidad_nombre} (ID: {comunidad_id})')
             if comunidad_nombre and comunidad_nombre not in grupo_data['comunidades']:
                 grupo_data['comunidades'].append(comunidad_nombre)
                 print(f'✅ Comunidad agregada a la lista: {comunidad_nombre}')
         else:
-            print(f'⚠️ Cambio {cambio.id} NO tiene comunidad asociada')
+            print(f'⚠️ Cambio {cambio.id} NO tiene comunidad asociada (comunidad_id={comunidad_id})')
 
         for evidencia in evidencias_qs:
             evidencia_key = evidencia.url_almacenamiento or str(evidencia.id)
