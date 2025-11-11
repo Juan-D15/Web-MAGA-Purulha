@@ -72,6 +72,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Cola de Sincronización',
                 'db_table': 'cola_sincronizacion',
                 'ordering': ['-creado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -88,6 +89,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Archivo de Comunidad',
                 'verbose_name_plural': 'Archivos de Comunidades',
                 'db_table': 'comunidad_archivos',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -113,6 +115,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Conflictos de Sincronización',
                 'db_table': 'conflictos_sincronizacion',
                 'ordering': ['-detectado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -132,6 +135,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Dispositivo Registrado',
                 'verbose_name_plural': 'Dispositivos Registrados',
                 'db_table': 'dispositivos_registrados',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -147,6 +151,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Cambios de Evento por Colaboradores',
                 'db_table': 'eventos_cambios_colaboradores',
                 'ordering': ['-fecha_cambio'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -164,6 +169,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Evidencia de Cambio de Evento',
                 'verbose_name_plural': 'Evidencias de Cambios de Eventos',
                 'db_table': 'eventos_evidencias_cambios',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -182,6 +188,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Imágenes de Galería',
                 'db_table': 'eventos_galeria',
                 'ordering': ['-creado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -201,6 +208,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Recordatorios',
                 'db_table': 'recordatorios',
                 'ordering': ['due_at'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -213,6 +221,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Colaborador del Recordatorio',
                 'verbose_name_plural': 'Colaboradores del Recordatorio',
                 'db_table': 'recordatorio_colaboradores',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -229,6 +238,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Archivo de Región',
                 'verbose_name_plural': 'Archivos de Regiones',
                 'db_table': 'region_archivos',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -255,6 +265,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Sesión Offline',
                 'verbose_name_plural': 'Sesiones Offline',
                 'db_table': 'sesiones_offline',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -275,6 +286,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Tarjeta de Datos',
                 'verbose_name_plural': 'Tarjetas de Datos',
                 'db_table': 'tarjetas_datos',
+                'managed': False,
             },
         ),
         migrations.AlterUniqueTogether(
@@ -322,6 +334,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Bitácora de Transacciones',
                 'db_table': 'bitacora_transacciones',
                 'ordering': ['-creado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -339,6 +352,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Evidencia de Cambio',
                 'verbose_name_plural': 'Evidencias de Cambios',
                 'db_table': 'cambio_evidencias',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -363,6 +377,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Colaboradores',
                 'db_table': 'colaboradores',
                 'ordering': ['nombre'],
+                'managed': False,
             },
         ),
         migrations.AddField(

@@ -38,6 +38,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Foto de Perfil',
                 'verbose_name_plural': 'Fotos de Perfil',
                 'db_table': 'usuario_fotos_perfil',
+                'managed': False,
             },
         ),
     ]
