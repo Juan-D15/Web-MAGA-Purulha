@@ -4700,9 +4700,21 @@ function renderActividadUsuariosReport(data) {
             html += `<p style="margin: 0;">Este usuario no tiene actividad registrada en los eventos o comunidades seleccionados.</p>`;
             html += `</div>`;
         } else if (usuario.cambios && usuario.cambios.length > 0) {
-            // Agrupar cambios por evento
+            // Agrupar cambios por evento, evitando duplicados usando una clave única
             const cambiosPorEvento = {};
+            const cambiosVistos = new Set(); // Para evitar duplicados
+            
             usuario.cambios.forEach(cambio => {
+                // Crear clave única basada en evento_id, tipo_cambio, descripcion y fecha
+                // Esto evita mostrar el mismo cambio múltiples veces si tiene múltiples comunidades
+                const claveUnica = `${cambio.evento_id || 'sin_evento'}_${cambio.tipo_cambio || ''}_${cambio.descripcion || ''}_${cambio.fecha || ''}`;
+                
+                // Si ya vimos este cambio, saltarlo
+                if (cambiosVistos.has(claveUnica)) {
+                    return;
+                }
+                cambiosVistos.add(claveUnica);
+                
                 const eventoId = cambio.evento_id || 'sin_evento';
                 const eventoNombre = cambio.evento_nombre || 'Sin evento';
                 if (!cambiosPorEvento[eventoId]) {

@@ -1508,44 +1508,121 @@ def generate_word_comunidades(doc, data):
 
 def generate_word_actividad_usuarios(doc, data):
     """Genera contenido Word para actividad de usuarios"""
-    if not data or len(data) == 0:
+    # Manejar caso donde data viene como dict con 'usuarios'
+    if isinstance(data, dict) and 'usuarios' in data:
+        data = data['usuarios']
+    
+    if not data or (isinstance(data, list) and len(data) == 0):
         doc.add_paragraph('No se encontraron datos para este reporte.')
         return
     
+    # Asegurar que data es una lista
+    if not isinstance(data, list):
+        doc.add_paragraph('Error: formato de datos inválido para el reporte de actividad de usuarios.')
+        return
+    
     for idx, item in enumerate(data):
-        # Salto de página antes de cada sección (excepto la primera)
+        # Validar que item es un diccionario
+        if not isinstance(item, dict):
+            continue
+        
+        # Salto de página antes de cada usuario (excepto el primero)
         if idx > 0:
             doc.add_page_break()
         
-        heading = doc.add_heading(f"Usuario: {item.get('usuario', 'N/A')}", level=2)
+        # ========== SECCIÓN: INFORMACIÓN DEL USUARIO ==========
+        # Título del usuario
+        nombre_usuario = item.get('nombre', item.get('username', 'N/A'))
+        heading = doc.add_heading(f"Usuario: {nombre_usuario}", level=2)
         
-        # Información general con mejor formato
+        # Espacio después del título
+        doc.add_paragraph()
+        
+        # Información general del usuario con formato mejorado
+        info_para = doc.add_paragraph()
+        info_para.add_run("Usuario: ").bold = True
+        info_para.add_run(f"{item.get('username', '-')}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Rol: ").bold = True
+        info_para.add_run(f"{item.get('rol_display', item.get('rol', '-'))}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        if item.get('puesto_nombre') or item.get('puesto'):
+            info_para = doc.add_paragraph()
+            info_para.add_run("Puesto: ").bold = True
+            puesto = item.get('puesto_nombre', item.get('puesto', '-'))
+            info_para.add_run(f"{puesto}").font.color.rgb = RGBColor(7, 114, 210)
+        
         info_para = doc.add_paragraph()
         info_para.add_run("Total de cambios: ").bold = True
         info_para.add_run(f"{item.get('total_cambios', 0)}").font.color.rgb = RGBColor(7, 114, 210)
-        doc.add_paragraph()
         
+        doc.add_paragraph()  # Espacio adicional
+        
+        # ========== SECCIÓN: TABLA DE CAMBIOS POR PROYECTO ==========
         if item.get('cambios') and len(item['cambios']) > 0:
-            # Salto de página antes de la tabla
-            doc.add_page_break()
-            doc.add_heading('Cambios Realizados', level=3)
-            table = doc.add_table(rows=1, cols=5)
-            # Formatear tabla con bordes y centrado
+            # Agrupar cambios por evento/proyecto
+            cambios_por_evento = {}
+            for cambio in item['cambios']:
+                if not isinstance(cambio, dict):
+                    continue
+                
+                evento_id = cambio.get('evento_id', 'sin_evento')
+                evento_nombre = cambio.get('evento_nombre', 'Sin evento')
+                
+                if evento_id not in cambios_por_evento:
+                    cambios_por_evento[evento_id] = {
+                        'nombre': evento_nombre,
+                        'cambios': []
+                    }
+                
+                cambios_por_evento[evento_id]['cambios'].append(cambio)
+            
+            # Crear tabla general para todos los cambios
+            doc.add_heading('Tabla de Cambios Realizados', level=3)
+            doc.add_paragraph()  # Espacio antes de la tabla
+            
+            # Crear tabla con columnas: Proyecto, Tipo de Cambio, Descripción, Fecha
+            table = doc.add_table(rows=1, cols=4)
             format_table_word(table)
             
-            headers = ['Fecha', 'Tipo', 'Entidad', 'Descripción', 'Detalles']
+            # Encabezados
+            headers = ['Proyecto', 'Tipo de Cambio', 'Descripción', 'Fecha y Hora']
             header_cells = table.rows[0].cells
             for i, header in enumerate(headers):
                 header_cells[i].text = header
                 header_cells[i].paragraphs[0].runs[0].bold = True
             
-            for cambio in item['cambios']:
-                row_cells = table.add_row().cells
-                row_cells[0].text = format_date(cambio.get('fecha', '-'))
-                row_cells[1].text = str(cambio.get('tipo', '-'))
-                row_cells[2].text = str(cambio.get('entidad', '-'))
-                row_cells[3].text = str(cambio.get('descripcion', '-'))
-                row_cells[4].text = str(cambio.get('detalles', '-'))
+            # Agregar filas agrupadas por proyecto
+            for evento_id, evento_data in cambios_por_evento.items():
+                cambios_evento = evento_data['cambios']
+                
+                # Agregar filas de cambios para este proyecto
+                for cambio_idx, cambio in enumerate(cambios_evento):
+                    row_cells = table.add_row().cells
+                    
+                    # En la primera fila de cada proyecto, mostrar el nombre del proyecto
+                    if cambio_idx == 0:
+                        # Agregar nombre del proyecto en negrita y azul
+                        proyecto_para = row_cells[0].paragraphs[0]
+                        # Limpiar el párrafo eliminando todos los runs existentes
+                        proyecto_para.clear()
+                        proyecto_run = proyecto_para.add_run(evento_data['nombre'])
+                        proyecto_run.bold = True
+                        proyecto_run.font.color.rgb = RGBColor(7, 114, 210)
+                    else:
+                        # En las siguientes filas, dejar vacío
+                        row_cells[0].text = ''
+                    
+                    row_cells[1].text = cambio.get('tipo_cambio', '-')
+                    row_cells[2].text = cambio.get('descripcion', '-')
+                    # Usar fecha_display si está disponible, sino format_date de fecha
+                    fecha_str = cambio.get('fecha_display', '')
+                    if not fecha_str and cambio.get('fecha'):
+                        fecha_str = format_date(cambio.get('fecha', '-'))
+                    row_cells[3].text = fecha_str if fecha_str else '-'
+            
+            doc.add_paragraph()  # Espacio después de la tabla
 
 
 def generate_word_reporte_general(doc, data):
@@ -2317,32 +2394,93 @@ def generate_html_actividad_usuarios(data):
     """Genera HTML para actividad de usuarios"""
     html_parts = []
     
-    if not data or len(data) == 0:
+    # Manejar caso donde data viene como dict con 'usuarios'
+    if isinstance(data, dict) and 'usuarios' in data:
+        data = data['usuarios']
+    
+    if not data or (isinstance(data, list) and len(data) == 0):
         return '<p>No se encontraron datos para este reporte.</p>'
     
+    # Asegurar que data es una lista
+    if not isinstance(data, list):
+        return '<p>Error: formato de datos inválido para el reporte de actividad de usuarios.</p>'
+    
     for idx, item in enumerate(data):
-        class_attr = ' class="section-break"' if idx > 0 else ''
-        html_parts.append(f'<h2{class_attr}>Usuario: {item.get("usuario", "N/A")}</h2>')
-        html_parts.append(f'<div class="metric-box">')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de cambios:</span> <strong style="color: #0772d2;">{item.get("total_cambios", 0)}</strong></p>')
-        html_parts.append(f'</div>')
+        # Validar que item es un diccionario
+        if not isinstance(item, dict):
+            continue
         
+        # Salto de página antes de cada usuario (excepto el primero)
+        class_attr = ' class="section-break"' if idx > 0 else ''
+        
+        # ========== SECCIÓN: INFORMACIÓN DEL USUARIO ==========
+        nombre_usuario = item.get('nombre', item.get('username', 'N/A'))
+        html_parts.append(f'<h2{class_attr}>Usuario: {nombre_usuario}</h2>')
+        
+        # Información general del usuario
+        html_parts.append('<div class="metric-box">')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Usuario:</span> <strong style="color: #0772d2;">{item.get("username", "-")}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Rol:</span> <strong style="color: #0772d2;">{item.get("rol_display", item.get("rol", "-"))}</strong></p>')
+        if item.get('puesto_nombre') or item.get('puesto'):
+            puesto = item.get('puesto_nombre', item.get('puesto', '-'))
+            html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Puesto:</span> <strong style="color: #0772d2;">{puesto}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de cambios:</span> <strong style="color: #0772d2;">{item.get("total_cambios", 0)}</strong></p>')
+        html_parts.append('</div>')
+        
+        # ========== SECCIÓN: TABLA DE CAMBIOS POR PROYECTO ==========
         if item.get('cambios') and len(item['cambios']) > 0:
-            html_parts.append('<h3>Cambios Realizados</h3>')
-            html_parts.append('<table>')
-            html_parts.append('<thead><tr><th>Fecha</th><th>Tipo</th><th>Entidad</th><th>Descripción</th><th>Detalles</th></tr></thead>')
+            # Agrupar cambios por evento/proyecto
+            cambios_por_evento = {}
+            for cambio in item['cambios']:
+                if not isinstance(cambio, dict):
+                    continue
+                
+                evento_id = cambio.get('evento_id', 'sin_evento')
+                evento_nombre = cambio.get('evento_nombre', 'Sin evento')
+                
+                if evento_id not in cambios_por_evento:
+                    cambios_por_evento[evento_id] = {
+                        'nombre': evento_nombre,
+                        'cambios': []
+                    }
+                
+                cambios_por_evento[evento_id]['cambios'].append(cambio)
+            
+            html_parts.append('<h3>Tabla de Cambios Realizados</h3>')
+            html_parts.append('<table style="width: 100%; border-collapse: collapse; margin: 0.5cm 0; border: 1px solid #000;">')
+            html_parts.append('<thead><tr>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Proyecto</th>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Tipo de Cambio</th>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Descripción</th>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Fecha y Hora</th>')
+            html_parts.append('</tr></thead>')
             html_parts.append('<tbody>')
             
-            for cambio in item['cambios']:
-                html_parts.append('<tr>')
-                html_parts.append(f'<td>{format_date(cambio.get("fecha", "-"))}</td>')
-                html_parts.append(f'<td>{cambio.get("tipo", "-")}</td>')
-                html_parts.append(f'<td>{cambio.get("entidad", "-")}</td>')
-                html_parts.append(f'<td>{cambio.get("descripcion", "-")}</td>')
-                html_parts.append(f'<td>{cambio.get("detalles", "-")}</td>')
-                html_parts.append('</tr>')
+            # Agregar filas agrupadas por proyecto
+            for evento_id, evento_data in cambios_por_evento.items():
+                cambios_evento = evento_data['cambios']
+                
+                # Agregar fila con nombre del proyecto (primera fila del grupo)
+                if len(cambios_evento) > 0:
+                    html_parts.append(f'<tr style="background-color: #e6f2ff;">')
+                    html_parts.append(f'<td style="border: 1px solid #000; padding: 8px; font-weight: bold; color: #0772d2;" colspan="4">{evento_data["nombre"]}</td>')
+                    html_parts.append('</tr>')
+                    
+                    # Agregar filas de cambios para este proyecto
+                    for cambio in cambios_evento:
+                        html_parts.append('<tr>')
+                        html_parts.append('<td style="border: 1px solid #000; padding: 8px;"></td>')  # Proyecto ya está en la fila anterior
+                        html_parts.append(f'<td style="border: 1px solid #000; padding: 8px;">{cambio.get("tipo_cambio", "-")}</td>')
+                        html_parts.append(f'<td style="border: 1px solid #000; padding: 8px;">{cambio.get("descripcion", "-")}</td>')
+                        # Usar fecha_display si está disponible
+                        fecha_str = cambio.get('fecha_display', '')
+                        if not fecha_str and cambio.get('fecha'):
+                            fecha_str = format_date(cambio.get('fecha', '-'))
+                        html_parts.append(f'<td style="border: 1px solid #000; padding: 8px;">{fecha_str if fecha_str else "-"}</td>')
+                        html_parts.append('</tr>')
             
-            html_parts.append('</tbody></table>')
+            html_parts.append('</tbody>')
+            html_parts.append('</table>')
     
     return '\n'.join(html_parts)
 

@@ -8874,6 +8874,8 @@ def api_generar_reporte(request, report_type):
                 usuarios_dict[usuario_id]['total_cambios'] += 1
             
             # Procesar cambios de colaboradores con usuario
+            # Agrupar por grupo_id para evitar duplicados cuando un cambio tiene múltiples comunidades
+            cambios_por_grupo = {}
             for cambio in cambios_colaboradores:
                 colaborador = cambio.colaborador
                 if not colaborador or not colaborador.usuario:
@@ -8881,6 +8883,26 @@ def api_generar_reporte(request, report_type):
                 
                 usuario = colaborador.usuario
                 usuario_id = str(usuario.id)
+                grupo_id = str(cambio.grupo_id) if hasattr(cambio, 'grupo_id') and cambio.grupo_id else str(cambio.id)
+                
+                # Crear clave única por usuario y grupo
+                clave_grupo = f"{usuario_id}_{grupo_id}"
+                
+                # Si ya procesamos este grupo para este usuario, saltarlo
+                if clave_grupo not in cambios_por_grupo:
+                    cambios_por_grupo[clave_grupo] = {
+                        'usuario_id': usuario_id,
+                        'usuario': usuario,
+                        'colaborador': colaborador,
+                        'cambio': cambio
+                    }
+            
+            # Procesar los cambios únicos agrupados
+            for clave_grupo, grupo_data in cambios_por_grupo.items():
+                usuario = grupo_data['usuario']
+                colaborador = grupo_data['colaborador']
+                cambio = grupo_data['cambio']
+                usuario_id = grupo_data['usuario_id']
                 
                 if usuario_id not in usuarios_dict:
                     usuarios_dict[usuario_id] = {
@@ -9396,6 +9418,13 @@ def api_exportar_reporte(request, report_type):
             if report_type == 'comunidades':
                 if isinstance(report_data, dict) and 'comunidades' in report_data:
                     report_data = report_data['comunidades']
+                elif not isinstance(report_data, list):
+                    report_data = []
+            
+            # Para actividad-usuarios, extraer la lista de usuarios del objeto
+            if report_type == 'actividad-usuarios':
+                if isinstance(report_data, dict) and 'usuarios' in report_data:
+                    report_data = report_data['usuarios']
                 elif not isinstance(report_data, list):
                     report_data = []
                 
