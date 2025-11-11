@@ -665,6 +665,22 @@ class EventoCambioColaborador(models.Model):
         related_name='cambios_eventos',
         db_column='colaborador_id'
     )
+    comunidad = models.ForeignKey(
+        Comunidad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cambios_eventos',
+        db_column='comunidad_id'
+    )
+    region = models.ForeignKey(
+        Region,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cambios_eventos',
+        db_column='region_id'
+    )
     descripcion_cambio = models.TextField()
     fecha_cambio = models.DateTimeField(default=timezone.now)
     creado_en = models.DateTimeField(auto_now_add=True)

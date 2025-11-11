@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.db import connection
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
@@ -3607,7 +3607,8 @@ def api_calendar_events(request):
 @require_http_methods(["GET", "POST"])
 @login_required
 def api_avances(request):
-    """Obtiene avances/cambios de eventos para el calendario por fecha. Consulta la tabla eventos_cambios_colaboradores."""
+    """Obtiene avances/cambios de eventos para el calendario por fecha. Consulta la tabla eventos_cambios_colaboradores.
+    Agrupa por grupo_id para evitar duplicados cuando hay múltiples colaboradores responsables."""
     date_str = request.GET.get('date')
     if not date_str:
         return JsonResponse([], safe=False)
@@ -3629,18 +3630,22 @@ def api_avances(request):
         except Exception:
             pass
         
-        # Construir la consulta base
+        # Construir la consulta base agrupando por grupo_id para evitar duplicados
+        # Agrupamos por grupo_id y concatenamos todos los colaboradores del mismo grupo
         query_base = """
-            SELECT ecc.id::text,
+            SELECT ecc.grupo_id::text,
                    ecc.actividad_id::text,
-                   ecc.colaborador_id::text,
                    ecc.descripcion_cambio,
-                   ecc.fecha_cambio,
+                   MIN(ecc.fecha_cambio) as fecha_cambio,
                    a.nombre as evento_nombre,
-                   COALESCE(c.nombre, 'Colaborador') as colaborador_nombre
+                   STRING_AGG(DISTINCT COALESCE(c.nombre, 'Colaborador'), ', ' ORDER BY COALESCE(c.nombre, 'Colaborador')) as colaboradores_nombres,
+                   STRING_AGG(DISTINCT COALESCE(com.nombre, ''), ', ' ORDER BY COALESCE(com.nombre, '')) FILTER (WHERE com.nombre IS NOT NULL) as comunidades_nombres,
+                   STRING_AGG(DISTINCT COALESCE(r.nombre, ''), ', ' ORDER BY COALESCE(r.nombre, '')) FILTER (WHERE r.nombre IS NOT NULL) as regiones_nombres
             FROM eventos_cambios_colaboradores ecc
             INNER JOIN actividades a ON a.id = ecc.actividad_id
             LEFT JOIN colaboradores c ON c.id = ecc.colaborador_id
+            LEFT JOIN comunidades com ON com.id = ecc.comunidad_id
+            LEFT JOIN regiones r ON r.id = ecc.region_id
             WHERE (ecc.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
               AND a.eliminado_en IS NULL
         """
@@ -3658,7 +3663,10 @@ def api_avances(request):
         else:
             params = [date_str]
         
-        query_base += " ORDER BY ecc.fecha_cambio ASC"
+        query_base += """
+            GROUP BY ecc.grupo_id, ecc.actividad_id, ecc.descripcion_cambio, a.nombre
+            ORDER BY MIN(ecc.fecha_cambio) ASC
+        """
         
         with connection.cursor() as cur:
             cur.execute(query_base, params)
@@ -3666,7 +3674,7 @@ def api_avances(request):
         
         results = []
         for row in rows:
-            cambio_id, actividad_id, colaborador_id, descripcion, fecha_cambio, evento_nombre, colaborador_nombre = row
+            grupo_id, actividad_id, descripcion, fecha_cambio, evento_nombre, colaboradores_nombres, comunidades_nombres, regiones_nombres = row
             
             # Si no hay evento_nombre desde la consulta, obtenerlo manualmente (fallback)
             if not evento_nombre:
@@ -3676,12 +3684,9 @@ def api_avances(request):
                 except Actividad.DoesNotExist:
                     continue
             
-            # Determinar el colaborador a mostrar
-            responsable_display = None
-            if colaborador_nombre:
-                responsable_display = colaborador_nombre
-            else:
-                responsable_display = 'Sistema'
+            # Usar grupo_id como id para evitar duplicados en el frontend
+            # Los colaboradores ya están concatenados en colaboradores_nombres
+            responsable_display = colaboradores_nombres if colaboradores_nombres else 'Sistema'
             
             # Convertir fecha_cambio a zona horaria de Guatemala
             if fecha_cambio:
@@ -3697,13 +3702,15 @@ def api_avances(request):
                 hora_str = ''
             
             results.append({
-                'id': cambio_id,
+                'id': grupo_id,  # Usar grupo_id como id para evitar duplicados
                 'actividad_id': actividad_id,
                 'evento_nombre': evento_nombre,
                 'fecha': fecha_iso,
                 'hora': hora_str,
-                'responsable': responsable_display,
-                'descripcion': descripcion or ''
+                'responsable': responsable_display,  # Ya contiene todos los colaboradores concatenados
+                'descripcion': descripcion or '',
+                'comunidades': comunidades_nombres if comunidades_nombres else '',  # Comunidades donde se trabajó
+                'regiones': regiones_nombres if regiones_nombres else ''  # Regiones donde se trabajó
             })
         
         return JsonResponse(results, safe=False)
@@ -5099,6 +5106,19 @@ def api_crear_usuario(request):
 def api_crear_cambio(request, evento_id):
     """API: Crear un cambio en un evento"""
     try:
+        print(f'🔵 ========== INICIO api_crear_cambio para evento {evento_id} ==========')
+        print(f'🔵 Método: {request.method}')
+        print(f'🔵 POST keys: {list(request.POST.keys())}')
+        print(f'🔵 FILES keys: {list(request.FILES.keys())}')
+        
+        # Log de todos los datos POST
+        for key in request.POST.keys():
+            value = request.POST.get(key)
+            if len(str(value)) < 200:  # Solo mostrar valores cortos
+                print(f'🔵 POST[{key}]: {value}')
+            else:
+                print(f'🔵 POST[{key}]: (valor largo, {len(str(value))} caracteres)')
+        
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
         usuario_maga = get_usuario_maga(request.user)
         
@@ -5157,6 +5177,74 @@ def api_crear_cambio(request, evento_id):
                     'error': f'Colaborador con ID {colaborador_id} no encontrado'
                 }, status=404)
         
+        # Obtener comunidades seleccionadas
+        comunidades_ids_str = request.POST.get('comunidades_ids')
+        comunidades_ids = []
+        if comunidades_ids_str:
+            try:
+                comunidades_ids = json.loads(comunidades_ids_str)
+                print(f'✅ Comunidades parseadas: {comunidades_ids}')
+            except json.JSONDecodeError as e:
+                print(f'❌ Error al parsear JSON de comunidades: {e}')
+        
+        # Validar que las comunidades pertenezcan al evento
+        comunidades_validas = []
+        if comunidades_ids:
+            from webmaga.models import ActividadComunidad, Comunidad
+            # Obtener comunidades relacionadas con el evento
+            comunidades_evento = ActividadComunidad.objects.filter(
+                actividad=evento
+            ).values_list('comunidad_id', flat=True)
+            
+            # Convertir a lista para comparación (los IDs pueden ser UUIDs, no enteros)
+            comunidades_evento_list = list(comunidades_evento)
+            print(f'🔍 Comunidades relacionadas con el evento: {comunidades_evento_list} (cantidad: {len(comunidades_evento_list)})')
+            print(f'🔍 Tipos de IDs en comunidades_evento: {[type(cid) for cid in comunidades_evento_list[:3]] if comunidades_evento_list else "lista vacía"}')
+            
+            for comunidad_id_str in comunidades_ids:
+                try:
+                    # Los IDs pueden ser UUIDs (strings) o enteros, intentar ambos
+                    comunidad_id_parsed = None
+                    try:
+                        # Intentar convertir a UUID si es string UUID
+                        import uuid as uuid_module
+                        if isinstance(comunidad_id_str, str):
+                            comunidad_id_parsed = uuid_module.UUID(comunidad_id_str)
+                        else:
+                            comunidad_id_parsed = comunidad_id_str
+                    except (ValueError, AttributeError):
+                        # Si no es UUID, intentar como entero
+                        try:
+                            comunidad_id_parsed = int(comunidad_id_str) if isinstance(comunidad_id_str, str) else comunidad_id_str
+                        except (ValueError, TypeError):
+                            comunidad_id_parsed = comunidad_id_str
+                    
+                    print(f'🔍 Verificando comunidad ID: {comunidad_id_str} -> {comunidad_id_parsed} (tipo: {type(comunidad_id_parsed)})')
+                    
+                    # Verificar que la comunidad esté relacionada con el evento
+                    # Comparar tanto el ID original como el parseado
+                    comunidad_encontrada = False
+                    for cid_evento in comunidades_evento_list:
+                        # Comparar como strings para UUIDs
+                        if str(cid_evento) == str(comunidad_id_parsed) or cid_evento == comunidad_id_parsed:
+                            comunidad_encontrada = True
+                            break
+                    
+                    if comunidad_encontrada:
+                        # Intentar obtener la comunidad con el ID parseado
+                        comunidad = Comunidad.objects.select_related('region').get(id=comunidad_id_parsed, activo=True)
+                        comunidades_validas.append(comunidad)
+                        print(f'✅ Comunidad válida: {comunidad.nombre} (ID: {comunidad.id}, Región: {comunidad.region.nombre if comunidad.region else "Sin región"})')
+                    else:
+                        print(f'⚠️ Comunidad {comunidad_id_str} ({comunidad_id_parsed}) no está relacionada con el evento.')
+                        print(f'   Comunidades del evento: {[str(cid) for cid in comunidades_evento_list[:5]]}')
+                except Comunidad.DoesNotExist:
+                    print(f'⚠️ Comunidad con ID {comunidad_id_str} no encontrada en la base de datos')
+                except Exception as e:
+                    print(f'⚠️ Error con comunidad ID {comunidad_id_str}: {e}')
+                    import traceback
+                    traceback.print_exc()
+        
         # Obtener fecha_cambio si se proporciona, de lo contrario usar la fecha actual
         fecha_cambio_str = request.POST.get('fecha_cambio')
         fecha_cambio = None
@@ -5189,15 +5277,39 @@ def api_crear_cambio(request, evento_id):
         with transaction.atomic():
             # Crear cambios para cada colaborador
             for colaborador in colaboradores:
-                cambio_colaborador = EventoCambioColaborador.objects.create(
-                    actividad=evento,
-                    colaborador=colaborador,
-                    descripcion_cambio=descripcion,
-                    fecha_cambio=fecha_cambio_final,
-                    grupo_id=grupo_uuid
-                )
-                cambios_creados.append(cambio_colaborador)
-                print(f'✅ Cambio creado para colaborador {colaborador.nombre}: {cambio_colaborador.id}')
+                # Si hay comunidades, crear un cambio por cada combinación colaborador-comunidad
+                # Si no hay comunidades, crear un cambio sin comunidad
+                if comunidades_validas:
+                    for comunidad in comunidades_validas:
+                        # Obtener región de la comunidad si existe (ya viene con select_related)
+                        region_id = None
+                        if comunidad.region:
+                            region_id = comunidad.region.id
+                            print(f'🔍 Región obtenida de comunidad: {comunidad.region.nombre} (ID: {region_id})')
+                        else:
+                            print(f'⚠️ Comunidad {comunidad.nombre} no tiene región asociada')
+                        
+                        cambio_colaborador = EventoCambioColaborador.objects.create(
+                            actividad=evento,
+                            colaborador=colaborador,
+                            descripcion_cambio=descripcion,
+                            fecha_cambio=fecha_cambio_final,
+                            grupo_id=grupo_uuid,
+                            comunidad_id=comunidad.id,
+                            region_id=region_id
+                        )
+                        cambios_creados.append(cambio_colaborador)
+                        print(f'✅ Cambio creado para colaborador {colaborador.nombre} y comunidad {comunidad.nombre} (ID: {comunidad.id}, Región ID: {region_id}): Cambio ID {cambio_colaborador.id}')
+                else:
+                    cambio_colaborador = EventoCambioColaborador.objects.create(
+                        actividad=evento,
+                        colaborador=colaborador,
+                        descripcion_cambio=descripcion,
+                        fecha_cambio=fecha_cambio_final,
+                        grupo_id=grupo_uuid
+                    )
+                    cambios_creados.append(cambio_colaborador)
+                    print(f'✅ Cambio creado para colaborador {colaborador.nombre}: {cambio_colaborador.id}')
             
             # Procesar evidencias y asociarlas a TODOS los cambios creados
             if request.FILES and len(cambios_creados) > 0:
@@ -5398,6 +5510,80 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                     }, status=400)
                 colaboradores_objs.append(colaborador)
 
+        # Obtener comunidades seleccionadas
+        comunidades_ids_str = request.POST.get('comunidades_ids')
+        print(f'🔵 comunidades_ids_str recibido (actualización): {comunidades_ids_str} (tipo: {type(comunidades_ids_str)})')
+        comunidades_ids = []
+        if comunidades_ids_str:
+            try:
+                comunidades_ids = json.loads(comunidades_ids_str)
+                print(f'✅ Comunidades parseadas (actualización): {comunidades_ids} (cantidad: {len(comunidades_ids)})')
+            except json.JSONDecodeError as e:
+                print(f'❌ Error al parsear JSON de comunidades: {e}')
+                print(f'❌ String recibido: {comunidades_ids_str}')
+        else:
+            print(f'⚠️ No se recibió comunidades_ids_str en POST (actualización)')
+            print(f'🔵 Todas las keys POST: {list(request.POST.keys())}')
+        
+        # Validar que las comunidades pertenezcan al evento
+        comunidades_validas = []
+        print(f'🔵 comunidades_ids tiene {len(comunidades_ids)} elementos (actualización)')
+        if comunidades_ids:
+            from webmaga.models import ActividadComunidad, Comunidad
+            # Obtener comunidades relacionadas con el evento
+            comunidades_evento = ActividadComunidad.objects.filter(
+                actividad=evento
+            ).values_list('comunidad_id', flat=True)
+            
+            # Convertir a lista para comparación (los IDs pueden ser UUIDs, no enteros)
+            comunidades_evento_list = list(comunidades_evento)
+            print(f'🔍 Comunidades relacionadas con el evento (actualización): {comunidades_evento_list} (cantidad: {len(comunidades_evento_list)})')
+            print(f'🔍 Tipos de IDs en comunidades_evento: {[type(cid) for cid in comunidades_evento_list[:3]] if comunidades_evento_list else "lista vacía"}')
+            
+            for comunidad_id_str in comunidades_ids:
+                try:
+                    # Los IDs pueden ser UUIDs (strings) o enteros, intentar ambos
+                    comunidad_id_parsed = None
+                    try:
+                        # Intentar convertir a UUID si es string UUID
+                        import uuid as uuid_module
+                        if isinstance(comunidad_id_str, str):
+                            comunidad_id_parsed = uuid_module.UUID(comunidad_id_str)
+                        else:
+                            comunidad_id_parsed = comunidad_id_str
+                    except (ValueError, AttributeError):
+                        # Si no es UUID, intentar como entero
+                        try:
+                            comunidad_id_parsed = int(comunidad_id_str) if isinstance(comunidad_id_str, str) else comunidad_id_str
+                        except (ValueError, TypeError):
+                            comunidad_id_parsed = comunidad_id_str
+                    
+                    print(f'🔍 Verificando comunidad ID (actualización): {comunidad_id_str} -> {comunidad_id_parsed} (tipo: {type(comunidad_id_parsed)})')
+                    
+                    # Verificar que la comunidad esté relacionada con el evento
+                    # Comparar tanto el ID original como el parseado
+                    comunidad_encontrada = False
+                    for cid_evento in comunidades_evento_list:
+                        # Comparar como strings para UUIDs
+                        if str(cid_evento) == str(comunidad_id_parsed) or cid_evento == comunidad_id_parsed:
+                            comunidad_encontrada = True
+                            break
+                    
+                    if comunidad_encontrada:
+                        # Intentar obtener la comunidad con el ID parseado
+                        comunidad = Comunidad.objects.select_related('region').get(id=comunidad_id_parsed, activo=True)
+                        comunidades_validas.append(comunidad)
+                        print(f'✅ Comunidad válida (actualización): {comunidad.nombre} (ID: {comunidad.id}, Región: {comunidad.region.nombre if comunidad.region else "Sin región"})')
+                    else:
+                        print(f'⚠️ Comunidad {comunidad_id_str} ({comunidad_id_parsed}) no está relacionada con el evento.')
+                        print(f'   Comunidades del evento: {[str(cid) for cid in comunidades_evento_list[:5]]}')
+                except Comunidad.DoesNotExist:
+                    print(f'⚠️ Comunidad con ID {comunidad_id_str} no encontrada en la base de datos')
+                except Exception as e:
+                    print(f'⚠️ Error con comunidad ID {comunidad_id_str} (actualización): {e}')
+                    import traceback
+                    traceback.print_exc()
+
         if cambio_colaborador:
             grupo_uuid = cambio_colaborador.grupo_id
             grupo_cambios_qs = EventoCambioColaborador.objects.filter(
@@ -5405,38 +5591,69 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 grupo_id=grupo_uuid
             ).select_related('colaborador').prefetch_related('evidencias')
 
+            # Guardar evidencias antes de eliminar cambios (para reasignarlas después)
+            evidencias_por_cambio = {}
+            for cambio_rel in grupo_cambios_qs:
+                evidencias_por_cambio[str(cambio_rel.id)] = list(cambio_rel.evidencias.all())
+
             cambios_por_colaborador = {}
             for cambio_rel in grupo_cambios_qs:
                 key = str(cambio_rel.colaborador.id) if cambio_rel.colaborador else None
                 cambios_por_colaborador[key] = cambio_rel
 
             if colaboradores_objs:
+                # Eliminar todos los cambios del grupo para recrearlos con las nuevas comunidades
+                grupo_cambios_qs.delete()
+                
                 nuevos_o_actualizados = []
+                fecha_cambio_final = fecha_cambio or cambio_colaborador.fecha_cambio
+                
+                print(f'🔵 Total colaboradores: {len(colaboradores_objs)}, Total comunidades válidas: {len(comunidades_validas)}')
                 for colaborador in colaboradores_objs:
-                    key = str(colaborador.id)
-                    if key in cambios_por_colaborador:
-                        cambio_existente = cambios_por_colaborador[key]
-                        cambio_existente.descripcion_cambio = descripcion
-                        if fecha_cambio:
-                            cambio_existente.fecha_cambio = fecha_cambio
-                        cambio_existente.save(update_fields=['descripcion_cambio', 'fecha_cambio'])
-                        nuevos_o_actualizados.append(cambio_existente)
-                        del cambios_por_colaborador[key]
+                    print(f'🔵 Procesando colaborador: {colaborador.nombre}')
+                    if comunidades_validas:
+                        print(f'🔵 Creando cambios con {len(comunidades_validas)} comunidades')
+                        # Crear un cambio por cada combinación colaborador-comunidad
+                        for comunidad in comunidades_validas:
+                            # Obtener región de la comunidad si existe (ya viene con select_related)
+                            region_id = None
+                            if comunidad.region:
+                                region_id = comunidad.region.id
+                                print(f'🔍 Región obtenida de comunidad (actualización): {comunidad.region.nombre} (ID: {region_id})')
+                            else:
+                                print(f'⚠️ Comunidad {comunidad.nombre} no tiene región asociada (actualización)')
+                            
+                            cambio_nuevo = EventoCambioColaborador.objects.create(
+                                actividad=evento,
+                                colaborador=colaborador,
+                                descripcion_cambio=descripcion,
+                                fecha_cambio=fecha_cambio_final,
+                                grupo_id=grupo_uuid,
+                                comunidad_id=comunidad.id,
+                                region_id=region_id
+                            )
+                            nuevos_o_actualizados.append(cambio_nuevo)
+                            print(f'✅ Cambio actualizado para colaborador {colaborador.nombre} y comunidad {comunidad.nombre} (ID: {comunidad.id}, Región ID: {region_id}): Cambio ID {cambio_nuevo.id}')
                     else:
+                        # Sin comunidades, crear cambio sin comunidad
+                        print(f'⚠️ NO hay comunidades válidas para colaborador {colaborador.nombre}, creando cambio sin comunidad')
                         cambio_nuevo = EventoCambioColaborador.objects.create(
                             actividad=evento,
                             colaborador=colaborador,
                             descripcion_cambio=descripcion,
-                            fecha_cambio=fecha_cambio or cambio_colaborador.fecha_cambio,
+                            fecha_cambio=fecha_cambio_final,
                             grupo_id=grupo_uuid
                         )
                         nuevos_o_actualizados.append(cambio_nuevo)
-
-                # Eliminar colaboradores que ya no forman parte del cambio
-                for cambio_restante in cambios_por_colaborador.values():
-                    evidencias_qs = cambio_restante.evidencias.all()
-                    _eliminar_queryset_con_archivos(evidencias_qs)
-                    cambio_restante.delete()
+                        print(f'✅ Cambio creado sin comunidad para colaborador {colaborador.nombre}: {cambio_nuevo.id}')
+                
+                # Reasignar evidencias al primer cambio del grupo (para mantener las evidencias)
+                if nuevos_o_actualizados and evidencias_por_cambio:
+                    primer_cambio = nuevos_o_actualizados[0]
+                    for cambio_id_antiguo, evidencias_list in evidencias_por_cambio.items():
+                        for evidencia in evidencias_list:
+                            evidencia.cambio = primer_cambio
+                            evidencia.save(update_fields=['cambio'])
 
                 if nuevos_o_actualizados:
                     cambio_colaborador = nuevos_o_actualizados[0]
@@ -8868,12 +9085,163 @@ def api_generar_reporte(request, report_type):
         }, status=500)
 
 
-@solo_administrador
+@permiso_generar_reportes
 def api_exportar_reporte(request, report_type):
-    """API para exportar reporte (placeholder - funcionalidad futura)"""
-    return JsonResponse({
-        'error': 'Funcionalidad de exportación aún no implementada'
-    }, status=501)
+    """API para exportar reporte en PDF o Word"""
+    try:
+        from .report_generator import generate_pdf_report, generate_word_report, get_report_title
+        
+        # Obtener formato solicitado
+        formato = request.GET.get('formato', 'pdf').lower()
+        
+        if formato not in ['pdf', 'word']:
+            return JsonResponse({
+                'error': 'Formato no válido. Use "pdf" o "word"'
+            }, status=400)
+        
+        # Obtener los mismos filtros que usa api_generar_reporte
+        # Reutilizar la lógica de generación de datos
+        fecha_inicio = request.GET.get('fecha_inicio')
+        fecha_fin = request.GET.get('fecha_fin')
+        region_ids = request.GET.get('region', '').split(',') if request.GET.get('region') else []
+        comunidad_ids = request.GET.get('comunidad', '').split(',') if request.GET.get('comunidad') else []
+        estados = request.GET.get('estado', '').split(',') if request.GET.get('estado') else []
+        tipo_actividad_param = request.GET.get('tipo_actividad', None)
+        if tipo_actividad_param is None or tipo_actividad_param == '' or tipo_actividad_param.strip() == '':
+            tipo_actividad = []
+        else:
+            tipo_actividad = [t.strip() for t in tipo_actividad_param.split(',') if t and t.strip() and t.strip() != '']
+        responsable_id = request.GET.get('responsable')
+        tipo_beneficiario_param = request.GET.get('tipo_beneficiario', '')
+        tipo_beneficiario = [t.strip() for t in tipo_beneficiario_param.split(',') if t.strip()] if tipo_beneficiario_param else []
+        
+        # Nuevos filtros para reportes unificados
+        agrupar_por = request.GET.get('agrupar_por', 'region')
+        comunidades_filtro_param = request.GET.get('comunidades', '')
+        comunidades_filtro = [c.strip() for c in comunidades_filtro_param.split(',') if c.strip()] if comunidades_filtro_param else []
+        evento_filtro_param = request.GET.get('evento', '')
+        evento_filtro = [e.strip() for e in evento_filtro_param.split(',') if e.strip()] if evento_filtro_param else []
+        
+        # Construir información de filtros para el reporte
+        filters_info_parts = []
+        if fecha_inicio:
+            filters_info_parts.append(f'Desde: {fecha_inicio}')
+        if fecha_fin:
+            filters_info_parts.append(f'Hasta: {fecha_fin}')
+        if estados:
+            filters_info_parts.append(f'Estados: {", ".join(estados)}')
+        if tipo_actividad:
+            filters_info_parts.append(f'Tipos: {", ".join(tipo_actividad)}')
+        if comunidades_filtro:
+            filters_info_parts.append(f'Comunidades: {len(comunidades_filtro)} seleccionadas')
+        if evento_filtro:
+            filters_info_parts.append(f'Eventos: {len(evento_filtro)} seleccionados')
+        
+        filters_info = ' | '.join(filters_info_parts) if filters_info_parts else 'Sin filtros aplicados'
+        
+        # Generar datos del reporte llamando directamente a api_generar_reporte
+        try:
+            # Llamar a api_generar_reporte con la misma request
+            report_response = api_generar_reporte(request, report_type)
+            
+            # Verificar si la respuesta es exitosa
+            if not hasattr(report_response, 'status_code'):
+                return JsonResponse({
+                    'error': 'Error: respuesta inválida del servidor'
+                }, status=500)
+                
+            if report_response.status_code != 200:
+                # Intentar obtener el mensaje de error del response
+                try:
+                    import json
+                    error_data = json.loads(report_response.content.decode('utf-8'))
+                    error_msg = error_data.get('error', 'Error al generar datos del reporte')
+                except:
+                    error_msg = 'Error al generar datos del reporte'
+                return JsonResponse({
+                    'error': error_msg
+                }, status=500)
+            
+            # Obtener los datos del JSON response
+            import json
+            try:
+                if hasattr(report_response, 'content'):
+                    content = report_response.content
+                    if isinstance(content, bytes):
+                        content = content.decode('utf-8')
+                    report_data_dict = json.loads(content)
+                else:
+                    return JsonResponse({
+                        'error': 'Error: no se pudo obtener el contenido de la respuesta'
+                    }, status=500)
+            except json.JSONDecodeError as e:
+                return JsonResponse({
+                    'error': f'Error al decodificar respuesta JSON: {str(e)}'
+                }, status=500)
+            
+            if 'error' in report_data_dict:
+                return JsonResponse({
+                    'error': report_data_dict['error']
+                }, status=500)
+            
+            # Extraer los datos según el tipo de reporte
+            if 'data' in report_data_dict:
+                report_data = report_data_dict['data']
+                # Validar que report_data no sea None
+                if report_data is None:
+                    report_data = []
+            else:
+                report_data = report_data_dict
+                
+            # Validar que tenemos datos válidos
+            if report_data is None:
+                report_data = []
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({
+                'error': f'Error al obtener datos del reporte: {str(e)}'
+            }, status=500)
+        
+        # Generar el archivo según el formato
+        try:
+            if formato == 'pdf':
+                file_buffer = generate_pdf_report(report_type, report_data, filters_info)
+                content_type = 'application/pdf'
+                file_extension = 'pdf'
+            else:  # word
+                file_buffer = generate_word_report(report_type, report_data, filters_info)
+                content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                file_extension = 'docx'
+            
+            # Verificar que file_buffer no sea None
+            if file_buffer is None:
+                return JsonResponse({
+                    'error': 'Error: no se pudo generar el archivo del reporte'
+                }, status=500)
+            
+            # Crear respuesta HTTP con el archivo
+            response = HttpResponse(file_buffer.read(), content_type=content_type)
+            report_title = get_report_title(report_type)
+            filename = f"{report_title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            return response
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({
+                'error': f'Error al generar el archivo del reporte: {str(e)}'
+            }, status=500)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'error': f'Error al exportar reporte: {str(e)}'
+        }, status=500)
 
 def api_actualizar_comunidad_datos(request, comunidad_id):
     """API: Actualizar datos generales y tarjetas personalizadas de una comunidad."""

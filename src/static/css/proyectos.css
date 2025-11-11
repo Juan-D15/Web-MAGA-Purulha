@@ -2073,6 +2073,15 @@ html {
   margin-top: 4px;
 }
 
+.change-communities {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin-top: 8px;
+  color: #0ea5e9;
+  font-size: 0.9rem;
+}
+
 /* Botones de acción principal */
 .detail-actions-section {
   margin-top: 60px;

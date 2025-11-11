@@ -299,10 +299,16 @@ def obtener_cambios_evento(evento):
 
     cambios = (
         EventoCambioColaborador.objects.filter(actividad=evento)
-        .select_related('colaborador')
+        .select_related('colaborador', 'comunidad', 'region')
         .prefetch_related('evidencias')
         .order_by('-fecha_cambio', '-creado_en')
     )
+    print(f'🔍 Total de cambios encontrados: {cambios.count()}')
+    # Verificar si hay cambios con comunidades
+    cambios_con_comunidad = cambios.exclude(comunidad__isnull=True)
+    print(f'🔍 Cambios con comunidad: {cambios_con_comunidad.count()}')
+    for cambio_temp in cambios_con_comunidad[:5]:  # Solo los primeros 5 para no saturar logs
+        print(f'  - Cambio {cambio_temp.id}: comunidad_id={cambio_temp.comunidad_id}, comunidad={cambio_temp.comunidad}')
 
     cambios_por_grupo = {}
 
@@ -340,6 +346,7 @@ def obtener_cambios_evento(evento):
                 'colaboradores_ids': [],
                 'colaboradores': [],
                 'evidencias_dict': {},
+                'comunidades': [],  # Lista de nombres de comunidades
             }
 
         grupo_data = cambios_por_grupo[grupo_clave]
@@ -356,6 +363,17 @@ def obtener_cambios_evento(evento):
 
         if responsable_nombre not in grupo_data['responsables']:
             grupo_data['responsables'].append(responsable_nombre)
+
+        # Agregar comunidad si existe y no está ya en la lista
+        print(f'🔍 Cambio {cambio.id}: comunidad_id={getattr(cambio, "comunidad_id", None)}, comunidad={cambio.comunidad}')
+        if cambio.comunidad:
+            comunidad_nombre = cambio.comunidad.nombre
+            print(f'✅ Comunidad encontrada: {comunidad_nombre}')
+            if comunidad_nombre and comunidad_nombre not in grupo_data['comunidades']:
+                grupo_data['comunidades'].append(comunidad_nombre)
+                print(f'✅ Comunidad agregada a la lista: {comunidad_nombre}')
+        else:
+            print(f'⚠️ Cambio {cambio.id} NO tiene comunidad asociada')
 
         for evidencia in evidencias_qs:
             evidencia_key = evidencia.url_almacenamiento or str(evidencia.id)
@@ -378,8 +396,13 @@ def obtener_cambios_evento(evento):
         grupo['responsables_display'] = ', '.join(grupo['responsables'])
         grupo['responsable'] = grupo['responsables_display']
         grupo['responsable_id'] = grupo['colaboradores_ids'][0] if grupo['colaboradores_ids'] else None
+        # Convertir lista de comunidades a string separado por comas
+        comunidades_lista = grupo['comunidades']
+        print(f'🔍 Grupo {grupo["grupo_id"]}: Lista de comunidades antes de convertir: {comunidades_lista}')
+        grupo['comunidades'] = ', '.join(comunidades_lista) if comunidades_lista else ''
+        print(f'🔍 Grupo {grupo["grupo_id"]}: String de comunidades después de convertir: "{grupo["comunidades"]}"')
         cambios_data.append(grupo)
-        print(f'✅ Cambio agrupado agregado: {grupo["id"]} (grupo {grupo["grupo_id"]}) con {len(grupo["colaboradores_ids"])} colaborador(es)')
+        print(f'✅ Cambio agrupado agregado: {grupo["id"]} (grupo {grupo["grupo_id"]}) con {len(grupo["colaboradores_ids"])} colaborador(es) y {len(comunidades_lista)} comunidad(es) - String final: "{grupo["comunidades"]}"')
 
     cambios_data.sort(key=lambda item: item['fecha_cambio'] or '', reverse=True)
     print(f'📦 Total de cambios agrupados retornados: {len(cambios_data)}')

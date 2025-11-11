@@ -589,6 +589,132 @@
         max-width:100%;
       }
     }
+    
+    /* ===== Responsive para Estadísticas Generales ===== */
+    @media (max-width: 768px) {
+      /* Sección de estadísticas generales */
+      .dashboard-section {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+      
+      .dashboard-section .reportes-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 16px !important;
+        box-sizing: border-box !important;
+        margin: 0 auto !important;
+        overflow-x: hidden !important;
+      }
+      
+      /* Grid de métricas */
+      .metrics-grid {
+        width: 100% !important;
+        max-width: 100% !important;
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding: 0 !important;
+      }
+      
+      .metric-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 16px !important;
+        overflow: hidden !important;
+      }
+      
+      /* Grid de gráficos */
+      .charts-grid {
+        width: 100% !important;
+        max-width: 100% !important;
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding: 0 !important;
+      }
+      
+      .chart-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        padding: 16px !important;
+        overflow: hidden !important;
+      }
+      
+      .chart-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+      }
+      
+      .chart-container canvas {
+        max-width: 100% !important;
+        height: auto !important;
+        box-sizing: border-box !important;
+      }
+      
+      /* Título de sección */
+      .dashboard-section .section-title {
+        font-size: 1.5rem !important;
+        padding: 0 16px !important;
+        box-sizing: border-box !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+      }
+      
+      .dashboard-header-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 0 16px !important;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .dashboard-section .reportes-container {
+        padding: 0 12px !important;
+      }
+      
+      .dashboard-section .section-title {
+        font-size: 1.25rem !important;
+        padding: 0 12px !important;
+      }
+      
+      .dashboard-header-container {
+        padding: 0 12px !important;
+      }
+      
+      .metric-card {
+        padding: 12px !important;
+      }
+      
+      .chart-card {
+        padding: 12px !important;
+      }
+      
+      .metric-value {
+        font-size: 1.5rem !important;
+      }
+      
+      .chart-container {
+        height: 250px !important;
+      }
+    }
   </style>
 {% endblock %}
 
@@ -1527,12 +1653,14 @@
               const hora = av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : '');
               const descripcion = av.descripcion || av.descripcion_cambio || '';
               const responsable = av.responsable || 'Sistema';
+              const comunidad = av.comunidades || '';
               
         card.innerHTML = `
             <h4 class="event-card__title">${eventoNombre}</h4>
             <div class="event-card__meta">${fecha}${hora ? ' · ' + hora : ''}</div>
             <div class="event-card__desc">${descripcion}</div>
-            ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${responsable}</div>` : ''}
+            ${comunidad ? `<div class="event-card__meta" style="margin-top:6px">Comunidad: ${comunidad}</div>` : ''}
+            ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Personal Responsable: ${responsable}</div>` : ''}
         `;
         avancesSection.appendChild(card);
           calendarDebugLog(`✅ Avance de eventos_cambios_colaboradores agregado: ${eventoNombre}`);
@@ -1600,12 +1728,14 @@
               const hora = av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : '');
               const descripcion = av.descripcion || av.descripcion_cambio || '';
               const responsable = av.responsable || 'Sistema';
+              const comunidad = av.comunidades || '';
               
       card.innerHTML = `
                 <h4 class="event-card__title">${eventoNombre}</h4>
                 <div class="event-card__meta">${fecha}${hora ? ' · ' + hora : ''}</div>
                 <div class="event-card__desc">${descripcion}</div>
-                ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Responsable: ${responsable}</div>` : ''}
+                ${comunidad ? `<div class="event-card__meta" style="margin-top:6px">Comunidad: ${comunidad}</div>` : ''}
+                ${responsable ? `<div class="event-card__meta" style="margin-top:6px">Personal Responsable: ${responsable}</div>` : ''}
               `;
               avancesSection.appendChild(card);
               calendarDebugLog(`✅ Avance de eventos_cambios_colaboradores agregado al modal: ${eventoNombre}`);
@@ -2156,7 +2286,9 @@
           const pill = document.createElement('div');
           pill.className = 'cal-pill cal-pill--avance';
           const eventName = av.evento_nombre || 'Sin evento';
-          const avanceText = `Avance ${eventName}`;
+          const comunidad = av.comunidades || '';
+          // Si hay comunidad, mostrarla en el texto
+          const avanceText = comunidad ? `Avance ${eventName} - ${comunidad}` : `Avance ${eventName}`;
           const initial = eventName.charAt(0).toUpperCase();
           const avanceShort = `A. ${initial}`;
           pill.innerHTML = `<span class="cal-dot cal-dot--avance"></span><span class="cal-pill__text">${avanceText}</span><span class="cal-pill__short">${avanceShort}</span>`;
@@ -2425,15 +2557,17 @@
         return esValido;
       }).map(av => {
         // Asegurar que los campos estén correctamente mapeados desde eventos_cambios_colaboradores
-        // El backend ya devuelve: id, actividad_id, evento_nombre, fecha, hora, descripcion, responsable
+        // El backend ya devuelve: id, actividad_id, evento_nombre, fecha, hora, descripcion, responsable, regiones, comunidades
         return {
-          id: av.id, // id de eventos_cambios_colaboradores
+          id: av.id, // id de eventos_cambios_colaboradores (grupo_id)
           actividad_id: av.actividad_id, // actividad_id de eventos_cambios_colaboradores
           evento_nombre: av.evento_nombre || 'Sin evento', // nombre de la actividad relacionada
           fecha: av.fecha || (av.fecha_cambio ? av.fecha_cambio.split('T')[0] : null), // fecha_cambio convertida
           hora: av.hora || (av.fecha_cambio ? av.fecha_cambio.split('T')[1]?.split(':').slice(0,2).join(':') : ''), // hora de fecha_cambio
           descripcion: av.descripcion || av.descripcion_cambio || '', // descripcion_cambio
-          responsable: av.responsable || 'Sistema' // colaborador_nombre
+          responsable: av.responsable || 'Sistema', // colaborador_nombre (concatenado)
+          regiones: av.regiones || '', // regiones donde se trabajó
+          comunidades: av.comunidades || '' // comunidades donde se trabajó
         };
       });
       

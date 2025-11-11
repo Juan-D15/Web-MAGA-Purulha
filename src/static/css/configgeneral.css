@@ -477,6 +477,22 @@ select.form-input:focus {
     align-items: flex-start;
   }
 
+  /* Mantener el header de asistencia en fila para que el botón funcione */
+  .asistencia-header {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100%;
+  }
+
+  .asistencia-toggle {
+    margin-left: auto;
+    flex-shrink: 0;
+    z-index: 10;
+    position: relative;
+    pointer-events: auto;
+  }
+
   .switch-container {
     flex-direction: column;
     align-items: flex-start;

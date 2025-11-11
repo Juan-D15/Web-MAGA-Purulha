@@ -3955,12 +3955,17 @@ function normalizeCommunitiesData(rawList) {
         item.comunidad_nombre ??
         item.community_name ??
         'Comunidad sin nombre',
+      // También mantener el nombre original para compatibilidad
+      nombre: item.nombre ?? item.comunidad_nombre ?? item.name ?? 'Comunidad sin nombre',
+      comunidad_nombre: item.comunidad_nombre ?? item.nombre ?? item.name ?? 'Comunidad sin nombre',
       region:
         regionText ||
         (typeof item.region === 'string' ? item.region : '') ||
         (typeof item.type === 'string' ? item.type : '') ||
         'Sin región asignada',
       region_id: item.region_id ?? (regionObject && (regionObject.id || regionObject.pk)) ?? '',
+      region_nombre: (item.region_nombre ?? regionName) || 'Sin región asignada',
+      region_sede: (item.region_sede ?? regionSede) || '',
       description: descriptionText,
     };
 
@@ -4146,8 +4151,21 @@ function renderCambios(cambios) {
     console.log(`🎨 Fecha display:`, cambio.fecha_display);
 
     console.log(`🎨 Responsable:`, cambio.responsable);
-
     
+    console.log(`🏘️ Comunidades del cambio:`, cambio.comunidades);
+    console.log(`🏘️ Comunidades_nombres del cambio:`, cambio.comunidades_nombres);
+    console.log(`🏘️ Tipo de comunidades:`, typeof cambio.comunidades);
+    console.log(`🏘️ Comunidades vacío?:`, cambio.comunidades === '' || cambio.comunidades === null || cambio.comunidades === undefined);
+
+    // Obtener el texto de comunidades
+    let comunidadesTexto = '';
+    if (cambio.comunidades && typeof cambio.comunidades === 'string' && cambio.comunidades.trim() !== '') {
+      comunidadesTexto = cambio.comunidades.trim();
+    } else if (cambio.comunidades_nombres && typeof cambio.comunidades_nombres === 'string' && cambio.comunidades_nombres.trim() !== '') {
+      comunidadesTexto = cambio.comunidades_nombres.trim();
+    }
+    
+    console.log(`🏘️ Texto final de comunidades:`, comunidadesTexto);
 
     const changeItem = document.createElement('div');
 
@@ -4163,6 +4181,16 @@ function renderCambios(cambios) {
         <div class="change-date">${cambio.fecha_display || cambio.fecha_cambio || 'Sin fecha'}</div>
         <div class="change-description">${cambio.descripcion || 'Sin descripción'}</div>
         <div class="change-personnel">Por: ${cambio.responsables_display || cambio.responsable || 'Sin responsable'}</div>
+        ${comunidadesTexto ? 
+          `<div class="change-communities" style="margin-top: 8px; color: #0ea5e9; font-size: 0.9rem; display: block !important; visibility: visible !important; opacity: 1 !important;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            Trabajado en: ${escapeHtml(comunidadesTexto)}
+          </div>` : 
+          ''
+        }
         ${cambio.evidencias && cambio.evidencias.length > 0 ? 
           `<div class="change-evidences-count">${cambio.evidencias.length} evidencia(s)</div>` : 
           '<div class="change-evidences-count">Sin evidencias</div>'
@@ -6297,6 +6325,7 @@ function showAddChangeModal() {
   // Esperar un momento para que el modal esté completamente visible antes de cargar la lista
   setTimeout(() => {
     loadChangePersonnelList();
+    loadChangeCommunitiesList();
   }, 100);
 
 }
@@ -6410,6 +6439,20 @@ function clearChangeForm() {
   const preview = document.getElementById('changeEvidencesPreview');
 
   if (preview) preview.innerHTML = '';
+
+  // Limpiar selección de comunidades
+  const communityCheckboxes = document.querySelectorAll('#changeCommunitiesList input.change-community-checkbox');
+  communityCheckboxes.forEach(cb => cb.checked = false);
+  
+  const communityItems = document.querySelectorAll('#changeCommunitiesList .community-item');
+  communityItems.forEach(item => {
+    item.style.borderColor = 'transparent';
+    item.style.background = 'rgba(255, 255, 255, 0.05)';
+  });
+
+  // Limpiar búsqueda de comunidades
+  const communitiesSearch = document.getElementById('changeCommunitiesSearch');
+  if (communitiesSearch) communitiesSearch.value = '';
 
   editingCambioId = null;
   editingCambioGroupId = null;
@@ -6596,6 +6639,32 @@ function editarCambio(cambioId, cambio) {
       }
     });
   });
+
+  // Cargar comunidades seleccionadas si existen
+  // Las comunidades vienen como string separado por comas desde el backend
+  if (cambio.comunidades) {
+    const comunidadesNombres = cambio.comunidades.split(',').map(c => c.trim()).filter(c => c);
+    loadChangeCommunitiesList().then(() => {
+      // Buscar y seleccionar las comunidades por nombre
+      comunidadesNombres.forEach(comunidadNombre => {
+        const communityItems = document.querySelectorAll('#changeCommunitiesList .community-item');
+        communityItems.forEach(item => {
+          const nameElement = item.querySelector('h4');
+          if (nameElement && nameElement.textContent.trim() === comunidadNombre) {
+            const checkbox = item.querySelector('.change-community-checkbox');
+            if (checkbox) {
+              checkbox.checked = true;
+              item.style.borderColor = '#007bff';
+              item.style.background = 'rgba(0, 123, 255, 0.1)';
+            }
+          }
+        });
+      });
+    });
+  } else {
+    // Si no hay comunidades, solo cargar la lista
+    loadChangeCommunitiesList();
+  }
 
   
 
@@ -6816,6 +6885,31 @@ async function addChangeToProject() {
       console.error('❌ No hay IDs de colaboradores para enviar');
     }
 
+    // Enviar TODAS las comunidades seleccionadas como una lista JSON
+    const selectedCommunities = getSelectedChangeCommunities();
+    console.log('📤 Comunidades seleccionadas (objeto completo):', selectedCommunities);
+    
+    // Asegurarse de que los IDs sean strings o números válidos
+    const comunidadesIds = selectedCommunities
+      .map(c => {
+        const id = c.id;
+        // Convertir a string si es número, o mantener como string
+        const idStr = String(id).trim();
+        console.log(`  - Comunidad: ${c.name}, ID original: ${id} (tipo: ${typeof id}), ID procesado: ${idStr}`);
+        return idStr;
+      })
+      .filter(id => id && id !== 'undefined' && id !== 'null' && id !== '');
+    
+    console.log('📤 IDs de comunidades procesados:', comunidadesIds);
+    console.log('📤 JSON string de comunidades:', JSON.stringify(comunidadesIds));
+    
+    if (comunidadesIds.length > 0) {
+      formData.append('comunidades_ids', JSON.stringify(comunidadesIds));
+      console.log('✅ comunidades_ids agregado al FormData:', JSON.stringify(comunidadesIds));
+    } else {
+      console.log('ℹ️ No se seleccionaron comunidades (opcional)');
+    }
+
     
 
     // Agregar archivos de evidencias con sus descripciones individuales
@@ -6855,10 +6949,38 @@ async function addChangeToProject() {
     console.log('Enviando cambio a:', url);
 
     // Log de todos los datos del FormData
-    console.log('FormData keys:', Array.from(formData.keys()));
+    console.log('📋 FormData keys:', Array.from(formData.keys()));
     for (let key of formData.keys()) {
       const value = formData.get(key);
-      console.log(`  ${key}:`, value);
+      if (key === 'comunidades_ids') {
+        console.log(`  🔵 ${key}:`, value, '(tipo:', typeof value, ')');
+        try {
+          const parsed = JSON.parse(value);
+          console.log(`  🔵 ${key} parseado:`, parsed);
+        } catch (e) {
+          console.error(`  ❌ Error al parsear ${key}:`, e);
+        }
+      } else if (key === 'colaboradores_ids') {
+        console.log(`  🔵 ${key}:`, value, '(tipo:', typeof value, ')');
+        try {
+          const parsed = JSON.parse(value);
+          console.log(`  🔵 ${key} parseado:`, parsed);
+        } catch (e) {
+          console.error(`  ❌ Error al parsear ${key}:`, e);
+        }
+      } else {
+        console.log(`  ${key}:`, value);
+      }
+    }
+    
+    // Verificación específica de comunidades
+    const comunidadesEnFormData = formData.get('comunidades_ids');
+    if (comunidadesEnFormData) {
+      console.log('✅ comunidades_ids está en FormData:', comunidadesEnFormData);
+    } else {
+      console.warn('⚠️ comunidades_ids NO está en FormData');
+      console.log('🔍 Comunidades seleccionadas antes de agregar:', selectedCommunities);
+      console.log('🔍 IDs procesados antes de agregar:', comunidadesIds);
     }
 
     
@@ -6912,7 +7034,6 @@ async function addChangeToProject() {
       
 
       // Recargar los detalles del proyecto
-
       shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
 
@@ -8670,6 +8791,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.target.classList.contains('modal')) {
 
       e.target.classList.remove('active');
+      
+      // Restaurar el scroll del body cuando se cierra el modal
+      document.body.style.overflow = '';
 
     }
 
@@ -9010,7 +9134,198 @@ async function loadChangePersonnelList() {
 
 }
 
+// Función para cargar comunidades del proyecto en el formulario de cambios
+async function loadChangeCommunitiesList() {
+  console.log('🔍 loadChangeCommunitiesList() llamada');
+  
+  const communitiesList = document.getElementById('changeCommunitiesList');
 
+  if (!communitiesList) {
+    console.error('❌ No se encontró el elemento changeCommunitiesList');
+    return;
+  }
+
+  const currentProject = getCurrentProject();
+  console.log('📦 Proyecto actual:', currentProject);
+
+  if (!currentProject || !currentProject.id) {
+    console.error('❌ No se pudo obtener el proyecto actual');
+    communitiesList.innerHTML = '<p style="color: #6c757d;">No se pudo obtener la información del proyecto.</p>';
+    return;
+  }
+
+  // Obtener las comunidades relacionadas con el proyecto
+  const rawCommunities = currentProject.comunidades || currentProject.communities || [];
+  
+  // Normalizar las comunidades para asegurar que tengan los campos correctos
+  const comunidadesProyecto = normalizeCommunitiesData(rawCommunities);
+  console.log('🏘️ Comunidades del proyecto (normalizadas):', comunidadesProyecto);
+
+  communitiesList.innerHTML = '';
+
+  if (comunidadesProyecto.length === 0) {
+    console.warn('⚠️ No hay comunidades relacionadas con el proyecto');
+    communitiesList.innerHTML = '<p style="color: #6c757d;">No hay comunidades relacionadas con este proyecto.</p>';
+    return;
+  }
+
+  // Renderizar comunidades con checkboxes
+  comunidadesProyecto.forEach(comunidad => {
+    const communityItem = document.createElement('div');
+    communityItem.className = 'community-item';
+    communityItem.style.cssText = 'display: flex; align-items: center; padding: 12px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; cursor: pointer; border: 2px solid transparent;';
+
+    // Obtener el ID de la comunidad de múltiples fuentes posibles
+    // IMPORTANTE: Verificar todos los campos posibles donde puede estar el ID
+    let comunidadId = null;
+    
+    // Intentar obtener el ID de diferentes campos
+    if (comunidad.id) {
+      comunidadId = String(comunidad.id).trim();
+    } else if (comunidad.comunidad_id) {
+      comunidadId = String(comunidad.comunidad_id).trim();
+    } else if (comunidad.community_id) {
+      comunidadId = String(comunidad.community_id).trim();
+    } else if (comunidad.pk) {
+      comunidadId = String(comunidad.pk).trim();
+    } else if (comunidad.uuid) {
+      comunidadId = String(comunidad.uuid).trim();
+    }
+    
+    if (!comunidadId || comunidadId === '' || comunidadId === 'undefined' || comunidadId === 'null') {
+      console.error('❌ Comunidad sin ID válido, saltando:', {
+        comunidad: comunidad,
+        id: comunidad.id,
+        comunidad_id: comunidad.comunidad_id,
+        community_id: comunidad.community_id,
+        pk: comunidad.pk,
+        uuid: comunidad.uuid
+      });
+      return; // Saltar esta comunidad si no tiene ID
+    }
+    
+    // Usar el campo 'name' que viene de normalizeCommunitiesData
+    const comunidadNombre = comunidad.name || comunidad.nombre || 'Sin nombre';
+    // Usar el campo 'region' que viene de normalizeCommunitiesData (ya incluye región y sede)
+    const regionNombre = comunidad.region || comunidad.region_nombre || 'Sin región';
+
+    console.log(`🏘️ Cargando comunidad en lista: ${comunidadNombre} (ID: ${comunidadId}, tipo: ${typeof comunidadId})`);
+
+    communityItem.setAttribute('data-community-id', comunidadId);
+
+    // Asegurarse de que el valor del checkbox sea el ID correcto
+    const checkboxId = `change-community-${comunidadId.replace(/[^a-zA-Z0-9-_]/g, '_')}`;
+    const checkboxValue = comunidadId; // El valor debe ser el ID de la comunidad
+    
+    communityItem.innerHTML = `
+      <input type="checkbox" class="change-community-checkbox" id="${escapeHtml(checkboxId)}" value="${escapeHtml(checkboxValue)}" style="margin-right: 12px; width: 18px; height: 18px; cursor: pointer;">
+      <div style="flex: 1;">
+        <h4 style="margin: 0 0 4px 0; color: #ffffff; font-size: 1rem;">${escapeHtml(comunidadNombre)}</h4>
+        <p style="margin: 2px 0; color: #b8c5d1; font-size: 0.85rem;">${escapeHtml(regionNombre)}</p>
+      </div>
+    `;
+    
+    // Verificar que el checkbox se creó correctamente
+    const createdCheckbox = communityItem.querySelector('.change-community-checkbox');
+    if (createdCheckbox) {
+      console.log(`✅ Checkbox creado: value="${createdCheckbox.value}", id="${createdCheckbox.id}"`);
+    } else {
+      console.error('❌ No se pudo crear el checkbox para:', comunidadNombre);
+    }
+
+    communitiesList.appendChild(communityItem);
+
+    // Agregar event listener para cambiar estilo cuando se selecciona
+    const checkbox = communityItem.querySelector('.change-community-checkbox');
+    checkbox.addEventListener('change', function() {
+      if (this.checked) {
+        communityItem.style.borderColor = '#007bff';
+        communityItem.style.background = 'rgba(0, 123, 255, 0.1)';
+      } else {
+        communityItem.style.borderColor = 'transparent';
+        communityItem.style.background = 'rgba(255, 255, 255, 0.05)';
+      }
+    });
+
+    // Permitir clic en el item para seleccionar/deseleccionar
+    communityItem.addEventListener('click', function(e) {
+      if (e.target !== checkbox && e.target !== checkbox.parentElement) {
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change'));
+      }
+    });
+  });
+
+  // Agregar event listener para el buscador de comunidades
+  const searchInput = document.getElementById('changeCommunitiesSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', filterChangeCommunities);
+  }
+}
+
+// Función para filtrar comunidades en el formulario de cambios
+function filterChangeCommunities() {
+  const searchTerm = document.getElementById('changeCommunitiesSearch').value.toLowerCase().trim();
+  const communityItems = document.querySelectorAll('#changeCommunitiesList .community-item');
+
+  communityItems.forEach(item => {
+    const communityName = item.querySelector('h4')?.textContent.toLowerCase() || '';
+    const regionName = item.querySelector('p')?.textContent.toLowerCase() || '';
+    const matches = communityName.includes(searchTerm) || regionName.includes(searchTerm);
+    item.style.display = matches ? 'flex' : 'none';
+  });
+}
+
+// Función para obtener comunidades seleccionadas en modal de cambios
+function getSelectedChangeCommunities() {
+  const checkboxes = document.querySelectorAll('#changeCommunitiesList input.change-community-checkbox:checked');
+  console.log('🔍 Comunidades seleccionadas:', checkboxes.length);
+
+  const selected = [];
+
+  checkboxes.forEach((cb, index) => {
+    const communityItem = cb.closest('.community-item');
+    if (communityItem) {
+      const communityId = cb.value ? String(cb.value).trim() : '';
+      const dataCommunityId = communityItem.getAttribute('data-community-id') ? String(communityItem.getAttribute('data-community-id')).trim() : '';
+      const name = communityItem.querySelector('h4')?.textContent.trim() || '';
+      
+      // Usar el ID del checkbox o el data-attribute como respaldo
+      let finalId = communityId || dataCommunityId || '';
+      
+      // Validar que el ID no sea vacío, null, undefined, o string "null"/"undefined"
+      if (!finalId || finalId === '' || finalId === 'null' || finalId === 'undefined' || finalId === 'NaN') {
+        console.error(`❌ Comunidad ${index + 1} sin ID válido:`, {
+          name: name,
+          checkboxValue: cb.value,
+          checkboxValueType: typeof cb.value,
+          dataAttribute: dataCommunityId,
+          checkboxElement: cb
+        });
+        return; // Saltar esta comunidad
+      }
+      
+      console.log(`✅ Comunidad seleccionada ${index + 1}:`, { 
+        id: finalId, 
+        idType: typeof finalId,
+        name: name,
+        checkboxValue: communityId,
+        dataAttribute: dataCommunityId,
+        checkboxElement: cb
+      });
+
+      selected.push({
+        id: finalId,
+        name: name
+      });
+    } else {
+      console.error(`❌ No se pudo encontrar el elemento padre para checkbox ${index + 1}:`, cb);
+    }
+  });
+
+  console.log('📋 Total comunidades seleccionadas:', selected);
+  return selected;
+}
 
 // Función para obtener personal seleccionado en modal de cambios (múltiples)
 
@@ -10835,6 +11150,32 @@ function showChangeDetailsModal(cambio) {
   
 
   document.getElementById('changeDetailsPersonnel').textContent = cambio.responsables_display || cambio.responsable || 'Sin responsable';
+
+  // Mostrar comunidades donde se trabajó
+  const comunidadesInfo = document.getElementById('changeDetailsCommunities');
+  if (comunidadesInfo) {
+    const comunidadesText = (cambio.comunidades && cambio.comunidades.trim() !== '') 
+      ? cambio.comunidades 
+      : (cambio.comunidades_nombres && cambio.comunidades_nombres.trim() !== '') 
+        ? cambio.comunidades_nombres 
+        : null;
+    
+    if (comunidadesText && comunidadesText.trim() !== '' && comunidadesText !== 'Sin comunidades') {
+      comunidadesInfo.innerHTML = `
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <div style="display: flex; align-items: center; gap: 8px; color: #0ea5e9; font-size: 0.9rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <strong>Trabajado en:</strong> <span>${escapeHtml(comunidadesText)}</span>
+          </div>
+        </div>
+      `;
+    } else {
+      comunidadesInfo.innerHTML = '';
+    }
+  }
 
   
 

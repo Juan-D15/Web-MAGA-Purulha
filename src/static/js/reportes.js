@@ -3759,6 +3759,8 @@ function renderReportResults(data, reportType) {
     
     if (!data || !data.data || data.data.length === 0) {
         resultsContainer.innerHTML = '<div class="loading-state"><p>No se encontraron datos para este reporte.</p></div>';
+        // Deshabilitar botones de exportar si no hay datos
+        setupExportButtons(reportType, false);
         return;
     }
     
@@ -3783,6 +3785,9 @@ function renderReportResults(data, reportType) {
         // Renderizado genérico para otros reportes
         renderGenericReport(data.data);
     }
+    
+    // Habilitar botones de exportar después de renderizar
+    setupExportButtons(reportType, true);
 }
 
 // Renderizar reporte de actividades (con mejoras)
@@ -4967,3 +4972,172 @@ function toggleCambiosTable() {
     }
 }
 
+// Configurar botones de exportar
+function setupExportButtons(reportType, enabled) {
+    const exportButtons = document.querySelectorAll('.btn-export');
+    exportButtons.forEach(button => {
+        button.disabled = !enabled;
+        if (enabled) {
+            button.style.opacity = '1';
+            button.style.cursor = 'pointer';
+        } else {
+            button.style.opacity = '0.5';
+            button.style.cursor = 'not-allowed';
+        }
+    });
+    
+    // Configurar event listeners si están habilitados
+    if (enabled) {
+        exportButtons.forEach(button => {
+            // Remover listeners anteriores si existen
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+            
+            // Agregar nuevo listener
+            newButton.addEventListener('click', function() {
+                const format = this.getAttribute('data-format');
+                if (format === 'excel') {
+                    showError('La exportación a Excel aún no está implementada');
+                    return;
+                }
+                exportReport(reportType, format);
+            });
+        });
+    }
+}
+
+// Exportar reporte
+async function exportReport(reportType, format) {
+    try {
+        // Construir parámetros igual que en generateReport
+        const params = new URLSearchParams();
+        
+        // Copiar todos los filtros actuales
+        if (currentFilters) {
+            // Manejar fechas según período
+            if (currentFilters.periodo) {
+                const now = new Date();
+                let fechaInicio, fechaFin;
+                
+                if (currentFilters.periodo === 'todo' || currentFilters.periodo === 'todo_el_tiempo') {
+                    fechaInicio = null;
+                    fechaFin = null;
+                } else if (currentFilters.periodo === 'ultimo_mes') {
+                    fechaFin = now.toISOString().split('T')[0];
+                    const lastMonth = new Date(now);
+                    lastMonth.setMonth(lastMonth.getMonth() - 1);
+                    fechaInicio = lastMonth.toISOString().split('T')[0];
+                } else if (currentFilters.periodo === 'ultima_semana') {
+                    fechaFin = now.toISOString().split('T')[0];
+                    const lastWeek = new Date(now);
+                    lastWeek.setDate(lastWeek.getDate() - 7);
+                    fechaInicio = lastWeek.toISOString().split('T')[0];
+                } else if (currentFilters.periodo === 'rango') {
+                    fechaInicio = currentFilters.fecha_inicio;
+                    fechaFin = currentFilters.fecha_fin;
+                }
+                
+                if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+                if (fechaFin) params.append('fecha_fin', fechaFin);
+            } else {
+                if (currentFilters.fecha_inicio) params.append('fecha_inicio', currentFilters.fecha_inicio);
+                if (currentFilters.fecha_fin) params.append('fecha_fin', currentFilters.fecha_fin);
+            }
+            
+            // Agregar todos los demás filtros
+            if (currentFilters.agrupar_por) params.append('agrupar_por', currentFilters.agrupar_por);
+            if (currentFilters.comunidades && currentFilters.comunidades.length > 0) {
+                params.append('comunidades', currentFilters.comunidades.join(','));
+            }
+            if (currentFilters.eventos && currentFilters.eventos.length > 0) {
+                params.append('eventos', currentFilters.eventos.join(','));
+            }
+            if (currentFilters.evento) {
+                if (Array.isArray(currentFilters.evento)) {
+                    params.append('evento', currentFilters.evento.join(','));
+                } else {
+                    params.append('evento', currentFilters.evento);
+                }
+            }
+            if (currentFilters.estado && currentFilters.estado.length > 0) {
+                params.append('estado', currentFilters.estado.join(','));
+            }
+            if (currentFilters.tipo_actividad && currentFilters.tipo_actividad.length > 0) {
+                params.append('tipo_actividad', currentFilters.tipo_actividad.join(','));
+            }
+            if (currentFilters.tipo_beneficiario && currentFilters.tipo_beneficiario.length > 0) {
+                params.append('tipo_beneficiario', currentFilters.tipo_beneficiario.join(','));
+            }
+            if (currentFilters.colaboradores && currentFilters.colaboradores.length > 0) {
+                params.append('colaboradores', currentFilters.colaboradores.join(','));
+            }
+            if (currentFilters.usuarios && currentFilters.usuarios.length > 0) {
+                params.append('usuarios', currentFilters.usuarios.join(','));
+            }
+            if (currentFilters.apartados && currentFilters.apartados.length > 0) {
+                params.append('apartados', currentFilters.apartados.join(','));
+            }
+            if (currentFilters.periodo) {
+                params.append('periodo', currentFilters.periodo);
+            }
+        }
+        
+        // Agregar formato
+        params.append('formato', format);
+        
+        // Mostrar indicador de carga
+        const exportButtons = document.querySelectorAll('.btn-export');
+        exportButtons.forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+        });
+        
+        // Realizar petición
+        const response = await fetch(`/api/reportes/exportar/${reportType}/?${params.toString()}`);
+        
+        if (!response.ok) {
+            throw new Error('Error al exportar el reporte');
+        }
+        
+        // Obtener el blob del archivo
+        const blob = await response.blob();
+        
+        // Crear URL temporal y descargar
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Obtener nombre del archivo del header Content-Disposition o generar uno
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `reporte_${reportType}_${new Date().toISOString().split('T')[0]}.${format === 'pdf' ? 'pdf' : 'docx'}`;
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+            if (filenameMatch) {
+                filename = filenameMatch[1];
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Rehabilitar botones
+        exportButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        });
+        
+    } catch (error) {
+        console.error('Error exportando reporte:', error);
+        showError('Error al exportar el reporte. Por favor, intenta nuevamente.');
+        
+        // Rehabilitar botones
+        const exportButtons = document.querySelectorAll('.btn-export');
+        exportButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        });
+    }
+}

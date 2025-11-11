@@ -2531,3 +2531,171 @@ ALTER TABLE eventos_cambios_colaboradores
 
 CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colaboradores_grupo
     ON eventos_cambios_colaboradores(grupo_id);
+
+
+
+-- =====================================================
+-- AGREGAR CAMPOS DE COMUNIDAD Y REGIÓN A TABLAS DE CAMBIOS
+-- =====================================================
+-- Este script agrega los campos comunidad_id y region_id
+-- a las tablas de cambios para registrar dónde se trabajó cada avance
+
+-- =====================================================
+-- TABLA: actividad_cambios (Cambios de Usuarios)
+-- =====================================================
+
+-- Agregar columna comunidad_id
+ALTER TABLE actividad_cambios
+    ADD COLUMN IF NOT EXISTS comunidad_id UUID REFERENCES comunidades(id) ON DELETE SET NULL;
+
+-- Agregar columna region_id
+ALTER TABLE actividad_cambios
+    ADD COLUMN IF NOT EXISTS region_id UUID REFERENCES regiones(id) ON DELETE SET NULL;
+
+-- Índices para mejorar el rendimiento de consultas
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_comunidad 
+    ON actividad_cambios(comunidad_id) 
+    WHERE comunidad_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_region 
+    ON actividad_cambios(region_id) 
+    WHERE region_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_actividad_comunidad 
+    ON actividad_cambios(actividad_id, comunidad_id) 
+    WHERE comunidad_id IS NOT NULL;
+
+-- Comentarios
+COMMENT ON COLUMN actividad_cambios.comunidad_id IS 'Comunidad donde se trabajó este avance/cambio';
+COMMENT ON COLUMN actividad_cambios.region_id IS 'Región donde se trabajó este avance/cambio';
+
+-- =====================================================
+-- TABLA: eventos_cambios_colaboradores (Cambios de Colaboradores)
+-- =====================================================
+
+-- Agregar columna comunidad_id
+ALTER TABLE eventos_cambios_colaboradores
+    ADD COLUMN IF NOT EXISTS comunidad_id UUID REFERENCES comunidades(id) ON DELETE SET NULL;
+
+-- Agregar columna region_id
+ALTER TABLE eventos_cambios_colaboradores
+    ADD COLUMN IF NOT EXISTS region_id UUID REFERENCES regiones(id) ON DELETE SET NULL;
+
+-- Índices para mejorar el rendimiento de consultas
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colab_comunidad 
+    ON eventos_cambios_colaboradores(comunidad_id) 
+    WHERE comunidad_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colab_region 
+    ON eventos_cambios_colaboradores(region_id) 
+    WHERE region_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colab_actividad_comunidad 
+    ON eventos_cambios_colaboradores(actividad_id, comunidad_id) 
+    WHERE comunidad_id IS NOT NULL;
+
+-- Comentarios
+COMMENT ON COLUMN eventos_cambios_colaboradores.comunidad_id IS 'Comunidad donde se trabajó este avance/cambio';
+COMMENT ON COLUMN eventos_cambios_colaboradores.region_id IS 'Región donde se trabajó este avance/cambio';
+
+-- =====================================================
+-- ACTUALIZAR PROCEDIMIENTOS ALMACENADOS (OPCIONAL)
+-- =====================================================
+-- Si quieres actualizar los procedimientos almacenados para incluir estos campos,
+-- puedes modificar sp_registrar_cambio_actividad y sp_registrar_cambio_actividad_colaborador
+
+-- Actualizar función sp_registrar_cambio_actividad
+CREATE OR REPLACE FUNCTION sp_registrar_cambio_actividad(
+    p_actividad_id UUID,
+    p_responsable_id UUID,
+    p_descripcion_cambio TEXT,
+    p_fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    p_comunidad_id UUID DEFAULT NULL,
+    p_region_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    cambio_id UUID
+) AS $$
+DECLARE
+    v_cambio_id UUID;
+    v_region_id UUID;
+BEGIN
+    -- Si se proporciona comunidad_id pero no region_id, intentar obtenerlo de la comunidad
+    IF p_comunidad_id IS NOT NULL AND p_region_id IS NULL THEN
+        SELECT region_id INTO v_region_id
+        FROM comunidades
+        WHERE id = p_comunidad_id;
+    ELSE
+        v_region_id := p_region_id;
+    END IF;
+
+    -- Establecer contexto
+    PERFORM set_config('app.current_user_id', p_responsable_id::TEXT, TRUE);
+
+    INSERT INTO actividad_cambios (
+        actividad_id, responsable_id, descripcion_cambio, fecha_cambio,
+        comunidad_id, region_id
+    ) VALUES (
+        p_actividad_id, p_responsable_id, p_descripcion_cambio, p_fecha_cambio,
+        p_comunidad_id, v_region_id
+    ) RETURNING id INTO v_cambio_id;
+
+    RETURN QUERY SELECT TRUE, 'Cambio registrado exitosamente', v_cambio_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Actualizar función sp_registrar_cambio_actividad_colaborador
+CREATE OR REPLACE FUNCTION sp_registrar_cambio_actividad_colaborador(
+    p_actividad_id UUID,
+    p_colaborador_id UUID,
+    p_descripcion_cambio TEXT,
+    p_fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    p_comunidad_id UUID DEFAULT NULL,
+    p_region_id UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    cambio_id UUID
+) AS $$
+DECLARE
+    v_cambio_id UUID;
+    v_region_id UUID;
+BEGIN
+    -- Si se proporciona comunidad_id pero no region_id, intentar obtenerlo de la comunidad
+    IF p_comunidad_id IS NOT NULL AND p_region_id IS NULL THEN
+        SELECT region_id INTO v_region_id
+        FROM comunidades
+        WHERE id = p_comunidad_id;
+    ELSE
+        v_region_id := p_region_id;
+    END IF;
+
+    -- Establecer contexto
+    PERFORM set_config('app.current_colaborador_id', p_colaborador_id::TEXT, TRUE);
+
+    INSERT INTO eventos_cambios_colaboradores (
+        actividad_id, colaborador_id, descripcion_cambio, fecha_cambio,
+        comunidad_id, region_id
+    ) VALUES (
+        p_actividad_id, p_colaborador_id, p_descripcion_cambio, p_fecha_cambio,
+        p_comunidad_id, v_region_id
+    ) RETURNING id INTO v_cambio_id;
+
+    RETURN QUERY SELECT TRUE, 'Cambio registrado exitosamente', v_cambio_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- NOTAS FINALES
+-- =====================================================
+-- 1. Las columnas son opcionales (NULL permitido) para mantener compatibilidad
+--    con registros existentes
+-- 2. Si se proporciona comunidad_id, la región se puede obtener automáticamente
+--    desde la tabla comunidades
+-- 3. Los índices parciales (WHERE ... IS NOT NULL) mejoran el rendimiento
+--    sin ocupar espacio innecesario
+-- 4. Las foreign keys usan ON DELETE SET NULL para evitar problemas si se
+--    elimina una comunidad o región
