@@ -3735,8 +3735,8 @@ def api_avances(request):
             FROM eventos_cambios_colaboradores ecc
             INNER JOIN actividades a ON a.id = ecc.actividad_id
             LEFT JOIN colaboradores c ON c.id = ecc.colaborador_id
-            LEFT JOIN comunidades com ON com.id = ecc.comunidad_id
-            LEFT JOIN regiones r ON r.id = ecc.region_id
+            LEFT JOIN comunidades com ON com.id = a.comunidad_id
+            LEFT JOIN regiones r ON r.id = com.region_id
             WHERE (ecc.fecha_cambio AT TIME ZONE 'America/Guatemala')::date = %s::date
               AND a.eliminado_en IS NULL
         """
