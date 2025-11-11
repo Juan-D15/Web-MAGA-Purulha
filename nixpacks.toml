@@ -1,2 +1,2 @@
 [phases.setup]
-nixPkgs = ["python3", "postgresql_16.dev", "gcc", "cairo", "pango", "gdk-pixbuf", "gobject-introspection"]
+nixPkgs = ["python3", "postgresql_16.dev", "gcc", "pkg-config", "cairo", "pango", "gdk-pixbuf", "gobject-introspection", "glib", "libffi"]
