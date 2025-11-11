@@ -1,0 +1,38 @@
+# Python
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.log
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Git
+.git/
+.github/
+
+# Variables de entorno
+.env
+.env.*
+
+# Archivos temporales
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Media y estáticos (se generan en el contenedor)
+media/
+staticfiles/
+
+# Migraciones backup
+*.backup
+
+# IDE
+.vscode/
+.idea/

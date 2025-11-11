@@ -3621,6 +3621,18 @@ function openCommunityInlinePanel({ hostCard, community, regionId, description }
     '';
   const panelDescription = typeof panelDescriptionRaw === 'string' ? panelDescriptionRaw.trim() : '';
   const hasPanelDescription = Boolean(panelDescription);
+  let panelDateHtml = '';
+  if (community.agregado_en) {
+    const fechaDetail = new Date(community.agregado_en);
+    if (!Number.isNaN(fechaDetail.getTime())) {
+      const fechaTexto = fechaDetail.toLocaleDateString('es-GT', {
+        year: 'numeric',
+        month: 'long',
+        day: '2-digit',
+      });
+      panelDateHtml = `<p class="community-inline-panel__date">Agregada el ${escapeHtml(fechaTexto)}</p>`;
+    }
+  }
 
   const panel = document.createElement('div');
   panel.className = 'community-inline-panel';
@@ -3630,6 +3642,7 @@ function openCommunityInlinePanel({ hostCard, community, regionId, description }
         <div class="community-inline-panel__title-group">
           <h3>${escapeHtml(community.name)}</h3>
           <p>${escapeHtml(community.region || 'Sin región asignada')}</p>
+          ${panelDateHtml}
         </div>
         <button type="button" class="community-inline-panel__close" aria-label="Cerrar panel">×</button>
       </header>
@@ -3967,6 +3980,7 @@ function normalizeCommunitiesData(rawList) {
       region_nombre: (item.region_nombre ?? regionName) || 'Sin región asignada',
       region_sede: (item.region_sede ?? regionSede) || '',
       description: descriptionText,
+      agregado_en: item.agregado_en || item.creado_en || item.created_at || null,
     };
 
     if (typeof normalizedItem.name === 'string') {
@@ -4032,6 +4046,18 @@ function loadCommunities(communities) {
     const regionLabel = escapeHtml(community.region || 'Sin región asignada');
     const communityName = escapeHtml(community.name || 'Comunidad sin nombre');
     const hasDescription = Boolean(community.description && community.description.trim());
+    let fechaHtml = '';
+    if (community.agregado_en) {
+      const fecha = new Date(community.agregado_en);
+      if (!Number.isNaN(fecha.getTime())) {
+        const fechaTexto = fecha.toLocaleDateString('es-GT', {
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+        });
+        fechaHtml = `<p class="location-card-date">Agregada el ${escapeHtml(fechaTexto)}</p>`;
+      }
+    }
 
     card.innerHTML = `
       <div class="location-card-main">
@@ -4039,6 +4065,7 @@ function loadCommunities(communities) {
         <div class="location-content">
           <h4>${communityName}</h4>
           <p class="location-card-region">${regionLabel}</p>
+          ${fechaHtml}
         </div>
       </div>
       ${hasDescription ? `<p class="location-card-description">${escapeHtml(descriptionText)}</p>` : ''}

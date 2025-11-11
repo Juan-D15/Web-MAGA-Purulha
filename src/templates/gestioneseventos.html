@@ -4,8 +4,8 @@
 {% block extra_css %}
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=10">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=12">
   <link rel="stylesheet" href="{% static 'css/proyectos.css' %}">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
 {% endblock %}
@@ -257,6 +257,31 @@
                         <line x1="6" y1="6" x2="18" y2="18"></line>
                       </svg>
                     </button>
+                  </div>
+                </div>
+                <!-- Filtros de beneficiarios -->
+                <div class="beneficiaries-filters">
+                  <div class="beneficiaries-filter">
+                    <label for="beneficiariesFilterType" class="form-label">Tipo de beneficiario</label>
+                    <select id="beneficiariesFilterType" class="form-select">
+                      <option value="">Todos los tipos</option>
+                      <option value="individual">Individual</option>
+                      <option value="familia">Familia</option>
+                      <option value="institucion">Institución</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </div>
+                  <div class="beneficiaries-filter">
+                    <label for="beneficiariesFilterRegion" class="form-label">Región</label>
+                    <select id="beneficiariesFilterRegion" class="form-select">
+                      <option value="">Todas las regiones</option>
+                    </select>
+                  </div>
+                  <div class="beneficiaries-filter">
+                    <label for="beneficiariesFilterCommunity" class="form-label">Comunidad</label>
+                    <select id="beneficiariesFilterCommunity" class="form-select">
+                      <option value="">Todas las comunidades</option>
+                    </select>
                   </div>
                 </div>
                 <!-- Contenedor con scroll limitado -->
@@ -662,13 +687,30 @@
           </svg>
         </button>
       </div>
-      <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+      <div class="modal-body" style="position: relative; z-index: 0;">
         <div class="benef-mode-toggle" style="display:flex; gap:8px; margin-bottom:16px;">
           <button type="button" class="benef-mode-btn active" data-mode="nuevo" style="flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(76, 175, 80, 0.2); color:#ffffff; font-weight:700; cursor:pointer;">Registrar nuevo</button>
           <button type="button" class="benef-mode-btn" data-mode="existente" style="flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#ffffff; font-weight:700; cursor:pointer;">Buscar existente</button>
         </div>
 
         <div id="benef_nuevo_section">
+        <div class="beneficiaries-search-container" style="margin-bottom: 16px;">
+          <div class="beneficiaries-search-wrapper">
+            <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <input type="text" id="benef_nuevo_catalog_input" class="beneficiaries-search-input" placeholder="Ej: Barrio Las Moras o Región 1" autocomplete="off">
+            <button type="button" id="benef_nuevo_catalog_clear" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <ul id="benef_nuevo_catalog_suggestions" class="input-suggestions"></ul>
+          </div>
+        </div>
+
         <form id="beneficiaryForm">
           <div class="form-row">
             <div class="form-group" style="flex: 1;">
@@ -711,13 +753,13 @@
               <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_ind_dpi" class="form-label">DPI *</label>
-              <input type="text" id="benef_ind_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 1234567890101" required>
+              <label for="benef_ind_dpi" class="form-label">DPI</label>
+              <input type="text" id="benef_ind_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 1234567890101">
               <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_ind_fecha_nac" class="form-label">Fecha de Nacimiento *</label>
-              <input type="date" id="benef_ind_fecha_nac" class="form-input" required>
+              <label for="benef_ind_fecha_nac" class="form-label">Fecha de Nacimiento</label>
+              <input type="date" id="benef_ind_fecha_nac" class="form-input">
             </div>
             <div class="form-group">
               <label for="benef_ind_genero" class="form-label">Género *</label>
@@ -729,8 +771,8 @@
               </select>
             </div>
             <div class="form-group">
-              <label for="benef_ind_telefono" class="form-label">Teléfono *</label>
-              <input type="tel" id="benef_ind_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55123456" required>
+              <label for="benef_ind_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_ind_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55123456">
               <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
           </div>
@@ -747,13 +789,13 @@
               <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_fam_dpi" class="form-label">DPI del Jefe de Familia *</label>
-              <input type="text" id="benef_fam_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 4567890123104" required>
+              <label for="benef_fam_dpi" class="form-label">DPI del Jefe de Familia</label>
+              <input type="text" id="benef_fam_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 4567890123104">
               <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_fam_telefono" class="form-label">Teléfono *</label>
-              <input type="tel" id="benef_fam_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55456789" required>
+              <label for="benef_fam_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_fam_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55456789">
               <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
             <div class="form-group">
@@ -767,7 +809,7 @@
           <div id="campos_institucion" style="display: none;">
             <div class="form-group">
               <label for="benef_inst_nombre" class="form-label">Nombre de la Institución *</label>
-              <input type="text" id="benef_inst_nombre" class="form-input" placeholder="Ej: Escuela Rural Mixta">
+              <input type="text" id="benef_inst_nombre" class="form-input" placeholder="Ej: Escuela Rural Mixta" required>
             </div>
             <div class="form-group">
               <label for="benef_inst_tipo" class="form-label">Tipo de Institución *</label>
@@ -787,18 +829,18 @@
               <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_inst_dpi_rep" class="form-label">DPI del Representante *</label>
-              <input type="text" id="benef_inst_dpi_rep" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 7890123456107" required>
+              <label for="benef_inst_dpi_rep" class="form-label">DPI del Representante</label>
+              <input type="text" id="benef_inst_dpi_rep" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 7890123456107">
               <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_inst_telefono" class="form-label">Teléfono *</label>
-              <input type="tel" id="benef_inst_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55789012" required>
+              <label for="benef_inst_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_inst_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55789012">
               <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_inst_email" class="form-label">Email *</label>
-              <input type="email" id="benef_inst_email" class="form-input" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" placeholder="Ej: contacto@institucion.org" required>
+              <label for="benef_inst_email" class="form-label">Email</label>
+              <input type="email" id="benef_inst_email" class="form-input" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" placeholder="Ej: contacto@institucion.org">
               <small style="color: #6c757d;">Formato: ejemplo@dominio.com</small>
             </div>
             <div class="form-group">
@@ -824,8 +866,8 @@
               <small style="color: #6c757d;">Solo letras y espacios</small>
             </div>
             <div class="form-group">
-              <label for="benef_otro_telefono" class="form-label">Teléfono *</label>
-              <input type="tel" id="benef_otro_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55901234" required>
+              <label for="benef_otro_telefono" class="form-label">Teléfono</label>
+              <input type="tel" id="benef_otro_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55901234">
               <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
             </div>
             <div class="form-group">
@@ -837,10 +879,44 @@
         </div>
 
         <div id="benef_existente_section" style="display:none;">
-          <div class="form-group">
-            <label for="benef_search_input" class="form-label">Buscar beneficiario</label>
-            <input type="text" id="benef_search_input" class="form-input" placeholder="Ingresa nombre, DPI, comunidad o tipo... (opcional)">
-            <small style="color:#b8c5d1; display:block; margin-top:6px;">Se mostrarán todos los beneficiarios disponibles. Puedes filtrar escribiendo en el buscador.</small>
+          <div class="form-group" style="display: grid; gap: 14px;">
+            <label class="form-label" style="margin-bottom: 0;">Filtros de búsqueda</label>
+            <div style="display: grid; gap: 10px;">
+              <div class="suggestions-wrapper">
+                <label for="benef_search_catalog_input" class="form-label">Buscar comunidad o región</label>
+                <input type="text" id="benef_search_catalog_input" class="form-input form-input-suggestive" placeholder="Ej: Barrio Las Moras o Región 1" autocomplete="off" style="width: 100%;">
+                <ul id="benef_search_catalog_suggestions" class="input-suggestions"></ul>
+              </div>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <div style="flex: 1 1 220px;">
+                  <label for="benef_search_region" class="form-label">Región</label>
+                  <select id="benef_search_region" class="form-select">
+                    <option value="">Todas las regiones</option>
+                  </select>
+                </div>
+                <div style="flex: 1 1 220px;">
+                  <label for="benef_search_comunidad" class="form-label">Comunidad</label>
+                  <select id="benef_search_comunidad" class="form-select">
+                    <option value="">Todas las comunidades</option>
+                  </select>
+                </div>
+                <div style="flex: 1 1 220px;">
+                  <label for="benef_search_tipo" class="form-label">Tipo de beneficiario</label>
+                  <select id="benef_search_tipo" class="form-select">
+                    <option value="">Todos los tipos</option>
+                    <option value="individual">Individual</option>
+                    <option value="familia">Familia</option>
+                    <option value="institución">Institución</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label for="benef_search_input" class="form-label">Buscar beneficiario</label>
+                <input type="text" id="benef_search_input" class="form-input" placeholder="Ingresa nombre, DPI, comunidad o tipo... (opcional)">
+              </div>
+            </div>
+            <small style="color:#b8c5d1;">Puedes combinar filtros o escribir en el buscador para refinar los resultados.</small>
           </div>
           <div id="benef_search_status" style="display:none; color:#b8c5d1; font-size:0.9rem; margin-bottom:10px;"></div>
           <div id="benef_search_results" class="benef-search-results" style="display:grid; gap:10px;"></div>
@@ -1013,6 +1089,32 @@
     </div>
   </div>
 
+  <!-- Modal para editar fecha de comunidad -->
+  <div id="editCommunityDateModal" class="modal">
+    <div class="modal-content" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Editar fecha de agregación</h3>
+        <button class="modal-close" id="closeEditCommunityDateModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+        <p style="color:#94a3b8; font-size:0.95rem;">Selecciona la nueva fecha en formato YYYY-MM-DD.</p>
+        <div class="form-group">
+          <label for="community_date_input" class="form-label">Fecha</label>
+          <input type="date" id="community_date_input" class="form-input">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelEditCommunityDateBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmEditCommunityDateBtn" class="btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal de Detalles del Cambio -->
   <div id="changeDetailsModal" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 600px;">
@@ -1055,5 +1157,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=12"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=15"></script>
 {% endblock %}
