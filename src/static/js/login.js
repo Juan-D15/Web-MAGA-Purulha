@@ -471,6 +471,26 @@ document.addEventListener('DOMContentLoaded', function() {
   // Detectar la página de origen al cargar
   detectOriginPage();
   resetRecoveryFlow();
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('mode');
+  const emailFromQuery = params.get('email');
+  if (mode === 'password-recovery') {
+    showForgotPassword();
+    const emailInput = document.getElementById('recoveryEmail');
+    const contextDataEl = document.getElementById('djangoContextData');
+    const fallbackEmail = contextDataEl ? contextDataEl.dataset.userEmail : '';
+    const emailValue = emailFromQuery || fallbackEmail || '';
+    if (emailInput) {
+      emailInput.value = emailValue;
+      if (emailValue) {
+        emailInput.removeAttribute('readonly');
+      }
+    }
+    const usernameField = document.getElementById('usernameOrEmail');
+    if (usernameField && emailValue) {
+      usernameField.value = emailValue;
+    }
+  }
   
   // Formulario de login: interceptar para soportar modo offline
   const loginForm = document.getElementById('loginForm');

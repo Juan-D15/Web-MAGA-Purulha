@@ -312,10 +312,30 @@ function setupEventListeners() {
     // Botón cambiar contraseña
     const btnCambiarPassword = document.getElementById('btnCambiarPassword');
     if (btnCambiarPassword) {
-        btnCambiarPassword.addEventListener('click', () => {
-            // Por ahora solo mostrar mensaje, después se implementará la ruta
-            alert('La funcionalidad de cambiar contraseña estará disponible pronto.');
-            // window.location.href = '/cambiar-password/';
+        btnCambiarPassword.addEventListener('click', async () => {
+            const correoUsuario = userData && (userData.email || (colaboradorData && colaboradorData.correo));
+            const loginBase = (window.DJANGO_URLS && window.DJANGO_URLS.login) ? window.DJANGO_URLS.login : '/login/';
+            const logoutUrl = (window.DJANGO_URLS && window.DJANGO_URLS.logout) ? window.DJANGO_URLS.logout : '/logout/';
+
+            const params = new URLSearchParams({ 'mode': 'password-recovery' });
+            if (correoUsuario) {
+                params.set('email', correoUsuario);
+            }
+            const targetUrl = `${loginBase}?${params.toString()}`;
+
+            try {
+                await fetch(logoutUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    credentials: 'include'
+                });
+            } catch (error) {
+                console.error('Error al cerrar sesión antes de cambiar la contraseña:', error);
+            } finally {
+                window.location.href = targetUrl;
+            }
         });
     }
     

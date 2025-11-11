@@ -91,6 +91,7 @@
                 <h2 class="list-title" id="listTitle">Todos los Proyectos</h2>
                 <p class="list-subtitle" id="listSubtitle">Lista completa de proyectos y eventos</p>
               </div>
+              {% if es_admin %}
               <button class="btn-agregar-nuevo" id="btnAgregarNuevo">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -98,22 +99,34 @@
                 </svg>
                 Agregar nuevo
               </button>
+              {% endif %}
             </div>
             
-            <!-- Buscador -->
-            <div class="list-search-container">
-              <div class="search-input-wrapper">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <path d="m21 21-4.35-4.35"></path>
-                </svg>
-                <input type="text" id="projectSearchInput" class="project-search-input" placeholder="Buscar proyecto por nombre..." autocomplete="off">
-                <button class="search-clear-btn" id="searchClearBtn" style="display: none;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
+            <div class="list-controls">
+              <!-- Buscador -->
+              <div class="list-search-container">
+                <div class="search-input-wrapper">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
                   </svg>
-                </button>
+                  <input type="text" id="projectSearchInput" class="project-search-input" placeholder="Buscar proyecto por nombre..." autocomplete="off">
+                  <button class="search-clear-btn" id="searchClearBtn" style="display: none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <!-- Filtro de tipo -->
+              <div class="filter-controls">
+                <select id="projectTypeFilter" class="filter-select">
+                  <option value="all">Todos los tipos</option>
+                  <option value="capacitaciones">Capacitaciones</option>
+                  <option value="entregas">Entregas</option>
+                  <option value="proyectos-ayuda">Proyectos de Ayuda</option>
+                </select>
               </div>
             </div>
           </div>

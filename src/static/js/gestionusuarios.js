@@ -701,57 +701,41 @@ async function cargarColaboradorParaAutocompletar(colaboradorId) {
             const userRol = document.getElementById('userRol');
             const colaboradorVinculadoMsg = document.getElementById('colaboradorVinculadoMsg');
             
-            // Si tiene usuario, deshabilitar campos
-            if (colaborador.tiene_usuario) {
-                if (colaboradorVinculadoMsg) colaboradorVinculadoMsg.style.display = 'block';
-                
-                if (userNombre) {
-                    userNombre.value = colaborador.nombre;
-                    userNombre.disabled = true;
+            const bloquearCampoSiTieneValor = (input, valor) => {
+                if (!input) return;
+                const valorNormalizado = valor ? String(valor).trim() : '';
+                if (valorNormalizado) {
+                    input.value = valorNormalizado;
+                    input.disabled = true;
+                    input.dataset.autocompletado = 'true';
+                } else {
+                    input.value = '';
+                    input.disabled = false;
+                    delete input.dataset.autocompletado;
                 }
-                if (userEmail) {
-                    userEmail.value = colaborador.correo || '';
-                    userEmail.disabled = true;
+            };
+
+            // Mostrar aviso si el colaborador ya tiene usuario
+            if (colaboradorVinculadoMsg) {
+                colaboradorVinculadoMsg.style.display = colaborador.tiene_usuario ? 'block' : 'none';
+            }
+
+            bloquearCampoSiTieneValor(userNombre, colaborador.nombre);
+            bloquearCampoSiTieneValor(userEmail, colaborador.correo);
+            bloquearCampoSiTieneValor(userTelefono, colaborador.telefono);
+
+            // Autocompletar puesto siempre que el colaborador tenga puesto
+            if (userPuesto && colaborador.puesto_id) {
+                if (userPuestoGroup) userPuestoGroup.style.display = 'block';
+                userPuesto.value = colaborador.puesto_id;
+                userPuesto.disabled = colaborador.tiene_usuario || false;
+                if (userRol) {
+                    userPuesto.required = userRol.value === 'personal';
                 }
-                if (userTelefono) {
-                    userTelefono.value = colaborador.telefono || '';
-                    userTelefono.disabled = true;
-                }
-                // Autocompletar puesto siempre que el colaborador tenga puesto
-                if (userPuesto && colaborador.puesto_id) {
-                    // Mostrar el campo puesto si está oculto
-                    if (userPuestoGroup) userPuestoGroup.style.display = 'block';
-                    userPuesto.value = colaborador.puesto_id;
-                    userPuesto.disabled = true;
-                }
-            } else {
-                // Si no tiene usuario, autocompletar pero permitir edición
-                if (colaboradorVinculadoMsg) colaboradorVinculadoMsg.style.display = 'none';
-                
-                if (userNombre) {
-                    userNombre.value = colaborador.nombre;
-                    userNombre.disabled = false;
-                }
-                if (userEmail) {
-                    userEmail.value = colaborador.correo || '';
-                    userEmail.disabled = false;
-                }
-                if (userTelefono) {
-                    userTelefono.value = colaborador.telefono || '';
-                    userTelefono.disabled = false;
-                }
-                // Autocompletar puesto siempre que el colaborador tenga puesto
-                if (userPuesto && colaborador.puesto_id) {
-                    // Mostrar el campo puesto si está oculto (para admin también)
-                    if (userPuestoGroup) userPuestoGroup.style.display = 'block';
-                    userPuesto.value = colaborador.puesto_id;
-                    userPuesto.disabled = false;
-                    // Si el rol es personal, hacerlo requerido
-                    if (userRol && userRol.value === 'personal') {
-                        userPuesto.required = true;
-                    } else {
-                        userPuesto.required = false;
-                    }
+            } else if (userPuesto && !colaborador.puesto_id && !colaborador.tiene_usuario) {
+                userPuesto.disabled = false;
+                if (userRol && userRol.value !== 'personal' && userPuestoGroup) {
+                    userPuestoGroup.style.display = 'none';
                 }
             }
         }

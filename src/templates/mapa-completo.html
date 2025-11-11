@@ -635,6 +635,158 @@
       ]
     };
 
+    const regionIdByCode = new Map();
+    const regionIdByNumber = new Map();
+    const communityIdByName = new Map();
+    let regionCachePromise = null;
+    let communityCachePromise = null;
+
+    function normalizeText(value) {
+      return (value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function formatRegionCode(number) {
+      const numeric = parseInt(number, 10);
+      if (Number.isNaN(numeric)) {
+        return String(number || '');
+      }
+      return `REG-${String(numeric).padStart(2, '0')}`;
+    }
+
+    async function ensureRegionCache() {
+      if (regionIdByCode.size > 0 || regionIdByNumber.size > 0) {
+        return;
+      }
+
+      if (regionCachePromise) {
+        return regionCachePromise;
+      }
+
+      regionCachePromise = fetch('/api/regiones/')
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Error HTTP ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((regions) => {
+          regions.forEach((region) => {
+            const id = region.id;
+            if (!id) return;
+            const code = (region.codigo || '').toUpperCase();
+            if (code) {
+              regionIdByCode.set(code, id);
+              const match = code.match(/\d+/);
+              if (match) {
+                const raw = match[0];
+                regionIdByNumber.set(raw, id);
+                regionIdByNumber.set(String(parseInt(raw, 10)), id);
+              }
+            }
+          });
+        })
+        .catch((error) => {
+          console.error('Error al preparar datos de regiones:', error);
+          throw error;
+        })
+        .finally(() => {
+          regionCachePromise = null;
+        });
+
+      return regionCachePromise;
+    }
+
+    async function ensureCommunityCache() {
+      if (communityIdByName.size > 0) {
+        return;
+      }
+
+      if (communityCachePromise) {
+        return communityCachePromise;
+      }
+
+      communityCachePromise = fetch('/api/comunidades/')
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Error HTTP ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((communities) => {
+          communities.forEach((community) => {
+            if (!community || !community.id || !community.nombre) {
+              return;
+            }
+            const normalized = normalizeText(community.nombre);
+            if (normalized && !communityIdByName.has(normalized)) {
+              communityIdByName.set(normalized, community.id);
+            }
+          });
+        })
+        .catch((error) => {
+          console.error('Error al preparar datos de comunidades:', error);
+          throw error;
+        })
+        .finally(() => {
+          communityCachePromise = null;
+        });
+
+      return communityCachePromise;
+    }
+
+    async function handleCommunityLinkClick(event) {
+      const link = event.currentTarget;
+      if (!link || !link.dataset.communityName) {
+        return;
+      }
+      event.preventDefault();
+
+      const communityName = link.dataset.communityName;
+      try {
+        await ensureCommunityCache();
+        const normalized = normalizeText(communityName);
+        const communityId = communityIdByName.get(normalized);
+        if (communityId) {
+          window.location.href = `/comunidades?community=${encodeURIComponent(communityId)}`;
+          return;
+        }
+      } catch (error) {
+        console.error('No se pudo resolver la comunidad:', error);
+      }
+
+      // Fallback a búsqueda por nombre
+      window.location.href = `/comunidades?search=${encodeURIComponent(communityName)}`;
+    }
+
+    async function handleRegionButtonClick(event) {
+      const button = event.currentTarget;
+      if (!button || !button.dataset.regionNumber) {
+        return;
+      }
+      event.preventDefault();
+
+      const regionNumber = button.dataset.regionNumber;
+      const fallbackUrl = button.getAttribute('href') || `/regiones?codigo=${encodeURIComponent(formatRegionCode(regionNumber))}`;
+
+      try {
+        await ensureRegionCache();
+        const code = formatRegionCode(regionNumber);
+        const regionId = regionIdByNumber.get(regionNumber) || regionIdByCode.get(code);
+        if (regionId) {
+          window.location.href = `/regiones?region=${encodeURIComponent(regionId)}`;
+          return;
+        }
+      } catch (error) {
+        console.error('No se pudo resolver la región:', error);
+      }
+
+      window.location.href = fallbackUrl;
+    }
+
     // Variables globales
     let currentRegion = null;
     let currentTooltip = null;
@@ -753,7 +905,14 @@
         list.className = 'communities-list-items';
         items.forEach((name, idx) => {
           const li = document.createElement('li');
-          li.innerHTML = `<span class="community-number">${idx + 1}.</span> ${name}`;
+          const link = document.createElement('a');
+          link.className = 'community-link';
+          link.dataset.communityName = name;
+          link.href = `/comunidades?search=${encodeURIComponent(name)}`;
+          link.setAttribute('aria-label', `Ver detalles de ${name}`);
+          link.innerHTML = `<span class="community-number">${idx + 1}.</span> ${name}`;
+          link.addEventListener('click', handleCommunityLinkClick);
+          li.appendChild(link);
           list.appendChild(li);
         });
         communitiesList.appendChild(list);
@@ -761,9 +920,9 @@
       // Configurar botón para ir a vista individual de la región
       const btn = document.getElementById('viewRegionBtn');
       if (btn) {
-        // Enlace directo a la vista individual de regiones
-        btn.href = `/regiones?region=${regionNumber}`;
-        btn.onclick = null;
+        btn.dataset.regionNumber = String(regionNumber);
+        const fallbackCode = formatRegionCode(regionNumber);
+        btn.href = `/regiones?codigo=${encodeURIComponent(fallbackCode)}`;
         btn.setAttribute('aria-label', `Mostrar información completa de la región ${regionNumber}`);
       }
     }
@@ -784,7 +943,14 @@
       list.className = 'communities-list-items';
       items.forEach((name, idx)=>{
         const li = document.createElement('li');
-        li.innerHTML = `<span class="community-number">${idx+1}.</span> ${name}`;
+        const link = document.createElement('a');
+        link.className = 'community-link';
+        link.dataset.communityName = name;
+        link.href = `/comunidades?search=${encodeURIComponent(name)}`;
+        link.setAttribute('aria-label', `Ver detalles de ${name}`);
+        link.innerHTML = `<span class="community-number">${idx+1}.</span> ${name}`;
+        link.addEventListener('click', handleCommunityLinkClick);
+        li.appendChild(link);
         list.appendChild(li);
       });
       body.appendChild(list);
@@ -822,8 +988,8 @@
       // Agregar event listeners a todas las regiones
       const regionGroups = document.querySelectorAll('.region-group');
       regionGroups.forEach(group => {
-        const regionNumber = parseInt(group.dataset.region);
-        
+        const regionNumber = parseInt(group.dataset.region, 10);
+
         group.addEventListener('click', function(event) {
           event.preventDefault();
           showRegionPanel(regionNumber);
@@ -857,6 +1023,10 @@
 
       // Botón cerrar
       closeRegionBtn.addEventListener('click', hideRegionPanel);
+      const viewRegionBtn = document.getElementById('viewRegionBtn');
+      if (viewRegionBtn) {
+        viewRegionBtn.addEventListener('click', handleRegionButtonClick);
+      }
 
       // Cerrar con tecla Escape
       document.addEventListener('keydown', function(e) {
