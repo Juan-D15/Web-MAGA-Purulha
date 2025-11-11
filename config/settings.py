@@ -52,7 +52,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.postgres',  # Soporte para características específicas de PostgreSQL
-    'webmaga',
+    'webmaga.apps.WebmagaConfig',  # Configuración personalizada que crea carpetas de media automáticamente
 ]
 
 MIDDLEWARE = [
