@@ -243,6 +243,7 @@ def obtener_comunidades_evento(evento):
                 'region_id': str(region.id) if region else None,
                 'region_nombre': region.nombre if region else None,
                 'region_sede': region.comunidad_sede if getattr(region, 'comunidad_sede', None) else None,
+                'agregado_en': relacion.creado_en.isoformat() if getattr(relacion, 'creado_en', None) else None,
             }
         )
 
@@ -255,6 +256,7 @@ def obtener_comunidades_evento(evento):
                 'region_id': str(region.id) if region else None,
                 'region_nombre': region.nombre if region else None,
                 'region_sede': region.comunidad_sede if region else None,
+                'agregado_en': None,
             }
         )
 

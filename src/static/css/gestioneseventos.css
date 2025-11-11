@@ -277,6 +277,20 @@ textarea:focus {
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+#benef_nuevo_section {
+  position: relative;
+}
+
+#benef_nuevo_section .suggestions-wrapper {
+  z-index: 2000;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+#benef_nuevo_section .input-suggestions {
+  z-index: 4000;
+}
+
 /* Estilos para opciones de select */
 .form-select option {
   background: var(--background-tertiary);
@@ -1403,6 +1417,7 @@ textarea:focus {
   margin: 0 auto;
   max-height: calc(100vh - 64px);
   overflow-y: auto;
+  position: relative;
 }
 
 .modal.show .modal-content {
@@ -1621,11 +1636,46 @@ textarea:focus {
   border-radius: 4px;
   transition: all 0.2s ease;
   z-index: 1;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
 }
 
 .beneficiaries-search-clear-btn:hover {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.1);
+}
+
+.beneficiaries-filters {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.beneficiaries-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.beneficiaries-filter .form-label {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.beneficiaries-filter .form-select {
+  width: 100%;
+  min-height: 42px;
+}
+
+@media (min-width: 768px) {
+  .beneficiaries-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
 }
 
 /* Botón toggle para ocultar/mostrar lista */

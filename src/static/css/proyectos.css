@@ -1581,6 +1581,12 @@ html {
   font-size: 0.95rem;
 }
 
+.location-item--community .location-content .location-card-date {
+  color: rgba(148, 163, 184, 0.82);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
 .location-card-description {
   margin: 0;
   color: rgba(226, 232, 240, 0.74);
@@ -1601,6 +1607,12 @@ html {
     flex-direction: column;
     gap: 12px;
   }
+}
+
+.community-inline-panel__date {
+  margin: 4px 0 0;
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 0.85rem;
 }
 
 .communities-empty {

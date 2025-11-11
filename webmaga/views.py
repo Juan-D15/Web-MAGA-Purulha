@@ -9,6 +9,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from datetime import datetime
 from django.contrib.auth import authenticate
 import os
 import json
@@ -169,6 +170,43 @@ def _eliminar_queryset_con_archivos(queryset):
 
     queryset.model.objects.filter(pk__in=ids).delete()
     return len(ids)
+
+
+def parse_fecha_agregacion(valor):
+    """
+    Convierte una cadena (YYYY-MM-DD o ISO8601) en datetime consciente de zona horaria.
+    Retorna None si el valor no es válido.
+    """
+    if not valor:
+        return None
+
+    if isinstance(valor, str):
+        valor = valor.strip()
+        if not valor:
+            return None
+
+    try:
+        if isinstance(valor, datetime):
+            dt = valor
+        elif isinstance(valor, str):
+            try:
+                dt = datetime.fromisoformat(valor)
+            except ValueError:
+                try:
+                    dt = datetime.strptime(valor, '%Y-%m-%d')
+                except ValueError:
+                    return None
+        else:
+            return None
+
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        else:
+            dt = dt.astimezone(timezone.get_current_timezone())
+
+        return dt
+    except Exception:
+        return None
 
 
 @require_http_methods(["POST"])
@@ -1757,6 +1795,10 @@ def api_crear_evento(request):
             if comunidad_principal_id and not any(item.get('comunidad_id') == comunidad_principal_id for item in comunidades_a_registrar):
                 comunidades_a_registrar.insert(0, {'comunidad_id': comunidad_principal_id})
 
+            for item in comunidades_a_registrar:
+                if not item.get('agregado_en'):
+                    item['agregado_en'] = timezone.now().isoformat()
+
             if comunidades_a_registrar:
                 comunidades_ids = [item.get('comunidad_id') for item in comunidades_a_registrar if item.get('comunidad_id')]
                 comunidades_map = {
@@ -1776,11 +1818,25 @@ def api_crear_evento(request):
                     if not region_id and comunidad_obj.region_id:
                         region_id = comunidad_obj.region_id
 
-                    ActividadComunidad.objects.get_or_create(
+                    agregado_en = parse_fecha_agregacion(item.get('agregado_en'))
+                    if agregado_en is None:
+                        agregado_en = timezone.now()
+
+                    relacion, creada = ActividadComunidad.objects.get_or_create(
                         actividad=actividad,
                         comunidad=comunidad_obj,
-                        defaults={'region_id': region_id}
+                        defaults={'region_id': region_id, 'creado_en': agregado_en}
                     )
+                    if not creada:
+                        update_fields = []
+                        if region_id and relacion.region_id != region_id:
+                            relacion.region_id = region_id
+                            update_fields.append('region_id')
+                        if agregado_en and (not relacion.creado_en or relacion.creado_en != agregado_en):
+                            relacion.creado_en = agregado_en
+                            update_fields.append('creado_en')
+                        if update_fields:
+                            relacion.save(update_fields=update_fields)
 
             tarjetas_creadas = []
             if data.get('tarjetas_datos_nuevas'):
@@ -2583,11 +2639,21 @@ def api_actualizar_evento(request, evento_id):
             if comunidad_principal_id and not any(item.get('comunidad_id') == comunidad_principal_id for item in comunidades_a_registrar):
                 comunidades_a_registrar.insert(0, {'comunidad_id': comunidad_principal_id})
 
-            comunidades_existentes_ids = set(
-                str(cid) for cid in ActividadComunidad.objects.filter(actividad=evento).values_list('comunidad_id', flat=True)
-            )
+            relaciones_existentes_queryset = ActividadComunidad.objects.filter(actividad=evento)
+            comunidades_existentes_map = {
+                str(rel.comunidad_id): rel for rel in relaciones_existentes_queryset
+            }
+            comunidades_existentes_ids = set(comunidades_existentes_map.keys())
 
             if comunidades_a_registrar:
+                for item in comunidades_a_registrar:
+                    comunidad_id_tmp = item.get('comunidad_id')
+                    if not item.get('agregado_en'):
+                        if comunidad_id_tmp and str(comunidad_id_tmp) in comunidades_existentes_map and comunidades_existentes_map[str(comunidad_id_tmp)].creado_en:
+                            item['agregado_en'] = comunidades_existentes_map[str(comunidad_id_tmp)].creado_en.isoformat()
+                        else:
+                            item['agregado_en'] = timezone.now().isoformat()
+
                 comunidades_ids = [item.get('comunidad_id') for item in comunidades_a_registrar if item.get('comunidad_id')]
                 comunidades_map = {
                     str(com.id): com for com in Comunidad.objects.filter(id__in=comunidades_ids).select_related('region')
@@ -2616,10 +2682,19 @@ def api_actualizar_evento(request, evento_id):
                         defaults={'region_id': region_id}
                     )
 
-                    if not creada:
-                        if region_id and relacion.region_id != region_id:
-                            relacion.region_id = region_id
-                            relacion.save(update_fields=['region_id'])
+                    agregado_en = parse_fecha_agregacion(item.get('agregado_en'))
+                    update_fields = []
+
+                    if region_id and relacion.region_id != region_id:
+                        relacion.region_id = region_id
+                        update_fields.append('region_id')
+
+                    if agregado_en and (not relacion.creado_en or relacion.creado_en != agregado_en):
+                        relacion.creado_en = agregado_en
+                        update_fields.append('creado_en')
+
+                    if update_fields:
+                        relacion.save(update_fields=update_fields)
 
                 ids_a_eliminar = comunidades_existentes_ids - nuevas_ids
                 if ids_a_eliminar:
