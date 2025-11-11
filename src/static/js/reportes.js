@@ -320,6 +320,11 @@ function setupReportCards() {
     });
 }
 
+// Variable global para guardar la referencia de la tarjeta del reporte actual
+let currentReportCardElement = null;
+// Variable global para guardar la posición del scroll antes de entrar al módulo
+let scrollPositionBeforeReport = 0;
+
 // Abrir reporte
 function openReport(reportType, options = {}) {
     currentReportType = reportType;
@@ -330,6 +335,23 @@ function openReport(reportType, options = {}) {
         resultsContainer.innerHTML = '';
     }
     
+    // Guardar referencia a la tarjeta del reporte para poder hacer scroll después
+    const reportCard = document.querySelector('.report-card[data-report-type="' + reportType + '"]');
+    if (reportCard) {
+        currentReportCardElement = reportCard;
+    } else if (reportType === 'reporte-general') {
+        // Para reporte general, guardar referencia al botón
+        const btnReporteGeneral = document.querySelector('.btn-reporte-general');
+        if (btnReporteGeneral) {
+            currentReportCardElement = btnReporteGeneral;
+        }
+    } else {
+        currentReportCardElement = null;
+    }
+    
+    // Guardar la posición actual del scroll antes de entrar al módulo
+    scrollPositionBeforeReport = window.pageYOffset || window.scrollY || document.documentElement.scrollTop;
+    
     // Ocultar dashboard y sección de reportes
     document.getElementById('dashboardSection').style.display = 'none';
     document.getElementById('reportsSection').style.display = 'none';
@@ -337,8 +359,13 @@ function openReport(reportType, options = {}) {
     // Mostrar sección de resultados
     document.getElementById('resultsSection').style.display = 'block';
     
+    // Hacer scroll automático hasta arriba de la página (como si recargara)
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+    
     // Actualizar título (solo si existe la tarjeta del reporte)
-    const reportCard = document.querySelector('.report-card[data-report-type="' + reportType + '"]');
     const resultsTitle = document.getElementById('resultsTitle');
     if (reportCard && resultsTitle) {
         const cardTitle = reportCard.querySelector('.card-title');
@@ -379,6 +406,11 @@ function hideAllForms() {
 // Mostrar formulario según tipo de reporte
 // Función para abrir el reporte general
 function openReporteGeneral() {
+    // Guardar referencia al botón del reporte general antes de abrir
+    const btnReporteGeneral = document.querySelector('.btn-reporte-general');
+    if (btnReporteGeneral) {
+        currentReportCardElement = btnReporteGeneral;
+    }
     openReport('reporte-general');
 }
 
@@ -3341,9 +3373,24 @@ function setupBackButton() {
         // Ocultar sección de resultados
         document.getElementById('resultsSection').style.display = 'none';
         
-        // Limpiar reporte actual
+        // Guardar el tipo de reporte antes de limpiarlo
+        const reportTypeToScroll = currentReportType;
+        const savedCardElement = currentReportCardElement;
+        
+        // Limpiar reporte actual (pero guardamos los valores antes)
         currentReportType = null;
         currentFilters = {};
+        currentReportCardElement = null;
+        
+        // Restaurar la posición del scroll donde estaba antes de entrar al módulo
+        setTimeout(() => {
+            window.scrollTo({
+                top: scrollPositionBeforeReport,
+                behavior: 'smooth'
+            });
+            // Limpiar la posición guardada
+            scrollPositionBeforeReport = 0;
+        }, 100);
     });
 }
 
@@ -4107,6 +4154,7 @@ function renderAvancesEventosGeneralesReport(data) {
             html += `<div style="color: var(--text-100); font-weight: 500; margin-bottom: 4px;">${escapeHtml(cambio.descripcion_cambio || 'Sin descripción')}</div>`;
             html += `<div style="color: var(--text-70); font-size: 0.875rem;">Hecho por: <strong>${escapeHtml(cambio.colaborador_nombre || 'Sin nombre')}</strong></div>`;
             html += `<div style="color: var(--text-70); font-size: 0.875rem;">Fecha: ${cambio.fecha_display || cambio.fecha_cambio || '-'}</div>`;
+            html += `<div style="color: var(--text-70); font-size: 0.875rem;">Comunidad donde se realizó el avance: <strong>${escapeHtml(cambio.comunidad_avance || 'No se registró una comunidad para este avance')}</strong></div>`;
             html += `</div>`;
             html += `</div>`;
             
@@ -4305,6 +4353,16 @@ function renderEventoIndividualReport(data) {
             html += `<div style="display: flex; gap: 16px; flex-wrap: wrap; color: var(--text-70); font-size: 0.875rem;">`;
             html += `<span>Hecho por: <strong>${escapeHtml(cambio.responsable || '-')}</strong></span>`;
             html += `<span>Fecha: ${cambio.fecha_display || cambio.fecha_cambio || '-'}</span>`;
+            // comunidades puede ser un string (separado por comas) o un array
+            let comunidadesAvance = 'No hay dato disponible';
+            if (cambio.comunidades) {
+                if (Array.isArray(cambio.comunidades)) {
+                    comunidadesAvance = cambio.comunidades.length > 0 ? cambio.comunidades.join(', ') : 'No hay dato disponible';
+                } else if (typeof cambio.comunidades === 'string' && cambio.comunidades.trim() !== '') {
+                    comunidadesAvance = cambio.comunidades.trim();
+                }
+            }
+            html += `<span>Comunidad donde se realizó el avance: <strong>${escapeHtml(comunidadesAvance)}</strong></span>`;
             html += `</div>`;
             
             // Evidencias del cambio

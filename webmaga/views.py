@@ -5365,6 +5365,16 @@ def api_crear_cambio(request, evento_id):
         cambios_creados = []
         evidencias_data = []
         
+        # Verificar archivos ANTES de crear cambios
+        archivos_recibidos = bool(request.FILES)
+        archivos_keys_list = []
+        if archivos_recibidos:
+            archivos_keys_list = [key for key in request.FILES.keys() if key.startswith('archivo_')]
+            if not archivos_keys_list:
+                archivos_keys_list = list(request.FILES.keys())
+            print(f'📎 Archivos detectados ANTES de crear cambios: {len(archivos_keys_list)} archivos')
+            print(f'📎 Claves de archivos: {archivos_keys_list}')
+        
         with transaction.atomic():
             # Crear cambios para cada colaborador
             for colaborador in colaboradores:
@@ -5403,64 +5413,133 @@ def api_crear_cambio(request, evento_id):
                     print(f'✅ Cambio creado para colaborador {colaborador.nombre}: {cambio_colaborador.id}')
             
             # Procesar evidencias y asociarlas a TODOS los cambios creados
-            if request.FILES and len(cambios_creados) > 0:
+            # IMPORTANTE: Verificar que se crearon cambios antes de procesar evidencias
+            if len(cambios_creados) == 0:
+                print('❌ ERROR CRÍTICO: No se crearon cambios, no se pueden procesar evidencias')
+                raise ValueError('No se pudieron crear los cambios de colaboradores')
+            
+            if archivos_recibidos and archivos_keys_list:
                 evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias_cambios_eventos')
                 os.makedirs(evidencias_dir, exist_ok=True)
                 
                 fs = FileSystemStorage(location=evidencias_dir)
-                print(f'📎 Archivos recibidos: {list(request.FILES.keys())}')
+                print(f'📎 Archivos recibidos en request.FILES: {list(request.FILES.keys())}')
+                print(f'📎 Total de cambios creados: {len(cambios_creados)}')
                 
-                # Procesar cada archivo
-                archivos_keys = [key for key in request.FILES.keys() if key.startswith('archivo_')]
+                # Usar la lista de archivos que ya detectamos
+                archivos_keys = archivos_keys_list
+                print(f'📎 Procesando {len(archivos_keys)} archivo(s) de evidencias')
+                
                 for index, key in enumerate(archivos_keys):
-                    archivo = request.FILES[key]
-                    print(f'📎 Procesando archivo {key}: {archivo.name} ({archivo.size} bytes)')
-                    
-                    # Obtener descripción de la evidencia
-                    descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
-                    if not descripcion_evidencia:
-                        # Intentar obtener por el nombre del campo sin el prefijo "archivo_"
-                        index_num = key.replace('archivo_', '')
-                        descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index_num}', '').strip()
-                    
-                    # Guardar el archivo físico UNA VEZ (usando el ID del primer cambio para el nombre)
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
-                    file_extension = os.path.splitext(archivo.name)[1]
-                    # Usar el ID del primer cambio para el nombre base del archivo
-                    filename = f"{timestamp}_{cambios_creados[0].id}_{index}{file_extension}"
-                    saved_name = fs.save(filename, archivo)
-                    file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
-                    
-                    # Crear un registro de evidencia en la BD para cada cambio creado
-                    # Todos apuntan al mismo archivo físico
-                    primera_evidencia_id = None
-                    for cambio_colaborador in cambios_creados:
-                        evidencia = EventosEvidenciasCambios.objects.create(
-                            actividad=evento,
-                            cambio=cambio_colaborador,
-                            archivo_nombre=archivo.name,
-                            archivo_tipo=archivo.content_type or 'application/octet-stream',
-                            archivo_tamanio=archivo.size,
-                            url_almacenamiento=file_url,  # Misma URL para todos
-                            descripcion=descripcion_evidencia,
-                            creado_por=usuario_maga
-                        )
-                        if primera_evidencia_id is None:
-                            primera_evidencia_id = evidencia.id
-                        print(f'✅ Evidencia creada para cambio {cambio_colaborador.id}: {evidencia.id} - {evidencia.archivo_nombre}')
-                    
-                    # Agregar a evidencias_data solo una vez (para evitar duplicados en la respuesta)
-                    evidencias_data.append({
-                        'id': str(primera_evidencia_id),
-                        'nombre': archivo.name,
-                        'url': file_url,
-                        'tipo': archivo.content_type or 'application/octet-stream',
-                        'descripcion': descripcion_evidencia
-                    })
-            elif request.FILES:
-                print('⚠️ Se recibieron archivos pero no se crearon cambios de colaboradores.')
+                    try:
+                        archivo = request.FILES[key]
+                        print(f'📎 Procesando archivo {key}: {archivo.name} ({archivo.size} bytes, tipo: {archivo.content_type})')
+                        
+                        # Obtener descripción de la evidencia
+                        # Primero intentar con el índice
+                        descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
+                        if not descripcion_evidencia:
+                            # Intentar obtener por el nombre del campo sin el prefijo "archivo_"
+                            index_num = key.replace('archivo_', '')
+                            descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index_num}', '').strip()
+                        if not descripcion_evidencia:
+                            # Intentar obtener descripción genérica
+                            descripcion_evidencia = request.POST.get('descripcion_evidencia', '').strip()
+                        
+                        print(f'📎 Descripción de evidencia obtenida: "{descripcion_evidencia}"')
+                        
+                        # Guardar el archivo físico UNA VEZ (usando el ID del primer cambio para el nombre)
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+                        file_extension = os.path.splitext(archivo.name)[1]
+                        # Usar el ID del primer cambio para el nombre base del archivo
+                        filename = f"{timestamp}_{cambios_creados[0].id}_{index}{file_extension}"
+                        saved_name = fs.save(filename, archivo)
+                        file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
+                        print(f'📎 Archivo guardado: {saved_name} -> {file_url}')
+                        
+                        # Crear un registro de evidencia en la BD para cada cambio creado
+                        # Todos apuntan al mismo archivo físico
+                        primera_evidencia_id = None
+                        evidencias_creadas_count = 0
+                        for cambio_colaborador in cambios_creados:
+                            try:
+                                # Validar que el cambio existe y tiene ID
+                                if not cambio_colaborador.id:
+                                    raise ValueError(f'El cambio {cambio_colaborador} no tiene ID válido')
+                                
+                                # Validar que el evento existe
+                                if not evento.id:
+                                    raise ValueError(f'El evento {evento} no tiene ID válido')
+                                
+                                # Validar que el usuario existe
+                                if not usuario_maga or not usuario_maga.id:
+                                    raise ValueError('El usuario no tiene ID válido')
+                                
+                                print(f'📝 Creando evidencia para cambio {cambio_colaborador.id}, actividad {evento.id}, usuario {usuario_maga.id}')
+                                
+                                evidencia = EventosEvidenciasCambios.objects.create(
+                                    actividad=evento,
+                                    cambio=cambio_colaborador,
+                                    archivo_nombre=archivo.name,
+                                    archivo_tipo=archivo.content_type or 'application/octet-stream',
+                                    archivo_tamanio=archivo.size,
+                                    url_almacenamiento=file_url,  # Misma URL para todos
+                                    descripcion=descripcion_evidencia if descripcion_evidencia else None,
+                                    creado_por=usuario_maga
+                                )
+                                
+                                # Verificar que se creó correctamente
+                                if not evidencia.id:
+                                    raise ValueError('La evidencia se creó pero no tiene ID')
+                                
+                                if primera_evidencia_id is None:
+                                    primera_evidencia_id = evidencia.id
+                                
+                                evidencias_creadas_count += 1
+                                print(f'✅ Evidencia creada exitosamente para cambio {cambio_colaborador.id}: {evidencia.id} - {evidencia.archivo_nombre}')
+                                
+                                # Verificar que se puede recuperar de la BD
+                                evidencia_verificada = EventosEvidenciasCambios.objects.filter(id=evidencia.id).first()
+                                if not evidencia_verificada:
+                                    raise ValueError(f'La evidencia {evidencia.id} no se puede recuperar de la BD después de crearla')
+                                print(f'✅ Evidencia verificada en BD: {evidencia_verificada.id}')
+                                
+                            except Exception as e:
+                                print(f'❌ Error al crear evidencia para cambio {cambio_colaborador.id}: {e}')
+                                print(f'❌ Tipo de error: {type(e).__name__}')
+                                import traceback
+                                traceback.print_exc()
+                                raise Exception(f'Error al crear evidencia para cambio {cambio_colaborador.id}: {str(e)}')
+                        
+                        if evidencias_creadas_count == 0:
+                            raise ValueError(f'No se pudo crear ninguna evidencia para los {len(cambios_creados)} cambios')
+                        
+                        print(f'✅ Total de evidencias creadas para este archivo: {evidencias_creadas_count} (una por cada cambio)')
+                        
+                        # Agregar a evidencias_data solo una vez (para evitar duplicados en la respuesta)
+                        if primera_evidencia_id:
+                            evidencias_data.append({
+                                'id': str(primera_evidencia_id),
+                                'nombre': archivo.name,
+                                'url': file_url,
+                                'tipo': archivo.content_type or 'application/octet-stream',
+                                'descripcion': descripcion_evidencia
+                            })
+                    except Exception as e:
+                        print(f'❌ Error al procesar archivo {key}: {e}')
+                        import traceback
+                        traceback.print_exc()
+                        # NO continuar - lanzar el error para que se revierta la transacción
+                        # Si hay un error al guardar evidencias, es mejor que falle todo
+                        raise Exception(f'Error al procesar evidencia {key}: {str(e)}')
+                
+                print(f'✅ Total de evidencias procesadas exitosamente: {len(evidencias_data)}')
+            elif archivos_recibidos:
+                print('⚠️ Se recibieron archivos pero no se encontraron con el formato esperado.')
+                print(f'⚠️ Cambios creados: {len(cambios_creados)}')
+                print(f'⚠️ Claves de archivos recibidos: {list(request.FILES.keys())}')
             else:
-                print('⚠️ No se recibieron archivos en request.FILES')
+                print('ℹ️ No se recibieron archivos en request.FILES (opcional)')
         
         # Obtener nombres de los responsables (todos los colaboradores)
         responsables_nombres = [colab.nombre for colab in colaboradores]
@@ -8169,14 +8248,23 @@ def api_generar_reporte(request, report_type):
                 if grupo_id not in cambios_por_grupo:
                     # Obtener comunidades del evento
                     comunidades_nombres = []
+                    regiones_nombres = []
+                    
                     if actividad.comunidad:
                         comunidades_nombres.append(actividad.comunidad.nombre)
+                        if actividad.comunidad.region:
+                            regiones_nombres.append(actividad.comunidad.region.nombre)
                     
                     # También obtener de relaciones de comunidades
                     if hasattr(actividad, 'comunidades_relacionadas'):
                         for relacion in actividad.comunidades_relacionadas.all():
                             if relacion.comunidad and relacion.comunidad.nombre not in comunidades_nombres:
                                 comunidades_nombres.append(relacion.comunidad.nombre)
+                            # Obtener región de la relación o de la comunidad
+                            if relacion.region and relacion.region.nombre not in regiones_nombres:
+                                regiones_nombres.append(relacion.region.nombre)
+                            elif relacion.comunidad and relacion.comunidad.region and relacion.comunidad.region.nombre not in regiones_nombres:
+                                regiones_nombres.append(relacion.comunidad.region.nombre)
                     
                     # Obtener todas las evidencias del grupo (pueden estar en cualquier cambio del grupo)
                     evidencias_data = []
@@ -8230,6 +8318,13 @@ def api_generar_reporte(request, report_type):
                     
                     colaboradores_nombres = [c['colaborador__nombre'] for c in colaboradores_grupo if c['colaborador__nombre']]
                     
+                    # Obtener la comunidad específica del avance (desde cambio.comunidad)
+                    comunidad_avance_nombre = None
+                    comunidad_avance_id = None
+                    if cambio.comunidad:
+                        comunidad_avance_nombre = cambio.comunidad.nombre
+                        comunidad_avance_id = str(cambio.comunidad.id)
+                    
                     cambios_por_grupo[grupo_id] = {
                         'evento_id': str(actividad.id),
                         'evento': {
@@ -8239,6 +8334,9 @@ def api_generar_reporte(request, report_type):
                             'tipo': actividad.tipo.nombre if actividad.tipo else '-'
                         },
                         'comunidad': ', '.join(comunidades_nombres) if comunidades_nombres else '-',
+                        'region': ', '.join(regiones_nombres) if regiones_nombres else None,  # Región/ubicación del avance
+                        'comunidad_avance': comunidad_avance_nombre,  # Comunidad específica donde se realizó el avance
+                        'comunidad_avance_id': comunidad_avance_id,  # ID de la comunidad específica del avance
                         'colaboradores_ids': [str(c['colaborador__id']) for c in colaboradores_grupo if c['colaborador__id']],
                         'colaboradores_nombres': colaboradores_nombres,
                         'colaborador_nombre': ', '.join(colaboradores_nombres) if colaboradores_nombres else 'Sin nombre',  # Todos los colaboradores
@@ -9283,6 +9381,23 @@ def api_exportar_reporte(request, report_type):
                     report_data = []
             else:
                 report_data = report_data_dict
+            
+            # Para evento individual, asegurar que la estructura sea correcta
+            if report_type == 'reporte-evento-individual':
+                print(f'🔵 reporte-evento-individual: report_data keys: {list(report_data.keys()) if isinstance(report_data, dict) else "No es dict"}')
+                # Si report_data es {'evento': {...}}, está bien
+                # Si report_data es directamente el evento, envolverlo
+                if isinstance(report_data, dict) and 'evento' not in report_data and 'nombre' in report_data:
+                    # Es el evento directamente, envolverlo
+                    report_data = {'evento': report_data}
+                    print(f'🔵 Envuelto evento en estructura correcta')
+            
+            # Para comunidades, extraer la lista de comunidades del objeto
+            if report_type == 'comunidades':
+                if isinstance(report_data, dict) and 'comunidades' in report_data:
+                    report_data = report_data['comunidades']
+                elif not isinstance(report_data, list):
+                    report_data = []
                 
             # Validar que tenemos datos válidos
             if report_data is None:

@@ -168,15 +168,17 @@ def generate_word_report(report_type, report_data, filters_info=None):
             doc = Document()
         
         # Agregar título (más compacto, sin filtros)
-        title = doc.add_heading(f'{get_report_title(report_type)}', 0)
-        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        # Agregar fecha de generación (más compacto)
-        date_para = doc.add_paragraph()
-        date_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        date_run = date_para.add_run(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
-        date_run.font.size = Pt(9)
-        date_run.font.color.rgb = RGBColor(102, 102, 102)
+        # Para evento individual, el título se agrega dentro de la función específica
+        if report_type != 'reporte-evento-individual':
+            title = doc.add_heading(f'{get_report_title(report_type)}', 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Agregar fecha de generación (más compacto)
+            date_para = doc.add_paragraph()
+            date_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            date_run = date_para.add_run(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
+            date_run.font.size = Pt(9)
+            date_run.font.color.rgb = RGBColor(102, 102, 102)
         
         # Generar contenido según el tipo de reporte
         generate_word_content(doc, report_type, report_data)
@@ -732,187 +734,776 @@ def generate_word_beneficiarios_region_comunidad(doc, data):
 
 
 def generate_word_actividad_personal(doc, data):
-    """Genera contenido Word para actividad de personal"""
+    """Genera contenido Word para actividad de personal - Una tabla por usuario, una hoja por tabla"""
     if not data or len(data) == 0:
         doc.add_paragraph('No se encontraron datos para este reporte.')
         return
     
     for idx, item in enumerate(data):
-        # Salto de página antes de cada sección (excepto la primera)
+        # Salto de página antes de cada usuario (excepto el primero)
         if idx > 0:
             doc.add_page_break()
         
-        heading = doc.add_heading(f"{item.get('colaborador', 'N/A')}", level=2)
-        
-        # Información general con mejor formato
-        info_para = doc.add_paragraph()
-        info_para.add_run("Total de actividades: ").bold = True
-        info_para.add_run(f"{item.get('total_actividades', 0)}").font.color.rgb = RGBColor(7, 114, 210)
-        
-        info_para = doc.add_paragraph()
-        info_para.add_run("Total de beneficiarios: ").bold = True
-        info_para.add_run(f"{item.get('total_beneficiarios', 0)}").font.color.rgb = RGBColor(7, 114, 210)
+        # Agregar espacio arriba para que los datos empiecen más abajo
+        doc.add_paragraph()
+        doc.add_paragraph()
         doc.add_paragraph()
         
-        if item.get('actividades') and len(item['actividades']) > 0:
-            # Salto de página antes de la tabla
-            doc.add_page_break()
-            doc.add_heading('Actividades', level=3)
-            table = doc.add_table(rows=1, cols=6)
-            # Formatear tabla con bordes y centrado
+        # Información general del usuario (fuera de la tabla, bien espaciada)
+        heading = doc.add_heading(f"{item.get('nombre', 'N/A')}", level=2)
+        
+        # Información general con mejor formato y colores
+        info_para = doc.add_paragraph()
+        info_para.add_run("Puesto: ").bold = True
+        info_para.add_run(f"{item.get('puesto', '-')}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Teléfono: ").bold = True
+        info_para.add_run(f"{item.get('telefono', '-')}")
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Total de Eventos: ").bold = True
+        info_para.add_run(f"{item.get('total_eventos', 0)}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Total de Avances: ").bold = True
+        info_para.add_run(f"{item.get('total_avances', 0)}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        # Espacio antes de la tabla
+        doc.add_paragraph()
+        
+        # Crear tabla unificada con todos los eventos
+        if item.get('eventos') and len(item['eventos']) > 0:
+            # Título predefinido de la tabla
+            title_para = doc.add_paragraph()
+            title_run = title_para.add_run("Tabla de Avances Realizados en Proyectos")
+            title_run.bold = True
+            title_run.font.color.rgb = RGBColor(7, 114, 210)
+            title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph()
+            
+            table = doc.add_table(rows=1, cols=7)
             format_table_word(table)
             
-            headers = ['Nombre', 'Fecha', 'Estado', 'Tipo', 'Comunidad', 'Beneficiarios']
+            # Encabezados
+            headers = ['Evento', 'Estado', 'Tipo', 'Comunidad', 'Tipo Comunidad', 'Total Avances', 'Fecha Último Avance']
             header_cells = table.rows[0].cells
             for i, header in enumerate(headers):
                 header_cells[i].text = header
                 header_cells[i].paragraphs[0].runs[0].bold = True
             
-            for actividad in item['actividades']:
+            # Agregar eventos (unificados en una sola tabla)
+            for evento in item['eventos']:
                 row_cells = table.add_row().cells
-                row_cells[0].text = str(actividad.get('nombre', '-'))
-                row_cells[1].text = format_date(actividad.get('fecha', '-'))
-                row_cells[2].text = str(actividad.get('estado', '-'))
-                row_cells[3].text = str(actividad.get('tipo_actividad', '-'))
-                row_cells[4].text = str(actividad.get('comunidad', '-'))
-                row_cells[5].text = str(actividad.get('total_beneficiarios', 0))
+                row_cells[0].text = str(evento.get('nombre', '-'))
+                row_cells[1].text = str(evento.get('estado', '-'))
+                row_cells[2].text = str(evento.get('tipo', '-'))
+                row_cells[3].text = str(evento.get('comunidad', '-'))
+                row_cells[4].text = str(evento.get('tipo_comunidad', '-'))
+                row_cells[5].text = str(evento.get('total_avances', 0))
+                row_cells[6].text = str(evento.get('fecha_ultimo_avance', '-'))
+        else:
+            # Si no tiene eventos, mostrar mensaje
+            doc.add_paragraph('Este colaborador no tiene eventos registrados.')
 
 
 def generate_word_avances_eventos(doc, data):
-    """Genera contenido Word para avances de eventos"""
+    """Genera contenido Word para avances de eventos - Una hoja por evento, tabla de avances, evidencias en hoja separada"""
     if not data or len(data) == 0:
         doc.add_paragraph('No se encontraron datos para este reporte.')
         return
     
-    for idx, item in enumerate(data):
-        # Salto de página antes de cada sección (excepto la primera)
+    # Agrupar avances por evento
+    eventos_agrupados = {}
+    for item in data:
+        evento_id = item.get('evento_id', 'sin_evento')
+        if evento_id not in eventos_agrupados:
+            eventos_agrupados[evento_id] = {
+                'evento': item.get('evento', {}),
+                'comunidad': item.get('comunidad', '-'),
+                'avances': []
+            }
+        eventos_agrupados[evento_id]['avances'].append(item)
+    
+    # Procesar cada evento
+    for idx, (evento_id, evento_data) in enumerate(eventos_agrupados.items()):
+        # Salto de página antes de cada evento (excepto el primero)
         if idx > 0:
             doc.add_page_break()
         
-        heading = doc.add_heading(f"Evento: {item.get('evento_nombre', 'N/A')}", level=2)
-        
-        # Información general con mejor formato
-        info_para = doc.add_paragraph()
-        info_para.add_run("Fecha del evento: ").bold = True
-        info_para.add_run(f"{format_date(item.get('fecha_evento', '-'))}")
-        
-        info_para = doc.add_paragraph()
-        info_para.add_run("Total de avances: ").bold = True
-        info_para.add_run(f"{item.get('total_avances', 0)}").font.color.rgb = RGBColor(7, 114, 210)
+        # Agregar espacio arriba
+        doc.add_paragraph()
+        doc.add_paragraph()
         doc.add_paragraph()
         
-        if item.get('avances') and len(item['avances']) > 0:
-            # Salto de página antes de los avances
-            doc.add_page_break()
-            doc.add_heading('Avances', level=3)
-            for avance in item['avances']:
-                doc.add_paragraph(f"Fecha: {format_date(avance.get('fecha', '-'))}")
-                doc.add_paragraph(f"Descripción: {avance.get('descripcion', '-')}")
+        # Información general del evento (fuera de la tabla, bien espaciada)
+        evento_info = evento_data['evento']
+        heading = doc.add_heading(f"{evento_info.get('nombre', 'N/A')}", level=2)
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Estado: ").bold = True
+        info_para.add_run(f"{evento_info.get('estado', '-')}")
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Tipo: ").bold = True
+        info_para.add_run(f"{evento_info.get('tipo', '-')}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Comunidad: ").bold = True
+        info_para.add_run(f"{evento_data.get('comunidad', '-')}")
+        
+        info_para = doc.add_paragraph()
+        info_para.add_run("Total de Avances: ").bold = True
+        info_para.add_run(f"{len(evento_data['avances'])}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        # Espacio antes de la tabla
+        doc.add_paragraph()
+        
+        # Título predefinido de la tabla
+        title_para = doc.add_paragraph()
+        title_run = title_para.add_run("Tabla de Avances Realizados")
+        title_run.bold = True
+        title_run.font.color.rgb = RGBColor(7, 114, 210)
+        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        doc.add_paragraph()
+        
+        # Crear tabla unificada con todos los avances
+        if evento_data['avances'] and len(evento_data['avances']) > 0:
+            table = doc.add_table(rows=1, cols=4)
+            format_table_word(table)
+            
+            # Encabezados
+            headers = ['Descripción', 'Responsable', 'Fecha y Hora', 'Comunidad donde se realizó el avance']
+            header_cells = table.rows[0].cells
+            for i, header in enumerate(headers):
+                header_cells[i].text = header
+                header_cells[i].paragraphs[0].runs[0].bold = True
+            
+            # Agregar avances
+            evidencias_imagenes = []  # Para almacenar evidencias de imágenes por separado
+            for avance in evento_data['avances']:
+                row_cells = table.add_row().cells
+                row_cells[0].text = str(avance.get('descripcion_cambio', '-'))
+                row_cells[1].text = str(avance.get('colaborador_nombre', '-'))
+                row_cells[2].text = str(avance.get('fecha_display', avance.get('fecha_cambio', '-')))
+                row_cells[3].text = str(avance.get('comunidad_avance', 'No se registró una comunidad para este avance'))
+                
+                # Recolectar evidencias de imágenes para hoja separada
                 if avance.get('evidencias'):
-                    doc.add_paragraph(f"Evidencias: {', '.join(avance.get('evidencias', []))}")
-                doc.add_paragraph()
+                    for evidencia in avance['evidencias']:
+                        if evidencia.get('es_imagen'):
+                            evidencias_imagenes.append({
+                                'titulo': avance.get('descripcion_cambio', 'Sin título'),
+                                'url': evidencia.get('url', ''),
+                                'nombre': evidencia.get('nombre', ''),
+                                'descripcion': evidencia.get('descripcion', '')
+                            })
+            
+            # Si hay evidencias de imágenes, crear hoja separada
+            if evidencias_imagenes:
+                doc.add_page_break()
+                doc.add_heading('Evidencias', level=2)
+                
+                for evidencia in evidencias_imagenes:
+                    # Título del avance
+                    titulo_para = doc.add_paragraph()
+                    titulo_run = titulo_para.add_run(evidencia['titulo'])
+                    titulo_run.bold = True
+                    titulo_run.font.color.rgb = RGBColor(7, 114, 210)
+                    titulo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    doc.add_paragraph()
+                    
+                    # Intentar agregar la imagen (5x5 cm = 1.97 inches)
+                    try:
+                        import requests
+                        from io import BytesIO
+                        
+                        # Obtener la URL
+                        url = evidencia['url']
+                        
+                        # Determinar si es una ruta local o URL
+                        image_stream = None
+                        if url.startswith('http'):
+                            # URL externa - descargar
+                            try:
+                                response = requests.get(url, timeout=10)
+                                image_stream = BytesIO(response.content)
+                            except:
+                                image_stream = None
+                        else:
+                            # Ruta local - construir ruta completa
+                            # Remover MEDIA_URL si está presente
+                            if settings.MEDIA_URL in url:
+                                url = url.replace(settings.MEDIA_URL, '').lstrip('/')
+                            elif url.startswith('/'):
+                                url = url.lstrip('/')
+                            
+                            # Construir ruta completa
+                            image_path = os.path.join(settings.MEDIA_ROOT, url)
+                            
+                            # Verificar si existe
+                            if os.path.exists(image_path):
+                                image_stream = open(image_path, 'rb')
+                            else:
+                                image_stream = None
+                        
+                        if image_stream:
+                            para_img = doc.add_paragraph()
+                            para_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run_img = para_img.add_run()
+                            run_img.add_picture(image_stream, width=Inches(1.97), height=Inches(1.97))
+                            if hasattr(image_stream, 'close'):
+                                image_stream.close()
+                        else:
+                            # Si no se puede cargar la imagen, mostrar el nombre del archivo
+                            doc.add_paragraph(f"Imagen: {evidencia.get('nombre', 'No disponible')}")
+                    except Exception as e:
+                        # Si no se puede cargar la imagen, mostrar el nombre del archivo
+                        doc.add_paragraph(f"Imagen: {evidencia.get('nombre', 'No disponible')}")
+                    
+                    doc.add_paragraph()  # Espacio entre imágenes
+                    
+                    # Si hay más evidencias, agregar salto de página
+                    if evidencias_imagenes.index(evidencia) < len(evidencias_imagenes) - 1:
+                        doc.add_page_break()
+            
+            # Agregar evidencias no-imagen en la tabla o en una sección separada
+            evidencias_no_imagen = []
+            for avance in evento_data['avances']:
+                if avance.get('evidencias'):
+                    for evidencia in avance['evidencias']:
+                        if not evidencia.get('es_imagen'):
+                            evidencias_no_imagen.append({
+                                'avance': avance.get('descripcion_cambio', 'Sin título'),
+                                'nombre': evidencia.get('nombre', ''),
+                                'url': evidencia.get('url', '')
+                            })
+            
+            if evidencias_no_imagen:
+                if evidencias_imagenes:
+                    doc.add_page_break()
+                else:
+                    doc.add_paragraph()
+                doc.add_heading('Evidencias (Archivos)', level=2)
+                
+                for evidencia in evidencias_no_imagen:
+                    doc.add_paragraph(f"Avance: {evidencia['avance']}")
+                    doc.add_paragraph(f"Archivo: {evidencia['nombre']}")
+                    doc.add_paragraph()
+        else:
+            doc.add_paragraph('Este evento no tiene avances registrados.')
 
 
 def generate_word_evento_individual(doc, data):
-    """Genera contenido Word para evento individual"""
+    """Genera contenido Word para evento individual - Estructura completa con secciones"""
+    print(f'🔵 generate_word_evento_individual llamado con data: {type(data)}')
+    print(f'🔵 Keys en data: {list(data.keys()) if isinstance(data, dict) else "No es dict"}')
+    
     if not data:
         doc.add_paragraph('No se encontraron datos para este reporte.')
         return
     
-    doc.add_heading('Información del Evento', level=2)
+    evento = data.get('evento', data)  # Puede venir como data.evento o directamente como data
+    print(f'🔵 Evento extraído. Keys: {list(evento.keys()) if isinstance(evento, dict) else "No es dict"}')
+    print(f'🔵 Evento tiene portada: {bool(evento.get("portada"))}')
+    print(f'🔵 Evento tiene cambios: {bool(evento.get("cambios"))}')
+    print(f'🔵 Evento tiene evidencias: {bool(evento.get("evidencias"))}')
     
-    # Información general con mejor formato
+    # ========== SECCIÓN 1: TÍTULO, FOTO DE PORTADA Y DATOS GENERALES EN LA MISMA HOJA ==========
+    # Agregar título del reporte
+    title = doc.add_heading('Reporte de Evento Individual', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Agregar fecha de generación
+    date_para = doc.add_paragraph()
+    date_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    date_run = date_para.add_run(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
+    date_run.font.size = Pt(9)
+    date_run.font.color.rgb = RGBColor(102, 102, 102)
+    doc.add_paragraph()  # Espacio
+    
+    # FOTO DE PORTADA (en la misma hoja)
+    if evento.get('portada') and evento['portada'].get('url'):
+        try:
+            from io import BytesIO
+            
+            portada_url = evento['portada']['url']
+            print(f'📷 Intentando cargar portada desde: {portada_url}')
+            
+            # Normalizar la URL para obtener la ruta del archivo
+            relative_path = portada_url.strip()
+            
+            # Remover prefijos comunes de MEDIA_URL
+            media_url = getattr(settings, 'MEDIA_URL', '') or ''
+            posibles_prefijos = [media_url, '/media/', 'media/']
+            for prefijo in posibles_prefijos:
+                if prefijo and relative_path.startswith(prefijo):
+                    relative_path = relative_path[len(prefijo):]
+                    break
+            
+            # Limpiar barras iniciales
+            relative_path = relative_path.lstrip('/')
+            
+            # Construir ruta completa del archivo
+            image_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+            print(f'📷 Ruta del archivo: {image_path}')
+            print(f'📷 ¿Existe el archivo? {os.path.exists(image_path)}')
+            
+            image_stream = None
+            if os.path.exists(image_path):
+                try:
+                    image_stream = open(image_path, 'rb')
+                    print(f'✅ Archivo de portada abierto correctamente')
+                except Exception as e:
+                    print(f'❌ Error al abrir archivo: {e}')
+                    image_stream = None
+            else:
+                print(f'⚠️ Archivo de portada no encontrado en: {image_path}')
+            
+            if image_stream:
+                para_img = doc.add_paragraph()
+                para_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run_img = para_img.add_run()
+                # Imagen rectangular ancha: width=6 inches, height=3 inches (proporción 2:1)
+                run_img.add_picture(image_stream, width=Inches(6), height=Inches(3))
+                if hasattr(image_stream, 'close'):
+                    image_stream.close()
+                print(f'✅ Imagen de portada agregada al documento')
+                doc.add_paragraph()  # Espacio después de la imagen
+            else:
+                print(f'⚠️ No se pudo cargar la imagen de portada')
+        except Exception as e:
+            import traceback
+            print(f'❌ Error al cargar portada: {e}')
+            traceback.print_exc()
+    
+    # DATOS GENERALES Y DESCRIPCIÓN (en la misma hoja)
+    doc.add_heading('Información General del Proyecto', level=2)
+    
+    # Información general con mejor formato y colores
     info_para = doc.add_paragraph()
     info_para.add_run("Nombre: ").bold = True
-    info_para.add_run(f"{data.get('nombre', '-')}").font.color.rgb = RGBColor(7, 114, 210)
+    info_para.add_run(f"{evento.get('nombre', '-')}").font.color.rgb = RGBColor(7, 114, 210)
     
     info_para = doc.add_paragraph()
     info_para.add_run("Tipo: ").bold = True
-    info_para.add_run(f"{data.get('tipo', '-')}").font.color.rgb = RGBColor(7, 114, 210)
-    
-    info_para = doc.add_paragraph()
-    info_para.add_run("Fecha: ").bold = True
-    info_para.add_run(f"{format_date(data.get('fecha', '-'))}")
+    info_para.add_run(f"{evento.get('tipo', '-')}").font.color.rgb = RGBColor(7, 114, 210)
     
     info_para = doc.add_paragraph()
     info_para.add_run("Estado: ").bold = True
-    info_para.add_run(f"{data.get('estado', '-')}")
+    info_para.add_run(f"{evento.get('estado', '-')}")
     
     info_para = doc.add_paragraph()
-    info_para.add_run("Comunidad: ").bold = True
-    info_para.add_run(f"{data.get('comunidad', '-')}")
+    info_para.add_run("Fecha: ").bold = True
+    info_para.add_run(f"{format_date(evento.get('fecha', evento.get('fecha_display', '-')))}")
+    
+    info_para = doc.add_paragraph()
+    info_para.add_run("Ubicación: ").bold = True
+    info_para.add_run(f"{evento.get('ubicacion', evento.get('comunidad', '-'))}")
     
     info_para = doc.add_paragraph()
     info_para.add_run("Responsable: ").bold = True
-    info_para.add_run(f"{data.get('responsable', '-')}")
-    doc.add_paragraph()
+    info_para.add_run(f"{evento.get('responsable', '-')}")
     
-    if data.get('avances') and len(data['avances']) > 0:
-        # Salto de página antes de los avances
-        doc.add_page_break()
-        doc.add_heading('Avances', level=2)
-        for avance in data['avances']:
-            doc.add_heading(f"Avance del {format_date(avance.get('fecha', '-'))}", level=3)
-            doc.add_paragraph(avance.get('descripcion', '-'))
-            if avance.get('evidencias'):
-                doc.add_paragraph(f"Evidencias: {', '.join(avance.get('evidencias', []))}")
-            doc.add_paragraph()
+    # Descripción
+    if evento.get('descripcion'):
+        doc.add_paragraph()
+        desc_para = doc.add_paragraph()
+        desc_para.add_run("Descripción: ").bold = True
+        desc_para.add_run(f"{evento.get('descripcion', '-')}")
     
-    if data.get('beneficiarios') and len(data['beneficiarios']) > 0:
-        # Salto de página antes de la tabla de beneficiarios
-        doc.add_page_break()
+    # ========== SECCIÓN 3: PERSONAL ASIGNADO Y BENEFICIARIOS ==========
+    doc.add_page_break()
+    
+    # Personal asignado
+    if evento.get('personal') and len(evento['personal']) > 0:
+        doc.add_heading('Personal Asignado', level=2)
+        for persona in evento['personal']:
+            personal_para = doc.add_paragraph()
+            personal_para.add_run(f"• {persona.get('nombre', persona.get('username', '-'))}")
+            if persona.get('puesto'):
+                personal_para.add_run(f" - {persona.get('puesto', '')}")
+        doc.add_paragraph()
+    else:
+        doc.add_heading('Personal Asignado', level=2)
+        doc.add_paragraph('No hay personal asignado a este evento.')
+        doc.add_paragraph()
+    
+    # Tabla de beneficiarios (en la misma hoja)
+    if evento.get('beneficiarios') and len(evento['beneficiarios']) > 0:
         doc.add_heading('Beneficiarios', level=2)
         table = doc.add_table(rows=1, cols=4)
-        # Formatear tabla con bordes y centrado
         format_table_word(table)
         
-        headers = ['Nombre', 'Tipo', 'Comunidad', 'Detalles']
+        headers = ['Nombre', 'Tipo', 'Comunidad', 'Información Adicional']
         header_cells = table.rows[0].cells
         for i, header in enumerate(headers):
             header_cells[i].text = header
             header_cells[i].paragraphs[0].runs[0].bold = True
         
-        for beneficiario in data['beneficiarios']:
+        for beneficiario in evento['beneficiarios']:
             row_cells = table.add_row().cells
             row_cells[0].text = str(beneficiario.get('nombre', '-'))
-            row_cells[1].text = str(beneficiario.get('tipo', '-'))
-            row_cells[2].text = str(beneficiario.get('comunidad', '-'))
-            row_cells[3].text = str(beneficiario.get('detalles', '-'))
-
+            row_cells[1].text = str(beneficiario.get('tipo_display', beneficiario.get('tipo', '-')))
+            # Obtener comunidad de detalles
+            comunidad_benef = '-'
+            if beneficiario.get('detalles') and isinstance(beneficiario['detalles'], dict):
+                comunidad_benef = beneficiario['detalles'].get('comunidad_nombre', '-')
+            row_cells[2].text = comunidad_benef
+            row_cells[3].text = str(beneficiario.get('info_adicional', '-'))
+    else:
+        doc.add_heading('Beneficiarios', level=2)
+        doc.add_paragraph('No hay beneficiarios registrados para este evento.')
+    
+    # ========== SECCIÓN 4: CAMBIOS/AVANCES (SIN EVIDENCIAS) ==========
+    if evento.get('cambios') and len(evento['cambios']) > 0:
+        doc.add_page_break()
+        doc.add_heading('Cambios y Avances Realizados', level=2)
+        
+        table = doc.add_table(rows=1, cols=4)
+        format_table_word(table)
+        
+        headers = ['Descripción', 'Responsable', 'Comunidad donde se realizó el avance', 'Fecha y Hora']
+        header_cells = table.rows[0].cells
+        for i, header in enumerate(headers):
+            header_cells[i].text = header
+            header_cells[i].paragraphs[0].runs[0].bold = True
+        
+        for cambio in evento['cambios']:
+            row_cells = table.add_row().cells
+            row_cells[0].text = str(cambio.get('descripcion', '-'))
+            row_cells[1].text = str(cambio.get('responsable', cambio.get('responsables_display', '-')))
+            # Obtener comunidades del cambio
+            comunidades_cambio = cambio.get('comunidades', '')
+            if not comunidades_cambio or comunidades_cambio == '':
+                comunidades_cambio = 'No hay dato disponible'
+            row_cells[2].text = str(comunidades_cambio)
+            row_cells[3].text = str(cambio.get('fecha_display', cambio.get('fecha_cambio', '-')))
+    
+    # ========== SECCIÓN 5: EVIDENCIAS (SOLO FOTOS) ==========
+    # Recolectar todas las evidencias de imágenes de los cambios
+    evidencias_imagenes = []
+    if evento.get('cambios'):
+        for cambio in evento['cambios']:
+            if cambio.get('evidencias'):
+                for evidencia in cambio['evidencias']:
+                    # Solo agregar si es imagen
+                    if evidencia.get('es_imagen') or (evidencia.get('tipo') and evidencia.get('tipo', '').startswith('image/')):
+                        evidencias_imagenes.append({
+                            'url': evidencia.get('url', ''),
+                            'nombre': evidencia.get('nombre', ''),
+                            'descripcion': evidencia.get('descripcion', ''),
+                            'cambio_descripcion': cambio.get('descripcion', 'Sin descripción')
+                        })
+    
+    if evidencias_imagenes:
+        doc.add_page_break()
+        doc.add_heading('Evidencias (Fotografías)', level=2)
+        doc.add_paragraph()  # Espacio después del título
+        
+        # Agrupar evidencias: hasta 2 por hoja
+        for i in range(0, len(evidencias_imagenes), 2):
+            # Si no es la primera iteración, agregar salto de página
+            if i > 0:
+                doc.add_page_break()
+            
+            # Primera evidencia
+            if i < len(evidencias_imagenes):
+                evidencia1 = evidencias_imagenes[i]
+                
+                # Título del avance al que pertenece
+                titulo_para1 = doc.add_paragraph()
+                titulo_run1 = titulo_para1.add_run(evidencia1['cambio_descripcion'])
+                titulo_run1.bold = True
+                titulo_run1.font.color.rgb = RGBColor(7, 114, 210)
+                titulo_para1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_paragraph()  # Espacio después del título
+                
+                # Intentar agregar la imagen (5x5 cm = 1.97 inches)
+                try:
+                    url1 = evidencia1['url']
+                    # Normalizar la URL para obtener la ruta del archivo
+                    relative_path1 = url1.strip()
+                    
+                    # Remover prefijos comunes de MEDIA_URL
+                    media_url = getattr(settings, 'MEDIA_URL', '') or ''
+                    posibles_prefijos = [media_url, '/media/', 'media/']
+                    for prefijo in posibles_prefijos:
+                        if prefijo and relative_path1.startswith(prefijo):
+                            relative_path1 = relative_path1[len(prefijo):]
+                            break
+                    
+                    # Limpiar barras iniciales
+                    relative_path1 = relative_path1.lstrip('/')
+                    
+                    # Construir ruta completa del archivo
+                    image_path1 = os.path.join(settings.MEDIA_ROOT, relative_path1)
+                    print(f'📷 Evidencia 1: Intentando cargar desde: {image_path1}')
+                    
+                    image_stream1 = None
+                    if os.path.exists(image_path1):
+                        try:
+                            image_stream1 = open(image_path1, 'rb')
+                            print(f'✅ Evidencia 1: Archivo abierto correctamente')
+                        except Exception as e:
+                            print(f'❌ Evidencia 1: Error al abrir archivo: {e}')
+                            image_stream1 = None
+                    else:
+                        print(f'⚠️ Evidencia 1: Archivo no encontrado en: {image_path1}')
+                    
+                    if image_stream1:
+                        para_img1 = doc.add_paragraph()
+                        para_img1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        run_img1 = para_img1.add_run()
+                        run_img1.add_picture(image_stream1, width=Inches(1.97), height=Inches(1.97))
+                        if hasattr(image_stream1, 'close'):
+                            image_stream1.close()
+                        print(f'✅ Evidencia 1: Imagen agregada al documento')
+                    else:
+                        doc.add_paragraph(f"Imagen: {evidencia1.get('nombre', 'No disponible')}")
+                except Exception as e:
+                    import traceback
+                    print(f'❌ Evidencia 1: Error al cargar imagen: {e}')
+                    traceback.print_exc()
+                    doc.add_paragraph(f"Imagen: {evidencia1.get('nombre', 'No disponible')}")
+                
+                doc.add_paragraph()  # Espacio después de la imagen
+            
+            # Segunda evidencia (si existe)
+            if i + 1 < len(evidencias_imagenes):
+                evidencia2 = evidencias_imagenes[i + 1]
+                
+                # Título del avance al que pertenece
+                titulo_para2 = doc.add_paragraph()
+                titulo_run2 = titulo_para2.add_run(evidencia2['cambio_descripcion'])
+                titulo_run2.bold = True
+                titulo_run2.font.color.rgb = RGBColor(7, 114, 210)
+                titulo_para2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_paragraph()  # Espacio después del título
+                
+                # Intentar agregar la imagen (5x5 cm = 1.97 inches)
+                try:
+                    url2 = evidencia2['url']
+                    # Normalizar la URL para obtener la ruta del archivo
+                    relative_path2 = url2.strip()
+                    
+                    # Remover prefijos comunes de MEDIA_URL
+                    media_url = getattr(settings, 'MEDIA_URL', '') or ''
+                    posibles_prefijos = [media_url, '/media/', 'media/']
+                    for prefijo in posibles_prefijos:
+                        if prefijo and relative_path2.startswith(prefijo):
+                            relative_path2 = relative_path2[len(prefijo):]
+                            break
+                    
+                    # Limpiar barras iniciales
+                    relative_path2 = relative_path2.lstrip('/')
+                    
+                    # Construir ruta completa del archivo
+                    image_path2 = os.path.join(settings.MEDIA_ROOT, relative_path2)
+                    print(f'📷 Evidencia 2: Intentando cargar desde: {image_path2}')
+                    
+                    image_stream2 = None
+                    if os.path.exists(image_path2):
+                        try:
+                            image_stream2 = open(image_path2, 'rb')
+                            print(f'✅ Evidencia 2: Archivo abierto correctamente')
+                        except Exception as e:
+                            print(f'❌ Evidencia 2: Error al abrir archivo: {e}')
+                            image_stream2 = None
+                    else:
+                        print(f'⚠️ Evidencia 2: Archivo no encontrado en: {image_path2}')
+                    
+                    if image_stream2:
+                        para_img2 = doc.add_paragraph()
+                        para_img2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        run_img2 = para_img2.add_run()
+                        run_img2.add_picture(image_stream2, width=Inches(1.97), height=Inches(1.97))
+                        if hasattr(image_stream2, 'close'):
+                            image_stream2.close()
+                        print(f'✅ Evidencia 2: Imagen agregada al documento')
+                    else:
+                        doc.add_paragraph(f"Imagen: {evidencia2.get('nombre', 'No disponible')}")
+                except Exception as e:
+                    import traceback
+                    print(f'❌ Evidencia 2: Error al cargar imagen: {e}')
+                    traceback.print_exc()
+                    doc.add_paragraph(f"Imagen: {evidencia2.get('nombre', 'No disponible')}")
+                
+                doc.add_paragraph()  # Espacio después de la imagen
+    
+    # ========== SECCIÓN 6: GALERÍA DE IMÁGENES (ANEXOS) ==========
+    # Obtener imágenes de la galería del evento (eventos_galeria)
+    galeria_imagenes = []
+    if evento.get('evidencias'):  # evidencias contiene las imágenes de la galería
+        for imagen in evento['evidencias']:
+            # Solo agregar si es imagen
+            if imagen.get('es_imagen') or (imagen.get('tipo') and imagen.get('tipo', '').startswith('image/')):
+                galeria_imagenes.append({
+                    'url': imagen.get('url', ''),
+                    'nombre': imagen.get('nombre', ''),
+                    'descripcion': imagen.get('descripcion', '')
+                })
+    
+    if galeria_imagenes:
+        doc.add_page_break()
+        doc.add_heading('Anexos - Galería de Imágenes', level=2)
+        doc.add_paragraph()  # Espacio
+        
+        # Mostrar 2 imágenes por línea
+        for i in range(0, len(galeria_imagenes), 2):
+            # Crear una tabla de 2 columnas para alinear las imágenes
+            table_galeria = doc.add_table(rows=1, cols=2)
+            table_galeria.alignment = WD_TABLE_ALIGNMENT.CENTER
+            
+            # Primera imagen
+            if i < len(galeria_imagenes):
+                imagen1 = galeria_imagenes[i]
+                cell1 = table_galeria.rows[0].cells[0]
+                para1 = cell1.paragraphs[0]
+                para1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                try:
+                    url1 = imagen1['url']
+                    # Normalizar la URL
+                    relative_path1 = url1.strip()
+                    media_url = getattr(settings, 'MEDIA_URL', '') or ''
+                    posibles_prefijos = [media_url, '/media/', 'media/']
+                    for prefijo in posibles_prefijos:
+                        if prefijo and relative_path1.startswith(prefijo):
+                            relative_path1 = relative_path1[len(prefijo):]
+                            break
+                    relative_path1 = relative_path1.lstrip('/')
+                    image_path1 = os.path.join(settings.MEDIA_ROOT, relative_path1)
+                    
+                    if os.path.exists(image_path1):
+                        image_stream1 = open(image_path1, 'rb')
+                        run1 = para1.add_run()
+                        run1.add_picture(image_stream1, width=Inches(1.97), height=Inches(1.97))  # 5x5 cm
+                        image_stream1.close()
+                except Exception as e:
+                    para1.add_run(f"Imagen: {imagen1.get('nombre', 'No disponible')}")
+                    print(f'⚠️ Error al cargar imagen de galería: {e}')
+            
+            # Segunda imagen (si existe)
+            if i + 1 < len(galeria_imagenes):
+                imagen2 = galeria_imagenes[i + 1]
+                cell2 = table_galeria.rows[0].cells[1]
+                para2 = cell2.paragraphs[0]
+                para2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                
+                try:
+                    url2 = imagen2['url']
+                    # Normalizar la URL
+                    relative_path2 = url2.strip()
+                    media_url = getattr(settings, 'MEDIA_URL', '') or ''
+                    posibles_prefijos = [media_url, '/media/', 'media/']
+                    for prefijo in posibles_prefijos:
+                        if prefijo and relative_path2.startswith(prefijo):
+                            relative_path2 = relative_path2[len(prefijo):]
+                            break
+                    relative_path2 = relative_path2.lstrip('/')
+                    image_path2 = os.path.join(settings.MEDIA_ROOT, relative_path2)
+                    
+                    if os.path.exists(image_path2):
+                        image_stream2 = open(image_path2, 'rb')
+                        run2 = para2.add_run()
+                        run2.add_picture(image_stream2, width=Inches(1.97), height=Inches(1.97))  # 5x5 cm
+                        image_stream2.close()
+                except Exception as e:
+                    para2.add_run(f"Imagen: {imagen2.get('nombre', 'No disponible')}")
+                    print(f'⚠️ Error al cargar imagen de galería: {e}')
+            
+            doc.add_paragraph()  # Espacio entre filas
+    
 
 def generate_word_comunidades(doc, data):
     """Genera contenido Word para reporte de comunidades"""
-    if not data or len(data) == 0:
+    # Manejar caso donde data viene como dict con 'comunidades'
+    if isinstance(data, dict) and 'comunidades' in data:
+        data = data['comunidades']
+    
+    if not data or (isinstance(data, list) and len(data) == 0):
         doc.add_paragraph('No se encontraron datos para este reporte.')
         return
     
+    # Asegurar que data es una lista
+    if not isinstance(data, list):
+        doc.add_paragraph('Error: formato de datos inválido para el reporte de comunidades.')
+        return
+    
     for idx, item in enumerate(data):
-        # Salto de página antes de cada sección (excepto la primera)
+        # Validar que item es un diccionario
+        if not isinstance(item, dict):
+            continue
+        
+        # Salto de página antes de cada comunidad (excepto la primera)
         if idx > 0:
             doc.add_page_break()
         
+        # ========== SECCIÓN 1: INFORMACIÓN GENERAL DE LA COMUNIDAD ==========
+        # Título de la comunidad
         heading = doc.add_heading(f"{item.get('nombre', 'N/A')}", level=2)
         
-        # Información general con mejor formato
+        # Espacio después del título
+        doc.add_paragraph()
+        
+        # Información general con formato mejorado (todos en la misma hoja)
+        # COCODE
+        info_para = doc.add_paragraph()
+        info_para.add_run("COCODE: ").bold = True
+        info_para.add_run(f"{item.get('cocode', '-')}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        # Región
         info_para = doc.add_paragraph()
         info_para.add_run("Región: ").bold = True
         info_para.add_run(f"{item.get('region', '-')}").font.color.rgb = RGBColor(7, 114, 210)
         
+        # Tipo
         info_para = doc.add_paragraph()
-        info_para.add_run("Total de proyectos: ").bold = True
-        info_para.add_run(f"{item.get('total_proyectos', 0)}").font.color.rgb = RGBColor(7, 114, 210)
+        info_para.add_run("Tipo: ").bold = True
+        info_para.add_run(f"{item.get('tipo', '-')}").font.color.rgb = RGBColor(7, 114, 210)
         
+        # Número de Beneficiarios
         info_para = doc.add_paragraph()
-        info_para.add_run("Total de beneficiarios: ").bold = True
-        info_para.add_run(f"{item.get('total_beneficiarios', 0)}").font.color.rgb = RGBColor(7, 114, 210)
-        doc.add_paragraph()
+        info_para.add_run("Número de Beneficiarios: ").bold = True
+        total_beneficiarios = item.get('numero_beneficiarios', item.get('total_beneficiarios', 0))
+        info_para.add_run(f"{total_beneficiarios}").font.color.rgb = RGBColor(7, 114, 210)
         
+        # Número de Proyectos
+        info_para = doc.add_paragraph()
+        info_para.add_run("Número de Proyectos: ").bold = True
+        total_proyectos = item.get('numero_proyectos', item.get('total_proyectos', 0))
+        info_para.add_run(f"{total_proyectos}").font.color.rgb = RGBColor(7, 114, 210)
+        
+        doc.add_paragraph()  # Espacio adicional
+        
+        # ========== SECCIÓN 2: TABLA DE PROYECTOS/EVENTOS ==========
         if item.get('proyectos') and len(item['proyectos']) > 0:
-            # Salto de página antes de los proyectos
-            doc.add_page_break()
-            doc.add_heading('Proyectos', level=3)
+            # Título de la sección de proyectos
+            doc.add_heading('Proyectos/Eventos', level=3)
+            doc.add_paragraph()  # Espacio antes de la tabla
+            
+            # Crear tabla de proyectos
+            table = doc.add_table(rows=1, cols=4)
+            format_table_word(table)
+            
+            # Encabezados
+            headers = ['Nombre', 'Tipo', 'Estado', 'Fecha']
+            header_cells = table.rows[0].cells
+            for i, header in enumerate(headers):
+                header_cells[i].text = header
+                header_cells[i].paragraphs[0].runs[0].bold = True
+            
+            # Agregar filas de proyectos
             for proyecto in item['proyectos']:
-                doc.add_paragraph(f"• {proyecto.get('nombre', '-')} - {format_date(proyecto.get('fecha', '-'))}")
+                if isinstance(proyecto, dict):
+                    row_cells = table.add_row().cells
+                    row_cells[0].text = proyecto.get('nombre', '-')
+                    row_cells[1].text = proyecto.get('tipo', '-')
+                    row_cells[2].text = proyecto.get('estado', '-')
+                    row_cells[3].text = format_date(proyecto.get('fecha', '-'))
+            
+            doc.add_paragraph()  # Espacio después de la tabla
 
 
 def generate_word_actividad_usuarios(doc, data):
@@ -1250,111 +1841,404 @@ def generate_html_beneficiarios_region_comunidad(data):
 
 
 def generate_html_actividad_personal(data):
-    """Genera HTML para actividad de personal"""
+    """Genera HTML para actividad de personal - Una tabla por usuario, una hoja por tabla"""
     html_parts = []
     
     if not data or len(data) == 0:
         return '<p>No se encontraron datos para este reporte.</p>'
     
     for idx, item in enumerate(data):
+        # Salto de página antes de cada usuario (excepto el primero)
         class_attr = ' class="section-break"' if idx > 0 else ''
-        html_parts.append(f'<h2{class_attr}>{item.get("colaborador", "N/A")}</h2>')
-        html_parts.append(f'<div class="metric-box">')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de actividades:</span> <strong style="color: #0772d2;">{item.get("total_actividades", 0)}</strong></p>')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de beneficiarios:</span> <strong style="color: #0772d2;">{item.get("total_beneficiarios", 0)}</strong></p>')
-        html_parts.append(f'</div>')
         
-        if item.get('actividades') and len(item['actividades']) > 0:
-            html_parts.append('<h3>Actividades</h3>')
+        # Agregar espacio arriba para que los datos empiecen más abajo
+        html_parts.append('<div style="margin-top: 2cm;"></div>')
+        
+        html_parts.append(f'<h2{class_attr}>{item.get("nombre", "N/A")}</h2>')
+        
+        # Información general del usuario (fuera de la tabla, bien espaciada)
+        html_parts.append('<div class="metric-box">')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Puesto:</span> <strong style="color: #0772d2;">{item.get("puesto", "-")}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Teléfono:</span> <strong>{item.get("telefono", "-")}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de Eventos:</span> <strong style="color: #0772d2;">{item.get("total_eventos", 0)}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de Avances:</span> <strong style="color: #0772d2;">{item.get("total_avances", 0)}</strong></p>')
+        html_parts.append('</div>')
+        
+        # Crear tabla unificada con todos los eventos
+        if item.get('eventos') and len(item['eventos']) > 0:
+            # Título predefinido de la tabla
+            html_parts.append('<h3 style="text-align: center; color: #0772d2; margin-top: 0.5cm; margin-bottom: 0.3cm;">Tabla de Avances Realizados en Proyectos</h3>')
+            
             html_parts.append('<table>')
-            html_parts.append('<thead><tr><th>Nombre</th><th>Fecha</th><th>Estado</th><th>Tipo</th><th>Comunidad</th><th>Beneficiarios</th></tr></thead>')
+            html_parts.append('<thead><tr><th>Evento</th><th>Estado</th><th>Tipo</th><th>Comunidad</th><th>Tipo Comunidad</th><th>Total Avances</th><th>Fecha Último Avance</th></tr></thead>')
             html_parts.append('<tbody>')
             
-            for actividad in item['actividades']:
+            for evento in item['eventos']:
                 html_parts.append('<tr>')
-                html_parts.append(f'<td>{actividad.get("nombre", "-")}</td>')
-                html_parts.append(f'<td>{format_date(actividad.get("fecha", "-"))}</td>')
-                html_parts.append(f'<td>{actividad.get("estado", "-")}</td>')
-                html_parts.append(f'<td>{actividad.get("tipo_actividad", "-")}</td>')
-                html_parts.append(f'<td>{actividad.get("comunidad", "-")}</td>')
-                html_parts.append(f'<td>{actividad.get("total_beneficiarios", 0)}</td>')
+                html_parts.append(f'<td>{evento.get("nombre", "-")}</td>')
+                html_parts.append(f'<td>{evento.get("estado", "-")}</td>')
+                html_parts.append(f'<td>{evento.get("tipo", "-")}</td>')
+                html_parts.append(f'<td>{evento.get("comunidad", "-")}</td>')
+                html_parts.append(f'<td>{evento.get("tipo_comunidad", "-")}</td>')
+                html_parts.append(f'<td>{evento.get("total_avances", 0)}</td>')
+                html_parts.append(f'<td>{evento.get("fecha_ultimo_avance", "-")}</td>')
                 html_parts.append('</tr>')
             
             html_parts.append('</tbody></table>')
+        else:
+            html_parts.append('<p>Este colaborador no tiene eventos registrados.</p>')
     
     return '\n'.join(html_parts)
 
 
 def generate_html_avances_eventos(data):
-    """Genera HTML para avances de eventos"""
+    """Genera HTML para avances de eventos - Una hoja por evento, tabla de avances, evidencias en hoja separada"""
     html_parts = []
     
     if not data or len(data) == 0:
         return '<p>No se encontraron datos para este reporte.</p>'
     
-    for idx, item in enumerate(data):
+    # Agrupar avances por evento
+    eventos_agrupados = {}
+    for item in data:
+        evento_id = item.get('evento_id', 'sin_evento')
+        if evento_id not in eventos_agrupados:
+            eventos_agrupados[evento_id] = {
+                'evento': item.get('evento', {}),
+                'comunidad': item.get('comunidad', '-'),
+                'avances': []
+            }
+        eventos_agrupados[evento_id]['avances'].append(item)
+    
+    # Procesar cada evento
+    for idx, (evento_id, evento_data) in enumerate(eventos_agrupados.items()):
+        # Salto de página antes de cada evento (excepto el primero)
         class_attr = ' class="section-break"' if idx > 0 else ''
-        html_parts.append(f'<h2{class_attr}>Evento: {item.get("evento_nombre", "N/A")}</h2>')
-        html_parts.append(f'<div class="metric-box">')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Fecha del evento:</span> <strong>{format_date(item.get("fecha_evento", "-"))}</strong></p>')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de avances:</span> <strong style="color: #0772d2;">{item.get("total_avances", 0)}</strong></p>')
-        html_parts.append(f'</div>')
         
-        if item.get('avances') and len(item['avances']) > 0:
-            html_parts.append('<h3>Avances</h3>')
-            for avance in item['avances']:
-                html_parts.append('<div class="metric-box">')
-                html_parts.append(f'<p style="margin: 0.2cm 0;"><strong>Fecha:</strong> {format_date(avance.get("fecha", "-"))}</p>')
-                html_parts.append(f'<p style="margin: 0.2cm 0;"><strong>Descripción:</strong> {avance.get("descripcion", "-")}</p>')
+        # Agregar espacio arriba
+        html_parts.append('<div style="margin-top: 2cm;"></div>')
+        
+        # Información general del evento (fuera de la tabla, bien espaciada)
+        evento_info = evento_data['evento']
+        html_parts.append(f'<h2{class_attr}>{evento_info.get("nombre", "N/A")}</h2>')
+        
+        html_parts.append('<div class="metric-box">')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Estado:</span> <strong>{evento_info.get("estado", "-")}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Tipo:</span> <strong style="color: #0772d2;">{evento_info.get("tipo", "-")}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Comunidad:</span> <strong>{evento_data.get("comunidad", "-")}</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de Avances:</span> <strong style="color: #0772d2;">{len(evento_data["avances"])}</strong></p>')
+        html_parts.append('</div>')
+        
+        # Título predefinido de la tabla
+        html_parts.append('<h3 style="text-align: center; color: #0772d2; margin-top: 0.5cm; margin-bottom: 0.3cm;">Tabla de Avances Realizados</h3>')
+        
+        # Crear tabla unificada con todos los avances
+        if evento_data['avances'] and len(evento_data['avances']) > 0:
+            html_parts.append('<table>')
+            html_parts.append('<thead><tr><th>Descripción</th><th>Responsable</th><th>Fecha y Hora</th><th>Comunidad donde se realizó el avance</th></tr></thead>')
+            html_parts.append('<tbody>')
+            
+            evidencias_imagenes = []  # Para almacenar evidencias de imágenes por separado
+            
+            for avance in evento_data['avances']:
+                html_parts.append('<tr>')
+                html_parts.append(f'<td>{avance.get("descripcion_cambio", "-")}</td>')
+                html_parts.append(f'<td>{avance.get("colaborador_nombre", "-")}</td>')
+                html_parts.append(f'<td>{avance.get("fecha_display", avance.get("fecha_cambio", "-"))}</td>')
+                html_parts.append(f'<td>{avance.get("comunidad_avance", "No se registró una comunidad para este avance")}</td>')
+                html_parts.append('</tr>')
+                
+                # Recolectar evidencias de imágenes para hoja separada
                 if avance.get('evidencias'):
-                    html_parts.append(f'<p style="margin: 0.2cm 0;"><strong>Evidencias:</strong> {", ".join(avance.get("evidencias", []))}</p>')
+                    for evidencia in avance['evidencias']:
+                        if evidencia.get('es_imagen'):
+                            evidencias_imagenes.append({
+                                'titulo': avance.get('descripcion_cambio', 'Sin título'),
+                                'url': evidencia.get('url', ''),
+                                'nombre': evidencia.get('nombre', ''),
+                                'descripcion': evidencia.get('descripcion', '')
+                            })
+            
+            html_parts.append('</tbody></table>')
+            
+            # Si hay evidencias de imágenes, crear hoja separada
+            if evidencias_imagenes:
+                html_parts.append('<div class="section-break"><h2>Evidencias</h2>')
+                
+                for evidencia in evidencias_imagenes:
+                    # Título del avance
+                    html_parts.append(f'<h3 style="text-align: center; color: #0772d2; margin-top: 0.5cm; margin-bottom: 0.3cm;">{evidencia["titulo"]}</h3>')
+                    
+                    # Intentar mostrar la imagen (5x5 cm)
+                    try:
+                        url = evidencia['url']
+                        # Si es una ruta local, construir la URL completa para el navegador
+                        if not url.startswith('http'):
+                            if url.startswith('/'):
+                                url = f"{settings.MEDIA_URL.rstrip('/')}{url}"
+                            else:
+                                url = f"{settings.MEDIA_URL.rstrip('/')}/{url}"
+                        
+                        html_parts.append(f'<div style="text-align: center; margin: 0.5cm 0;">')
+                        html_parts.append(f'<img src="{url}" alt="{evidencia.get("nombre", "")}" style="width: 5cm; height: 5cm; object-fit: contain; border: 1px solid #ddd;">')
+                        html_parts.append('</div>')
+                    except Exception as e:
+                        # Si no se puede cargar la imagen, mostrar el nombre del archivo
+                        html_parts.append(f'<p>Imagen: {evidencia.get("nombre", "No disponible")}</p>')
+                    
+                    html_parts.append('<div style="page-break-after: always;"></div>')  # Salto de página entre imágenes
+                
                 html_parts.append('</div>')
+            
+            # Agregar evidencias no-imagen en una sección separada
+            evidencias_no_imagen = []
+            for avance in evento_data['avances']:
+                if avance.get('evidencias'):
+                    for evidencia in avance['evidencias']:
+                        if not evidencia.get('es_imagen'):
+                            evidencias_no_imagen.append({
+                                'avance': avance.get('descripcion_cambio', 'Sin título'),
+                                'nombre': evidencia.get('nombre', ''),
+                                'url': evidencia.get('url', '')
+                            })
+            
+            if evidencias_no_imagen:
+                if evidencias_imagenes:
+                    html_parts.append('<div class="section-break">')
+                html_parts.append('<h2>Evidencias (Archivos)</h2>')
+                
+                for evidencia in evidencias_no_imagen:
+                    html_parts.append(f'<p><strong>Avance:</strong> {evidencia["avance"]}</p>')
+                    html_parts.append(f'<p><strong>Archivo:</strong> {evidencia["nombre"]}</p>')
+                    html_parts.append('<p></p>')
+                
+                if evidencias_imagenes:
+                    html_parts.append('</div>')
+        else:
+            html_parts.append('<p>Este evento no tiene avances registrados.</p>')
     
     return '\n'.join(html_parts)
 
 
 def generate_html_evento_individual(data):
-    """Genera HTML para evento individual"""
+    """Genera HTML para evento individual - Estructura completa con secciones"""
+    print(f'🔵 generate_html_evento_individual llamado con data: {type(data)}')
+    print(f'🔵 Keys en data: {list(data.keys()) if isinstance(data, dict) else "No es dict"}')
+    
     html_parts = []
     
     if not data:
         return '<p>No se encontraron datos para este reporte.</p>'
     
-    html_parts.append('<h2>Información del Evento</h2>')
+    evento = data.get('evento', data)  # Puede venir como data.evento o directamente como data
+    print(f'🔵 Evento extraído. Keys: {list(evento.keys()) if isinstance(evento, dict) else "No es dict"}')
+    
+    # ========== SECCIÓN 1: TÍTULO, FOTO DE PORTADA Y DATOS GENERALES EN LA MISMA HOJA ==========
+    # Título del reporte
+    html_parts.append('<h1 style="text-align: center; color: #0772d2; margin-bottom: 0.3cm;">Reporte de Evento Individual</h1>')
+    html_parts.append(f'<p style="text-align: right; font-size: 9pt; color: #666; margin-bottom: 0.5cm;">Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}</p>')
+    
+    # FOTO DE PORTADA (en la misma hoja)
+    if evento.get('portada') and evento['portada'].get('url'):
+        portada_url = evento['portada']['url']
+        # Construir URL completa si es relativa
+        if not portada_url.startswith('http'):
+            if portada_url.startswith('/'):
+                portada_url = f"{settings.MEDIA_URL.rstrip('/')}{portada_url}"
+            else:
+                portada_url = f"{settings.MEDIA_URL.rstrip('/')}/{portada_url}"
+        
+        html_parts.append('<div style="text-align: center; margin-bottom: 1cm;">')
+        html_parts.append(f'<img src="{portada_url}" alt="Portada del evento" style="width: 100%; max-width: 15cm; height: 7.5cm; object-fit: cover; border-radius: 4px;">')
+        html_parts.append('</div>')
+    
+    # DATOS GENERALES Y DESCRIPCIÓN (en la misma hoja, sin section-break)
+    html_parts.append('<h2>Información General del Proyecto</h2>')
     html_parts.append('<div class="metric-box">')
-    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Nombre:</span> <strong>{data.get("nombre", "-")}</strong></p>')
-    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Tipo:</span> <strong>{data.get("tipo", "-")}</strong></p>')
-    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Fecha:</span> <strong>{format_date(data.get("fecha", "-"))}</strong></p>')
-    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Estado:</span> <strong>{data.get("estado", "-")}</strong></p>')
-    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Comunidad:</span> <strong>{data.get("comunidad", "-")}</strong></p>')
-    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Responsable:</span> <strong>{data.get("responsable", "-")}</strong></p>')
+    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Nombre:</span> <strong style="color: #0772d2;">{evento.get("nombre", "-")}</strong></p>')
+    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Tipo:</span> <strong style="color: #0772d2;">{evento.get("tipo", "-")}</strong></p>')
+    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Estado:</span> <strong>{evento.get("estado", "-")}</strong></p>')
+    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Fecha:</span> <strong>{format_date(evento.get("fecha", evento.get("fecha_display", "-")))}</strong></p>')
+    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Ubicación:</span> <strong>{evento.get("ubicacion", evento.get("comunidad", "-"))}</strong></p>')
+    html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Responsable:</span> <strong>{evento.get("responsable", "-")}</strong></p>')
+    
+    # Descripción
+    if evento.get('descripcion'):
+        html_parts.append('<p style="margin-top: 0.5cm; margin-bottom: 0.25cm;"><strong>Descripción:</strong></p>')
+        html_parts.append(f'<p style="margin: 0.25cm 0; line-height: 1.6;">{evento.get("descripcion", "-")}</p>')
+    
+    html_parts.append('</div>')
     html_parts.append('</div>')
     
-    if data.get('avances') and len(data['avances']) > 0:
-        html_parts.append('<h2>Avances</h2>')
-        for avance in data['avances']:
-            html_parts.append('<div class="metric-box">')
-            html_parts.append(f'<p style="margin: 0.2cm 0;"><strong>Fecha:</strong> {format_date(avance.get("fecha", "-"))}</p>')
-            html_parts.append(f'<p style="margin: 0.2cm 0;"><strong>Descripción:</strong> {avance.get("descripcion", "-")}</p>')
-            if avance.get('evidencias'):
-                html_parts.append(f'<p style="margin: 0.2cm 0;"><strong>Evidencias:</strong> {", ".join(avance.get("evidencias", []))}</p>')
-            html_parts.append('</div>')
+    # ========== SECCIÓN 3: PERSONAL ASIGNADO Y BENEFICIARIOS ==========
+    html_parts.append('<div class="section-break">')
     
-    if data.get('beneficiarios') and len(data['beneficiarios']) > 0:
+    # Personal asignado
+    if evento.get('personal') and len(evento['personal']) > 0:
+        html_parts.append('<h2>Personal Asignado</h2>')
+        for persona in evento['personal']:
+            html_parts.append('<p style="margin: 0.25cm 0;">')
+            html_parts.append(f'• {persona.get("nombre", persona.get("username", "-"))}')
+            if persona.get('puesto'):
+                html_parts.append(f' - {persona.get("puesto", "")}')
+            html_parts.append('</p>')
+    else:
+        html_parts.append('<h2>Personal Asignado</h2>')
+        html_parts.append('<p>No hay personal asignado a este evento.</p>')
+    
+    html_parts.append('<p></p>')  # Espacio
+    
+    # Tabla de beneficiarios (en la misma hoja)
+    if evento.get('beneficiarios') and len(evento['beneficiarios']) > 0:
         html_parts.append('<h2>Beneficiarios</h2>')
         html_parts.append('<table>')
-        html_parts.append('<thead><tr><th>Nombre</th><th>Tipo</th><th>Comunidad</th><th>Detalles</th></tr></thead>')
+        html_parts.append('<thead><tr><th>Nombre</th><th>Tipo</th><th>Comunidad</th><th>Información Adicional</th></tr></thead>')
         html_parts.append('<tbody>')
         
-        for beneficiario in data['beneficiarios']:
+        for beneficiario in evento['beneficiarios']:
             html_parts.append('<tr>')
             html_parts.append(f'<td>{beneficiario.get("nombre", "-")}</td>')
-            html_parts.append(f'<td>{beneficiario.get("tipo", "-")}</td>')
-            html_parts.append(f'<td>{beneficiario.get("comunidad", "-")}</td>')
-            html_parts.append(f'<td>{beneficiario.get("detalles", "-")}</td>')
+            html_parts.append(f'<td>{beneficiario.get("tipo_display", beneficiario.get("tipo", "-"))}</td>')
+            # Obtener comunidad de detalles
+            comunidad_benef = '-'
+            if beneficiario.get('detalles') and isinstance(beneficiario['detalles'], dict):
+                comunidad_benef = beneficiario['detalles'].get('comunidad_nombre', '-')
+            html_parts.append(f'<td>{comunidad_benef}</td>')
+            html_parts.append(f'<td>{beneficiario.get("info_adicional", "-")}</td>')
             html_parts.append('</tr>')
         
         html_parts.append('</tbody></table>')
+    else:
+        html_parts.append('<h2>Beneficiarios</h2>')
+        html_parts.append('<p>No hay beneficiarios registrados para este evento.</p>')
+    
+    html_parts.append('</div>')
+    
+    # ========== SECCIÓN 4: CAMBIOS/AVANCES (SIN EVIDENCIAS) ==========
+    if evento.get('cambios') and len(evento['cambios']) > 0:
+        html_parts.append('<div class="section-break">')
+        html_parts.append('<h2>Cambios y Avances Realizados</h2>')
+        html_parts.append('<table>')
+        html_parts.append('<thead><tr><th>Descripción</th><th>Responsable</th><th>Comunidad donde se realizó el avance</th><th>Fecha y Hora</th></tr></thead>')
+        html_parts.append('<tbody>')
+        
+        for cambio in evento['cambios']:
+            html_parts.append('<tr>')
+            html_parts.append(f'<td>{cambio.get("descripcion", "-")}</td>')
+            html_parts.append(f'<td>{cambio.get("responsable", cambio.get("responsables_display", "-"))}</td>')
+            # Obtener comunidades del cambio
+            comunidades_cambio = cambio.get('comunidades', '')
+            if not comunidades_cambio or comunidades_cambio == '':
+                comunidades_cambio = 'No hay dato disponible'
+            html_parts.append(f'<td>{comunidades_cambio}</td>')
+            html_parts.append(f'<td>{cambio.get("fecha_display", cambio.get("fecha_cambio", "-"))}</td>')
+            html_parts.append('</tr>')
+        
+        html_parts.append('</tbody></table>')
+        html_parts.append('</div>')
+    
+    # ========== SECCIÓN 5: EVIDENCIAS (SOLO FOTOS) ==========
+    # Recolectar todas las evidencias de imágenes de los cambios
+    evidencias_imagenes = []
+    if evento.get('cambios'):
+        for cambio in evento['cambios']:
+            if cambio.get('evidencias'):
+                for evidencia in cambio['evidencias']:
+                    # Solo agregar si es imagen
+                    if evidencia.get('es_imagen') or (evidencia.get('tipo') and evidencia.get('tipo', '').startswith('image/')):
+                        evidencias_imagenes.append({
+                            'url': evidencia.get('url', ''),
+                            'nombre': evidencia.get('nombre', ''),
+                            'descripcion': evidencia.get('descripcion', ''),
+                            'cambio_descripcion': cambio.get('descripcion', 'Sin descripción')
+                        })
+    
+    if evidencias_imagenes:
+        html_parts.append('<div class="section-break">')
+        html_parts.append('<h2>Evidencias (Fotografías)</h2>')
+        
+        # Agrupar evidencias: hasta 2 por hoja
+        for i in range(0, len(evidencias_imagenes), 2):
+            # Si no es la primera iteración, agregar salto de página
+            if i > 0:
+                html_parts.append('<div class="section-break"></div>')
+            
+            # Primera evidencia
+            if i < len(evidencias_imagenes):
+                evidencia1 = evidencias_imagenes[i]
+                
+                # Título del avance al que pertenece
+                html_parts.append(f'<h3 style="text-align: center; color: #0772d2; margin-top: 0.5cm; margin-bottom: 0.3cm;">{evidencia1["cambio_descripcion"]}</h3>')
+                
+                # Intentar mostrar la imagen (5x5 cm)
+                url1 = evidencia1['url']
+                if not url1.startswith('http'):
+                    if url1.startswith('/'):
+                        url1 = f"{settings.MEDIA_URL.rstrip('/')}{url1}"
+                    else:
+                        url1 = f"{settings.MEDIA_URL.rstrip('/')}/{url1}"
+                
+                html_parts.append(f'<div style="text-align: center; margin: 0.5cm 0;">')
+                html_parts.append(f'<img src="{url1}" alt="{evidencia1.get("nombre", "")}" style="width: 5cm; height: 5cm; object-fit: contain; border: 1px solid #ddd;">')
+                html_parts.append('</div>')
+                html_parts.append('<p></p>')  # Espacio después de la imagen
+            
+            # Segunda evidencia (si existe)
+            if i + 1 < len(evidencias_imagenes):
+                evidencia2 = evidencias_imagenes[i + 1]
+                
+                # Título del avance al que pertenece
+                html_parts.append(f'<h3 style="text-align: center; color: #0772d2; margin-top: 0.5cm; margin-bottom: 0.3cm;">{evidencia2["cambio_descripcion"]}</h3>')
+                
+                # Intentar mostrar la imagen (5x5 cm)
+                url2 = evidencia2['url']
+                if not url2.startswith('http'):
+                    if url2.startswith('/'):
+                        url2 = f"{settings.MEDIA_URL.rstrip('/')}{url2}"
+                    else:
+                        url2 = f"{settings.MEDIA_URL.rstrip('/')}/{url2}"
+                
+                html_parts.append(f'<div style="text-align: center; margin: 0.5cm 0;">')
+                html_parts.append(f'<img src="{url2}" alt="{evidencia2.get("nombre", "")}" style="width: 5cm; height: 5cm; object-fit: contain; border: 1px solid #ddd;">')
+                html_parts.append('</div>')
+                html_parts.append('<p></p>')  # Espacio después de la imagen
+        
+        html_parts.append('</div>')
+    
+    # ========== SECCIÓN 6: GALERÍA DE IMÁGENES (ANEXOS) ==========
+    # Obtener imágenes de la galería del evento (eventos_galeria)
+    galeria_imagenes = []
+    if evento.get('evidencias'):  # evidencias contiene las imágenes de la galería
+        for imagen in evento['evidencias']:
+            # Solo agregar si es imagen
+            if imagen.get('es_imagen') or (imagen.get('tipo') and imagen.get('tipo', '').startswith('image/')):
+                galeria_imagenes.append({
+                    'url': imagen.get('url', ''),
+                    'nombre': imagen.get('nombre', ''),
+                    'descripcion': imagen.get('descripcion', '')
+                })
+    
+    if galeria_imagenes:
+        html_parts.append('<div class="section-break">')
+        html_parts.append('<h2>Anexos - Galería de Imágenes</h2>')
+        html_parts.append('<div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 1cm;">')
+        
+        for imagen in galeria_imagenes:
+            url = imagen['url']
+            if not url.startswith('http'):
+                if url.startswith('/'):
+                    url = f"{settings.MEDIA_URL.rstrip('/')}{url}"
+                else:
+                    url = f"{settings.MEDIA_URL.rstrip('/')}/{url}"
+            
+            html_parts.append('<div style="text-align: center;">')
+            html_parts.append(f'<img src="{url}" alt="{imagen.get("nombre", "")}" style="width: 5cm; height: 5cm; object-fit: contain; border: 1px solid #ddd; margin: 0.2cm;">')
+            if imagen.get('descripcion'):
+                html_parts.append(f'<p style="font-size: 8pt; color: #666; margin-top: 0.2cm;">{imagen.get("descripcion", "")}</p>')
+            html_parts.append('</div>')
+        
+        html_parts.append('</div>')
+        html_parts.append('</div>')
     
     return '\n'.join(html_parts)
 
@@ -1363,24 +2247,68 @@ def generate_html_comunidades(data):
     """Genera HTML para reporte de comunidades"""
     html_parts = []
     
-    if not data or len(data) == 0:
+    # Manejar caso donde data viene como dict con 'comunidades'
+    if isinstance(data, dict) and 'comunidades' in data:
+        data = data['comunidades']
+    
+    if not data or (isinstance(data, list) and len(data) == 0):
         return '<p>No se encontraron datos para este reporte.</p>'
     
+    # Asegurar que data es una lista
+    if not isinstance(data, list):
+        return '<p>Error: formato de datos inválido para el reporte de comunidades.</p>'
+    
     for idx, item in enumerate(data):
-        class_attr = ' class="section-break"' if idx > 0 else ''
-        html_parts.append(f'<h2{class_attr}>{item.get("nombre", "N/A")}</h2>')
-        html_parts.append(f'<div class="metric-box">')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Región:</span> <strong>{item.get("region", "-")}</strong></p>')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de proyectos:</span> <strong style="color: #0772d2;">{item.get("total_proyectos", 0)}</strong></p>')
-        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Total de beneficiarios:</span> <strong style="color: #0772d2;">{item.get("total_beneficiarios", 0)}</strong></p>')
-        html_parts.append(f'</div>')
+        # Validar que item es un diccionario
+        if not isinstance(item, dict):
+            continue
         
+        # Salto de página antes de cada comunidad (excepto la primera)
+        class_attr = ' class="section-break"' if idx > 0 else ''
+        
+        # ========== SECCIÓN 1: INFORMACIÓN GENERAL DE LA COMUNIDAD ==========
+        # Título de la comunidad
+        html_parts.append(f'<h2{class_attr}>{item.get("nombre", "N/A")}</h2>')
+        
+        # Información general con formato mejorado (todos en la misma hoja)
+        html_parts.append('<div class="metric-box">')
+        # COCODE
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">COCODE:</span> <strong style="color: #0772d2;">{item.get("cocode", "-")}</strong></p>')
+        # Región
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Región:</span> <strong style="color: #0772d2;">{item.get("region", "-")}</strong></p>')
+        # Tipo
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Tipo:</span> <strong style="color: #0772d2;">{item.get("tipo", "-")}</strong></p>')
+        # Número de Beneficiarios
+        total_beneficiarios = item.get('numero_beneficiarios', item.get('total_beneficiarios', 0))
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Número de Beneficiarios:</span> <strong style="color: #0772d2;">{total_beneficiarios}</strong></p>')
+        # Número de Proyectos
+        total_proyectos = item.get('numero_proyectos', item.get('total_proyectos', 0))
+        html_parts.append(f'<p style="margin: 0.25cm 0;"><span class="metric-label">Número de Proyectos:</span> <strong style="color: #0772d2;">{total_proyectos}</strong></p>')
+        html_parts.append('</div>')
+        
+        # ========== SECCIÓN 2: TABLA DE PROYECTOS/EVENTOS ==========
         if item.get('proyectos') and len(item['proyectos']) > 0:
-            html_parts.append('<h3>Proyectos</h3>')
-            html_parts.append('<ul>')
+            html_parts.append('<h3>Proyectos/Eventos</h3>')
+            html_parts.append('<table style="width: 100%; border-collapse: collapse; margin: 0.5cm 0; border: 1px solid #000;">')
+            html_parts.append('<thead><tr>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Nombre</th>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Tipo</th>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Estado</th>')
+            html_parts.append('<th style="border: 1px solid #000; padding: 8px; background-color: #f0f0f0; text-align: left;">Fecha</th>')
+            html_parts.append('</tr></thead>')
+            html_parts.append('<tbody>')
+            
             for proyecto in item['proyectos']:
-                html_parts.append(f'<li>{proyecto.get("nombre", "-")} - {format_date(proyecto.get("fecha", "-"))}</li>')
-            html_parts.append('</ul>')
+                if isinstance(proyecto, dict):
+                    html_parts.append('<tr>')
+                    html_parts.append(f'<td style="border: 1px solid #000; padding: 8px;">{proyecto.get("nombre", "-")}</td>')
+                    html_parts.append(f'<td style="border: 1px solid #000; padding: 8px;">{proyecto.get("tipo", "-")}</td>')
+                    html_parts.append(f'<td style="border: 1px solid #000; padding: 8px;">{proyecto.get("estado", "-")}</td>')
+                    html_parts.append(f'<td style="border: 1px solid #000; padding: 8px;">{format_date(proyecto.get("fecha", "-"))}</td>')
+                    html_parts.append('</tr>')
+            
+            html_parts.append('</tbody>')
+            html_parts.append('</table>')
     
     return '\n'.join(html_parts)
 
