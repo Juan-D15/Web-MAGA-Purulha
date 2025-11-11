@@ -2593,6 +2593,8 @@ def api_actualizar_evento(request, evento_id):
                     str(com.id): com for com in Comunidad.objects.filter(id__in=comunidades_ids).select_related('region')
                 }
 
+                nuevas_ids = set()
+
                 for item in comunidades_a_registrar:
                     comunidad_id = item.get('comunidad_id')
                     if not comunidad_id:
@@ -2606,11 +2608,25 @@ def api_actualizar_evento(request, evento_id):
                     if not region_id and comunidad_obj.region_id:
                         region_id = comunidad_obj.region_id
 
-                    ActividadComunidad.objects.get_or_create(
+                    nuevas_ids.add(str(comunidad_obj.id))
+
+                    relacion, creada = ActividadComunidad.objects.get_or_create(
                         actividad=evento,
                         comunidad=comunidad_obj,
                         defaults={'region_id': region_id}
                     )
+
+                    if not creada:
+                        if region_id and relacion.region_id != region_id:
+                            relacion.region_id = region_id
+                            relacion.save(update_fields=['region_id'])
+
+                ids_a_eliminar = comunidades_existentes_ids - nuevas_ids
+                if ids_a_eliminar:
+                    ActividadComunidad.objects.filter(
+                        actividad=evento,
+                        comunidad_id__in=ids_a_eliminar
+                    ).delete()
 
             tarjetas_creadas = []
             if data.get('tarjetas_datos_nuevas'):
