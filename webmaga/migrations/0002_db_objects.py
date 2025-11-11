@@ -1,0 +1,2582 @@
+# webmaga/migrations/0002_db_objects.py
+from django.db import migrations
+
+SQL = """
+-- =====================================================
+-- SCRIPT CONSOLIDADO: SISTEMA DE GESTIÓN MAGA PURULHÁ
+-- Versión: 3.0 - Consolidado con Cambios y Procedimientos
+-- Incluye: BD Completa + Cambios Aplicados + CRUD SPs + Auditoría
+-- =====================================================
+
+-- =====================================================
+-- PASO 1: EXTENSIONES Y CONFIGURACIÓN INICIAL
+-- =====================================================
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Establecer la zona horaria para Guatemala
+SET timezone TO 'America/Guatemala';
+
+-- =====================================================
+-- PASO 2: CATÁLOGOS BÁSICOS
+-- =====================================================
+
+-- TABLA: TIPOS DE COMUNIDAD
+CREATE TABLE IF NOT EXISTS tipos_comunidad (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(50) NOT NULL CHECK (nombre IN ('barrio', 'caserío', 'aldea', 'municipio')),
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO tipos_comunidad (codigo, nombre) VALUES 
+    ('BAR', 'barrio'),
+    ('CAS', 'caserío'),
+    ('ALD', 'aldea'),
+    ('MUN', 'municipio') ON CONFLICT DO NOTHING;
+
+-- TABLA: TIPOS DE BENEFICIARIO
+CREATE TABLE IF NOT EXISTS tipos_beneficiario (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(50) NOT NULL CHECK (nombre IN ('individual', 'familia', 'institución')),
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO tipos_beneficiario (codigo, nombre) VALUES 
+    ('IND', 'individual'),
+    ('FAM', 'familia'),
+    ('INST', 'institución') ON CONFLICT DO NOTHING;
+
+-- TABLA: TIPOS DE ACTIVIDAD
+CREATE TABLE IF NOT EXISTS tipos_actividad (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre VARCHAR(100) UNIQUE NOT NULL,
+    descripcion TEXT,
+    activo BOOLEAN DEFAULT TRUE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO tipos_actividad (nombre, descripcion) VALUES 
+    ('Capacitación', 'Eventos de capacitación y formación'),
+    ('Entrega', 'Entregas de insumos, materiales o recursos'),
+    ('Proyecto de Ayuda', 'Proyectos de asistencia y desarrollo comunitario') ON CONFLICT DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS idx_tipos_actividad_activo ON tipos_actividad(activo);
+
+-- TABLA: PUESTOS
+CREATE TABLE IF NOT EXISTS puestos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    activo BOOLEAN DEFAULT TRUE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_puestos_activo ON puestos(activo);
+CREATE INDEX IF NOT EXISTS idx_puestos_codigo ON puestos(codigo);
+
+COMMENT ON TABLE puestos IS 'Catálogo de puestos para personal de la organización';
+
+-- =====================================================
+-- PASO 3: ESTRUCTURA GEOGRÁFICA
+-- =====================================================
+
+-- TABLA: REGIONES
+CREATE TABLE IF NOT EXISTS regiones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    comunidad_sede VARCHAR(100),
+    poblacion_aprox INT,
+    latitud DECIMAL(10, 8),
+    longitud DECIMAL(11, 8),
+    version INTEGER DEFAULT 1,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_regiones_codigo ON regiones(codigo);
+
+-- TABLA: COMUNIDADES
+CREATE TABLE IF NOT EXISTS comunidades (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    tipo_id UUID REFERENCES tipos_comunidad(id) ON DELETE RESTRICT,
+    region_id UUID REFERENCES regiones(id) ON DELETE SET NULL,
+    descripcion TEXT,
+    poblacion INT,
+    latitud DECIMAL(10, 8),
+    longitud DECIMAL(11, 8),
+    cocode VARCHAR(100),
+    telefono_cocode VARCHAR(20),
+    activo BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 1,
+    ultimo_sync TIMESTAMPTZ,
+    modificado_offline BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_comunidades_codigo ON comunidades(codigo);
+CREATE INDEX IF NOT EXISTS idx_comunidades_tipo ON comunidades(tipo_id);
+CREATE INDEX IF NOT EXISTS idx_comunidades_region ON comunidades(region_id);
+CREATE INDEX IF NOT EXISTS idx_comunidades_activo ON comunidades(activo);
+CREATE INDEX IF NOT EXISTS idx_comunidades_sync ON comunidades(ultimo_sync, actualizado_en) WHERE modificado_offline = TRUE;
+
+-- TABLA: AUTORIDADES DE COMUNIDAD
+CREATE TABLE IF NOT EXISTS comunidad_autoridades (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    comunidad_id UUID REFERENCES comunidades(id) ON DELETE CASCADE,
+    rol VARCHAR(50) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    telefono VARCHAR(20),
+    activo BOOLEAN DEFAULT TRUE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_autoridades_comunidad ON comunidad_autoridades(comunidad_id);
+
+-- =====================================================
+-- PASO 4: USUARIOS Y SEGURIDAD
+-- =====================================================
+
+-- TABLA: USUARIOS
+CREATE TABLE IF NOT EXISTS usuarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    nombre VARCHAR(150),
+    email VARCHAR(100) UNIQUE NOT NULL,
+    telefono VARCHAR(20),
+    password_hash TEXT NOT NULL,
+    rol VARCHAR(50) NOT NULL CHECK (rol IN ('admin', 'personal')),
+    puesto_id UUID REFERENCES puestos(id) ON DELETE SET NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    intentos_fallidos INT DEFAULT 0,
+    bloqueado_hasta TIMESTAMPTZ,
+    ultimo_login TIMESTAMPTZ,
+    ultimo_logout TIMESTAMPTZ,
+    token_refresh TEXT,
+    token_expiracion TIMESTAMPTZ,
+    permite_offline BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 1,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_personal_puesto CHECK (
+        (rol = 'admin' AND puesto_id IS NULL) OR 
+        (rol = 'personal' AND puesto_id IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username);
+CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
+CREATE INDEX IF NOT EXISTS idx_usuarios_activo ON usuarios(activo);
+CREATE INDEX IF NOT EXISTS idx_usuarios_rol ON usuarios(rol);
+CREATE INDEX IF NOT EXISTS idx_usuarios_puesto ON usuarios(puesto_id);
+CREATE INDEX IF NOT EXISTS idx_usuarios_nombre ON usuarios(nombre);
+
+-- =====================================================
+-- PASO 5: COLABORADORES
+-- =====================================================
+
+-- TABLA: COLABORADORES
+CREATE TABLE IF NOT EXISTS colaboradores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre VARCHAR(150) NOT NULL,
+    puesto_id UUID REFERENCES puestos(id) ON DELETE SET NULL,
+    descripcion TEXT,
+    telefono VARCHAR(20),
+    correo VARCHAR(100),
+    dpi VARCHAR(20),
+    es_personal_fijo BOOLEAN DEFAULT FALSE,
+    usuario_id UUID UNIQUE REFERENCES usuarios(id) ON DELETE SET NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 1,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    CONSTRAINT check_personal_fijo_usuario CHECK (
+        (es_personal_fijo = FALSE AND usuario_id IS NULL) OR 
+        (es_personal_fijo = TRUE AND usuario_id IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_colaboradores_puesto ON colaboradores(puesto_id);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_activo ON colaboradores(activo);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_usuario ON colaboradores(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_nombre ON colaboradores(nombre);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_es_personal_fijo ON colaboradores(es_personal_fijo);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_correo ON colaboradores(correo);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_activo_personal_fijo ON colaboradores(activo, es_personal_fijo);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_puesto_activo ON colaboradores(puesto_id, activo);
+CREATE INDEX IF NOT EXISTS idx_colaboradores_nombre_lower ON colaboradores(LOWER(nombre));
+CREATE INDEX IF NOT EXISTS idx_colaboradores_correo_lower ON colaboradores(LOWER(correo));
+
+-- =====================================================
+-- PASO 6: DISPOSITIVOS Y SESIONES
+-- =====================================================
+
+-- TABLA: DISPOSITIVOS REGISTRADOS
+CREATE TABLE IF NOT EXISTS dispositivos_registrados (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    dispositivo_id VARCHAR(100) UNIQUE NOT NULL,
+    nombre_dispositivo VARCHAR(200),
+    navegador VARCHAR(100),
+    sistema_operativo VARCHAR(100),
+    ultimo_acceso TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    ultimo_sync TIMESTAMPTZ,
+    activo BOOLEAN DEFAULT TRUE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_dispositivos_usuario ON dispositivos_registrados(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_dispositivos_activo ON dispositivos_registrados(activo);
+
+-- TABLA: SESIONES OFFLINE
+CREATE TABLE IF NOT EXISTS sesiones_offline (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    dispositivo_id VARCHAR(100) NOT NULL,
+    token_hash TEXT NOT NULL,
+    refresh_token_hash TEXT,
+    permisos_offline JSONB,
+    datos_cache JSONB,
+    sesion_activa BOOLEAN DEFAULT TRUE,
+    iniciada_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    expira_en TIMESTAMPTZ NOT NULL,
+    ultima_actividad TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    ultima_sincronizacion TIMESTAMPTZ,
+    requiere_reautenticacion BOOLEAN DEFAULT FALSE,
+    navegador VARCHAR(100),
+    sistema_operativo VARCHAR(100),
+    ip_address VARCHAR(50),
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_sesiones_usuario_dispositivo ON sesiones_offline(usuario_id, dispositivo_id);
+CREATE INDEX IF NOT EXISTS idx_sesiones_token ON sesiones_offline(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sesiones_activa ON sesiones_offline(sesion_activa) WHERE sesion_activa = TRUE;
+CREATE INDEX IF NOT EXISTS idx_sesiones_expiracion ON sesiones_offline(expira_en);
+
+-- =====================================================
+-- PASO 7: BENEFICIARIOS
+-- =====================================================
+
+-- TABLA: BENEFICIARIOS (PRINCIPAL)
+CREATE TABLE IF NOT EXISTS beneficiarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tipo_id UUID NOT NULL REFERENCES tipos_beneficiario(id) ON DELETE RESTRICT,
+    comunidad_id UUID REFERENCES comunidades(id) ON DELETE SET NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 1,
+    ultimo_sync TIMESTAMPTZ,
+    modificado_offline BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_tipo ON beneficiarios(tipo_id);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_comunidad ON beneficiarios(comunidad_id);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_activo ON beneficiarios(activo);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_sync ON beneficiarios(ultimo_sync, actualizado_en) WHERE modificado_offline = TRUE;
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_comunidad_tipo_activo ON beneficiarios(comunidad_id, tipo_id, activo) WHERE activo = TRUE;
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_tipo_comunidad_activo ON beneficiarios(tipo_id, comunidad_id) WHERE activo = TRUE;
+
+-- TABLA: BENEFICIARIOS INDIVIDUALES
+CREATE TABLE IF NOT EXISTS beneficiarios_individuales (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    beneficiario_id UUID UNIQUE NOT NULL REFERENCES beneficiarios(id) ON DELETE CASCADE,
+    nombre VARCHAR(150) NOT NULL,
+    apellido VARCHAR(150) NOT NULL,
+    dpi VARCHAR(20) UNIQUE,
+    fecha_nacimiento DATE,
+    genero VARCHAR(20) CHECK (genero IN ('masculino', 'femenino', 'otro')),
+    telefono VARCHAR(20),
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_beneficiario ON beneficiarios_individuales(beneficiario_id);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_dpi ON beneficiarios_individuales(dpi);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_nombre ON beneficiarios_individuales(nombre, apellido);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_genero ON beneficiarios_individuales(genero) WHERE genero IS NOT NULL;
+
+-- TABLA: BENEFICIARIOS FAMILIAS
+CREATE TABLE IF NOT EXISTS beneficiarios_familias (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    beneficiario_id UUID UNIQUE NOT NULL REFERENCES beneficiarios(id) ON DELETE CASCADE,
+    nombre_familia VARCHAR(150) NOT NULL,
+    jefe_familia VARCHAR(150) NOT NULL,
+    dpi_jefe_familia VARCHAR(20) UNIQUE,
+    telefono VARCHAR(20),
+    numero_miembros INT,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_fam_beneficiario ON beneficiarios_familias(beneficiario_id);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_fam_dpi ON beneficiarios_familias(dpi_jefe_familia);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_fam_nombre ON beneficiarios_familias(nombre_familia);
+
+-- TABLA: BENEFICIARIOS INSTITUCIONES
+CREATE TABLE IF NOT EXISTS beneficiarios_instituciones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    beneficiario_id UUID UNIQUE NOT NULL REFERENCES beneficiarios(id) ON DELETE CASCADE,
+    nombre_institucion VARCHAR(200) NOT NULL,
+    tipo_institucion VARCHAR(50) NOT NULL CHECK (tipo_institucion IN ('escuela', 'cooperativa', 'asociación', 'ONG', 'iglesia', 'otro')),
+    representante_legal VARCHAR(150),
+    dpi_representante VARCHAR(20),
+    telefono VARCHAR(20),
+    email VARCHAR(100),
+    numero_beneficiarios_directos INT,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_inst_beneficiario ON beneficiarios_instituciones(beneficiario_id);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_inst_tipo ON beneficiarios_instituciones(tipo_institucion);
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_inst_nombre ON beneficiarios_instituciones(nombre_institucion);
+
+-- =====================================================
+-- PASO 8: ACTIVIDADES
+-- =====================================================
+
+-- TABLA: ACTIVIDADES
+CREATE TABLE IF NOT EXISTS actividades (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tipo_id UUID REFERENCES tipos_actividad(id) ON DELETE RESTRICT,
+    comunidad_id UUID REFERENCES comunidades(id) ON DELETE SET NULL,
+    responsable_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    colaborador_id UUID REFERENCES colaboradores(id) ON DELETE SET NULL,
+    nombre VARCHAR(200) NOT NULL,
+    fecha DATE NOT NULL,
+    descripcion TEXT,
+    estado VARCHAR(50) DEFAULT 'planificado' CHECK (estado IN ('planificado', 'en_progreso', 'completado', 'cancelado')),
+    latitud DECIMAL(10, 8),
+    longitud DECIMAL(11, 8),
+    version INTEGER DEFAULT 1,
+    ultimo_sync TIMESTAMPTZ,
+    modificado_offline BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    eliminado_en TIMESTAMPTZ,
+    CONSTRAINT check_tiene_responsable_o_colaborador CHECK (responsable_id IS NOT NULL OR colaborador_id IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_actividades_tipo ON actividades(tipo_id);
+CREATE INDEX IF NOT EXISTS idx_actividades_comunidad ON actividades(comunidad_id);
+CREATE INDEX IF NOT EXISTS idx_actividades_responsable ON actividades(responsable_id);
+CREATE INDEX IF NOT EXISTS idx_actividades_colaborador ON actividades(colaborador_id);
+CREATE INDEX IF NOT EXISTS idx_actividades_fecha ON actividades(fecha);
+CREATE INDEX IF NOT EXISTS idx_actividades_estado ON actividades(estado);
+CREATE INDEX IF NOT EXISTS idx_actividades_eliminado ON actividades(eliminado_en);
+CREATE INDEX IF NOT EXISTS idx_actividades_sync ON actividades(ultimo_sync, actualizado_en) WHERE modificado_offline = TRUE;
+CREATE INDEX IF NOT EXISTS idx_actividades_fecha_estado_eliminado ON actividades(fecha, estado, eliminado_en) WHERE eliminado_en IS NULL;
+CREATE INDEX IF NOT EXISTS idx_actividades_tipo_fecha ON actividades(tipo_id, fecha, eliminado_en) WHERE eliminado_en IS NULL;
+CREATE INDEX IF NOT EXISTS idx_actividades_proximos ON actividades(fecha, estado) WHERE eliminado_en IS NULL AND estado IN ('planificado', 'en_progreso');
+CREATE INDEX IF NOT EXISTS idx_actividades_comunidad_fecha_estado ON actividades(comunidad_id, fecha, estado) WHERE eliminado_en IS NULL;
+CREATE INDEX IF NOT EXISTS idx_actividades_responsable_fecha ON actividades(responsable_id, fecha, estado) WHERE eliminado_en IS NULL AND responsable_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actividades_colaborador_fecha ON actividades(colaborador_id, fecha, estado) WHERE eliminado_en IS NULL AND colaborador_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_actividades_comunidad_tipo_fecha ON actividades(comunidad_id, tipo_id, fecha DESC) WHERE eliminado_en IS NULL;
+
+-- TABLA: ACTIVIDAD COMUNIDADES (M2M)
+CREATE TABLE IF NOT EXISTS actividad_comunidades (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    comunidad_id UUID NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,
+    region_id UUID REFERENCES regiones(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (actividad_id, comunidad_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_actividad_comunidades_actividad ON actividad_comunidades(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_comunidades_comunidad ON actividad_comunidades(comunidad_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_comunidades_region ON actividad_comunidades(actividad_id, region_id) WHERE region_id IS NOT NULL;
+
+-- TABLA: ACTIVIDAD PORTADAS
+CREATE TABLE IF NOT EXISTS actividad_portadas (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    url_almacenamiento TEXT NOT NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (actividad_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_actividad_portadas_actividad ON actividad_portadas(actividad_id);
+
+-- TABLA: PERSONAL DE ACTIVIDADES
+CREATE TABLE IF NOT EXISTS actividad_personal (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID REFERENCES actividades(id) ON DELETE CASCADE,
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    colaborador_id UUID REFERENCES colaboradores(id) ON DELETE CASCADE,
+    rol_en_actividad VARCHAR(50) NOT NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_actividad_colaborador_usuario UNIQUE(actividad_id, colaborador_id, usuario_id),
+    CONSTRAINT check_tiene_colaborador_o_usuario CHECK (
+        (colaborador_id IS NOT NULL) OR (usuario_id IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_actividad_personal_actividad ON actividad_personal(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_personal_usuario ON actividad_personal(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_personal_colaborador ON actividad_personal(colaborador_id);
+
+-- TABLA: BENEFICIARIOS POR ACTIVIDAD
+CREATE TABLE IF NOT EXISTS actividad_beneficiarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID REFERENCES actividades(id) ON DELETE CASCADE,
+    beneficiario_id UUID REFERENCES beneficiarios(id) ON DELETE CASCADE,
+    version INTEGER DEFAULT 1,
+    sincronizado BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(actividad_id, beneficiario_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_actividad_beneficiarios_actividad ON actividad_beneficiarios(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_beneficiarios_beneficiario ON actividad_beneficiarios(beneficiario_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_beneficiarios_actividad_beneficiario ON actividad_beneficiarios(actividad_id, beneficiario_id);
+
+-- TABLA: EVIDENCIAS
+CREATE TABLE IF NOT EXISTS evidencias (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID REFERENCES actividades(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    es_imagen BOOLEAN DEFAULT TRUE,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    version INTEGER DEFAULT 1,
+    ultimo_sync TIMESTAMPTZ,
+    sincronizado BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad ON evidencias(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_evidencias_creado_por ON evidencias(creado_por);
+CREATE INDEX IF NOT EXISTS idx_evidencias_sync ON evidencias(sincronizado, creado_en) WHERE sincronizado = FALSE;
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad_creado_en ON evidencias(actividad_id, creado_en DESC);
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad_count ON evidencias(actividad_id) WHERE actividad_id IS NOT NULL;
+
+-- TABLA: GALERÍA DE EVENTOS
+CREATE TABLE IF NOT EXISTS eventos_galeria (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_eventos_galeria_actividad ON eventos_galeria(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_eventos_galeria_creado_por ON eventos_galeria(creado_por);
+CREATE INDEX IF NOT EXISTS idx_eventos_galeria_creado_en ON eventos_galeria(creado_en DESC);
+
+-- TABLA: CAMBIOS/ACTUALIZACIONES DE ACTIVIDADES (USUARIOS)
+CREATE TABLE IF NOT EXISTS actividad_cambios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID REFERENCES actividades(id) ON DELETE CASCADE,
+    responsable_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    descripcion_cambio TEXT NOT NULL,
+    fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_cambios_actividad ON actividad_cambios(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_cambios_fecha ON actividad_cambios(fecha_cambio);
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_actividad_id ON actividad_cambios(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_responsable_id ON actividad_cambios(responsable_id);
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_fecha_cambio ON actividad_cambios(fecha_cambio DESC);
+CREATE INDEX IF NOT EXISTS idx_actividad_cambios_actividad_fecha ON actividad_cambios(actividad_id, fecha_cambio DESC);
+
+COMMENT ON TABLE actividad_cambios IS 'Cambios registrados por usuarios del sistema en eventos/actividades';
+COMMENT ON COLUMN actividad_cambios.fecha_cambio IS 'Fecha y hora del cambio. Puede ser especificada manualmente o usar la fecha/hora actual por defecto.';
+
+-- TABLA: CAMBIOS DE COLABORADORES (NUEVA)
+CREATE TABLE IF NOT EXISTS eventos_cambios_colaboradores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    colaborador_id UUID NOT NULL REFERENCES colaboradores(id) ON DELETE SET NULL,
+    descripcion_cambio TEXT NOT NULL,
+    fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colab_actividad ON eventos_cambios_colaboradores(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colab_colaborador ON eventos_cambios_colaboradores(colaborador_id);
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colab_fecha ON eventos_cambios_colaboradores(fecha_cambio DESC);
+
+COMMENT ON TABLE eventos_cambios_colaboradores IS 'Cambios registrados por colaboradores en eventos/actividades';
+COMMENT ON COLUMN eventos_cambios_colaboradores.fecha_cambio IS 'Fecha y hora del cambio. Puede ser especificada manualmente o usar la fecha/hora actual por defecto.';
+
+-- TABLA: EVIDENCIAS DE CAMBIOS (USUARIOS)
+CREATE TABLE IF NOT EXISTS cambio_evidencias (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cambio_id UUID REFERENCES actividad_cambios(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_cambio_evidencias_cambio ON cambio_evidencias(cambio_id);
+
+-- TABLA: EVIDENCIAS DE CAMBIOS DE EVENTOS (COLABORADORES)
+CREATE TABLE IF NOT EXISTS eventos_evidencias_cambios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID NOT NULL REFERENCES actividades(id) ON DELETE CASCADE,
+    cambio_id UUID NOT NULL REFERENCES eventos_cambios_colaboradores(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_eventos_evidencias_cambios_actividad ON eventos_evidencias_cambios(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_eventos_evidencias_cambios_cambio ON eventos_evidencias_cambios(cambio_id);
+CREATE INDEX IF NOT EXISTS idx_eventos_evidencias_cambios_creado_por ON eventos_evidencias_cambios(creado_por);
+CREATE INDEX IF NOT EXISTS idx_eventos_evidencias_cambios_creado_en ON eventos_evidencias_cambios(creado_en DESC);
+
+-- TABLA: ARCHIVOS DE PROYECTOS/ACTIVIDADES
+CREATE TABLE IF NOT EXISTS actividad_archivos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID REFERENCES actividades(id) ON DELETE CASCADE,
+    nombre_archivo VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_actividad_archivos_actividad ON actividad_archivos(actividad_id);
+
+-- =====================================================
+-- PASO 9: ARCHIVOS Y GALERÍAS
+-- =====================================================
+
+-- TABLA: GALERÍA DE COMUNIDADES
+CREATE TABLE IF NOT EXISTS comunidad_galeria (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    comunidad_id UUID REFERENCES comunidades(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_comunidad_galeria_comunidad ON comunidad_galeria(comunidad_id);
+
+-- TABLA: ARCHIVOS DE COMUNIDADES
+CREATE TABLE IF NOT EXISTS comunidad_archivos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    comunidad_id UUID REFERENCES comunidades(id) ON DELETE CASCADE,
+    nombre_archivo VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_comunidad_archivos_comunidad ON comunidad_archivos(comunidad_id);
+
+-- TABLA: GALERÍA DE REGIONES
+CREATE TABLE IF NOT EXISTS region_galeria (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    region_id UUID REFERENCES regiones(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_region_galeria_region ON region_galeria(region_id);
+
+-- TABLA: ARCHIVOS DE REGIONES
+CREATE TABLE IF NOT EXISTS region_archivos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    region_id UUID REFERENCES regiones(id) ON DELETE CASCADE,
+    nombre_archivo VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    url_almacenamiento TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_region_archivos_region ON region_archivos(region_id);
+
+-- =====================================================
+-- PASO 10: TARJETAS Y RECORDATORIOS
+-- =====================================================
+
+-- TABLA: TARJETAS PERSONALIZADAS
+CREATE TABLE IF NOT EXISTS tarjetas_datos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entidad_tipo VARCHAR(20) NOT NULL CHECK (entidad_tipo IN ('actividad', 'comunidad', 'region')),
+    entidad_id UUID NOT NULL,
+    titulo VARCHAR(100) NOT NULL,
+    valor TEXT,
+    icono VARCHAR(50),
+    orden INT DEFAULT 0,
+    es_favorita BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tarjetas_entidad ON tarjetas_datos(entidad_tipo, entidad_id);
+CREATE INDEX IF NOT EXISTS idx_tarjetas_favorita ON tarjetas_datos(es_favorita);
+
+-- TABLA: RECORDATORIOS
+CREATE TABLE IF NOT EXISTS recordatorios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_id UUID REFERENCES actividades(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    titulo VARCHAR(200),
+    descripcion TEXT,
+    due_at TIMESTAMPTZ NOT NULL,
+    enviar_notificacion BOOLEAN DEFAULT TRUE,
+    enviado BOOLEAN DEFAULT FALSE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_recordatorios_due_at ON recordatorios(due_at);
+CREATE INDEX IF NOT EXISTS idx_recordatorios_actividad ON recordatorios(actividad_id);
+CREATE INDEX IF NOT EXISTS idx_recordatorios_created_by ON recordatorios(created_by);
+CREATE INDEX IF NOT EXISTS idx_recordatorios_enviar_enviado ON recordatorios(enviar_notificacion, enviado);
+
+-- TABLA: COLABORADORES EN RECORDATORIOS
+CREATE TABLE IF NOT EXISTS recordatorio_colaboradores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    recordatorio_id UUID NOT NULL REFERENCES recordatorios(id) ON DELETE CASCADE,
+    colaborador_id UUID NOT NULL REFERENCES colaboradores(id) ON DELETE CASCADE,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(recordatorio_id, colaborador_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recordatorio_colab_recordatorio ON recordatorio_colaboradores(recordatorio_id);
+CREATE INDEX IF NOT EXISTS idx_recordatorio_colab_colaborador ON recordatorio_colaboradores(colaborador_id);
+
+-- =====================================================
+-- PASO 11: BITÁCORA DE TRANSACCIONES
+-- =====================================================
+
+-- TABLA: BITÁCORA DE TRANSACCIONES
+CREATE TABLE IF NOT EXISTS bitacora_transacciones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    colaborador_id UUID REFERENCES colaboradores(id) ON DELETE SET NULL,
+    accion VARCHAR(50) NOT NULL,
+    tabla_afectada VARCHAR(100) NOT NULL,
+    registro_id UUID,
+    datos_anteriores JSONB,
+    datos_nuevos JSONB,
+    ip_address VARCHAR(50),
+    user_agent TEXT,
+    resultado VARCHAR(20) CHECK (resultado IN ('exitoso', 'fallido')),
+    mensaje_error TEXT,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_bitacora_usuario ON bitacora_transacciones(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_bitacora_colaborador ON bitacora_transacciones(colaborador_id);
+CREATE INDEX IF NOT EXISTS idx_bitacora_tabla ON bitacora_transacciones(tabla_afectada);
+CREATE INDEX IF NOT EXISTS idx_bitacora_fecha ON bitacora_transacciones(creado_en);
+CREATE INDEX IF NOT EXISTS idx_bitacora_accion ON bitacora_transacciones(accion);
+CREATE INDEX IF NOT EXISTS idx_bitacora_usuario_fecha ON bitacora_transacciones(usuario_id, creado_en DESC) WHERE usuario_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bitacora_tabla_fecha ON bitacora_transacciones(tabla_afectada, creado_en DESC);
+CREATE INDEX IF NOT EXISTS idx_bitacora_resultado_fecha ON bitacora_transacciones(resultado, creado_en DESC);
+
+COMMENT ON TABLE bitacora_transacciones IS 'Auditoría completa de operaciones del sistema';
+
+-- =====================================================
+-- PASO 12: SINCRONIZACIÓN OFFLINE
+-- =====================================================
+
+-- TABLA: COLA DE SINCRONIZACIÓN
+CREATE TABLE IF NOT EXISTS cola_sincronizacion (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+    dispositivo_id VARCHAR(100),
+    operacion VARCHAR(20) NOT NULL CHECK (operacion IN ('INSERT', 'UPDATE', 'DELETE')),
+    tabla VARCHAR(100) NOT NULL,
+    registro_id UUID NOT NULL,
+    datos JSONB NOT NULL,
+    datos_anteriores JSONB,
+    version_local INTEGER DEFAULT 1,
+    version_servidor INTEGER,
+    sincronizado BOOLEAN DEFAULT FALSE,
+    sincronizado_en TIMESTAMPTZ,
+    intentos INT DEFAULT 0,
+    max_intentos INT DEFAULT 5,
+    ultimo_intento TIMESTAMPTZ,
+    tiene_conflicto BOOLEAN DEFAULT FALSE,
+    conflicto_resuelto BOOLEAN DEFAULT FALSE,
+    error_mensaje TEXT,
+    hash_datos VARCHAR(64),
+    prioridad INT DEFAULT 0,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    procesado_en TIMESTAMPTZ,
+    CONSTRAINT unique_operacion_por_registro UNIQUE (tabla, registro_id, operacion, hash_datos)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cola_sincronizado_pendiente ON cola_sincronizacion(sincronizado, creado_en) WHERE sincronizado = FALSE;
+CREATE INDEX IF NOT EXISTS idx_cola_usuario_dispositivo ON cola_sincronizacion(usuario_id, dispositivo_id);
+CREATE INDEX IF NOT EXISTS idx_cola_tabla_registro ON cola_sincronizacion(tabla, registro_id);
+CREATE INDEX IF NOT EXISTS idx_cola_tiene_conflicto ON cola_sincronizacion(tiene_conflicto) WHERE tiene_conflicto = TRUE;
+CREATE INDEX IF NOT EXISTS idx_cola_prioridad ON cola_sincronizacion(prioridad DESC, creado_en);
+
+-- TABLA: CONFLICTOS DE SINCRONIZACIÓN
+CREATE TABLE IF NOT EXISTS conflictos_sincronizacion (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cola_sincronizacion_id UUID REFERENCES cola_sincronizacion(id) ON DELETE CASCADE,
+    tabla VARCHAR(100) NOT NULL,
+    registro_id UUID NOT NULL,
+    campo_conflicto VARCHAR(100),
+    valor_local JSONB,
+    valor_servidor JSONB,
+    version_local INTEGER,
+    version_servidor INTEGER,
+    resuelto BOOLEAN DEFAULT FALSE,
+    estrategia_resolucion VARCHAR(50) CHECK (estrategia_resolucion IN ('usar_servidor', 'usar_local', 'merge', 'manual')),
+    valor_final JSONB,
+    resuelto_por UUID REFERENCES usuarios(id),
+    resuelto_en TIMESTAMPTZ,
+    detectado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    notas TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_conflictos_resuelto ON conflictos_sincronizacion(resuelto);
+CREATE INDEX IF NOT EXISTS idx_conflictos_tabla_registro ON conflictos_sincronizacion(tabla, registro_id);
+
+-- =====================================================
+-- PASO 13: FUNCIONES AUXILIARES
+-- =====================================================
+
+-- Función para actualizar timestamp
+CREATE OR REPLACE FUNCTION actualizar_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.actualizado_en = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función para incrementar versión
+CREATE OR REPLACE FUNCTION incrementar_version()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.version = COALESCE(OLD.version, 0) + 1;
+    NEW.actualizado_en = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función para sincronizar colaborador con usuario
+CREATE OR REPLACE FUNCTION sincronizar_colaborador_usuario()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.usuario_id IS NOT NULL AND (OLD.usuario_id IS NULL OR OLD IS NULL) THEN
+        NEW.es_personal_fijo = TRUE;
+    END IF;
+    
+    IF NEW.usuario_id IS NULL AND OLD.usuario_id IS NOT NULL THEN
+        NEW.es_personal_fijo = FALSE;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- PASO 14: TRIGGERS DE TIMESTAMP Y VERSIÓN
+-- =====================================================
+
+-- Triggers para actualizar timestamp
+DROP TRIGGER IF EXISTS trg_usuarios_timestamp ON usuarios;
+CREATE TRIGGER trg_usuarios_timestamp BEFORE UPDATE ON usuarios
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_puestos_timestamp ON puestos;
+CREATE TRIGGER trg_puestos_timestamp BEFORE UPDATE ON puestos
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_regiones_timestamp ON regiones;
+CREATE TRIGGER trg_regiones_timestamp BEFORE UPDATE ON regiones
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_comunidades_timestamp ON comunidades;
+CREATE TRIGGER trg_comunidades_timestamp BEFORE UPDATE ON comunidades
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_comunidad_autoridades_timestamp ON comunidad_autoridades;
+CREATE TRIGGER trg_comunidad_autoridades_timestamp BEFORE UPDATE ON comunidad_autoridades
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_tipos_actividad_timestamp ON tipos_actividad;
+CREATE TRIGGER trg_tipos_actividad_timestamp BEFORE UPDATE ON tipos_actividad
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_beneficiarios_timestamp ON beneficiarios;
+CREATE TRIGGER trg_beneficiarios_timestamp BEFORE UPDATE ON beneficiarios
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_beneficiarios_ind_timestamp ON beneficiarios_individuales;
+CREATE TRIGGER trg_beneficiarios_ind_timestamp BEFORE UPDATE ON beneficiarios_individuales
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_beneficiarios_fam_timestamp ON beneficiarios_familias;
+CREATE TRIGGER trg_beneficiarios_fam_timestamp BEFORE UPDATE ON beneficiarios_familias
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_beneficiarios_inst_timestamp ON beneficiarios_instituciones;
+CREATE TRIGGER trg_beneficiarios_inst_timestamp BEFORE UPDATE ON beneficiarios_instituciones
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_actividades_timestamp ON actividades;
+CREATE TRIGGER trg_actividades_timestamp BEFORE UPDATE ON actividades
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_tarjetas_timestamp ON tarjetas_datos;
+CREATE TRIGGER trg_tarjetas_timestamp BEFORE UPDATE ON tarjetas_datos
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_colaboradores_timestamp ON colaboradores;
+CREATE TRIGGER trg_colaboradores_timestamp BEFORE UPDATE ON colaboradores
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+DROP TRIGGER IF EXISTS trg_recordatorios_timestamp ON recordatorios;
+CREATE TRIGGER trg_recordatorios_timestamp BEFORE UPDATE ON recordatorios
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
+-- Triggers para incrementar versión
+DROP TRIGGER IF EXISTS trg_usuarios_version ON usuarios;
+CREATE TRIGGER trg_usuarios_version BEFORE UPDATE ON usuarios
+    FOR EACH ROW EXECUTE FUNCTION incrementar_version();
+
+DROP TRIGGER IF EXISTS trg_colaboradores_version ON colaboradores;
+CREATE TRIGGER trg_colaboradores_version BEFORE UPDATE ON colaboradores
+    FOR EACH ROW EXECUTE FUNCTION incrementar_version();
+
+DROP TRIGGER IF EXISTS trg_actividades_version ON actividades;
+CREATE TRIGGER trg_actividades_version BEFORE UPDATE ON actividades
+    FOR EACH ROW EXECUTE FUNCTION incrementar_version();
+
+DROP TRIGGER IF EXISTS trg_beneficiarios_version ON beneficiarios;
+CREATE TRIGGER trg_beneficiarios_version BEFORE UPDATE ON beneficiarios
+    FOR EACH ROW EXECUTE FUNCTION incrementar_version();
+
+DROP TRIGGER IF EXISTS trg_comunidades_version ON comunidades;
+CREATE TRIGGER trg_comunidades_version BEFORE UPDATE ON comunidades
+    FOR EACH ROW EXECUTE FUNCTION incrementar_version();
+
+DROP TRIGGER IF EXISTS trg_regiones_version ON regiones;
+CREATE TRIGGER trg_regiones_version BEFORE UPDATE ON regiones
+    FOR EACH ROW EXECUTE FUNCTION incrementar_version();
+
+-- Trigger para sincronizar colaborador con usuario
+DROP TRIGGER IF EXISTS trg_colaborador_usuario_sync ON colaboradores;
+CREATE TRIGGER trg_colaborador_usuario_sync 
+BEFORE INSERT OR UPDATE ON colaboradores
+FOR EACH ROW 
+EXECUTE FUNCTION sincronizar_colaborador_usuario();
+
+-- =====================================================
+-- PASO 15: FUNCIÓN Y TRIGGER PARA BITÁCORA AUTOMÁTICA
+-- =====================================================
+
+-- Función para registrar en bitácora automáticamente
+CREATE OR REPLACE FUNCTION registrar_en_bitacora()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_accion VARCHAR(50);
+    v_datos_anteriores JSONB;
+    v_datos_nuevos JSONB;
+    v_usuario_id UUID;
+    v_colaborador_id UUID;
+BEGIN
+    -- Determinar la acción
+    IF (TG_OP = 'INSERT') THEN
+        v_accion = 'INSERTAR';
+        v_datos_anteriores = NULL;
+        v_datos_nuevos = row_to_json(NEW)::jsonb;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        v_accion = 'ACTUALIZAR';
+        v_datos_anteriores = row_to_json(OLD)::jsonb;
+        v_datos_nuevos = row_to_json(NEW)::jsonb;
+    ELSIF (TG_OP = 'DELETE') THEN
+        v_accion = 'ELIMINAR';
+        v_datos_anteriores = row_to_json(OLD)::jsonb;
+        v_datos_nuevos = NULL;
+    END IF;
+
+    -- Intentar obtener usuario_id de la sesión
+    BEGIN
+        v_usuario_id = current_setting('app.current_user_id', TRUE)::UUID;
+    EXCEPTION WHEN OTHERS THEN
+        v_usuario_id = NULL;
+    END;
+
+    -- Intentar obtener colaborador_id de la sesión
+    BEGIN
+        v_colaborador_id = current_setting('app.current_colaborador_id', TRUE)::UUID;
+    EXCEPTION WHEN OTHERS THEN
+        v_colaborador_id = NULL;
+    END;
+
+    -- Registrar en bitácora
+    INSERT INTO bitacora_transacciones (
+        usuario_id,
+        colaborador_id,
+        accion,
+        tabla_afectada,
+        registro_id,
+        datos_anteriores,
+        datos_nuevos,
+        resultado
+    ) VALUES (
+        v_usuario_id,
+        v_colaborador_id,
+        v_accion,
+        TG_TABLE_NAME,
+        COALESCE(NEW.id, OLD.id),
+        v_datos_anteriores,
+        v_datos_nuevos,
+        'exitoso'
+    ) ON CONFLICT DO NOTHING;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Aplicar trigger de bitácora a tablas principales
+DROP TRIGGER IF EXISTS trg_bitacora_usuarios ON usuarios;
+CREATE TRIGGER trg_bitacora_usuarios
+    AFTER INSERT OR UPDATE OR DELETE ON usuarios
+    FOR EACH ROW EXECUTE FUNCTION registrar_en_bitacora();
+
+DROP TRIGGER IF EXISTS trg_bitacora_colaboradores ON colaboradores;
+CREATE TRIGGER trg_bitacora_colaboradores
+    AFTER INSERT OR UPDATE OR DELETE ON colaboradores
+    FOR EACH ROW EXECUTE FUNCTION registrar_en_bitacora();
+
+DROP TRIGGER IF EXISTS trg_bitacora_beneficiarios ON beneficiarios;
+CREATE TRIGGER trg_bitacora_beneficiarios
+    AFTER INSERT OR UPDATE OR DELETE ON beneficiarios
+    FOR EACH ROW EXECUTE FUNCTION registrar_en_bitacora();
+
+DROP TRIGGER IF EXISTS trg_bitacora_actividades ON actividades;
+CREATE TRIGGER trg_bitacora_actividades
+    AFTER INSERT OR UPDATE OR DELETE ON actividades
+    FOR EACH ROW EXECUTE FUNCTION registrar_en_bitacora();
+
+DROP TRIGGER IF EXISTS trg_bitacora_comunidades ON comunidades;
+CREATE TRIGGER trg_bitacora_comunidades
+    AFTER INSERT OR UPDATE OR DELETE ON comunidades
+    FOR EACH ROW EXECUTE FUNCTION registrar_en_bitacora();
+
+DROP TRIGGER IF EXISTS trg_bitacora_regiones ON regiones;
+CREATE TRIGGER trg_bitacora_regiones
+    AFTER INSERT OR UPDATE OR DELETE ON regiones
+    FOR EACH ROW EXECUTE FUNCTION registrar_en_bitacora();
+
+-- =====================================================
+-- PARTE 2: PROCEDIMIENTOS ALMACENADOS (CRUD)
+-- =====================================================
+
+-- ====================================================
+-- SP: USUARIOS
+-- ====================================================
+
+-- Crear Usuario
+CREATE OR REPLACE FUNCTION sp_crear_usuario(
+    p_username VARCHAR(50),
+    p_nombre VARCHAR(150),
+    p_email VARCHAR(100),
+    p_telefono VARCHAR(20),
+    p_password_hash TEXT,
+    p_rol VARCHAR(50),
+    p_puesto_id UUID DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    usuario_id UUID
+) AS $$
+DECLARE
+    v_usuario_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    -- Validaciones
+    IF p_rol NOT IN ('admin', 'personal') THEN
+        RETURN QUERY SELECT FALSE, 'Rol inválido. Debe ser admin o personal', NULL::UUID;
+        RETURN;
+    END IF;
+
+    IF p_rol = 'personal' AND p_puesto_id IS NULL THEN
+        RETURN QUERY SELECT FALSE, 'El rol personal requiere un puesto asignado', NULL::UUID;
+        RETURN;
+    END IF;
+
+    -- Establecer contexto para auditoría
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    -- Insertar usuario con lock
+    BEGIN
+        INSERT INTO usuarios (
+            username, nombre, email, telefono, password_hash, rol, puesto_id
+        ) VALUES (
+            p_username, p_nombre, p_email, p_telefono, p_password_hash, p_rol, p_puesto_id
+        ) RETURNING id INTO v_usuario_id;
+
+        RETURN QUERY SELECT TRUE, 'Usuario creado exitosamente', v_usuario_id;
+    EXCEPTION 
+        WHEN unique_violation THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            IF v_error_msg LIKE '%username%' THEN
+                RETURN QUERY SELECT FALSE, 'El nombre de usuario ya existe', NULL::UUID;
+            ELSIF v_error_msg LIKE '%email%' THEN
+                RETURN QUERY SELECT FALSE, 'El email ya está registrado', NULL::UUID;
+            ELSE
+                RETURN QUERY SELECT FALSE, 'Error de duplicación: ' || v_error_msg, NULL::UUID;
+            END IF;
+        WHEN OTHERS THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error al crear usuario: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Actualizar Usuario
+CREATE OR REPLACE FUNCTION sp_actualizar_usuario(
+    p_usuario_id UUID,
+    p_nombre VARCHAR(150) DEFAULT NULL,
+    p_email VARCHAR(100) DEFAULT NULL,
+    p_telefono VARCHAR(20) DEFAULT NULL,
+    p_puesto_id UUID DEFAULT NULL,
+    p_activo BOOLEAN DEFAULT NULL,
+    p_usuario_modificador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT
+) AS $$
+DECLARE
+    v_error_msg TEXT;
+    v_version_actual INTEGER;
+BEGIN
+    -- Establecer contexto para auditoría
+    IF p_usuario_modificador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_modificador::TEXT, TRUE);
+    END IF;
+
+    -- Lock optimista: obtener versión actual
+    SELECT version INTO v_version_actual
+    FROM usuarios
+    WHERE id = p_usuario_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT FALSE, 'Usuario no encontrado';
+        RETURN;
+    END IF;
+
+    BEGIN
+        UPDATE usuarios SET
+            nombre = COALESCE(p_nombre, nombre),
+            email = COALESCE(p_email, email),
+            telefono = COALESCE(p_telefono, telefono),
+            puesto_id = COALESCE(p_puesto_id, puesto_id),
+            activo = COALESCE(p_activo, activo)
+        WHERE id = p_usuario_id;
+
+        RETURN QUERY SELECT TRUE, 'Usuario actualizado exitosamente';
+    EXCEPTION
+        WHEN unique_violation THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error de duplicación: ' || v_error_msg;
+        WHEN OTHERS THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error al actualizar: ' || v_error_msg;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Eliminar Usuario (Soft Delete)
+CREATE OR REPLACE FUNCTION sp_eliminar_usuario(
+    p_usuario_id UUID,
+    p_usuario_eliminador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT
+) AS $$
+BEGIN
+    -- Establecer contexto
+    IF p_usuario_eliminador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_eliminador::TEXT, TRUE);
+    END IF;
+
+    -- Soft delete: desactivar usuario
+    UPDATE usuarios SET activo = FALSE WHERE id = p_usuario_id;
+
+    IF FOUND THEN
+        RETURN QUERY SELECT TRUE, 'Usuario desactivado exitosamente';
+    ELSE
+        RETURN QUERY SELECT FALSE, 'Usuario no encontrado';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Obtener Usuario por ID
+CREATE OR REPLACE FUNCTION sp_obtener_usuario(p_usuario_id UUID)
+RETURNS TABLE(
+    id UUID,
+    username VARCHAR(50),
+    nombre VARCHAR(150),
+    email VARCHAR(100),
+    telefono VARCHAR(20),
+    rol VARCHAR(50),
+    puesto_id UUID,
+    puesto_nombre VARCHAR(100),
+    activo BOOLEAN,
+    version INTEGER,
+    creado_en TIMESTAMPTZ,
+    actualizado_en TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        u.id, u.username, u.nombre, u.email, u.telefono, u.rol,
+        u.puesto_id, p.nombre, u.activo, u.version, u.creado_en, u.actualizado_en
+    FROM usuarios u
+    LEFT JOIN puestos p ON u.puesto_id = p.id
+    WHERE u.id = p_usuario_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: COLABORADORES
+-- ====================================================
+
+-- Crear Colaborador
+CREATE OR REPLACE FUNCTION sp_crear_colaborador(
+    p_nombre VARCHAR(150),
+    p_puesto_id UUID,
+    p_telefono VARCHAR(20) DEFAULT NULL,
+    p_correo VARCHAR(100) DEFAULT NULL,
+    p_descripcion TEXT DEFAULT NULL,
+    p_dpi VARCHAR(20) DEFAULT NULL,
+    p_es_personal_fijo BOOLEAN DEFAULT FALSE,
+    p_usuario_id UUID DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    colaborador_id UUID
+) AS $$
+DECLARE
+    v_colaborador_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    -- Validar que si es personal fijo debe tener usuario
+    IF p_es_personal_fijo = TRUE AND p_usuario_id IS NULL THEN
+        RETURN QUERY SELECT FALSE, 'Personal fijo requiere usuario asignado', NULL::UUID;
+        RETURN;
+    END IF;
+
+    -- Establecer contexto
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    BEGIN
+        INSERT INTO colaboradores (
+            nombre, puesto_id, descripcion, telefono, correo, dpi,
+            es_personal_fijo, usuario_id, creado_por
+        ) VALUES (
+            p_nombre, p_puesto_id, p_descripcion, p_telefono, p_correo, p_dpi,
+            p_es_personal_fijo, p_usuario_id, p_usuario_creador
+        ) RETURNING id INTO v_colaborador_id;
+
+        RETURN QUERY SELECT TRUE, 'Colaborador creado exitosamente', v_colaborador_id;
+    EXCEPTION
+        WHEN unique_violation THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error de duplicación: ' || v_error_msg, NULL::UUID;
+        WHEN OTHERS THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error al crear colaborador: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Actualizar Colaborador
+CREATE OR REPLACE FUNCTION sp_actualizar_colaborador(
+    p_colaborador_id UUID,
+    p_nombre VARCHAR(150) DEFAULT NULL,
+    p_puesto_id UUID DEFAULT NULL,
+    p_telefono VARCHAR(20) DEFAULT NULL,
+    p_correo VARCHAR(100) DEFAULT NULL,
+    p_descripcion TEXT DEFAULT NULL,
+    p_dpi VARCHAR(20) DEFAULT NULL,
+    p_activo BOOLEAN DEFAULT NULL,
+    p_usuario_modificador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT
+) AS $$
+DECLARE
+    v_version_actual INTEGER;
+BEGIN
+    -- Establecer contexto
+    IF p_usuario_modificador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_modificador::TEXT, TRUE);
+    END IF;
+
+    -- Lock optimista
+    SELECT version INTO v_version_actual
+    FROM colaboradores
+    WHERE id = p_colaborador_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT FALSE, 'Colaborador no encontrado';
+        RETURN;
+    END IF;
+
+    UPDATE colaboradores SET
+        nombre = COALESCE(p_nombre, nombre),
+        puesto_id = COALESCE(p_puesto_id, puesto_id),
+        telefono = COALESCE(p_telefono, telefono),
+        correo = COALESCE(p_correo, correo),
+        descripcion = COALESCE(p_descripcion, descripcion),
+        dpi = COALESCE(p_dpi, dpi),
+        activo = COALESCE(p_activo, activo)
+    WHERE id = p_colaborador_id;
+
+    RETURN QUERY SELECT TRUE, 'Colaborador actualizado exitosamente';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Eliminar Colaborador
+CREATE OR REPLACE FUNCTION sp_eliminar_colaborador(
+    p_colaborador_id UUID,
+    p_usuario_eliminador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT
+) AS $$
+BEGIN
+    -- Establecer contexto
+    IF p_usuario_eliminador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_eliminador::TEXT, TRUE);
+    END IF;
+
+    UPDATE colaboradores SET activo = FALSE WHERE id = p_colaborador_id;
+
+    IF FOUND THEN
+        RETURN QUERY SELECT TRUE, 'Colaborador desactivado exitosamente';
+    ELSE
+        RETURN QUERY SELECT FALSE, 'Colaborador no encontrado';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: ACTIVIDADES
+-- ====================================================
+
+-- Crear Actividad
+CREATE OR REPLACE FUNCTION sp_crear_actividad(
+    p_tipo_id UUID,
+    p_nombre VARCHAR(200),
+    p_fecha DATE,
+    p_descripcion TEXT DEFAULT NULL,
+    p_comunidad_id UUID DEFAULT NULL,
+    p_responsable_id UUID DEFAULT NULL,
+    p_colaborador_id UUID DEFAULT NULL,
+    p_estado VARCHAR(50) DEFAULT 'planificado',
+    p_latitud DECIMAL(10,8) DEFAULT NULL,
+    p_longitud DECIMAL(11,8) DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    actividad_id UUID
+) AS $$
+DECLARE
+    v_actividad_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    -- Validar que tenga al menos responsable o colaborador
+    IF p_responsable_id IS NULL AND p_colaborador_id IS NULL THEN
+        RETURN QUERY SELECT FALSE, 'Debe asignar un responsable o colaborador', NULL::UUID;
+        RETURN;
+    END IF;
+
+    -- Establecer contexto
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    BEGIN
+        INSERT INTO actividades (
+            tipo_id, nombre, fecha, descripcion, comunidad_id,
+            responsable_id, colaborador_id, estado, latitud, longitud
+        ) VALUES (
+            p_tipo_id, p_nombre, p_fecha, p_descripcion, p_comunidad_id,
+            p_responsable_id, p_colaborador_id, p_estado, p_latitud, p_longitud
+        ) RETURNING id INTO v_actividad_id;
+
+        RETURN QUERY SELECT TRUE, 'Actividad creada exitosamente', v_actividad_id;
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+        RETURN QUERY SELECT FALSE, 'Error al crear actividad: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Actualizar Actividad
+CREATE OR REPLACE FUNCTION sp_actualizar_actividad(
+    p_actividad_id UUID,
+    p_nombre VARCHAR(200) DEFAULT NULL,
+    p_fecha DATE DEFAULT NULL,
+    p_descripcion TEXT DEFAULT NULL,
+    p_estado VARCHAR(50) DEFAULT NULL,
+    p_responsable_id UUID DEFAULT NULL,
+    p_colaborador_id UUID DEFAULT NULL,
+    p_usuario_modificador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT
+) AS $$
+DECLARE
+    v_version_actual INTEGER;
+BEGIN
+    -- Establecer contexto
+    IF p_usuario_modificador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_modificador::TEXT, TRUE);
+    END IF;
+
+    -- Lock optimista con NOWAIT para evitar deadlocks
+    BEGIN
+        SELECT version INTO v_version_actual
+        FROM actividades
+        WHERE id = p_actividad_id AND eliminado_en IS NULL
+        FOR UPDATE NOWAIT;
+    EXCEPTION
+        WHEN lock_not_available THEN
+            RETURN QUERY SELECT FALSE, 'La actividad está siendo modificada por otro usuario';
+            RETURN;
+    END;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT FALSE, 'Actividad no encontrada o eliminada';
+        RETURN;
+    END IF;
+
+    UPDATE actividades SET
+        nombre = COALESCE(p_nombre, nombre),
+        fecha = COALESCE(p_fecha, fecha),
+        descripcion = COALESCE(p_descripcion, descripcion),
+        estado = COALESCE(p_estado, estado),
+        responsable_id = COALESCE(p_responsable_id, responsable_id),
+        colaborador_id = COALESCE(p_colaborador_id, colaborador_id)
+    WHERE id = p_actividad_id;
+
+    RETURN QUERY SELECT TRUE, 'Actividad actualizada exitosamente';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Eliminar Actividad (Soft Delete)
+CREATE OR REPLACE FUNCTION sp_eliminar_actividad(
+    p_actividad_id UUID,
+    p_usuario_eliminador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT
+) AS $$
+BEGIN
+    -- Establecer contexto
+    IF p_usuario_eliminador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_eliminador::TEXT, TRUE);
+    END IF;
+
+    UPDATE actividades 
+    SET eliminado_en = CURRENT_TIMESTAMP 
+    WHERE id = p_actividad_id AND eliminado_en IS NULL;
+
+    IF FOUND THEN
+        RETURN QUERY SELECT TRUE, 'Actividad eliminada exitosamente';
+    ELSE
+        RETURN QUERY SELECT FALSE, 'Actividad no encontrada';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: BENEFICIARIOS
+-- ====================================================
+
+-- Crear Beneficiario Individual
+CREATE OR REPLACE FUNCTION sp_crear_beneficiario_individual(
+    p_nombre VARCHAR(150),
+    p_apellido VARCHAR(150),
+    p_comunidad_id UUID,
+    p_dpi VARCHAR(20) DEFAULT NULL,
+    p_fecha_nacimiento DATE DEFAULT NULL,
+    p_genero VARCHAR(20) DEFAULT NULL,
+    p_telefono VARCHAR(20) DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    beneficiario_id UUID
+) AS $$
+DECLARE
+    v_beneficiario_id UUID;
+    v_tipo_individual_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    -- Obtener ID del tipo individual
+    SELECT id INTO v_tipo_individual_id 
+    FROM tipos_beneficiario 
+    WHERE codigo = 'IND';
+
+    -- Establecer contexto
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    BEGIN
+        -- Insertar beneficiario principal
+        INSERT INTO beneficiarios (tipo_id, comunidad_id)
+        VALUES (v_tipo_individual_id, p_comunidad_id)
+        RETURNING id INTO v_beneficiario_id;
+
+        -- Insertar datos específicos
+        INSERT INTO beneficiarios_individuales (
+            beneficiario_id, nombre, apellido, dpi, 
+            fecha_nacimiento, genero, telefono
+        ) VALUES (
+            v_beneficiario_id, p_nombre, p_apellido, p_dpi,
+            p_fecha_nacimiento, p_genero, p_telefono
+        ) ON CONFLICT DO NOTHING;
+
+        RETURN QUERY SELECT TRUE, 'Beneficiario individual creado exitosamente', v_beneficiario_id;
+    EXCEPTION
+        WHEN unique_violation THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'DPI duplicado o error de unicidad', NULL::UUID;
+        WHEN OTHERS THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Crear Beneficiario Familia
+CREATE OR REPLACE FUNCTION sp_crear_beneficiario_familia(
+    p_nombre_familia VARCHAR(150),
+    p_jefe_familia VARCHAR(150),
+    p_comunidad_id UUID,
+    p_dpi_jefe_familia VARCHAR(20) DEFAULT NULL,
+    p_telefono VARCHAR(20) DEFAULT NULL,
+    p_numero_miembros INT DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    beneficiario_id UUID
+) AS $$
+DECLARE
+    v_beneficiario_id UUID;
+    v_tipo_familia_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    SELECT id INTO v_tipo_familia_id 
+    FROM tipos_beneficiario 
+    WHERE codigo = 'FAM';
+
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    BEGIN
+        INSERT INTO beneficiarios (tipo_id, comunidad_id)
+        VALUES (v_tipo_familia_id, p_comunidad_id)
+        RETURNING id INTO v_beneficiario_id;
+
+        INSERT INTO beneficiarios_familias (
+            beneficiario_id, nombre_familia, jefe_familia,
+            dpi_jefe_familia, telefono, numero_miembros
+        ) VALUES (
+            v_beneficiario_id, p_nombre_familia, p_jefe_familia,
+            p_dpi_jefe_familia, p_telefono, p_numero_miembros
+        ) ON CONFLICT DO NOTHING;
+
+        RETURN QUERY SELECT TRUE, 'Beneficiario familia creado exitosamente', v_beneficiario_id;
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+        RETURN QUERY SELECT FALSE, 'Error: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Crear Beneficiario Institución
+CREATE OR REPLACE FUNCTION sp_crear_beneficiario_institucion(
+    p_nombre_institucion VARCHAR(200),
+    p_tipo_institucion VARCHAR(50),
+    p_comunidad_id UUID,
+    p_representante_legal VARCHAR(150) DEFAULT NULL,
+    p_dpi_representante VARCHAR(20) DEFAULT NULL,
+    p_telefono VARCHAR(20) DEFAULT NULL,
+    p_email VARCHAR(100) DEFAULT NULL,
+    p_numero_beneficiarios_directos INT DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    beneficiario_id UUID
+) AS $$
+DECLARE
+    v_beneficiario_id UUID;
+    v_tipo_inst_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    SELECT id INTO v_tipo_inst_id 
+    FROM tipos_beneficiario 
+    WHERE codigo = 'INST';
+
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    BEGIN
+        INSERT INTO beneficiarios (tipo_id, comunidad_id)
+        VALUES (v_tipo_inst_id, p_comunidad_id)
+        RETURNING id INTO v_beneficiario_id;
+
+        INSERT INTO beneficiarios_instituciones (
+            beneficiario_id, nombre_institucion, tipo_institucion,
+            representante_legal, dpi_representante, telefono, 
+            email, numero_beneficiarios_directos
+        ) VALUES (
+            v_beneficiario_id, p_nombre_institucion, p_tipo_institucion,
+            p_representante_legal, p_dpi_representante, p_telefono,
+            p_email, p_numero_beneficiarios_directos
+        ) ON CONFLICT DO NOTHING;
+
+        RETURN QUERY SELECT TRUE, 'Beneficiario institución creado exitosamente', v_beneficiario_id;
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+        RETURN QUERY SELECT FALSE, 'Error: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: COMUNIDADES
+-- ====================================================
+
+-- Crear Comunidad
+CREATE OR REPLACE FUNCTION sp_crear_comunidad(
+    p_codigo VARCHAR(20),
+    p_nombre VARCHAR(100),
+    p_tipo_id UUID,
+    p_region_id UUID DEFAULT NULL,
+    p_descripcion TEXT DEFAULT NULL,
+    p_poblacion INT DEFAULT NULL,
+    p_latitud DECIMAL(10,8) DEFAULT NULL,
+    p_longitud DECIMAL(11,8) DEFAULT NULL,
+    p_cocode VARCHAR(100) DEFAULT NULL,
+    p_telefono_cocode VARCHAR(20) DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    comunidad_id UUID
+) AS $$
+DECLARE
+    v_comunidad_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    BEGIN
+        INSERT INTO comunidades (
+            codigo, nombre, tipo_id, region_id, descripcion,
+            poblacion, latitud, longitud, cocode, telefono_cocode
+        ) VALUES (
+            p_codigo, p_nombre, p_tipo_id, p_region_id, p_descripcion,
+            p_poblacion, p_latitud, p_longitud, p_cocode, p_telefono_cocode
+        ) RETURNING id INTO v_comunidad_id;
+
+        RETURN QUERY SELECT TRUE, 'Comunidad creada exitosamente', v_comunidad_id;
+    EXCEPTION
+        WHEN unique_violation THEN
+            RETURN QUERY SELECT FALSE, 'El código de comunidad ya existe', NULL::UUID;
+        WHEN OTHERS THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Actualizar Comunidad
+CREATE OR REPLACE FUNCTION sp_actualizar_comunidad(
+    p_comunidad_id UUID,
+    p_nombre VARCHAR(100) DEFAULT NULL,
+    p_descripcion TEXT DEFAULT NULL,
+    p_poblacion INT DEFAULT NULL,
+    p_cocode VARCHAR(100) DEFAULT NULL,
+    p_telefono_cocode VARCHAR(20) DEFAULT NULL,
+    p_activo BOOLEAN DEFAULT NULL,
+    p_usuario_modificador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT
+) AS $$
+DECLARE
+    v_version_actual INTEGER;
+BEGIN
+    IF p_usuario_modificador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_modificador::TEXT, TRUE);
+    END IF;
+
+    SELECT version INTO v_version_actual
+    FROM comunidades
+    WHERE id = p_comunidad_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT FALSE, 'Comunidad no encontrada';
+        RETURN;
+    END IF;
+
+    UPDATE comunidades SET
+        nombre = COALESCE(p_nombre, nombre),
+        descripcion = COALESCE(p_descripcion, descripcion),
+        poblacion = COALESCE(p_poblacion, poblacion),
+        cocode = COALESCE(p_cocode, cocode),
+        telefono_cocode = COALESCE(p_telefono_cocode, telefono_cocode),
+        activo = COALESCE(p_activo, activo)
+    WHERE id = p_comunidad_id;
+
+    RETURN QUERY SELECT TRUE, 'Comunidad actualizada exitosamente';
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: REGIONES
+-- ====================================================
+
+-- Crear Región
+CREATE OR REPLACE FUNCTION sp_crear_region(
+    p_codigo VARCHAR(20),
+    p_nombre VARCHAR(100),
+    p_descripcion TEXT DEFAULT NULL,
+    p_comunidad_sede VARCHAR(100) DEFAULT NULL,
+    p_poblacion_aprox INT DEFAULT NULL,
+    p_latitud DECIMAL(10,8) DEFAULT NULL,
+    p_longitud DECIMAL(11,8) DEFAULT NULL,
+    p_usuario_creador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    region_id UUID
+) AS $$
+DECLARE
+    v_region_id UUID;
+    v_error_msg TEXT;
+BEGIN
+    IF p_usuario_creador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_creador::TEXT, TRUE);
+    END IF;
+
+    BEGIN
+        INSERT INTO regiones (
+            codigo, nombre, descripcion, comunidad_sede,
+            poblacion_aprox, latitud, longitud
+        ) VALUES (
+            p_codigo, p_nombre, p_descripcion, p_comunidad_sede,
+            p_poblacion_aprox, p_latitud, p_longitud
+        ) RETURNING id INTO v_region_id;
+
+        RETURN QUERY SELECT TRUE, 'Región creada exitosamente', v_region_id;
+    EXCEPTION
+        WHEN unique_violation THEN
+            RETURN QUERY SELECT FALSE, 'El código de región ya existe', NULL::UUID;
+        WHEN OTHERS THEN
+            GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+            RETURN QUERY SELECT FALSE, 'Error: ' || v_error_msg, NULL::UUID;
+    END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: REGISTRAR CAMBIO EN ACTIVIDAD (USUARIO)
+-- ====================================================
+
+CREATE OR REPLACE FUNCTION sp_registrar_cambio_actividad(
+    p_actividad_id UUID,
+    p_responsable_id UUID,
+    p_descripcion_cambio TEXT,
+    p_fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    cambio_id UUID
+) AS $$
+DECLARE
+    v_cambio_id UUID;
+BEGIN
+    -- Establecer contexto
+    PERFORM set_config('app.current_user_id', p_responsable_id::TEXT, TRUE);
+
+    INSERT INTO actividad_cambios (
+        actividad_id, responsable_id, descripcion_cambio, fecha_cambio
+    ) VALUES (
+        p_actividad_id, p_responsable_id, p_descripcion_cambio, p_fecha_cambio
+    ) RETURNING id INTO v_cambio_id;
+
+    RETURN QUERY SELECT TRUE, 'Cambio registrado exitosamente', v_cambio_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: REGISTRAR CAMBIO EN ACTIVIDAD (COLABORADOR)
+-- ====================================================
+
+CREATE OR REPLACE FUNCTION sp_registrar_cambio_actividad_colaborador(
+    p_actividad_id UUID,
+    p_colaborador_id UUID,
+    p_descripcion_cambio TEXT,
+    p_fecha_cambio TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    cambio_id UUID
+) AS $$
+DECLARE
+    v_cambio_id UUID;
+BEGIN
+    -- Establecer contexto
+    PERFORM set_config('app.current_colaborador_id', p_colaborador_id::TEXT, TRUE);
+
+    INSERT INTO eventos_cambios_colaboradores (
+        actividad_id, colaborador_id, descripcion_cambio, fecha_cambio
+    ) VALUES (
+        p_actividad_id, p_colaborador_id, p_descripcion_cambio, p_fecha_cambio
+    ) RETURNING id INTO v_cambio_id;
+
+    RETURN QUERY SELECT TRUE, 'Cambio registrado exitosamente', v_cambio_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- SP: ASIGNAR BENEFICIARIOS A ACTIVIDAD (CON CONCURRENCIA)
+-- ====================================================
+
+CREATE OR REPLACE FUNCTION sp_asignar_beneficiarios_actividad(
+    p_actividad_id UUID,
+    p_beneficiarios_ids UUID[],
+    p_usuario_asignador UUID DEFAULT NULL
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    asignados INTEGER,
+    duplicados INTEGER
+) AS $$
+DECLARE
+    v_beneficiario_id UUID;
+    v_asignados INTEGER := 0;
+    v_duplicados INTEGER := 0;
+BEGIN
+    IF p_usuario_asignador IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_usuario_asignador::TEXT, TRUE);
+    END IF;
+
+    -- Lock de la actividad para evitar race conditions
+    PERFORM 1 FROM actividades 
+    WHERE id = p_actividad_id AND eliminado_en IS NULL
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT FALSE, 'Actividad no encontrada', 0, 0;
+        RETURN;
+    END IF;
+
+    FOREACH v_beneficiario_id IN ARRAY p_beneficiarios_ids
+    LOOP
+        BEGIN
+            INSERT INTO actividad_beneficiarios (actividad_id, beneficiario_id)
+            VALUES (p_actividad_id, v_beneficiario_id) ON CONFLICT DO NOTHING;
+            v_asignados := v_asignados + 1;
+        EXCEPTION
+            WHEN unique_violation THEN
+                v_duplicados := v_duplicados + 1;
+        END;
+    END LOOP;
+
+    RETURN QUERY SELECT 
+        TRUE, 
+        format('Proceso completado: %s asignados, %s ya existían', v_asignados, v_duplicados),
+        v_asignados,
+        v_duplicados;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- VISTAS CONSOLIDADAS
+-- ====================================================
+
+-- Vista: Colaboradores Completos
+CREATE OR REPLACE VIEW vista_colaboradores_completos AS
+SELECT 
+    c.id,
+    c.nombre,
+    c.descripcion,
+    c.telefono,
+    c.correo,
+    c.dpi,
+    c.es_personal_fijo,
+    c.activo,
+    p.nombre as puesto,
+    p.codigo as puesto_codigo,
+    p.descripcion as puesto_descripcion,
+    u.id as usuario_id,
+    u.username,
+    u.email as usuario_email,
+    u.rol as usuario_rol,
+    u.activo as usuario_activo,
+    COUNT(DISTINCT a.id) as total_actividades_asignadas,
+    COUNT(DISTINCT CASE WHEN a.estado = 'completado' THEN a.id END) as actividades_completadas,
+    COUNT(DISTINCT CASE WHEN a.estado = 'en_progreso' THEN a.id END) as actividades_en_progreso,
+    COUNT(DISTINCT ap.actividad_id) as total_actividades_como_personal,
+    COUNT(DISTINCT ecc.id) as total_cambios_registrados,
+    c.creado_en,
+    c.actualizado_en,
+    uc.username as creado_por_username
+FROM colaboradores c
+LEFT JOIN puestos p ON c.puesto_id = p.id
+LEFT JOIN usuarios u ON c.usuario_id = u.id
+LEFT JOIN actividades a ON c.id = a.colaborador_id
+LEFT JOIN actividad_personal ap ON c.id = ap.colaborador_id
+LEFT JOIN eventos_cambios_colaboradores ecc ON c.id = ecc.colaborador_id
+LEFT JOIN usuarios uc ON c.creado_por = uc.id
+GROUP BY c.id, p.nombre, p.codigo, p.descripcion, u.id, u.username, u.email, u.rol, u.activo, uc.username;
+
+-- Vista: Actividades Completas
+CREATE OR REPLACE VIEW vista_actividades_completas AS
+SELECT 
+    a.id,
+    a.nombre,
+    a.fecha,
+    a.descripcion,
+    a.estado,
+    ta.nombre as tipo_actividad,
+    ta.id as tipo_actividad_id,
+    c.nombre as comunidad,
+    c.codigo as comunidad_codigo,
+    c.id as comunidad_id,
+    r.nombre as region,
+    r.id as region_id,
+    u.username as responsable,
+    u.id as responsable_id,
+    u.rol as rol_responsable,
+    p.nombre as puesto_responsable,
+    col.id as colaborador_id,
+    col.nombre as colaborador_nombre,
+    col.telefono as colaborador_telefono,
+    col.correo as colaborador_correo,
+    col.es_personal_fijo as colaborador_es_personal_fijo,
+    pcol.nombre as colaborador_puesto,
+    a.latitud,
+    a.longitud,
+    COUNT(DISTINCT ab.beneficiario_id) as total_beneficiarios,
+    COUNT(DISTINCT e.id) as total_evidencias,
+    COUNT(DISTINCT ac.id) as total_cambios_usuarios,
+    COUNT(DISTINCT ecc.id) as total_cambios_colaboradores,
+    (COUNT(DISTINCT ac.id) + COUNT(DISTINCT ecc.id)) as total_cambios,
+    a.creado_en,
+    a.actualizado_en
+FROM actividades a
+LEFT JOIN tipos_actividad ta ON a.tipo_id = ta.id
+LEFT JOIN comunidades c ON a.comunidad_id = c.id
+LEFT JOIN regiones r ON c.region_id = r.id
+LEFT JOIN usuarios u ON a.responsable_id = u.id
+LEFT JOIN puestos p ON u.puesto_id = p.id
+LEFT JOIN colaboradores col ON a.colaborador_id = col.id
+LEFT JOIN puestos pcol ON col.puesto_id = pcol.id
+LEFT JOIN actividad_beneficiarios ab ON a.id = ab.actividad_id
+LEFT JOIN evidencias e ON a.id = e.actividad_id
+LEFT JOIN actividad_cambios ac ON a.id = ac.actividad_id
+LEFT JOIN eventos_cambios_colaboradores ecc ON a.id = ecc.actividad_id
+WHERE a.eliminado_en IS NULL
+GROUP BY a.id, ta.nombre, ta.id, c.nombre, c.codigo, c.id, r.nombre, r.id, 
+         u.username, u.id, u.rol, p.nombre,
+         col.id, col.nombre, col.telefono, col.correo, col.es_personal_fijo, pcol.nombre;
+
+-- Vista: Cambios Unificados
+CREATE OR REPLACE VIEW vista_cambios_eventos_unificada AS
+SELECT 
+    ac.id,
+    ac.actividad_id,
+    'usuario' as tipo_autor,
+    ac.responsable_id as autor_id,
+    u.username as autor_nombre,
+    u.email as autor_contacto,
+    NULL::UUID as colaborador_id,
+    ac.descripcion_cambio,
+    ac.fecha_cambio,
+    ac.creado_en
+FROM actividad_cambios ac
+LEFT JOIN usuarios u ON ac.responsable_id = u.id
+UNION ALL
+SELECT 
+    ecc.id,
+    ecc.actividad_id,
+    'colaborador' as tipo_autor,
+    NULL::UUID as autor_id,
+    c.nombre as autor_nombre,
+    c.correo as autor_contacto,
+    ecc.colaborador_id,
+    ecc.descripcion_cambio,
+    ecc.fecha_cambio,
+    ecc.creado_en
+FROM eventos_cambios_colaboradores ecc
+LEFT JOIN colaboradores c ON ecc.colaborador_id = c.id
+ORDER BY fecha_cambio DESC;
+
+-- Vista: Reporte de Beneficiarios
+CREATE OR REPLACE VIEW reporte_beneficiarios AS
+SELECT 
+    b.id,
+    tb.nombre as tipo_beneficiario,
+    CASE 
+        WHEN tb.nombre = 'individual' THEN CONCAT(bi.nombre, ' ', bi.apellido)
+        WHEN tb.nombre = 'familia' THEN bf.nombre_familia
+        WHEN tb.nombre = 'institución' THEN bin.nombre_institucion
+    END as nombre_completo,
+    CASE 
+        WHEN tb.nombre = 'individual' THEN bi.dpi
+        WHEN tb.nombre = 'familia' THEN bf.dpi_jefe_familia
+        WHEN tb.nombre = 'institución' THEN bin.dpi_representante
+    END as documento_identificacion,
+    CASE 
+        WHEN tb.nombre = 'individual' THEN bi.telefono
+        WHEN tb.nombre = 'familia' THEN bf.telefono
+        WHEN tb.nombre = 'institución' THEN bin.telefono
+    END as telefono,
+    bin.email,
+    bi.genero,
+    bi.fecha_nacimiento,
+    bf.jefe_familia,
+    bf.numero_miembros,
+    bin.tipo_institucion,
+    bin.representante_legal,
+    bin.numero_beneficiarios_directos,
+    c.nombre as comunidad,
+    c.codigo as comunidad_codigo,
+    tc.nombre as tipo_comunidad,
+    r.nombre as region,
+    COUNT(DISTINCT ab.actividad_id) as total_actividades_participadas,
+    MIN(a.fecha) as primera_participacion,
+    MAX(a.fecha) as ultima_participacion,
+    STRING_AGG(DISTINCT ta.nombre, ', ') as tipos_actividades,
+    b.activo,
+    b.creado_en,
+    b.actualizado_en
+FROM beneficiarios b
+INNER JOIN tipos_beneficiario tb ON b.tipo_id = tb.id
+LEFT JOIN beneficiarios_individuales bi ON b.id = bi.beneficiario_id
+LEFT JOIN beneficiarios_familias bf ON b.id = bf.beneficiario_id
+LEFT JOIN beneficiarios_instituciones bin ON b.id = bin.beneficiario_id
+LEFT JOIN comunidades c ON b.comunidad_id = c.id
+LEFT JOIN tipos_comunidad tc ON c.tipo_id = tc.id
+LEFT JOIN regiones r ON c.region_id = r.id
+LEFT JOIN actividad_beneficiarios ab ON b.id = ab.beneficiario_id
+LEFT JOIN actividades a ON ab.actividad_id = a.id AND a.eliminado_en IS NULL
+LEFT JOIN tipos_actividad ta ON a.tipo_id = ta.id
+GROUP BY b.id, tb.nombre, bi.nombre, bi.apellido, bi.dpi, bi.telefono, bi.genero, bi.fecha_nacimiento,
+         bf.nombre_familia, bf.dpi_jefe_familia, bf.telefono, bf.jefe_familia, bf.numero_miembros,
+         bin.nombre_institucion, bin.dpi_representante, bin.telefono, bin.email, bin.tipo_institucion, 
+         bin.representante_legal, bin.numero_beneficiarios_directos,
+         c.nombre, c.codigo, tc.nombre, r.nombre, b.activo, b.creado_en, b.actualizado_en;
+
+-- Vista: Comunidades con Estadísticas
+CREATE OR REPLACE VIEW vista_comunidades_estadisticas AS
+SELECT 
+    c.id,
+    c.codigo,
+    c.nombre,
+    tc.nombre as tipo,
+    r.nombre as region,
+    r.id as region_id,
+    c.poblacion,
+    COUNT(DISTINCT a.id) as total_actividades,
+    COUNT(DISTINCT b.id) as total_beneficiarios,
+    c.creado_en
+FROM comunidades c
+LEFT JOIN tipos_comunidad tc ON c.tipo_id = tc.id
+LEFT JOIN regiones r ON c.region_id = r.id
+LEFT JOIN actividades a ON c.id = a.comunidad_id AND a.eliminado_en IS NULL
+LEFT JOIN beneficiarios b ON c.id = b.comunidad_id
+WHERE c.activo = TRUE
+GROUP BY c.id, tc.nombre, r.nombre, r.id;
+
+-- ====================================================
+-- FUNCIONES DE UTILIDAD Y RESUMEN
+-- ====================================================
+
+-- Función: Obtener Resumen del Sistema
+CREATE OR REPLACE FUNCTION obtener_resumen_sistema()
+RETURNS TABLE (
+    descripcion TEXT,
+    cantidad BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 'Total de Usuarios'::TEXT, COUNT(*)::BIGINT FROM usuarios
+    UNION ALL
+    SELECT 'Usuarios Activos'::TEXT, COUNT(*)::BIGINT FROM usuarios WHERE activo = TRUE
+    UNION ALL
+    SELECT 'Total de Colaboradores'::TEXT, COUNT(*)::BIGINT FROM colaboradores
+    UNION ALL
+    SELECT 'Colaboradores con Usuario'::TEXT, COUNT(*)::BIGINT FROM colaboradores WHERE usuario_id IS NOT NULL
+    UNION ALL
+    SELECT 'Colaboradores Externos'::TEXT, COUNT(*)::BIGINT FROM colaboradores WHERE es_personal_fijo = FALSE
+    UNION ALL
+    SELECT 'Total de Regiones'::TEXT, COUNT(*)::BIGINT FROM regiones
+    UNION ALL
+    SELECT 'Total de Comunidades'::TEXT, COUNT(*)::BIGINT FROM comunidades
+    UNION ALL
+    SELECT 'Total de Beneficiarios'::TEXT, COUNT(*)::BIGINT FROM beneficiarios
+    UNION ALL
+    SELECT 'Beneficiarios Individuales'::TEXT, COUNT(*)::BIGINT FROM beneficiarios_individuales
+    UNION ALL
+    SELECT 'Beneficiarios Familias'::TEXT, COUNT(*)::BIGINT FROM beneficiarios_familias
+    UNION ALL
+    SELECT 'Beneficiarios Instituciones'::TEXT, COUNT(*)::BIGINT FROM beneficiarios_instituciones
+    UNION ALL
+    SELECT 'Total de Actividades'::TEXT, COUNT(*)::BIGINT FROM actividades WHERE eliminado_en IS NULL
+    UNION ALL
+    SELECT 'Actividades Completadas'::TEXT, COUNT(*)::BIGINT FROM actividades WHERE estado = 'completado' AND eliminado_en IS NULL
+    UNION ALL
+    SELECT 'Actividades en Progreso'::TEXT, COUNT(*)::BIGINT FROM actividades WHERE estado = 'en_progreso' AND eliminado_en IS NULL
+    UNION ALL
+    SELECT 'Actividades Planificadas'::TEXT, COUNT(*)::BIGINT FROM actividades WHERE estado = 'planificado' AND eliminado_en IS NULL
+    UNION ALL
+    SELECT 'Total de Evidencias'::TEXT, COUNT(*)::BIGINT FROM evidencias
+    UNION ALL
+    SELECT 'Cambios por Usuarios'::TEXT, COUNT(*)::BIGINT FROM actividad_cambios
+    UNION ALL
+    SELECT 'Cambios por Colaboradores'::TEXT, COUNT(*)::BIGINT FROM eventos_cambios_colaboradores
+    UNION ALL
+    SELECT 'Registros en Bitácora'::TEXT, COUNT(*)::BIGINT FROM bitacora_transacciones;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función: Verificar Integridad de Colaboradores
+CREATE OR REPLACE FUNCTION verificar_integridad_colaboradores()
+RETURNS TABLE (
+    tipo_problema TEXT,
+    cantidad BIGINT,
+    descripcion TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        'Colaboradores sin Usuario'::TEXT,
+        COUNT(*)::BIGINT,
+        'Colaboradores marcados como personal fijo pero sin usuario asignado'::TEXT
+    FROM colaboradores 
+    WHERE es_personal_fijo = TRUE AND usuario_id IS NULL
+    UNION ALL
+    SELECT 
+        'Inconsistencia Personal Fijo'::TEXT,
+        COUNT(*)::BIGINT,
+        'Colaboradores con usuario pero no marcados como personal fijo'::TEXT
+    FROM colaboradores 
+    WHERE es_personal_fijo = FALSE AND usuario_id IS NOT NULL
+    UNION ALL
+    SELECT 
+        'Actividades sin Asignación'::TEXT,
+        COUNT(*)::BIGINT,
+        'Actividades sin colaborador ni responsable asignado'::TEXT
+    FROM actividades 
+    WHERE colaborador_id IS NULL AND responsable_id IS NULL AND eliminado_en IS NULL
+    UNION ALL
+    SELECT 
+        'Colaboradores Inactivos con Actividades'::TEXT,
+        COUNT(DISTINCT c.id)::BIGINT,
+        'Colaboradores inactivos que tienen actividades activas asignadas'::TEXT
+    FROM colaboradores c
+    INNER JOIN actividades a ON c.id = a.colaborador_id
+    WHERE c.activo = FALSE 
+    AND a.estado IN ('planificado', 'en_progreso')
+    AND a.eliminado_en IS NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función: Crear Colaborador con Usuario (Completo)
+CREATE OR REPLACE FUNCTION crear_colaborador_con_usuario(
+    p_nombre VARCHAR(150),
+    p_puesto_id UUID,
+    p_telefono VARCHAR(20),
+    p_correo VARCHAR(100),
+    p_descripcion TEXT DEFAULT NULL,
+    p_dpi VARCHAR(20) DEFAULT NULL,
+    p_username VARCHAR(50) DEFAULT NULL,
+    p_password_hash TEXT DEFAULT NULL,
+    p_creado_por UUID DEFAULT NULL
+)
+RETURNS UUID AS $$
+DECLARE
+    v_colaborador_id UUID;
+    v_usuario_id UUID;
+BEGIN
+    -- Establecer contexto
+    IF p_creado_por IS NOT NULL THEN
+        PERFORM set_config('app.current_user_id', p_creado_por::TEXT, TRUE);
+    END IF;
+
+    -- Crear colaborador
+    INSERT INTO colaboradores (
+        nombre, puesto_id, descripcion, telefono, correo, dpi, 
+        es_personal_fijo, activo, creado_por
+    ) VALUES (
+        p_nombre, p_puesto_id, p_descripcion, p_telefono, p_correo, p_dpi,
+        TRUE, TRUE, p_creado_por
+    ) RETURNING id INTO v_colaborador_id;
+    
+    -- Crear usuario si se proporcionan credenciales
+    IF p_username IS NOT NULL AND p_password_hash IS NOT NULL THEN
+        INSERT INTO usuarios (
+            username, nombre, email, telefono, password_hash, 
+            rol, puesto_id, activo
+        ) VALUES (
+            p_username, p_nombre, p_correo, p_telefono, p_password_hash,
+            'personal', p_puesto_id, TRUE
+        ) RETURNING id INTO v_usuario_id;
+        
+        -- Vincular colaborador con usuario
+        UPDATE colaboradores 
+        SET usuario_id = v_usuario_id 
+        WHERE id = v_colaborador_id;
+    END IF;
+    
+    RETURN v_colaborador_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- FUNCIONES PARA MANEJO DE CONCURRENCIA
+-- ====================================================
+
+-- Función: Intentar Actualización con Retry
+CREATE OR REPLACE FUNCTION intentar_actualizacion_con_retry(
+    p_tabla VARCHAR(100),
+    p_registro_id UUID,
+    p_datos JSONB,
+    p_max_intentos INT DEFAULT 3
+)
+RETURNS TABLE(
+    success BOOLEAN,
+    message TEXT,
+    intentos_realizados INT
+) AS $$
+DECLARE
+    v_intento INT := 0;
+    v_completado BOOLEAN := FALSE;
+    v_error_msg TEXT;
+BEGIN
+    WHILE v_intento < p_max_intentos AND NOT v_completado LOOP
+        v_intento := v_intento + 1;
+        
+        BEGIN
+            -- Intentar la actualización con lock
+            EXECUTE format(
+                'UPDATE %I SET 
+                    actualizado_en = CURRENT_TIMESTAMP,
+                    version = version + 1
+                WHERE id = $1
+                FOR UPDATE NOWAIT',
+                p_tabla
+            ) USING p_registro_id;
+            
+            v_completado := TRUE;
+            RETURN QUERY SELECT TRUE, 'Actualización exitosa', v_intento;
+            
+        EXCEPTION
+            WHEN lock_not_available THEN
+                IF v_intento >= p_max_intentos THEN
+                    RETURN QUERY SELECT FALSE, 'No se pudo obtener el lock después de ' || v_intento || ' intentos', v_intento;
+                ELSE
+                    -- Esperar un poco antes de reintentar (simulado con pg_sleep)
+                    PERFORM pg_sleep(0.1 * v_intento);
+                END IF;
+            WHEN OTHERS THEN
+                GET STACKED DIAGNOSTICS v_error_msg = MESSAGE_TEXT;
+                RETURN QUERY SELECT FALSE, 'Error: ' || v_error_msg, v_intento;
+                RETURN;
+        END;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función: Validar Versión Optimista
+CREATE OR REPLACE FUNCTION validar_version_optimista(
+    p_tabla VARCHAR(100),
+    p_registro_id UUID,
+    p_version_esperada INT
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_version_actual INT;
+BEGIN
+    EXECUTE format('SELECT version FROM %I WHERE id = $1', p_tabla)
+    INTO v_version_actual
+    USING p_registro_id;
+    
+    RETURN (v_version_actual = p_version_esperada);
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- PROCEDIMIENTO: LIMPIAR DATOS ANTIGUOS
+-- ====================================================
+
+CREATE OR REPLACE FUNCTION sp_limpiar_datos_antiguos(
+    p_dias_bitacora INT DEFAULT 90,
+    p_dias_sesiones INT DEFAULT 30
+)
+RETURNS TABLE(
+    entidad TEXT,
+    registros_eliminados BIGINT
+) AS $$
+DECLARE
+    v_bitacora_eliminados BIGINT;
+    v_sesiones_eliminadas BIGINT;
+BEGIN
+    -- Limpiar bitácora antigua
+    DELETE FROM bitacora_transacciones
+    WHERE creado_en < CURRENT_TIMESTAMP - (p_dias_bitacora || ' days')::INTERVAL;
+    GET DIAGNOSTICS v_bitacora_eliminados = ROW_COUNT;
+
+    -- Limpiar sesiones expiradas
+    DELETE FROM sesiones_offline
+    WHERE expira_en < CURRENT_TIMESTAMP - (p_dias_sesiones || ' days')::INTERVAL;
+    GET DIAGNOSTICS v_sesiones_eliminadas = ROW_COUNT;
+
+    RETURN QUERY SELECT 'Bitácora de Transacciones'::TEXT, v_bitacora_eliminados;
+    RETURN QUERY SELECT 'Sesiones Offline'::TEXT, v_sesiones_eliminadas;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ====================================================
+-- MENSAJE FINAL
+-- ====================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '=====================================================';
+    RAISE NOTICE '✅ BASE DE DATOS CONSOLIDADA CREADA EXITOSAMENTE';
+    RAISE NOTICE '=====================================================';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Versión: 3.0 - Script Consolidado Completo';
+    RAISE NOTICE 'Zona Horaria: America/Guatemala (UTC-6)';
+    RAISE NOTICE 'Hora actual: %', CURRENT_TIMESTAMP;
+    RAISE NOTICE '';
+    RAISE NOTICE '📊 ESTRUCTURA CREADA:';
+    RAISE NOTICE '  • 40+ Tablas principales';
+    RAISE NOTICE '  • 10+ Vistas de consulta';
+    RAISE NOTICE '  • 25+ Procedimientos almacenados (CRUD)';
+    RAISE NOTICE '  • Sistema de auditoría automática';
+    RAISE NOTICE '  • Manejo de concurrencia (locks optimistas/pesimistas)';
+    RAISE NOTICE '  • Control de versiones en registros';
+    RAISE NOTICE '';
+    RAISE NOTICE '🔧 PROCEDIMIENTOS ALMACENADOS DISPONIBLES:';
+    RAISE NOTICE '  Usuarios:';
+    RAISE NOTICE '    • sp_crear_usuario()';
+    RAISE NOTICE '    • sp_actualizar_usuario()';
+    RAISE NOTICE '    • sp_eliminar_usuario()';
+    RAISE NOTICE '    • sp_obtener_usuario()';
+    RAISE NOTICE '';
+    RAISE NOTICE '  Colaboradores:';
+    RAISE NOTICE '    • sp_crear_colaborador()';
+    RAISE NOTICE '    • sp_actualizar_colaborador()';
+    RAISE NOTICE '    • sp_eliminar_colaborador()';
+    RAISE NOTICE '    • crear_colaborador_con_usuario()';
+    RAISE NOTICE '';
+    RAISE NOTICE '  Actividades:';
+    RAISE NOTICE '    • sp_crear_actividad()';
+    RAISE NOTICE '    • sp_actualizar_actividad()';
+    RAISE NOTICE '    • sp_eliminar_actividad()';
+    RAISE NOTICE '    • sp_registrar_cambio_actividad()';
+    RAISE NOTICE '    • sp_registrar_cambio_actividad_colaborador()';
+    RAISE NOTICE '    • sp_asignar_beneficiarios_actividad()';
+    RAISE NOTICE '';
+    RAISE NOTICE '  Beneficiarios:';
+    RAISE NOTICE '    • sp_crear_beneficiario_individual()';
+    RAISE NOTICE '    • sp_crear_beneficiario_familia()';
+    RAISE NOTICE '    • sp_crear_beneficiario_institucion()';
+    RAISE NOTICE '';
+    RAISE NOTICE '  Geografía:';
+    RAISE NOTICE '    • sp_crear_comunidad()';
+    RAISE NOTICE '    • sp_actualizar_comunidad()';
+    RAISE NOTICE '    • sp_crear_region()';
+    RAISE NOTICE '';
+    RAISE NOTICE '  Utilidades:';
+    RAISE NOTICE '    • obtener_resumen_sistema()';
+    RAISE NOTICE '    • verificar_integridad_colaboradores()';
+    RAISE NOTICE '    • intentar_actualizacion_con_retry()';
+    RAISE NOTICE '    • validar_version_optimista()';
+    RAISE NOTICE '    • sp_limpiar_datos_antiguos()';
+    RAISE NOTICE '';
+    RAISE NOTICE '🔒 CARACTERÍSTICAS DE SEGURIDAD:';
+    RAISE NOTICE '  • Auditoría automática en bitácora_transacciones';
+    RAISE NOTICE '  • Triggers para registrar INSERT/UPDATE/DELETE';
+    RAISE NOTICE '  • Control de versiones optimista';
+    RAISE NOTICE '  • Locks para prevenir race conditions';
+    RAISE NOTICE '  • Soft delete en registros principales';
+    RAISE NOTICE '';
+    RAISE NOTICE '⚡ MANEJO DE CONCURRENCIA:';
+    RAISE NOTICE '  • FOR UPDATE NOWAIT en actualizaciones críticas';
+    RAISE NOTICE '  • Sistema de versiones por registro';
+    RAISE NOTICE '  • Retry automático en conflictos';
+    RAISE NOTICE '  • Validación optimista de versiones';
+    RAISE NOTICE '';
+    RAISE NOTICE '📝 CAMBIOS APLICADOS:';
+    RAISE NOTICE '  ✓ Separación de cambios: usuarios vs colaboradores';
+    RAISE NOTICE '  ✓ Tabla eventos_cambios_colaboradores creada';
+    RAISE NOTICE '  ✓ Tabla actividad_comunidades (M2M)';
+    RAISE NOTICE '  ✓ Tabla actividad_portadas';
+    RAISE NOTICE '  ✓ Tabla eventos_galeria';
+    RAISE NOTICE '  ✓ Tabla eventos_evidencias_cambios';
+    RAISE NOTICE '  ✓ Tabla recordatorios';
+    RAISE NOTICE '  ✓ Ampliación de archivo_tipo a VARCHAR(100)';
+    RAISE NOTICE '  ✓ fecha_cambio editable manualmente';
+    RAISE NOTICE '  ✓ Índices de rendimiento para reportes';
+    RAISE NOTICE '';
+    RAISE NOTICE '🎯 PRÓXIMOS PASOS:';
+    RAISE NOTICE '  1. Verificar integridad: SELECT * FROM verificar_integridad_colaboradores();';
+    RAISE NOTICE '  2. Ver resumen: SELECT * FROM obtener_resumen_sistema();';
+    RAISE NOTICE '  3. Crear puestos necesarios en la tabla "puestos"';
+    RAISE NOTICE '  4. Configurar zona horaria permanente:';
+    RAISE NOTICE '     ALTER DATABASE nombre_bd SET timezone TO ''America/Guatemala'';';
+    RAISE NOTICE '';
+    RAISE NOTICE '💡 EJEMPLO DE USO:';
+    RAISE NOTICE '  -- Crear usuario con auditoría';
+    RAISE NOTICE '  SELECT * FROM sp_crear_usuario(';
+    RAISE NOTICE '    ''jperez'', ''Juan Pérez'', ''juan@example.com'',';
+    RAISE NOTICE '    ''12345678'', ''password_hash'', ''personal'',';
+    RAISE NOTICE '    ''puesto_uuid'', ''admin_uuid''';
+    RAISE NOTICE '  );';
+    RAISE NOTICE '';
+    RAISE NOTICE '  -- Crear actividad con lock de concurrencia';
+    RAISE NOTICE '  SELECT * FROM sp_crear_actividad(';
+    RAISE NOTICE '    ''tipo_uuid'', ''Capacitación'', ''2025-01-15'',';
+    RAISE NOTICE '    ''Descripción'', ''comunidad_uuid'',';
+    RAISE NOTICE '    ''responsable_uuid'', NULL, ''planificado''';
+    RAISE NOTICE '  );';
+    RAISE NOTICE '';
+    RAISE NOTICE '=====================================================';
+    RAISE NOTICE '✨ SISTEMA LISTO PARA PRODUCCIÓN';
+    RAISE NOTICE '=====================================================';
+    RAISE NOTICE '';
+END $$;
+
+
+
+--CAMBIOS GANDHI PARA IMPLEMENTACIONES
+
+ALTER TABLE recordatorios ADD COLUMN recordar BOOLEAN DEFAULT FALSE;
+
+   -- =====================================================
+-- SCRIPT: TABLA DE FOTOS DE PERFIL DE USUARIOS
+-- =====================================================
+-- Esta tabla almacena las fotos de perfil de los usuarios del sistema
+-- Se vincula con la tabla usuarios mediante una relación uno a uno
+
+-- TABLA: FOTOS DE PERFIL
+CREATE TABLE IF NOT EXISTS usuario_fotos_perfil (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    usuario_id UUID UNIQUE NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para mejorar el rendimiento
+CREATE INDEX IF NOT EXISTS idx_usuario_fotos_perfil_usuario ON usuario_fotos_perfil(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_usuario_fotos_perfil_creado_en ON usuario_fotos_perfil(creado_en DESC);
+
+-- Comentarios
+COMMENT ON TABLE usuario_fotos_perfil IS 'Fotos de perfil de usuarios del sistema';
+COMMENT ON COLUMN usuario_fotos_perfil.usuario_id IS 'Referencia única al usuario. Solo puede haber una foto por usuario.';
+COMMENT ON COLUMN usuario_fotos_perfil.url_almacenamiento IS 'Ruta completa del archivo en el sistema de archivos (ej: /media/perfiles_img/...)';
+COMMENT ON COLUMN usuario_fotos_perfil.archivo_nombre IS 'Nombre original del archivo subido';
+COMMENT ON COLUMN usuario_fotos_perfil.archivo_tipo IS 'Tipo MIME del archivo (ej: image/jpeg, image/png)';
+COMMENT ON COLUMN usuario_fotos_perfil.archivo_tamanio IS 'Tamaño del archivo en bytes';
+
+-- Trigger para actualizar timestamp
+DROP TRIGGER IF EXISTS trg_usuario_fotos_perfil_timestamp ON usuario_fotos_perfil;
+CREATE TRIGGER trg_usuario_fotos_perfil_timestamp 
+    BEFORE UPDATE ON usuario_fotos_perfil
+    FOR EACH ROW 
+    EXECUTE FUNCTION actualizar_timestamp();
+
+-- =====================================================
+-- NOTAS:
+-- =====================================================
+-- 1. La relación es UNO A UNO (UNIQUE) porque cada usuario solo puede tener una foto de perfil
+-- 2. Si se elimina un usuario, su foto también se elimina (ON DELETE CASCADE)
+-- 3. Los archivos deben almacenarse en la carpeta: /media/perfiles_img/
+-- 4. Formato recomendado de nombre de archivo: timestamp_usuario_id.extension
+-- 5. Tipos de archivo permitidos: JPEG, PNG, GIF, WEBP (validar en el backend)
+-- 6. Tamaño máximo recomendado: 5MB (validar en el backend)
+
+CREATE TABLE IF NOT EXISTS password_reset_codes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    codigo VARCHAR(6) NOT NULL,
+    token UUID NOT NULL DEFAULT uuid_generate_v4(),
+    expira_en TIMESTAMPTZ NOT NULL,
+    verificado_en TIMESTAMPTZ,
+    usado BOOLEAN NOT NULL DEFAULT FALSE,
+    intentos INTEGER NOT NULL DEFAULT 0 CHECK (intentos >= 0),
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    usado_en TIMESTAMPTZ,
+    UNIQUE (token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_codes_usuario_codigo
+    ON password_reset_codes (usuario_id, codigo);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_codes_expira_en
+    ON password_reset_codes (expira_en);
+
+-- =====================================================
+-- PATCH 2025-11-10: Agrupar cambios de colaboradores por grupo
+-- =====================================================
+ALTER TABLE eventos_cambios_colaboradores
+    ADD COLUMN IF NOT EXISTS grupo_id UUID DEFAULT uuid_generate_v4();
+
+WITH grouped AS (
+    SELECT
+        id,
+        FIRST_VALUE(id) OVER (
+            PARTITION BY actividad_id,
+                         trim(descripcion_cambio),
+                         date_trunc('second', fecha_cambio)
+            ORDER BY creado_en, id
+        ) AS group_leader
+    FROM eventos_cambios_colaboradores
+)
+UPDATE eventos_cambios_colaboradores ecc
+SET grupo_id = grouped.group_leader
+FROM grouped
+WHERE ecc.id = grouped.id;
+
+ALTER TABLE eventos_cambios_colaboradores
+    ALTER COLUMN grupo_id SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colaboradores_grupo
+    ON eventos_cambios_colaboradores(grupo_id);
+
+
+-- =====================================================
+-- PATCH 2025-11-10: Agrupar cambios de colaboradores por grupo
+-- =====================================================
+ALTER TABLE eventos_cambios_colaboradores
+    ADD COLUMN IF NOT EXISTS grupo_id UUID DEFAULT uuid_generate_v4();
+
+WITH grouped AS (
+    SELECT
+        id,
+        FIRST_VALUE(id) OVER (
+            PARTITION BY actividad_id,
+                         trim(descripcion_cambio),
+                         date_trunc('second', fecha_cambio)
+            ORDER BY creado_en, id
+        ) AS group_leader
+    FROM eventos_cambios_colaboradores
+)
+UPDATE eventos_cambios_colaboradores ecc
+SET grupo_id = grouped.group_leader
+FROM grouped
+WHERE ecc.id = grouped.id;
+
+ALTER TABLE eventos_cambios_colaboradores
+    ALTER COLUMN grupo_id SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colaboradores_grupo
+    ON eventos_cambios_colaboradores(grupo_id);
+"""
+
+REVERSE_SQL = """
+-- Opcional: drops para revertir (o deja SELECT 1; si no quieres borrar nada)
+SELECT 1;
+"""
+
+class Migration(migrations.Migration):
+    dependencies = [
+        ("webmaga", "0001_initial"),
+    ]
+    # Si tu SQL incluye CREATE INDEX IF NOT EXISTS CONCURRENTLY, cambia a False
+    atomic = True
+    operations = [
+        migrations.RunSQL(sql=SQL, reverse_sql=REVERSE_SQL),
+    ]
+
