@@ -47,6 +47,61 @@ function formatDescription(text) {
   return `<p>${escapeHtml(text).replace(/\r?\n/g, '<br>')}</p>`;
 }
 
+function consumePendingNavigationTarget({ storageKey, queryParam }) {
+  let targetId = null;
+
+  if (queryParam) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has(queryParam)) {
+        targetId = params.get(queryParam);
+        params.delete(queryParam);
+        if (typeof window.history?.replaceState === 'function') {
+          const newSearch = params.toString();
+          const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ No se pudo leer el parámetro de navegación de la URL:', error);
+    }
+  }
+
+  if ((!targetId || !String(targetId).trim()) && storageKey && typeof window.sessionStorage !== 'undefined') {
+    try {
+      const storedValue = window.sessionStorage.getItem(storageKey);
+      if (storedValue) {
+        const parsed = JSON.parse(storedValue);
+        if (parsed && parsed.id) {
+          targetId = parsed.id;
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ No se pudo obtener ${storageKey} desde sessionStorage:`, error);
+    } finally {
+      try {
+        window.sessionStorage.removeItem(storageKey);
+      } catch (_) {
+        /* noop */
+      }
+    }
+  } else if (storageKey && typeof window.sessionStorage !== 'undefined') {
+    try {
+      window.sessionStorage.removeItem(storageKey);
+    } catch (_) {
+      /* noop */
+    }
+  }
+
+  const normalizedId = targetId !== undefined && targetId !== null ? String(targetId).trim() : '';
+  return normalizedId || null;
+}
+
+let pendingRegionDetailId = consumePendingNavigationTarget({
+  storageKey: 'pendingRegionDetail',
+  queryParam: 'region',
+});
+
 // ======= FUNCIONES DE NAVEGACIÓN =======
 async function showRegionsList() {
   const mainView = document.querySelector('.regions-main');
@@ -168,6 +223,11 @@ async function showRegionDetail(regionId) {
     showErrorMessage('Error al cargar el detalle de la región. Por favor, intenta de nuevo.');
     backToMain();
   }
+}
+
+
+if (typeof window !== 'undefined') {
+  window.showRegionDetail = showRegionDetail;
 }
 
 function showEditFileDescriptionModal(fileId, description) {
@@ -1513,7 +1573,7 @@ function showErrorMessage(message) {
 // ======= INICIALIZACIÓN =======
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 DOM cargado, iniciando carga de regiones...');
-  loadFeaturedRegions();
+  const featuredPromise = Promise.resolve(loadFeaturedRegions());
   
   // Event listeners para navegación
   const btnVerTodas = document.getElementById('btnVerTodas');
@@ -1731,7 +1791,17 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Cargar regiones desde la API al iniciar (para tener datos disponibles en JS)
   console.log('🔄 Ejecutando loadRegionsFromAPI()...');
-  loadRegionsFromAPI();
+  const regionsPromise = Promise.resolve(loadRegionsFromAPI());
+
+  Promise.allSettled([featuredPromise, regionsPromise]).then(() => {
+    if (pendingRegionDetailId) {
+      const targetId = pendingRegionDetailId;
+      pendingRegionDetailId = null;
+      setTimeout(() => {
+        showRegionDetail(targetId);
+      }, 120);
+    }
+  });
 });
 
 // ======= FUNCIONALIDAD DE ELIMINACIÓN =======
