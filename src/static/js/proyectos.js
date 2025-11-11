@@ -946,7 +946,13 @@ async function loadProjectDetails(projectId) {
 
       currentProjectId = proyecto.id;
 
+      const puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
+
+      puedeGestionarProyectoActual = puedeGestionar;
+
       mostrarDetalleProyecto(proyecto);
+
+      aplicarVisibilidadBotonesGestion(puedeGestionar);
 
       if (shouldRefreshLatestProjects) {
         shouldRefreshLatestProjects = false;
@@ -2491,7 +2497,9 @@ function backFromDetail() {
 
   console.log('🔙 Volviendo a la vista principal');
 
-  
+  puedeGestionarProyectoActual = Boolean(
+    window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin
+  );
 
   const mainView = document.querySelector('.projects-main');
 
@@ -2731,8 +2739,6 @@ const predefinedCards = [
 
   { id: 'level', icon: '🎓', label: 'Nivel Educativo', placeholder: 'Ej: Básico', category: 'Educativo' },
 
-  { id: 'beneficiaries', icon: '👨‍👩‍👧‍👦', label: 'Beneficiarios', placeholder: 'Ej: 50 familias', category: 'Social' },
-
   { id: 'materials', icon: '🔧', label: 'Materiales', placeholder: 'Ej: Semillas, herramientas', category: 'Recursos' },
 
   { id: 'location', icon: '📍', label: 'Ubicación Específica', placeholder: 'Ej: Campo experimental', category: 'Físico' },
@@ -2781,82 +2787,282 @@ let pendingDeleteAction = null;
 
 let pendingDeleteData = null;
 
+let puedeGestionarProyectoActual = Boolean(
+  window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin
+);
+
+let usuarioActualInfoCache = null;
+let usuarioActualInfoPromise = null;
+
+const MENSAJE_PERMISOS_INSUFICIENTES = 'No tienes permisos para gestionar este evento.';
+
+async function obtenerUsuarioActualInfo() {
+  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
+    return null;
+  }
+
+  if (usuarioActualInfoCache) {
+    return usuarioActualInfoCache;
+  }
+
+  if (usuarioActualInfoPromise) {
+    return usuarioActualInfoPromise;
+  }
+
+  const url = (window.DJANGO_URLS && window.DJANGO_URLS.usuario) || '/api/usuario/';
+
+  usuarioActualInfoPromise = fetch(url, { credentials: 'include' })
+    .then(response => {
+      if (!response.ok) {
+        return null;
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data && data.autenticado !== false) {
+        usuarioActualInfoCache = data;
+
+        window.USER_AUTH = window.USER_AUTH || {};
+
+        if (typeof data.isAdmin === 'boolean') {
+          window.USER_AUTH.isAdmin = data.isAdmin;
+        }
+
+        if (typeof data.permisos === 'object' && data.permisos) {
+          window.USER_AUTH.permisos = Object.assign(
+            {},
+            window.USER_AUTH.permisos || {},
+            data.permisos
+          );
+
+          if (typeof data.permisos.es_personal === 'boolean') {
+            window.USER_AUTH.isPersonal = data.permisos.es_personal;
+          }
+
+          if (typeof data.permisos.es_admin === 'boolean') {
+            window.USER_AUTH.isAdmin = window.USER_AUTH.isAdmin || data.permisos.es_admin;
+          }
+        }
+
+        if (data.userId) {
+          window.USER_AUTH.userId = data.userId;
+        } else if (data.id) {
+          window.USER_AUTH.userId = data.id;
+        }
+
+        if (data.collaboratorId || data.colaborador_id) {
+          window.USER_AUTH.collaboratorId = data.collaboratorId || data.colaborador_id;
+        }
+
+        if (data.username) {
+          window.USER_AUTH.username = data.username;
+        }
+      }
+
+      return usuarioActualInfoCache;
+    })
+    .catch(error => {
+      console.error('Error al obtener la información del usuario actual:', error);
+      return null;
+    })
+    .finally(() => {
+      usuarioActualInfoPromise = null;
+    });
+
+  return usuarioActualInfoPromise;
+}
+
+function obtenerIdentificadoresPersonal(proyecto) {
+  const ids = new Set();
+  const usernames = new Set();
+
+  if (!proyecto || !Array.isArray(proyecto.personal)) {
+    if (proyecto && proyecto.responsable_id) {
+      ids.add(String(proyecto.responsable_id));
+    }
+    if (proyecto && proyecto.responsable_colaborador_id) {
+      ids.add(String(proyecto.responsable_colaborador_id));
+    }
+    if (proyecto && proyecto.responsable_username) {
+      usernames.add(String(proyecto.responsable_username).toLowerCase());
+    }
+    return { ids, usernames };
+  }
+
+  proyecto.personal.forEach(persona => {
+    if (!persona) {
+      return;
+    }
+
+    const posiblesIds = [
+      persona.id,
+      persona.colaborador_id,
+      persona.colaboradorId,
+      persona.usuario_id,
+      persona.usuarioId
+    ];
+
+    posiblesIds.forEach(valor => {
+      if (valor || valor === 0) {
+        ids.add(String(valor));
+      }
+    });
+
+    if (persona.username) {
+      usernames.add(String(persona.username).toLowerCase());
+    }
+
+    if (persona.usuario_username) {
+      usernames.add(String(persona.usuario_username).toLowerCase());
+    }
+  });
+
+  if (proyecto.responsable_id) {
+    ids.add(String(proyecto.responsable_id));
+  }
+
+  if (proyecto.responsable_colaborador_id) {
+    ids.add(String(proyecto.responsable_colaborador_id));
+  }
+
+  if (proyecto.responsable_username) {
+    usernames.add(String(proyecto.responsable_username).toLowerCase());
+  }
+
+  return { ids, usernames };
+}
+
+async function usuarioPuedeGestionarProyecto(proyecto) {
+  if (!proyecto) {
+    return false;
+  }
+
+  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
+    return true;
+  }
+
+  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
+    return false;
+  }
+
+  const info = await obtenerUsuarioActualInfo();
+  const assigned = obtenerIdentificadoresPersonal(proyecto);
+
+  const collaboratorId =
+    (info && (info.collaboratorId || info.colaborador_id)) || window.USER_AUTH.collaboratorId;
+  const userId = (info && (info.userId || info.id)) || window.USER_AUTH.userId;
+  const username = (info && info.username) || window.USER_AUTH.username || '';
+
+  if (collaboratorId && assigned.ids.has(String(collaboratorId))) {
+    return true;
+  }
+
+  if (userId && assigned.ids.has(String(userId))) {
+    return true;
+  }
+
+  if (username && assigned.usernames.has(String(username).toLowerCase())) {
+    return true;
+  }
+
+  return false;
+}
+
+function tienePermisoGestionActual() {
+  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
+    return true;
+  }
+  return !!puedeGestionarProyectoActual;
+}
+
+function mostrarMensajePermisoDenegado() {
+  if (typeof showErrorMessage === 'function') {
+    showErrorMessage(MENSAJE_PERMISOS_INSUFICIENTES);
+  } else {
+    alert(MENSAJE_PERMISOS_INSUFICIENTES);
+  }
+}
+
+function aplicarVisibilidadBotonesGestion(puedeGestionar) {
+  const toggleElementoGestion = (element) => {
+    if (!element) {
+      return;
+    }
+
+    if (!element.dataset.originalDisplayValue) {
+      const computed = window.getComputedStyle(element);
+      let originalDisplay = computed ? computed.display : '';
+      if (!originalDisplay || originalDisplay === 'none') {
+        originalDisplay = element.tagName === 'BUTTON' ? 'inline-flex' : 'block';
+      }
+      element.dataset.originalDisplayValue = originalDisplay;
+    }
+
+    if (puedeGestionar) {
+      element.style.display = element.dataset.originalDisplayValue || '';
+      element.removeAttribute('aria-hidden');
+      element.classList.remove('is-hidden-by-permissions');
+      if (element.tagName === 'BUTTON') {
+        element.disabled = false;
+      }
+    } else {
+      if (element.tagName === 'BUTTON') {
+        element.disabled = true;
+      }
+      element.style.display = 'none';
+      element.setAttribute('aria-hidden', 'true');
+      element.classList.add('is-hidden-by-permissions');
+    }
+  };
+
+  const manageClassSelectors = ['.btn-edit-item', '.btn-add-evidence'];
+  manageClassSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(toggleElementoGestion);
+  });
+
+  const manageIdSelectors = ['#addCustomCardBtn'];
+  manageIdSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(toggleElementoGestion);
+  });
+
+  const manageDisableOnlySelectors = [
+    '#confirmCommunitySelectionBtn',
+    '#confirmChangeSelectionBtn',
+    '#confirmFileSelectionBtn',
+    '#confirmDeleteBtn'
+  ];
+
+  manageDisableOnlySelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(element => {
+      element.disabled = !puedeGestionar;
+    });
+  });
+
+  document.querySelectorAll('.remove-card-btn').forEach(btn => {
+    if (puedeGestionar) {
+      btn.disabled = false;
+      btn.classList.remove('disabled');
+    } else {
+      btn.disabled = true;
+      btn.classList.add('disabled');
+    }
+  });
+
+  const selectedCardsContainer = document.getElementById('selectedCardsContainer');
+  if (selectedCardsContainer && typeof loadSelectedCards === 'function') {
+    loadSelectedCards();
+  }
+}
+
 
 
 // Función para verificar si el usuario puede gestionar la galería (admin o personal)
 
 function puedeGestionarGaleria() {
-
-  // Primero verificar desde el elemento oculto de permisos (siempre presente para admin/personal)
-
-  const userPermissions = document.getElementById('userPermissions');
-
-  if (userPermissions) {
-
-    const isAdmin = userPermissions.dataset.isAdmin === 'true';
-
-    const isPersonal = userPermissions.dataset.isPersonal === 'true';
-
-    if (isAdmin || isPersonal) {
-
-      return true;
-
-    }
-
+  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
+    return true;
   }
-
-  
-
-  // Verificar desde el botón editEventBtn que tiene los datos (fallback)
-
-  const editEventBtn = document.getElementById('editEventBtn');
-
-  if (editEventBtn) {
-
-    const isAdmin = editEventBtn.dataset.isAdmin === 'true';
-
-    const isPersonal = editEventBtn.dataset.isPersonal === 'true';
-
-    if (isAdmin || isPersonal) {
-
-      return true;
-
-    }
-
-  }
-
-  
-
-  // Verificar desde window.USER_AUTH si está disponible
-
-  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated) {
-
-    if (window.USER_AUTH.isAdmin || window.USER_AUTH.isPersonal) {
-
-      return true;
-
-    }
-
-  }
-
-  
-
-  // Verificar desde variable global usuario_maga si está disponible
-
-  if (typeof usuario_maga !== 'undefined' && usuario_maga) {
-
-    if (usuario_maga.es_admin || usuario_maga.es_personal) {
-
-      return true;
-
-    }
-
-  }
-
-  
-
-  return false;
-
+  return !!puedeGestionarProyectoActual;
 }
 
 
@@ -4150,6 +4356,14 @@ function closeImageViewModal() {
 
 function showAddImageModal() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   showModal('addImageModal');
 
   clearImageForm();
@@ -4445,6 +4659,14 @@ function handleImageSelect(event) {
 
 async function addImageToProject() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   if (!pendingProjectGalleryImages.length) {
 
     showErrorMessage('Selecciona al menos una imagen antes de continuar.');
@@ -4667,6 +4889,14 @@ async function eliminarImagenGaleria(imagenId) {
 
 function showEditDescriptionModal() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   const currentProject = getCurrentProject();
 
   if (!currentProject || !currentProject.id) {
@@ -4710,6 +4940,14 @@ function showEditDescriptionModal() {
 // Función para actualizar descripción del proyecto
 
 async function updateProjectDescription() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const newDescription = document.getElementById('editDescriptionText').value.trim();
 
@@ -4816,6 +5054,14 @@ let currentEditProject = null;
 
 function showEditDataModal() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   console.log('showEditDataModal() llamada');
 
   currentEditProject = getCurrentProject();
@@ -4848,19 +5094,29 @@ function showEditDataModal() {
 
   // Convertir las tarjetas existentes al formato de tarjetas seleccionadas
 
-  selectedCards = tarjetasDatos.map(tarjeta => ({
+  selectedCards = tarjetasDatos.map(tarjeta => {
 
-    id: tarjeta.id,
+    const tituloNormalizado = (tarjeta.titulo || '').toLowerCase().trim();
 
-    icon: tarjeta.icono || '📊',
+    const isLocked = tituloNormalizado === 'beneficiarios';
 
-    label: tarjeta.titulo,
+    return {
 
-    value: tarjeta.valor || '',
+      id: tarjeta.id,
 
-    isCustom: true // Las tarjetas de la BD se consideran personalizadas
+      icon: tarjeta.icono || '📊',
 
-  }));
+      label: tarjeta.titulo,
+
+      value: tarjeta.valor || '',
+
+      isCustom: true, // Las tarjetas de la BD se consideran personalizadas
+
+      isLocked
+
+    };
+
+  });
 
   
 
@@ -4995,68 +5251,67 @@ function loadSelectedCards() {
 
   
 
-  selectedCards.forEach((card, index) => {
+  const puedeEditarTarjetas = !!puedeGestionarProyectoActual;
 
+  selectedCards.forEach((card, index) => {
     const cardElement = document.createElement('div');
 
     cardElement.className = 'selected-card';
 
     cardElement.dataset.index = index;
 
-    
+    const icon = escapeHtml(card.icon || '📊');
 
-    // Escapar HTML para evitar XSS
+    const label = escapeHtml(card.label || '');
 
-    const icon = card.icon || '📊';
+    const value = escapeHtml(card.value || '');
 
-    const label = (card.label || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const isLocked = !!card.isLocked;
 
-    const value = (card.value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const esSoloLectura = isLocked || !puedeEditarTarjetas;
 
-    
+    if (esSoloLectura) {
+      cardElement.classList.add('selected-card-locked');
 
-    cardElement.innerHTML = `
+      const indicatorLabel = isLocked ? 'Fijo' : 'Solo lectura';
 
-      <div class="selected-card-icon">
+      const indicatorTitle = isLocked
+        ? 'Este dato no se puede editar ni eliminar'
+        : 'No tienes permisos para editar este dato';
 
-        <input type="text" value="${icon}" placeholder="📊" class="card-icon-input" data-index="${index}" maxlength="2" style="width: 40px; text-align: center; font-size: 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 4px;">
-
-      </div>
-
-      <div class="selected-card-info">
-
-        <div class="selected-card-label">
-
-          <input type="text" value="${label}" placeholder="Título de la tarjeta..." class="card-label-input" data-index="${index}">
-
+      cardElement.innerHTML = `
+        <div class="selected-card-icon">
+          <span class="card-icon-locked" title="${indicatorTitle}">${icon}</span>
         </div>
-
-        <div class="selected-card-value">
-
-          <input type="text" value="${value}" placeholder="Ingresa el valor..." class="card-value-input" data-index="${index}">
-
+        <div class="selected-card-info">
+          <div class="selected-card-label selected-card-label-locked">${label}</div>
+          <div class="selected-card-value selected-card-value-locked">${value}</div>
         </div>
-
-      </div>
-
-      <button class="remove-card-btn" data-index="${index}" title="Eliminar tarjeta">
-
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-
-        </svg>
-
-      </button>
-
-    `;
-
-    
+        <div class="selected-card-lock-indicator" title="${indicatorTitle}" style="color: #6c757d; font-size: 0.75rem; margin-top: 8px;">${indicatorLabel}</div>
+      `;
+    } else {
+      cardElement.innerHTML = `
+        <div class="selected-card-icon">
+          <input type="text" value="${icon}" placeholder="📊" class="card-icon-input" data-index="${index}" maxlength="2" style="width: 40px; text-align: center; font-size: 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 4px;">
+        </div>
+        <div class="selected-card-info">
+          <div class="selected-card-label">
+            <input type="text" value="${label}" placeholder="Título de la tarjeta..." class="card-label-input" data-index="${index}">
+          </div>
+          <div class="selected-card-value">
+            <input type="text" value="${value}" placeholder="Ingresa el valor..." class="card-value-input" data-index="${index}">
+          </div>
+        </div>
+        <button class="remove-card-btn" data-index="${index}" title="Eliminar tarjeta">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      `;
+    }
 
     container.appendChild(cardElement);
-
   });
 
   
@@ -5123,6 +5378,14 @@ function loadSelectedCards() {
 
 function togglePredefinedCard(card) {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   const cardElement = document.querySelector(`[data-card-id="${card.id}"]`);
 
   
@@ -5149,7 +5412,7 @@ function togglePredefinedCard(card) {
 
     // Verificar si ya existe una tarjeta con el mismo label (evitar duplicados)
 
-    const duplicateLabel = selectedCards.some(selected => selected.label === card.label);
+    const duplicateLabel = selectedCards.some(selected => (selected.label || '').toLowerCase() === card.label.toLowerCase());
 
     if (duplicateLabel) {
 
@@ -5347,6 +5610,14 @@ function filterPredefinedCards() {
 
 function addCustomCard() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   const icon = document.getElementById('customIcon').value.trim();
 
   const label = document.getElementById('customLabel').value.trim();
@@ -5367,7 +5638,9 @@ function addCustomCard() {
 
   // Verificar si ya existe una tarjeta con el mismo título
 
-  if (selectedCards.some(card => card.label === label)) {
+  const normalizedLabel = label.toLowerCase();
+
+  if (selectedCards.some(card => (card.label || '').toLowerCase() === normalizedLabel)) {
 
     showErrorMessage('Ya existe una tarjeta con este título');
 
@@ -5420,6 +5693,22 @@ function addCustomCard() {
 // Función para remover tarjeta seleccionada
 
 function removeSelectedCard(index) {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
+  if (selectedCards[index] && selectedCards[index].isLocked) {
+
+    showErrorMessage('Este dato es fijo y no se puede eliminar.');
+
+    return;
+
+  }
 
   showConfirmDeleteModal(
 
@@ -5625,11 +5914,9 @@ function addCommunityToProject() {
 
 async function showAddPersonnelModal() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -5800,11 +6087,9 @@ function clearPersonnelForm() {
 
 async function addPersonnelToProject() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -5988,6 +6273,14 @@ function getCookie(name) {
 // Función para mostrar modal de agregar cambio
 
 function showAddChangeModal() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   editingCambioId = null;
   editingCambioGroupId = null;
@@ -6425,6 +6718,14 @@ async function updateExistingEvidenceDescriptions() {
 
 async function addChangeToProject() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   const description = document.getElementById('changeDescription').value.trim();
 
   const selectedPersonnel = getSelectedChangePersonnel();
@@ -6803,11 +7104,9 @@ function addCommunityToProject() {
 
 async function showAddPersonnelModal() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -6978,11 +7277,9 @@ function clearPersonnelForm() {
 
 async function addPersonnelToProject() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -8819,6 +9116,14 @@ async function saveProjectData() {
 
   console.log('selectedCards:', selectedCards);
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   
 
   // Obtener el proyecto actual
@@ -9188,7 +9493,13 @@ let selectedProjectFiles = [];
 
 function showAddFileModal() {
 
-  // Eliminar la validación de credenciales, solo abrir el modal
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   showModal('addFileModal');
 
@@ -9416,6 +9727,14 @@ function formatFileSize(bytes) {
 
 
 async function addFileToProject() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const fileDescription = document.getElementById('fileDescription').value.trim();
 
@@ -9942,11 +10261,9 @@ function loadProjectFiles(files) {
 
 async function removePersonnelFromProject(personnelId, personnelType) {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden eliminar personal de los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -10194,6 +10511,18 @@ function showConfirmDeleteModal(message, callback) {
 // Función para ejecutar la acción de eliminación
 
 function executeDeleteAction() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    pendingDeleteAction = null;
+
+    hideModal('confirmDeleteModal');
+
+    return;
+
+  }
 
   if (!pendingDeleteAction) {
     return;
@@ -11049,6 +11378,14 @@ function handleEvidenceSelect() {
 // Función para agregar evidencia a un cambio existente usando API
 
 async function addEvidenceToChange() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const fileInput = document.getElementById('evidenceInput');
 
