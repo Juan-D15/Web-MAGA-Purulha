@@ -66,6 +66,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Actividades',
                 'db_table': 'actividades',
                 'ordering': ['-fecha'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -83,6 +84,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Beneficiario',
                 'verbose_name_plural': 'Beneficiarios',
                 'db_table': 'beneficiarios',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -104,6 +106,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Colaboradores',
                 'db_table': 'colaboradores',
                 'ordering': ['nombre'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -136,6 +139,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Cola de Sincronización',
                 'db_table': 'cola_sincronizacion',
                 'ordering': ['-creado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -162,6 +166,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Comunidades',
                 'db_table': 'comunidades',
                 'ordering': ['region', 'nombre'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -180,6 +185,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Puestos',
                 'db_table': 'puestos',
                 'ordering': ['nombre'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -201,6 +207,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Regiones',
                 'db_table': 'regiones',
                 'ordering': ['codigo'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -221,6 +228,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Tarjeta de Datos',
                 'verbose_name_plural': 'Tarjetas de Datos',
                 'db_table': 'tarjetas_datos',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -237,6 +245,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Tipo de Actividad',
                 'verbose_name_plural': 'Tipos de Actividad',
                 'db_table': 'tipos_actividad',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -251,6 +260,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Tipo de Beneficiario',
                 'verbose_name_plural': 'Tipos de Beneficiario',
                 'db_table': 'tipos_beneficiario',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -265,6 +275,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Tipo de Comunidad',
                 'verbose_name_plural': 'Tipos de Comunidad',
                 'db_table': 'tipos_comunidad',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -281,6 +292,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Cambios de Actividades',
                 'db_table': 'actividad_cambios',
                 'ordering': ['-fecha_cambio'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -300,6 +312,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Beneficiario Familia',
                 'verbose_name_plural': 'Beneficiarios Familias',
                 'db_table': 'beneficiarios_familias',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -320,6 +333,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Beneficiario Individual',
                 'verbose_name_plural': 'Beneficiarios Individuales',
                 'db_table': 'beneficiarios_individuales',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -341,6 +355,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Beneficiario Institución',
                 'verbose_name_plural': 'Beneficiarios Instituciones',
                 'db_table': 'beneficiarios_instituciones',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -358,6 +373,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Evidencia de Cambio',
                 'verbose_name_plural': 'Evidencias de Cambios',
                 'db_table': 'cambio_evidencias',
+                'managed': False,
             },
         ),
         migrations.AddField(
@@ -391,6 +407,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Autoridad de Comunidad',
                 'verbose_name_plural': 'Autoridades de Comunidades',
                 'db_table': 'comunidad_autoridades',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -408,6 +425,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Cambios de Evento por Colaboradores',
                 'db_table': 'eventos_cambios_colaboradores',
                 'ordering': ['-fecha_cambio'],
+                'managed': False,
             },
         ),
         migrations.AddField(
@@ -462,6 +480,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Usuarios',
                 'db_table': 'usuarios',
                 'ordering': ['username'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -489,6 +508,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Sesión Offline',
                 'verbose_name_plural': 'Sesiones Offline',
                 'db_table': 'sesiones_offline',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -506,6 +526,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Galería de Región',
                 'verbose_name_plural': 'Galerías de Regiones',
                 'db_table': 'region_galeria',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -524,6 +545,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Archivo de Región',
                 'verbose_name_plural': 'Archivos de Regiones',
                 'db_table': 'region_archivos',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -545,6 +567,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Recordatorios',
                 'db_table': 'recordatorios',
                 'ordering': ['due_at'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -569,6 +592,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Evidencias',
                 'db_table': 'evidencias',
                 'ordering': ['-creado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -589,6 +613,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Imágenes de Galería',
                 'db_table': 'eventos_galeria',
                 'ordering': ['-creado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -609,6 +634,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Evidencia de Cambio de Evento',
                 'verbose_name_plural': 'Evidencias de Cambios de Eventos',
                 'db_table': 'eventos_evidencias_cambios',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -629,6 +655,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Dispositivo Registrado',
                 'verbose_name_plural': 'Dispositivos Registrados',
                 'db_table': 'dispositivos_registrados',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -656,6 +683,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Conflictos de Sincronización',
                 'db_table': 'conflictos_sincronizacion',
                 'ordering': ['-detectado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -673,6 +701,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Galería de Comunidad',
                 'verbose_name_plural': 'Galerías de Comunidades',
                 'db_table': 'comunidad_galeria',
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -691,6 +720,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Archivo de Comunidad',
                 'verbose_name_plural': 'Archivos de Comunidades',
                 'db_table': 'comunidad_archivos',
+                'managed': False,
             },
         ),
         migrations.AddField(
@@ -729,6 +759,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Bitácora de Transacciones',
                 'db_table': 'bitacora_transacciones',
                 'ordering': ['-creado_en'],
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -745,6 +776,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Personal de Actividad',
                 'verbose_name_plural': 'Personal de Actividades',
                 'db_table': 'actividad_personal',
+                'managed': False,
             },
         ),
         migrations.AddField(
@@ -769,6 +801,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Archivo de Actividad',
                 'verbose_name_plural': 'Archivos de Actividades',
                 'db_table': 'actividad_archivos',
+                'managed': False,
             },
         ),
         migrations.AddField(
@@ -791,6 +824,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Beneficiarios de Actividades',
                 'db_table': 'actividad_beneficiarios',
                 'unique_together': {('actividad', 'beneficiario')},
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -806,6 +840,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Colaboradores del Recordatorio',
                 'db_table': 'recordatorio_colaboradores',
                 'unique_together': {('recordatorio', 'colaborador')},
+                'managed': False,
             },
         ),
         migrations.CreateModel(
@@ -827,6 +862,7 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Códigos de Recuperación',
                 'db_table': 'password_reset_codes',
                 'indexes': [models.Index(fields=['usuario', 'codigo'], name='password_re_usuario_e7c913_idx'), models.Index(fields=['usuario', 'token'], name='password_re_usuario_86f903_idx'), models.Index(fields=['expira_en'], name='password_re_expira__785e21_idx')],
+                'managed': False,
             },
         ),
         migrations.AddConstraint(

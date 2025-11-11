@@ -237,11 +237,12 @@ COMMIT;
 -- =====================================================
 -- USUARIOS DE PRUEBA PARA TESTING
 -- =====================================================
--- Insertar puestos predefinidos
+-- Insertar puestos predefinidos (idempotente)
 INSERT INTO puestos (codigo, nombre, descripcion) VALUES 
     ('GER', 'Gerente', 'Responsable de gestión y coordinación general'),
     ('CAP', 'Capacitador', 'Encargado de impartir capacitaciones'),
-    ('COL', 'Colaborador', 'Personal de apoyo operativo');
+    ('COL', 'Colaborador', 'Personal de apoyo operativo')
+ON CONFLICT (codigo) DO NOTHING;
 
 
 INSERT INTO usuarios (
@@ -260,7 +261,8 @@ INSERT INTO usuarios (
     'admin',
     NULL,  -- Admin NO tiene puesto
     TRUE
-);
+)
+ON CONFLICT (username) DO NOTHING;
 
 
 UPDATE usuarios SET nombre = 'Administrador del Sistema' WHERE username = 'admin';

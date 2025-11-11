@@ -119,6 +119,7 @@ async function cargarProyectosPorTipo(tipo) {
         modifiedDate: proyecto.actualizado_en,
 
         type: proyecto.tipo,
+        categoryKey: tipo,
 
         estado: proyecto.estado,
 
@@ -335,19 +336,23 @@ if (document.readyState === 'loading') {
 // Función para formatear fechas
 
 function formatDate(dateString) {
-
-  const date = new Date(dateString);
-
-  return date.toLocaleDateString('es-GT', {
-
+  const formatter = new Intl.DateTimeFormat('es-GT', {
+    timeZone: 'America/Guatemala',
     year: 'numeric',
-
     month: 'long',
-
-    day: 'numeric'
-
+    day: 'numeric',
   });
 
+  if (!dateString) {
+    return formatter.format(new Date());
+  }
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return formatter.format(new Date());
+  }
+
+  return formatter.format(date);
 }
 
 
@@ -506,19 +511,7 @@ function crearTarjetaProyecto(proyecto) {
 
         <h4 class="project-title">${proyecto.nombre || proyecto.name}</h4>
 
-        <p class="project-location">
-
-          <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-
-            <circle cx="12" cy="10" r="3"></circle>
-
-          </svg>
-
-          ${proyecto.ubicacion || proyecto.location}
-
-        </p>
+        <p class="project-location">${proyecto.ubicacion || proyecto.location}</p>
 
         <button class="project-btn" data-project-id="${proyecto.id}">Ver más ></button>
 
@@ -854,19 +847,7 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
         <h3 class="project-title">${nombreProyecto}</h3>
 
-        <p class="project-location">
-
-          <svg class="location-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-
-            <circle cx="12" cy="10" r="3"></circle>
-
-          </svg>
-
-          ${ubicacionProyecto}
-
-        </p>
+        <p class="project-location">${ubicacionProyecto}</p>
 
         <button class="project-btn" data-project-id="${proyecto.id}">Ver más ></button>
 
@@ -1542,19 +1523,7 @@ function generateListItems(projects, showType = false) {
 
         <div class="list-item-details">
 
-          <div class="list-item-location">
-
-            <svg class="location-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-
-              <circle cx="12" cy="10" r="3"></circle>
-
-            </svg>
-
-            ${project.location}
-
-          </div>
+          <div class="list-item-location">${project.location}</div>
 
           <div class="list-item-dates">
 
@@ -1596,51 +1565,91 @@ let currentListViewProjects = [];
 
 let currentListViewCategory = null;
 
+let currentListViewTypeFilter = 'all';
+
+let currentProjectSearchTerm = '';
 
 
-// Función para filtrar proyectos por nombre
 
-function filterProjectsBySearch(searchTerm) {
+function applyProjectListFilters() {
 
-  if (!searchTerm || searchTerm.trim() === '') {
+  let filteredProjects = [...currentListViewProjects];
 
-    // Si no hay término de búsqueda, mostrar todos los proyectos
 
-    const projectsList = document.getElementById('projectsList');
 
-    if (projectsList) {
+  if (!currentListViewCategory && currentListViewTypeFilter !== 'all') {
 
-      projectsList.innerHTML = generateListItems(currentListViewProjects, !currentListViewCategory);
+    filteredProjects = filteredProjects.filter((project) => {
 
-      setTimeout(() => {
+      const categoryKey = (project.categoryKey || project.category || '').toLowerCase();
 
-        addViewMoreListeners();
+      if (categoryKey === currentListViewTypeFilter) {
 
-      }, 100);
+        return true;
 
-    }
+      }
 
-    return;
+
+
+      const typeLabel = (project.type || '').toLowerCase();
+
+
+
+      if (!typeLabel) {
+
+        return false;
+
+      }
+
+
+
+      if (currentListViewTypeFilter === 'capacitaciones') {
+
+        return typeLabel.includes('capacit');
+
+      }
+
+
+
+      if (currentListViewTypeFilter === 'entregas') {
+
+        return typeLabel.includes('entrega');
+
+      }
+
+
+
+      if (currentListViewTypeFilter === 'proyectos-ayuda') {
+
+        return typeLabel.includes('ayuda') || typeLabel.includes('proyecto');
+
+      }
+
+
+
+      return false;
+
+    });
 
   }
 
 
 
-  // Filtrar proyectos que coincidan con el término de búsqueda
+  if (currentProjectSearchTerm.trim() !== '') {
 
-  const searchLower = searchTerm.toLowerCase().trim();
+    const searchLower = currentProjectSearchTerm.toLowerCase().trim();
 
-  const filteredProjects = currentListViewProjects.filter(project => {
+    filteredProjects = filteredProjects.filter((project) => {
 
-    const nombre = (project.nombre || project.name || '').toLowerCase();
+      const nombre = (project.nombre || project.name || '').toLowerCase();
 
-    return nombre.includes(searchLower);
+      return nombre.includes(searchLower);
 
-  });
+    });
+
+  }
 
 
-
-  // Actualizar la lista
 
   const projectsList = document.getElementById('projectsList');
 
@@ -1655,6 +1664,18 @@ function filterProjectsBySearch(searchTerm) {
     }, 100);
 
   }
+
+}
+
+
+
+// Función para filtrar proyectos por nombre
+
+function filterProjectsBySearch(searchTerm) {
+
+  currentProjectSearchTerm = searchTerm || '';
+
+  applyProjectListFilters();
 
 }
 
@@ -1681,6 +1702,8 @@ function showListView(category = null) {
   const searchInput = document.getElementById('projectSearchInput');
 
   const searchClearBtn = document.getElementById('searchClearBtn');
+
+  const typeFilter = document.getElementById('projectTypeFilter');
 
 
 
@@ -1776,6 +1799,38 @@ function showListView(category = null) {
 
   currentListViewCategory = category;
 
+  currentProjectSearchTerm = '';
+
+  if (typeFilter) {
+
+    if (category) {
+
+      typeFilter.value = category;
+
+      typeFilter.disabled = true;
+
+      typeFilter.classList.add('is-disabled');
+
+      currentListViewTypeFilter = category;
+
+    } else {
+
+      typeFilter.value = 'all';
+
+      typeFilter.disabled = false;
+
+      typeFilter.classList.remove('is-disabled');
+
+      currentListViewTypeFilter = 'all';
+
+    }
+
+  } else {
+
+    currentListViewTypeFilter = category || 'all';
+
+  }
+
 
 
   // Actualizar títulos
@@ -1802,19 +1857,7 @@ function showListView(category = null) {
 
 
 
-  // Generar y mostrar lista
-
-  projectsList.innerHTML = generateListItems(projects, !category);
-
-
-
-  // Agregar event listeners a los botones "Ver más" de la lista
-
-  setTimeout(() => {
-
-    addViewMoreListeners();
-
-  }, 100);
+  applyProjectListFilters();
 
 
 
@@ -4061,8 +4104,8 @@ function loadCommunities(communities) {
 
     card.innerHTML = `
       <div class="location-card-main">
-        <div class="location-icon">📍</div>
-        <div class="location-content">
+      <div class="location-icon">📍</div>
+      <div class="location-content">
           <h4>${communityName}</h4>
           <p class="location-card-region">${regionLabel}</p>
           ${fechaHtml}
@@ -7714,6 +7757,24 @@ document.addEventListener('DOMContentLoaded', function() {
       });
 
     }
+
+  }
+
+
+
+  const typeFilter = document.getElementById('projectTypeFilter');
+
+  if (typeFilter) {
+
+    typeFilter.addEventListener('change', function(e) {
+
+      const { value } = e.target;
+
+      currentListViewTypeFilter = value || 'all';
+
+      applyProjectListFilters();
+
+    });
 
   }
 
