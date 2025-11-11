@@ -9,5 +9,5 @@ cmds = [
 
 [phases.start]
 cmds = [
-  "/opt/venv/bin/python manage.py migrate && /opt/venv/bin/gunicorn config.wsgi"
+  "/app/start.sh"
 ]
