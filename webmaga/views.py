@@ -6463,9 +6463,8 @@ def api_dashboard_stats(request):
         # Total de comunidades del municipio (activas)
         total_comunidades_municipio = Comunidad.objects.filter(activo=True).count()
         
-        # Trabajadores activos (usuarios activos + colaboradores activos)
-        trabajadores_activos = Usuario.objects.filter(activo=True).count() + \
-                              Colaborador.objects.filter(activo=True).count()
+        # Trabajadores activos (solo colaboradores activos)
+        trabajadores_activos = Colaborador.objects.filter(activo=True).count()
         
         # Beneficiarios alcanzados (distintos)
         beneficiarios_alcanzados = ActividadBeneficiario.objects.values('beneficiario_id').distinct().count()
@@ -6568,21 +6567,61 @@ def api_dashboard_stats(request):
             for item in top_responsables
         ]
         
-        # Próximas actividades (7 días)
-        proximas = actividades_base.filter(
-            fecha__gte=ahora,
-            fecha__lte=ahora + timedelta(days=7)
-        ).select_related('comunidad').order_by('fecha')[:10]
+        # Actividades trabajadas recientemente (últimos 7 días con cambios/avances)
+        # Obtener actividades que han tenido cambios recientes (avances)
+        fecha_limite = ahora - timedelta(days=7)
         
-        proximas_list = [
-            {
+        # Actividades con cambios de usuarios recientes
+        actividades_con_cambios_usuarios = ActividadCambio.objects.filter(
+            fecha_cambio__gte=fecha_limite
+        ).values_list('actividad_id', flat=True).distinct()
+        
+        # Actividades con cambios de colaboradores recientes
+        actividades_con_cambios_colaboradores = EventoCambioColaborador.objects.filter(
+            fecha_cambio__gte=fecha_limite
+        ).values_list('actividad_id', flat=True).distinct()
+        
+        # Combinar ambas listas
+        actividad_ids_recientes = set(list(actividades_con_cambios_usuarios) + list(actividades_con_cambios_colaboradores))
+        
+        # Obtener las actividades con sus datos más recientes
+        actividades_recientes = actividades_base.filter(
+            id__in=actividad_ids_recientes
+        ).select_related('comunidad').distinct()
+        
+        # Ordenar por la fecha del cambio más reciente
+        actividades_recientes_list = []
+        for act in actividades_recientes[:10]:
+            # Obtener la fecha del cambio más reciente
+            ultimo_cambio_usuario = ActividadCambio.objects.filter(
+                actividad_id=act.id
+            ).order_by('-fecha_cambio').first()
+            
+            ultimo_cambio_colaborador = EventoCambioColaborador.objects.filter(
+                actividad_id=act.id
+            ).order_by('-fecha_cambio').first()
+            
+            fecha_cambio_reciente = None
+            if ultimo_cambio_usuario and ultimo_cambio_colaborador:
+                fecha_cambio_reciente = max(ultimo_cambio_usuario.fecha_cambio, ultimo_cambio_colaborador.fecha_cambio)
+            elif ultimo_cambio_usuario:
+                fecha_cambio_reciente = ultimo_cambio_usuario.fecha_cambio
+            elif ultimo_cambio_colaborador:
+                fecha_cambio_reciente = ultimo_cambio_colaborador.fecha_cambio
+            
+            actividades_recientes_list.append({
                 'nombre': act.nombre,
                 'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
                 'comunidad': act.comunidad.nombre if act.comunidad else 'Sin comunidad',
-                'estado': act.estado
-            }
-            for act in proximas
-        ]
+                'estado': act.estado,
+                'fecha_ultimo_cambio': fecha_cambio_reciente.strftime('%Y-%m-%d %H:%M') if fecha_cambio_reciente else '-'
+            })
+        
+        # Ordenar por fecha de último cambio (más reciente primero)
+        actividades_recientes_list.sort(key=lambda x: x['fecha_ultimo_cambio'], reverse=True)
+        
+        # Limitar a 10
+        actividades_recientes_list = actividades_recientes_list[:10]
         
         return JsonResponse({
             'total_actividades': total_actividades,
@@ -6598,7 +6637,7 @@ def api_dashboard_stats(request):
             'estado_actividades': estado_actividades,
             'top_comunidades': top_comunidades_list,
             'top_responsables': top_responsables_list,
-            'proximas_actividades': proximas_list
+            'actividades_trabajadas_recientemente': actividades_recientes_list
         })
         
     except Exception as e:
@@ -6619,228 +6658,800 @@ def api_generar_reporte(request, report_type):
         region_ids = request.GET.get('region', '').split(',') if request.GET.get('region') else []
         comunidad_ids = request.GET.get('comunidad', '').split(',') if request.GET.get('comunidad') else []
         estados = request.GET.get('estado', '').split(',') if request.GET.get('estado') else []
-        tipo_actividad = request.GET.get('tipo_actividad', '').split(',') if request.GET.get('tipo_actividad') else []
+        # Obtener parámetro de tipo de actividad - Si no se envía, debe ser None o cadena vacía
+        tipo_actividad_param = request.GET.get('tipo_actividad', None)
+        # Si el parámetro no existe o está vacío, tipo_actividad debe ser lista vacía
+        if tipo_actividad_param is None or tipo_actividad_param == '' or tipo_actividad_param.strip() == '':
+            tipo_actividad = []
+        else:
+            # Procesar el parámetro y filtrar valores vacíos
+            tipo_actividad = [t.strip() for t in tipo_actividad_param.split(',') if t and t.strip() and t.strip() != '']
         responsable_id = request.GET.get('responsable')
-        tipo_beneficiario = request.GET.get('tipo_beneficiario', '').split(',') if request.GET.get('tipo_beneficiario') else []
+        tipo_beneficiario_param = request.GET.get('tipo_beneficiario', '')
+        tipo_beneficiario = [t.strip() for t in tipo_beneficiario_param.split(',') if t.strip()] if tipo_beneficiario_param else []
         
         # Nuevos filtros para reportes unificados
         agrupar_por = request.GET.get('agrupar_por', 'region')  # 'region' o 'comunidad'
-        comunidades_filtro = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
-        evento_filtro = request.GET.get('evento')
+        comunidades_filtro_param = request.GET.get('comunidades', '')
+        comunidades_filtro = [c.strip() for c in comunidades_filtro_param.split(',') if c.strip()] if comunidades_filtro_param else []
+        evento_filtro_param = request.GET.get('evento', '')
+        evento_filtro = [e.strip() for e in evento_filtro_param.split(',') if e.strip()] if evento_filtro_param else []
         
-        # Construir query base
+        # Limpiar listas vacías
+        region_ids = [r.strip() for r in region_ids if r.strip()]
+        comunidad_ids = [c.strip() for c in comunidad_ids if c.strip()]
+        estados = [e.strip() for e in estados if e.strip()]
+        
+        # Construir query base - TODAS las actividades no eliminadas
         actividades_query = Actividad.objects.filter(eliminado_en__isnull=True)
         
-        # Aplicar filtros básicos
-        if fecha_inicio:
+        # Aplicar filtros básicos de fecha
+        # Si no se proporcionan fechas (período "todo_el_tiempo"), NO aplicar filtros de fecha
+        # Esto permitirá mostrar todas las actividades, incluyendo futuras
+        if fecha_inicio and fecha_inicio.strip():
             actividades_query = actividades_query.filter(fecha__gte=fecha_inicio)
-        if fecha_fin:
+        if fecha_fin and fecha_fin.strip():
             actividades_query = actividades_query.filter(fecha__lte=fecha_fin)
-        if region_ids and region_ids[0]:
-            actividades_query = actividades_query.filter(comunidad__region_id__in=region_ids)
-        if comunidad_ids and comunidad_ids[0]:
-            actividades_query = actividades_query.filter(comunidad_id__in=comunidad_ids)
-        if comunidades_filtro and comunidades_filtro[0]:
-            actividades_query = actividades_query.filter(comunidad_id__in=comunidades_filtro)
-        if estados and estados[0]:
+        
+        # NOTA: Los filtros de region_ids y comunidad_ids se aplican SOLO para reportes genéricos
+        # Para el reporte 'actividades-por-region-comunidad', estos filtros NO se aplican aquí
+        # porque se manejan más adelante considerando relaciones M2M
+        if report_type != 'actividades-por-region-comunidad':
+            if region_ids:
+                actividades_query = actividades_query.filter(comunidad__region_id__in=region_ids)
+            if comunidad_ids:
+                actividades_query = actividades_query.filter(comunidad_id__in=comunidad_ids)
+        
+        if comunidades_filtro:
+            # Este filtro se aplica más adelante en la lógica específica del reporte
+            pass
+        
+        if estados:
             actividades_query = actividades_query.filter(estado__in=estados)
-        if tipo_actividad and tipo_actividad[0]:
-            tipos = TipoActividad.objects.filter(nombre__in=tipo_actividad, activo=True)
-            actividades_query = actividades_query.filter(tipo_id__in=[t.id for t in tipos])
+        
+        # IMPORTANTE: Solo filtrar por tipo de actividad si hay tipos seleccionados válidos
+        # Si no hay filtro o está vacío, mostrar TODOS los tipos (Capacitación, Entrega, Proyecto de Ayuda)
+        # VERIFICACIÓN EXPLÍCITA: Asegurarse de que tipo_actividad tenga valores válidos antes de filtrar
+        if tipo_actividad and isinstance(tipo_actividad, list) and len(tipo_actividad) > 0:
+            # Verificar que todos los valores sean strings no vacíos
+            tipos_validos = [t for t in tipo_actividad if isinstance(t, str) and t.strip() != '']
+            if tipos_validos and len(tipos_validos) > 0:
+                # Filtrar por los tipos seleccionados
+                tipos = TipoActividad.objects.filter(nombre__in=tipos_validos, activo=True)
+                if tipos.exists():
+                    tipo_ids = [t.id for t in tipos]
+                    actividades_query = actividades_query.filter(tipo_id__in=tipo_ids)
+        # Si tipo_actividad está vacío o no tiene valores válidos, NO aplicar filtro (mostrar TODOS los tipos)
+        
         if responsable_id:
             actividades_query = actividades_query.filter(responsable_id=responsable_id)
-        if evento_filtro:
-            actividades_query = actividades_query.filter(id=evento_filtro)
+        if evento_filtro and len(evento_filtro) > 0:
+            actividades_query = actividades_query.filter(id__in=evento_filtro)
         
         # Generar reporte según tipo
         data = []
         
         # NUEVO: Actividades por Región o Comunidad (unificado)
         if report_type == 'actividades-por-region-comunidad':
+            # IMPORTANTE: Para este reporte, NO aplicar filtros de region_ids/comunidad_ids aquí
+            # porque se manejan más adelante considerando relaciones M2M
+            # Asegurarse de que actividades_query tenga TODAS las actividades (excepto eliminadas)
+            # que cumplan los filtros de fecha, estado, tipo (si hay selección), etc.
+            
             if agrupar_por == 'comunidad':
                 # Agrupar por comunidad
-                # Si hay filtro de comunidades, usar solo esas; si no, todas las comunidades
-                if comunidades_filtro and comunidades_filtro[0]:
-                    actividades_filtradas = actividades_query.filter(comunidad_id__in=comunidades_filtro)
-                else:
-                    actividades_filtradas = actividades_query
+                # Obtener TODAS las actividades que cumplan los filtros (fecha, estado, tipo, etc.)
+                # Sin filtro de eliminadas (ya está en actividades_query)
                 
-                resultado = actividades_filtradas.select_related('comunidad', 'comunidad__region').values(
+                # Obtener todas las actividades que cumplen los filtros
+                actividades_filtradas = actividades_query
+                
+                # Si hay filtro de comunidades, filtrar actividades que tengan esa comunidad (directa o M2M)
+                if comunidades_filtro and comunidades_filtro[0]:
+                    # Actividades con comunidad directa en el filtro
+                    actividad_ids_directas = set(actividades_filtradas.filter(
+                        comunidad_id__in=comunidades_filtro
+                    ).values_list('id', flat=True))
+                    
+                    # Actividades con comunidades M2M en el filtro
+                    actividad_ids_m2m = set(ActividadComunidad.objects.filter(
+                        comunidad_id__in=comunidades_filtro,
+                        actividad_id__in=actividades_filtradas.values_list('id', flat=True)
+                    ).values_list('actividad_id', flat=True).distinct())
+                    
+                    # Combinar IDs (una actividad puede estar en ambas)
+                    actividad_ids_combinadas = actividad_ids_directas | actividad_ids_m2m
+                    actividades_filtradas = actividades_filtradas.filter(id__in=actividad_ids_combinadas)
+                
+                # Obtener IDs de todas las actividades filtradas
+                actividad_ids_filtradas = list(actividades_filtradas.values_list('id', flat=True))
+                
+                # Obtener todas las comunidades únicas que tienen actividades
+                # 1. Comunidades de actividades con comunidad directa
+                comunidades_directas = actividades_filtradas.filter(
+                    comunidad_id__isnull=False
+                ).values(
                     'comunidad__id',
                     'comunidad__nombre',
                     'comunidad__region__nombre'
-                ).annotate(
-                    total_actividades=Count('id', distinct=True)
-                ).order_by('-total_actividades')
+                ).distinct()
                 
-                for item in resultado:
-                    comunidad_id = item['comunidad__id']
-                    if not comunidad_id:
+                # 2. Comunidades de actividades M2M
+                comunidades_m2m = ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids_filtradas
+                ).select_related('comunidad', 'comunidad__region').values(
+                    'comunidad__id',
+                    'comunidad__nombre',
+                    'comunidad__region__nombre'
+                ).distinct()
+                
+                # Combinar y obtener comunidades únicas
+                comunidades_dict = {}
+                for com in comunidades_directas:
+                    com_id = com['comunidad__id']
+                    if com_id:
+                        comunidades_dict[com_id] = {
+                            'id': com_id,
+                            'nombre': com['comunidad__nombre'],
+                            'region': com['comunidad__region__nombre'] or 'Sin región'
+                        }
+                
+                for com in comunidades_m2m:
+                    com_id = com['comunidad__id']
+                    if com_id:
+                        comunidades_dict[com_id] = {
+                            'id': com_id,
+                            'nombre': com['comunidad__nombre'],
+                            'region': com['comunidad__region__nombre'] or 'Sin región'
+                        }
+                
+                # PRIMERO: Recolectar TODAS las actividades únicas con todas sus comunidades
+                # Esto evita que una actividad aparezca múltiples veces en los detalles
+                todas_actividades_unicas = {}
+                todas_actividades_ids = set(actividad_ids_filtradas)
+                
+                for act in actividades_filtradas.filter(id__in=todas_actividades_ids).select_related(
+                    'comunidad', 'comunidad__region', 'responsable', 'colaborador', 'tipo'
+                ).distinct():
+                    if act.id in todas_actividades_unicas:
                         continue
                     
-                    # Obtener beneficiarios por tipo para esta comunidad
-                    actividades_comunidad = actividades_filtradas.filter(comunidad_id=comunidad_id)
+                    # Obtener todas las comunidades de esta actividad (directa + M2M)
+                    comunidades_actividad = []
+                    if act.comunidad:
+                        comunidades_actividad.append(act.comunidad.nombre)
+                    comunidades_m2m_act = ActividadComunidad.objects.filter(
+                        actividad_id=act.id
+                    ).select_related('comunidad').values_list('comunidad__nombre', flat=True)
+                    comunidades_actividad.extend(comunidades_m2m_act)
+                    comunidades_actividad = sorted(list(set(comunidades_actividad)))  # Eliminar duplicados y ordenar
+                    
+                    ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
+                    
+                    todas_actividades_unicas[act.id] = {
+                        'nombre': act.nombre,
+                        'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
+                        'estado': act.estado,
+                        'tipo_actividad': act.tipo.nombre if act.tipo else '-',
+                        'comunidad': ', '.join(comunidades_actividad) if comunidades_actividad else '-',
+                        'responsable': act.responsable.username if act.responsable else '-',
+                        'colaborador': act.colaborador.nombre if act.colaborador else '-',
+                        'total_beneficiarios': ben_count
+                    }
+                
+                # Convertir a lista ordenada por fecha (más reciente primero)
+                todas_actividades_lista = list(todas_actividades_unicas.values())
+                todas_actividades_lista.sort(key=lambda x: x['fecha'], reverse=True)
+                
+                # SEGUNDO: Procesar cada comunidad para los totales/resumen
+                for comunidad_info in comunidades_dict.values():
+                    comunidad_id = comunidad_info['id']
+                    
+                    # Obtener actividades para esta comunidad (directa O M2M) - solo para cálculos
+                    actividades_directas_com = actividades_filtradas.filter(comunidad_id=comunidad_id)
+                    actividades_m2m_ids_com = ActividadComunidad.objects.filter(
+                        actividad_id__in=actividad_ids_filtradas,
+                        comunidad_id=comunidad_id
+                    ).values_list('actividad_id', flat=True).distinct()
+                    
+                    # Combinar actividades (una actividad puede estar en ambas)
+                    actividades_comunidad_ids = set(
+                        list(actividades_directas_com.values_list('id', flat=True)) +
+                        list(actividades_m2m_ids_com)
+                    )
+                    
+                    # Obtener beneficiarios SOLO de las actividades de esta comunidad
                     beneficiarios_query = ActividadBeneficiario.objects.filter(
-                        actividad_id__in=actividades_comunidad.values_list('id', flat=True)
-                    ).select_related('beneficiario__tipo')
+                        actividad_id__in=actividades_comunidad_ids
+                    ).select_related('beneficiario__tipo', 'beneficiario__comunidad')
                     
                     total_benef = beneficiarios_query.values('beneficiario_id').distinct().count()
                     benef_ind = beneficiarios_query.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
                     benef_fam = beneficiarios_query.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
                     benef_inst = beneficiarios_query.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
                     
-                    # Obtener responsables únicos
+                    # CALCULAR BENEFICIARIOS EXCLUSIVOS: Solo beneficiarios individuales cuya comunidad_id coincide con esta comunidad
+                    beneficiarios_exclusivos = beneficiarios_query.filter(
+                        beneficiario__tipo__nombre='individual',
+                        beneficiario__comunidad_id=comunidad_id
+                    ).values('beneficiario_id').distinct().count()
+                    
+                    # Obtener responsables y colaboradores únicos de esta comunidad
+                    actividades_comunidad = actividades_filtradas.filter(id__in=actividades_comunidad_ids)
                     responsables = actividades_comunidad.filter(responsable__isnull=False).values_list(
                         'responsable__username', flat=True
                     ).distinct()
                     
-                    # Obtener actividades con detalles
-                    actividades_detalle = []
-                    for act in actividades_comunidad.select_related('comunidad', 'responsable')[:50]:
-                        ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
-                        actividades_detalle.append({
-                            'nombre': act.nombre,
-                            'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
-                            'estado': act.estado,
-                            'comunidad': act.comunidad.nombre if act.comunidad else '-',
-                            'responsable': act.responsable.username if act.responsable else '-',
-                            'total_beneficiarios': ben_count
-                        })
+                    colaboradores = actividades_comunidad.filter(colaborador__isnull=False).values_list(
+                        'colaborador__nombre', flat=True
+                    ).distinct()
                     
+                    # Agregar datos de la comunidad (sin actividades en detalle, se agregarán al final)
                     data.append({
-                        'nombre': item['comunidad__nombre'] or 'Sin comunidad',
-                        'region': item['comunidad__region__nombre'] or 'Sin región',
-                        'total_actividades': item['total_actividades'],
+                        'nombre': comunidad_info['nombre'],
+                        'region': comunidad_info['region'],
+                        'total_actividades': len(actividades_comunidad_ids),
                         'total_beneficiarios': total_benef,
                         'beneficiarios_individuales': benef_ind,
                         'beneficiarios_familias': benef_fam,
                         'beneficiarios_instituciones': benef_inst,
+                        'beneficiarios_exclusivos': beneficiarios_exclusivos,
                         'responsables': ', '.join(responsables) if responsables else '-',
-                        'actividades': actividades_detalle
+                        'colaboradores': ', '.join(colaboradores) if colaboradores else '-',
+                        'actividades': []  # Las actividades se mostrarán una sola vez al final
                     })
+                
+                # Agregar TODAS las actividades únicas UNA SOLA VEZ
+                # Crear una entrada consolidada con todas las actividades únicas
+                # Esta entrada se mostrará después de todas las comunidades
+                if todas_actividades_lista:
+                    # Calcular totales consolidados de todas las actividades
+                    todas_actividades_ids_unicos = set(actividad_ids_filtradas)
+                    todos_beneficiarios_query = ActividadBeneficiario.objects.filter(
+                        actividad_id__in=todas_actividades_ids_unicos
+                    ).select_related('beneficiario__tipo', 'beneficiario__comunidad')
+                    
+                    total_benef_todos = todos_beneficiarios_query.values('beneficiario_id').distinct().count()
+                    benef_ind_todos = todos_beneficiarios_query.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
+                    benef_fam_todos = todos_beneficiarios_query.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
+                    benef_inst_todos = todos_beneficiarios_query.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                    
+                    # Beneficiarios exclusivos para "Todas las Actividades" = suma de todos los exclusivos únicos de cada comunidad
+                    # Obtener todas las comunidades únicas que tienen actividades
+                    todas_comunidades_ids = set()
+                    if comunidades_dict:
+                        for com_info in comunidades_dict.values():
+                            todas_comunidades_ids.add(com_info['id'])
+                    
+                    # Calcular beneficiarios exclusivos: solo beneficiarios individuales que tienen comunidad_id
+                    # en alguna de las comunidades que tienen actividades
+                    if todas_comunidades_ids:
+                        beneficiarios_exclusivos_todos = todos_beneficiarios_query.filter(
+                            beneficiario__tipo__nombre='individual',
+                            beneficiario__comunidad_id__in=todas_comunidades_ids
+                        ).values('beneficiario_id').distinct().count()
+                    else:
+                        beneficiarios_exclusivos_todos = 0
+                    
+                    todas_actividades_objs = actividades_filtradas.filter(id__in=todas_actividades_ids_unicos)
+                    # ARREGLAR: Eliminar duplicados de responsables usando set y luego convertir a lista ordenada
+                    todos_responsables_set = set(todas_actividades_objs.filter(
+                        responsable__isnull=False
+                    ).values_list('responsable__username', flat=True).distinct())
+                    todos_responsables_list = sorted(list(todos_responsables_set))
+                    
+                    todos_colaboradores_set = set(todas_actividades_objs.filter(
+                        colaborador__isnull=False
+                    ).values_list('colaborador__nombre', flat=True).distinct())
+                    todos_colaboradores_list = sorted(list(todos_colaboradores_set))
+                    
+                    # Agregar entrada consolidada con TODAS las actividades únicas
+                    data.append({
+                        'nombre': 'Todas las Actividades',
+                        'region': 'Todas las Regiones',
+                        'total_actividades': len(todas_actividades_lista),
+                        'total_beneficiarios': total_benef_todos,
+                        'beneficiarios_individuales': benef_ind_todos,
+                        'beneficiarios_familias': benef_fam_todos,
+                        'beneficiarios_instituciones': benef_inst_todos,
+                        'beneficiarios_exclusivos': beneficiarios_exclusivos_todos,
+                        'responsables': ', '.join(todos_responsables_list) if todos_responsables_list else '-',
+                        'colaboradores': ', '.join(todos_colaboradores_list) if todos_colaboradores_list else '-',
+                        'actividades': todas_actividades_lista  # Todas las actividades únicas, sin duplicados
+                    })
+                
+                # Procesar actividades sin comunidad (solo si NO hay filtro de comunidades)
+                if not (comunidades_filtro and comunidades_filtro[0]):
+                    # Actividades sin comunidad directa Y sin comunidades M2M
+                    actividades_con_comunidad_ids = set(
+                        list(actividades_filtradas.filter(comunidad_id__isnull=False).values_list('id', flat=True)) +
+                        list(ActividadComunidad.objects.filter(
+                            actividad_id__in=actividad_ids_filtradas
+                        ).values_list('actividad_id', flat=True).distinct())
+                    )
+                    actividades_sin_comunidad_ids = set(actividad_ids_filtradas) - actividades_con_comunidad_ids
+                    
+                    if actividades_sin_comunidad_ids:
+                        actividades_sin_comunidad = actividades_filtradas.filter(id__in=actividades_sin_comunidad_ids)
+                        
+                        beneficiarios_sin_comunidad = ActividadBeneficiario.objects.filter(
+                            actividad_id__in=actividades_sin_comunidad.values_list('id', flat=True)
+                        ).select_related('beneficiario__tipo')
+                        
+                        total_benef_sc = beneficiarios_sin_comunidad.values('beneficiario_id').distinct().count()
+                        benef_ind_sc = beneficiarios_sin_comunidad.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
+                        benef_fam_sc = beneficiarios_sin_comunidad.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
+                        benef_inst_sc = beneficiarios_sin_comunidad.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                        
+                        responsables_sc = actividades_sin_comunidad.filter(responsable__isnull=False).values_list(
+                            'responsable__username', flat=True
+                        ).distinct()
+                        
+                        colaboradores_sc = actividades_sin_comunidad.filter(colaborador__isnull=False).values_list(
+                            'colaborador__nombre', flat=True
+                        ).distinct()
+                        
+                        # Beneficiarios exclusivos para actividades sin comunidad = 0 (no tienen comunidad asignada)
+                        beneficiarios_exclusivos_sc = 0
+                        
+                        # Las actividades sin comunidad ya están incluidas en todas_actividades_lista
+                        # Solo agregar entrada de resumen para "Sin comunidad asignada" (sin actividades en detalle)
+                        # Las actividades detalladas ya están en la sección "Todas las Actividades"
+                        data.append({
+                            'nombre': 'Sin comunidad asignada',
+                            'region': 'Sin región',
+                            'total_actividades': len(actividades_sin_comunidad_ids),
+                            'total_beneficiarios': total_benef_sc,
+                            'beneficiarios_individuales': benef_ind_sc,
+                            'beneficiarios_familias': benef_fam_sc,
+                            'beneficiarios_instituciones': benef_inst_sc,
+                            'beneficiarios_exclusivos': beneficiarios_exclusivos_sc,
+                            'responsables': ', '.join(responsables_sc) if responsables_sc else '-',
+                            'colaboradores': ', '.join(colaboradores_sc) if colaboradores_sc else '-',
+                            'actividades': []  # Vacío porque ya están en "Todas las Actividades"
+                        })
             else:
                 # Agrupar por región
-                # Si hay filtro de comunidades, filtrar por esas comunidades primero
-                if comunidades_filtro and comunidades_filtro[0]:
-                    actividades_filtradas = actividades_query.filter(comunidad_id__in=comunidades_filtro)
-                else:
-                    actividades_filtradas = actividades_query
+                # Obtener TODAS las actividades que cumplen los filtros
+                actividades_filtradas = actividades_query
                 
-                resultado = actividades_filtradas.select_related('comunidad__region').values(
+                # Si hay filtro de comunidades, filtrar actividades que tengan esa comunidad (directa o M2M)
+                if comunidades_filtro and comunidades_filtro[0]:
+                    # Actividades con comunidad directa en el filtro
+                    actividad_ids_directas = set(actividades_filtradas.filter(
+                        comunidad_id__in=comunidades_filtro
+                    ).values_list('id', flat=True))
+                    
+                    # Actividades con comunidades M2M en el filtro
+                    actividad_ids_m2m = set(ActividadComunidad.objects.filter(
+                        comunidad_id__in=comunidades_filtro,
+                        actividad_id__in=actividades_filtradas.values_list('id', flat=True)
+                    ).values_list('actividad_id', flat=True).distinct())
+                    
+                    # Combinar IDs
+                    actividad_ids_combinadas = actividad_ids_directas | actividad_ids_m2m
+                    actividades_filtradas = actividades_filtradas.filter(id__in=actividad_ids_combinadas)
+                
+                # Obtener IDs de todas las actividades filtradas
+                actividad_ids_filtradas = list(actividades_filtradas.values_list('id', flat=True))
+                
+                # Obtener todas las regiones únicas que tienen actividades
+                # 1. Regiones de actividades con comunidad directa
+                regiones_directas = actividades_filtradas.filter(
+                    comunidad__region_id__isnull=False
+                ).values(
                     'comunidad__region__id',
                     'comunidad__region__nombre'
-                ).annotate(
-                    total_actividades=Count('id', distinct=True)
-                ).order_by('-total_actividades')
+                ).distinct()
                 
-                for item in resultado:
-                    region_id = item['comunidad__region__id']
-                    if not region_id:
+                # 2. Regiones de actividades M2M (a través de actividad_comunidades)
+                regiones_m2m = ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids_filtradas,
+                    region_id__isnull=False
+                ).select_related('region').values(
+                    'region__id',
+                    'region__nombre'
+                ).distinct()
+                
+                # 3. Regiones de comunidades relacionadas en M2M (si no tienen region_id en actividad_comunidades)
+                comunidades_m2m = ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids_filtradas
+                ).select_related('comunidad', 'comunidad__region').filter(
+                    comunidad__region_id__isnull=False
+                ).values(
+                    'comunidad__region__id',
+                    'comunidad__region__nombre'
+                ).distinct()
+                
+                # Combinar y obtener regiones únicas
+                regiones_dict = {}
+                for reg in regiones_directas:
+                    reg_id = reg['comunidad__region__id']
+                    if reg_id:
+                        regiones_dict[reg_id] = {
+                            'id': reg_id,
+                            'nombre': reg['comunidad__region__nombre']
+                        }
+                
+                for reg in regiones_m2m:
+                    reg_id = reg['region__id']
+                    if reg_id:
+                        regiones_dict[reg_id] = {
+                            'id': reg_id,
+                            'nombre': reg['region__nombre']
+                        }
+                
+                for reg in comunidades_m2m:
+                    reg_id = reg['comunidad__region__id']
+                    if reg_id:
+                        regiones_dict[reg_id] = {
+                            'id': reg_id,
+                            'nombre': reg['comunidad__region__nombre']
+                        }
+                
+                # PRIMERO: Recolectar TODAS las actividades únicas con todas sus comunidades
+                # Esto evita que una actividad aparezca múltiples veces en los detalles
+                todas_actividades_unicas_reg = {}
+                todas_actividades_ids_reg = set(actividad_ids_filtradas)
+                
+                for act in actividades_filtradas.filter(id__in=todas_actividades_ids_reg).select_related(
+                    'comunidad', 'comunidad__region', 'responsable', 'colaborador', 'tipo'
+                ).distinct():
+                    if act.id in todas_actividades_unicas_reg:
                         continue
                     
-                    # Obtener beneficiarios por tipo para esta región
-                    actividades_region = actividades_filtradas.filter(comunidad__region_id=region_id)
+                    # Obtener todas las comunidades de esta actividad (directa + M2M)
+                    comunidades_actividad = []
+                    if act.comunidad:
+                        comunidades_actividad.append(act.comunidad.nombre)
+                    comunidades_m2m_act = ActividadComunidad.objects.filter(
+                        actividad_id=act.id
+                    ).select_related('comunidad').values_list('comunidad__nombre', flat=True)
+                    comunidades_actividad.extend(comunidades_m2m_act)
+                    comunidades_actividad = sorted(list(set(comunidades_actividad)))  # Eliminar duplicados y ordenar
+                    
+                    ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
+                    
+                    todas_actividades_unicas_reg[act.id] = {
+                        'nombre': act.nombre,
+                        'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
+                        'estado': act.estado,
+                        'tipo_actividad': act.tipo.nombre if act.tipo else '-',
+                        'comunidad': ', '.join(comunidades_actividad) if comunidades_actividad else '-',
+                        'responsable': act.responsable.username if act.responsable else '-',
+                        'colaborador': act.colaborador.nombre if act.colaborador else '-',
+                        'total_beneficiarios': ben_count
+                    }
+                
+                # Convertir a lista ordenada por fecha (más reciente primero)
+                todas_actividades_lista_reg = list(todas_actividades_unicas_reg.values())
+                todas_actividades_lista_reg.sort(key=lambda x: x['fecha'], reverse=True)
+                
+                # SEGUNDO: Procesar cada región para los totales/resumen
+                for region_info in regiones_dict.values():
+                    region_id = region_info['id']
+                    
+                    # Obtener actividades para esta región (directa O M2M) - solo para cálculos
+                    actividades_directas_reg = actividades_filtradas.filter(comunidad__region_id=region_id)
+                    actividad_ids_directas_reg = set(actividades_directas_reg.values_list('id', flat=True))
+                    
+                    # Actividades M2M en esta región
+                    actividad_ids_m2m_reg = set(ActividadComunidad.objects.filter(
+                        actividad_id__in=actividad_ids_filtradas
+                    ).filter(
+                        Q(region_id=region_id) | Q(comunidad__region_id=region_id)
+                    ).values_list('actividad_id', flat=True).distinct())
+                    
+                    # Combinar actividades
+                    actividad_ids_region = actividad_ids_directas_reg | actividad_ids_m2m_reg
+                    actividades_region = actividades_filtradas.filter(id__in=actividad_ids_region)
+                    
+                    # Obtener beneficiarios SOLO de las actividades de esta región
                     beneficiarios_query = ActividadBeneficiario.objects.filter(
-                        actividad_id__in=actividades_region.values_list('id', flat=True)
-                    ).select_related('beneficiario__tipo')
+                        actividad_id__in=actividad_ids_region
+                    ).select_related('beneficiario__tipo', 'beneficiario__comunidad', 'beneficiario__comunidad__region')
                     
                     total_benef = beneficiarios_query.values('beneficiario_id').distinct().count()
                     benef_ind = beneficiarios_query.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
                     benef_fam = beneficiarios_query.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
                     benef_inst = beneficiarios_query.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
                     
-                    # Obtener responsables únicos
+                    # CALCULAR BENEFICIARIOS EXCLUSIVOS: Solo beneficiarios individuales cuya comunidad.region_id coincide con esta región
+                    beneficiarios_exclusivos = beneficiarios_query.filter(
+                        beneficiario__tipo__nombre='individual',
+                        beneficiario__comunidad__region_id=region_id
+                    ).values('beneficiario_id').distinct().count()
+                    
+                    # Obtener responsables y colaboradores únicos de esta región
                     responsables = actividades_region.filter(responsable__isnull=False).values_list(
                         'responsable__username', flat=True
                     ).distinct()
                     
-                    # Obtener actividades con detalles (limitado)
-                    actividades_detalle = []
-                    for act in actividades_region.select_related('comunidad', 'responsable')[:50]:
-                        ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
-                        actividades_detalle.append({
-                            'nombre': act.nombre,
-                            'fecha': act.fecha.strftime('%Y-%m-%d') if act.fecha else '-',
-                            'estado': act.estado,
-                            'comunidad': act.comunidad.nombre if act.comunidad else '-',
-                            'responsable': act.responsable.username if act.responsable else '-',
-                            'total_beneficiarios': ben_count
-                        })
+                    colaboradores = actividades_region.filter(colaborador__isnull=False).values_list(
+                        'colaborador__nombre', flat=True
+                    ).distinct()
                     
+                    # Agregar datos de la región (sin actividades en detalle, se agregarán al final)
                     data.append({
-                        'nombre': item['comunidad__region__nombre'] or 'Sin región',
-                        'region': item['comunidad__region__nombre'] or 'Sin región',
-                        'total_actividades': item['total_actividades'],
+                        'nombre': region_info['nombre'],
+                        'region': region_info['nombre'],
+                        'total_actividades': len(actividad_ids_region),
                         'total_beneficiarios': total_benef,
                         'beneficiarios_individuales': benef_ind,
                         'beneficiarios_familias': benef_fam,
                         'beneficiarios_instituciones': benef_inst,
+                        'beneficiarios_exclusivos': beneficiarios_exclusivos,
                         'responsables': ', '.join(responsables) if responsables else '-',
-                        'actividades': actividades_detalle
+                        'colaboradores': ', '.join(colaboradores) if colaboradores else '-',
+                        'actividades': []  # Las actividades se mostrarán una sola vez al final
                     })
+                
+                # Agregar TODAS las actividades únicas UNA SOLA VEZ
+                if todas_actividades_lista_reg:
+                    # Calcular totales consolidados de todas las actividades
+                    todas_actividades_ids_unicos_reg = set(actividad_ids_filtradas)
+                    todos_beneficiarios_query_reg = ActividadBeneficiario.objects.filter(
+                        actividad_id__in=todas_actividades_ids_unicos_reg
+                    ).select_related('beneficiario__tipo', 'beneficiario__comunidad', 'beneficiario__comunidad__region')
+                    
+                    total_benef_todos_reg = todos_beneficiarios_query_reg.values('beneficiario_id').distinct().count()
+                    benef_ind_todos_reg = todos_beneficiarios_query_reg.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
+                    benef_fam_todos_reg = todos_beneficiarios_query_reg.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
+                    benef_inst_todos_reg = todos_beneficiarios_query_reg.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                    
+                    # Beneficiarios exclusivos para "Todas las Actividades" = beneficiarios individuales que tienen
+                    # comunidad en alguna de las regiones que tienen actividades
+                    todas_regiones_ids = set()
+                    if regiones_dict:
+                        for reg_info in regiones_dict.values():
+                            todas_regiones_ids.add(reg_info['id'])
+                    
+                    if todas_regiones_ids:
+                        beneficiarios_exclusivos_todos_reg = todos_beneficiarios_query_reg.filter(
+                            beneficiario__tipo__nombre='individual',
+                            beneficiario__comunidad__region_id__in=todas_regiones_ids
+                        ).values('beneficiario_id').distinct().count()
+                    else:
+                        beneficiarios_exclusivos_todos_reg = 0
+                    
+                    todas_actividades_objs_reg = actividades_filtradas.filter(id__in=todas_actividades_ids_unicos_reg)
+                    # ARREGLAR: Eliminar duplicados de responsables usando set y ordenar
+                    todos_responsables_reg_set = set(todas_actividades_objs_reg.filter(
+                        responsable__isnull=False
+                    ).values_list('responsable__username', flat=True).distinct())
+                    todos_responsables_reg_list = sorted(list(todos_responsables_reg_set))
+                    
+                    todos_colaboradores_reg_set = set(todas_actividades_objs_reg.filter(
+                        colaborador__isnull=False
+                    ).values_list('colaborador__nombre', flat=True).distinct())
+                    todos_colaboradores_reg_list = sorted(list(todos_colaboradores_reg_set))
+                    
+                    # Agregar entrada consolidada con TODAS las actividades únicas
+                    data.append({
+                        'nombre': 'Todas las Actividades',
+                        'region': 'Todas las Regiones',
+                        'total_actividades': len(todas_actividades_lista_reg),
+                        'total_beneficiarios': total_benef_todos_reg,
+                        'beneficiarios_individuales': benef_ind_todos_reg,
+                        'beneficiarios_familias': benef_fam_todos_reg,
+                        'beneficiarios_instituciones': benef_inst_todos_reg,
+                        'beneficiarios_exclusivos': beneficiarios_exclusivos_todos_reg,
+                        'responsables': ', '.join(todos_responsables_reg_list) if todos_responsables_reg_list else '-',
+                        'colaboradores': ', '.join(todos_colaboradores_reg_list) if todos_colaboradores_reg_list else '-',
+                        'actividades': todas_actividades_lista_reg  # Todas las actividades únicas, sin duplicados
+                    })
+                
+                # Procesar actividades sin región (solo si NO hay filtro de comunidades)
+                if not (comunidades_filtro and comunidades_filtro[0]):
+                    # Actividades sin región directa Y sin regiones M2M
+                    actividades_con_region_ids = set(
+                        list(actividades_filtradas.filter(comunidad__region_id__isnull=False).values_list('id', flat=True)) +
+                        list(ActividadComunidad.objects.filter(
+                            actividad_id__in=actividad_ids_filtradas
+                        ).filter(
+                            Q(region_id__isnull=False) | Q(comunidad__region_id__isnull=False)
+                        ).values_list('actividad_id', flat=True).distinct())
+                    )
+                    actividades_sin_region_ids = set(actividad_ids_filtradas) - actividades_con_region_ids
+                    
+                    if actividades_sin_region_ids:
+                        actividades_sin_region = actividades_filtradas.filter(id__in=actividades_sin_region_ids)
+                        
+                        beneficiarios_sin_region = ActividadBeneficiario.objects.filter(
+                            actividad_id__in=actividades_sin_region.values_list('id', flat=True)
+                        ).select_related('beneficiario__tipo')
+                        
+                        total_benef_sr = beneficiarios_sin_region.values('beneficiario_id').distinct().count()
+                        benef_ind_sr = beneficiarios_sin_region.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
+                        benef_fam_sr = beneficiarios_sin_region.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
+                        benef_inst_sr = beneficiarios_sin_region.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                        
+                        responsables_sr = actividades_sin_region.filter(responsable__isnull=False).values_list(
+                            'responsable__username', flat=True
+                        ).distinct()
+                        
+                        colaboradores_sr = actividades_sin_region.filter(colaborador__isnull=False).values_list(
+                            'colaborador__nombre', flat=True
+                        ).distinct()
+                        
+                        # Beneficiarios exclusivos para actividades sin región = 0 (no tienen región asignada)
+                        beneficiarios_exclusivos_sr = 0
+                        
+                        # Las actividades sin región ya están incluidas en todas_actividades_lista_reg
+                        # Solo agregar entrada de resumen para "Sin región asignada" (sin actividades en detalle)
+                        # Las actividades detalladas ya están en la sección "Todas las Actividades"
+                        data.append({
+                            'nombre': 'Sin región asignada',
+                            'region': 'Sin región',
+                            'total_actividades': len(actividades_sin_region_ids),
+                            'total_beneficiarios': total_benef_sr,
+                            'beneficiarios_individuales': benef_ind_sr,
+                            'beneficiarios_familias': benef_fam_sr,
+                            'beneficiarios_instituciones': benef_inst_sr,
+                            'beneficiarios_exclusivos': beneficiarios_exclusivos_sr,
+                            'responsables': ', '.join(responsables_sr) if responsables_sr else '-',
+                            'colaboradores': ', '.join(colaboradores_sr) if colaboradores_sr else '-',
+                            'actividades': []  # Vacío porque ya están en "Todas las Actividades"
+                        })
         
         # NUEVO: Beneficiarios por Región o Comunidad (unificado)
         elif report_type == 'beneficiarios-por-region-comunidad':
+            # IMPORTANTE: Para este reporte, NO filtrar por fechas (buscar globalmente)
+            # Construir query base de actividades SIN filtros de fecha
+            actividades_base = Actividad.objects.filter(eliminado_en__isnull=True)
+            
+            # NO aplicar filtro de estados para este reporte (mostrar todos los estados)
+            
+            # IMPORTANTE: Solo filtrar por tipo de actividad si hay tipos seleccionados válidos
+            if tipo_actividad and isinstance(tipo_actividad, list) and len(tipo_actividad) > 0:
+                tipos_validos = [t for t in tipo_actividad if isinstance(t, str) and t.strip() != '']
+                if tipos_validos and len(tipos_validos) > 0:
+                    tipos = TipoActividad.objects.filter(nombre__in=tipos_validos, activo=True)
+                    if tipos.exists():
+                        tipo_ids = [t.id for t in tipos]
+                        actividades_base = actividades_base.filter(tipo_id__in=tipo_ids)
+            
+            # Aplicar filtro de eventos si está presente
+            if evento_filtro and len(evento_filtro) > 0:
+                actividades_base = actividades_base.filter(id__in=evento_filtro)
+            
+            # Obtener todas las actividades que cumplen los filtros (sin fechas)
+            actividad_ids = list(actividades_base.values_list('id', flat=True))
+            
+            # Si hay filtro de comunidades, filtrar actividades que tengan esa comunidad (directa o M2M)
+            if comunidades_filtro and comunidades_filtro[0]:
+                # Actividades con comunidad directa en el filtro
+                actividad_ids_directas = set(actividades_base.filter(
+                    comunidad_id__in=comunidades_filtro
+                ).values_list('id', flat=True))
+                
+                # Actividades con comunidades M2M en el filtro
+                actividad_ids_m2m = set(ActividadComunidad.objects.filter(
+                    comunidad_id__in=comunidades_filtro,
+                    actividad_id__in=actividad_ids
+                ).values_list('actividad_id', flat=True).distinct())
+                
+                # Combinar IDs (una actividad puede estar en ambas)
+                actividad_ids = list(actividad_ids_directas | actividad_ids_m2m)
+            
             # Obtener beneficiarios de las actividades filtradas
-            actividad_ids = actividades_query.values_list('id', flat=True)
             beneficiarios_query = ActividadBeneficiario.objects.filter(
                 actividad_id__in=actividad_ids
             ).select_related('beneficiario', 'beneficiario__tipo', 'beneficiario__comunidad', 
                             'beneficiario__comunidad__region', 'actividad')
             
             # Aplicar filtro de comunidad del beneficiario si está presente
-            # Esto es importante porque el filtro anterior solo filtra por actividades de esa comunidad,
-            # pero necesitamos también filtrar por beneficiarios que pertenecen a esa comunidad
             if comunidades_filtro and comunidades_filtro[0]:
                 beneficiarios_query = beneficiarios_query.filter(
                     beneficiario__comunidad_id__in=comunidades_filtro
                 )
             
             # Aplicar filtro de tipo de beneficiario si está presente
-            if tipo_beneficiario and tipo_beneficiario[0]:
-                # Normalizar nombres de tipos (pueden venir como "individual", "Individual", etc.)
-                tipos_normalizados = [t.lower() for t in tipo_beneficiario]
-                beneficiarios_query = beneficiarios_query.filter(
-                    beneficiario__tipo__nombre__in=tipos_normalizados
-                )
+            if tipo_beneficiario and len(tipo_beneficiario) > 0:
+                # Obtener todos los tipos de beneficiario disponibles en la BD con sus nombres e IDs
+                tipos_bd = TipoBeneficiario.objects.all()
+                tipos_bd_dict = {tipo.nombre.lower(): tipo.id for tipo in tipos_bd}
+                
+                # Mapear valores del frontend a IDs de tipos en la base de datos
+                # La base de datos tiene: 'individual', 'familia', 'institución' (con tilde)
+                # El frontend puede enviar: 'individual', 'familia', 'institución', 'otro'
+                tipo_ids_validos = []
+                for t in tipo_beneficiario:
+                    t_clean = t.strip()
+                    t_lower = t_clean.lower()
+                    
+                    # Buscar el tipo en la BD usando el nombre (case-insensitive)
+                    tipo_id = tipos_bd_dict.get(t_lower)
+                    
+                    # Si no se encontró, intentar mapeo manual
+                    if not tipo_id:
+                        # Mapear variantes comunes
+                        if t_lower == 'individual':
+                            tipo_id = tipos_bd_dict.get('individual')
+                        elif t_lower == 'familia':
+                            tipo_id = tipos_bd_dict.get('familia')
+                        elif t_lower in ['institucion', 'institución']:
+                            # Buscar 'institución' (con tilde) en la BD
+                            tipo_id = tipos_bd_dict.get('institución')
+                        # Ignorar "otro" ya que no existe en la BD
+                    
+                    # Agregar el ID si se encontró
+                    if tipo_id:
+                        tipo_ids_validos.append(tipo_id)
+                
+                # Eliminar duplicados
+                tipo_ids_validos = list(set(tipo_ids_validos))
+                
+                if tipo_ids_validos:
+                    # Filtrar beneficiarios por los IDs de tipos válidos
+                    beneficiarios_query = beneficiarios_query.filter(
+                        beneficiario__tipo_id__in=tipo_ids_validos
+                    )
             
-            # Agrupar beneficiarios por ID y obtener todas sus actividades
+            # Agrupar beneficiarios por comunidad
+            # Primero, obtener todos los beneficiarios únicos con sus datos
             beneficiarios_dict = {}
             
             for ab in beneficiarios_query:
                 benef = ab.beneficiario
                 benef_id = str(benef.id)
+                comunidad_id = str(benef.comunidad.id) if benef.comunidad else 'sin_comunidad'
                 
                 if benef_id not in beneficiarios_dict:
                     # Obtener datos del beneficiario según tipo
+                    # Usar hasattr directamente para detectar el tipo específico
                     nombre = ''
                     dpi = ''
                     telefono = ''
                     email = ''
                     tipo_nombre = benef.tipo.nombre if benef.tipo else ''
                     
-                    if tipo_nombre == 'individual' and hasattr(benef, 'individual'):
+                    # Obtener datos según el tipo específico del beneficiario
+                    if hasattr(benef, 'individual'):
                         ind = benef.individual
                         nombre = f"{ind.nombre} {ind.apellido}".strip()
                         dpi = ind.dpi or ''
                         telefono = ind.telefono or ''
-                    elif tipo_nombre == 'familia' and hasattr(benef, 'familia'):
+                    elif hasattr(benef, 'familia'):
                         fam = benef.familia
                         nombre = fam.nombre_familia
                         dpi = fam.dpi_jefe_familia or ''
                         telefono = fam.telefono or ''
-                    elif tipo_nombre == 'institución' and hasattr(benef, 'institucion'):
+                    elif hasattr(benef, 'institucion'):
                         inst = benef.institucion
                         nombre = inst.nombre_institucion
                         dpi = inst.dpi_representante or ''
                         telefono = inst.telefono or ''
                         email = inst.email or ''
+                    else:
+                        # Si no tiene ningún tipo específico, usar valores por defecto
+                        nombre = 'Sin nombre'
+                        dpi = ''
+                        telefono = ''
+                        email = ''
+                    
+                    # Formatear tipo para mostrar (usar get_nombre_display si está disponible)
+                    tipo_display = '-'
+                    if benef.tipo:
+                        try:
+                            tipo_display = benef.tipo.get_nombre_display()
+                        except:
+                            # Si no tiene get_nombre_display, capitalizar manualmente
+                            if tipo_nombre == 'individual':
+                                tipo_display = 'Individual'
+                            elif tipo_nombre == 'familia':
+                                tipo_display = 'Familia'
+                            elif tipo_nombre == 'institución':
+                                tipo_display = 'Institución'
+                            else:
+                                tipo_display = tipo_nombre.capitalize() if tipo_nombre else '-'
                     
                     beneficiarios_dict[benef_id] = {
                         'nombre': nombre or 'Sin nombre',
-                        'tipo': tipo_nombre.capitalize() if tipo_nombre else '-',
-                        'comunidad': benef.comunidad.nombre if benef.comunidad else '-',
-                        'region': benef.comunidad.region.nombre if benef.comunidad and benef.comunidad.region else '-',
+                        'tipo': tipo_display,
+                        'comunidad_id': comunidad_id,
+                        'comunidad': benef.comunidad.nombre if benef.comunidad else 'Sin comunidad',
+                        'region': benef.comunidad.region.nombre if benef.comunidad and benef.comunidad.region else 'Sin región',
                         'dpi': dpi,
                         'documento': dpi,
                         'telefono': telefono,
@@ -6854,14 +7465,39 @@ def api_generar_reporte(request, report_type):
                     if evento_nombre and evento_nombre not in beneficiarios_dict[benef_id]['eventos']:
                         beneficiarios_dict[benef_id]['eventos'].append(evento_nombre)
             
-            # Convertir a lista y formatear eventos
-            beneficiarios_data = []
+            # Agrupar beneficiarios por comunidad
+            comunidades_dict = {}
             for benef_data in beneficiarios_dict.values():
+                comunidad_key = benef_data['comunidad_id']
+                if comunidad_key not in comunidades_dict:
+                    comunidades_dict[comunidad_key] = {
+                        'comunidad': benef_data['comunidad'],
+                        'region': benef_data['region'],
+                        'beneficiarios': []
+                    }
+                
+                # Formatear eventos
                 benef_data['evento'] = ', '.join(benef_data['eventos']) if benef_data['eventos'] else '-'
                 del benef_data['eventos']  # Remover la lista temporal
-                beneficiarios_data.append(benef_data)
+                del benef_data['comunidad_id']  # Remover el ID temporal
+                comunidades_dict[comunidad_key]['beneficiarios'].append(benef_data)
             
-            data = beneficiarios_data
+            # Convertir a formato de lista agrupada por comunidad
+            data = []
+            for comunidad_data in comunidades_dict.values():
+                # Agregar información de la comunidad y sus beneficiarios
+                for beneficiario in comunidad_data['beneficiarios']:
+                    data.append({
+                        'comunidad': comunidad_data['comunidad'],
+                        'region': comunidad_data['region'],
+                        'nombre': beneficiario['nombre'],
+                        'tipo': beneficiario['tipo'],
+                        'dpi': beneficiario['dpi'],
+                        'documento': beneficiario['documento'],
+                        'telefono': beneficiario['telefono'],
+                        'email': beneficiario['email'],
+                        'evento': beneficiario['evento']
+                    })
         
         elif report_type == 'actividades-por-region':
             resultado = actividades_query.select_related('comunidad__region').values(
@@ -7202,12 +7838,12 @@ def api_generar_reporte(request, report_type):
             if colaboradores_filtro:
                 cambios_query = cambios_query.filter(colaborador_id__in=colaboradores_filtro)
             
-            # Prefetch evidencias si se deben mostrar
-            if mostrar_evidencias:
-                cambios_query = cambios_query.prefetch_related('evidencias')
+            # Nota: Las evidencias se obtendrán manualmente agrupadas por grupo_id
+            # No usar prefetch_related aquí ya que agrupamos por grupo_id
             
-            # Procesar cambios
-            data = []
+            # Procesar cambios agrupados por grupo_id para evitar duplicados
+            # Agrupar cambios por grupo_id (un avance puede tener múltiples colaboradores)
+            cambios_por_grupo = {}
             for cambio in cambios_query:
                 actividad = cambio.actividad
                 colaborador = cambio.colaborador
@@ -7215,65 +7851,292 @@ def api_generar_reporte(request, report_type):
                 if not actividad or not colaborador:
                     continue
                 
-                # Obtener comunidades del evento
-                comunidades_nombres = []
-                if actividad.comunidad:
-                    comunidades_nombres.append(actividad.comunidad.nombre)
+                grupo_id = str(cambio.grupo_id)
                 
-                # También obtener de relaciones de comunidades
-                if hasattr(actividad, 'comunidades_relacionadas'):
-                    for relacion in actividad.comunidades_relacionadas.all():
-                        if relacion.comunidad and relacion.comunidad.nombre not in comunidades_nombres:
-                            comunidades_nombres.append(relacion.comunidad.nombre)
-                
-                # Obtener evidencias si se deben mostrar
-                evidencias_data = []
-                if mostrar_evidencias:
-                    evidencias_qs = cambio.evidencias.all()
-                    for evidencia in evidencias_qs:
-                        evidencias_data.append({
-                            'id': str(evidencia.id),
-                            'nombre': evidencia.archivo_nombre,
-                            'url': evidencia.url_almacenamiento,
-                            'tipo': evidencia.archivo_tipo or '',
-                            'es_imagen': evidencia.archivo_tipo and evidencia.archivo_tipo.startswith('image/'),
-                            'descripcion': evidencia.descripcion or ''
-                        })
-                
-                # Formatear fecha
-                fecha_display = ''
-                if cambio.fecha_cambio:
-                    from django.utils.timezone import localtime
-                    import pytz
-                    guatemala_tz = pytz.timezone('America/Guatemala')
-                    if timezone.is_aware(cambio.fecha_cambio):
-                        fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
-                    else:
-                        fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
-                    fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
-                
-                data.append({
-                    'evento_id': str(actividad.id),
-                    'evento': {
-                        'id': str(actividad.id),
-                        'nombre': actividad.nombre,
-                        'estado': actividad.estado,
-                        'tipo': actividad.tipo.nombre if actividad.tipo else '-'
-                    },
-                    'comunidad': ', '.join(comunidades_nombres) if comunidades_nombres else '-',
-                    'colaborador_id': str(colaborador.id),
-                    'colaborador_nombre': colaborador.nombre,
-                    'descripcion_cambio': cambio.descripcion_cambio,
-                    'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
-                    'fecha_display': fecha_display,
-                    'evidencias': evidencias_data
-                })
+                # Si es el primer cambio de este grupo, inicializar
+                if grupo_id not in cambios_por_grupo:
+                    # Obtener comunidades del evento
+                    comunidades_nombres = []
+                    if actividad.comunidad:
+                        comunidades_nombres.append(actividad.comunidad.nombre)
+                    
+                    # También obtener de relaciones de comunidades
+                    if hasattr(actividad, 'comunidades_relacionadas'):
+                        for relacion in actividad.comunidades_relacionadas.all():
+                            if relacion.comunidad and relacion.comunidad.nombre not in comunidades_nombres:
+                                comunidades_nombres.append(relacion.comunidad.nombre)
+                    
+                    # Obtener todas las evidencias del grupo (pueden estar en cualquier cambio del grupo)
+                    evidencias_data = []
+                    if mostrar_evidencias:
+                        # Obtener todos los cambios del mismo grupo
+                        cambios_grupo_ids = EventoCambioColaborador.objects.filter(
+                            grupo_id=cambio.grupo_id
+                        ).values_list('id', flat=True)
+                        
+                        # Obtener todas las evidencias de todos los cambios del mismo grupo
+                        evidencias_qs = EventosEvidenciasCambios.objects.filter(
+                            cambio_id__in=cambios_grupo_ids
+                        ).select_related('cambio')
+                        
+                        # Usar un diccionario para evitar evidencias duplicadas basado en URL (archivo único)
+                        # La misma evidencia puede estar asociada a múltiples cambios del mismo grupo
+                        evidencias_unicas = {}  # key: url_almacenamiento, value: evidencia_data
+                        
+                        for evidencia in evidencias_qs:
+                            url_almacenamiento = evidencia.url_almacenamiento
+                            # Solo agregar si no existe ya una evidencia con la misma URL
+                            if url_almacenamiento not in evidencias_unicas:
+                                evidencias_unicas[url_almacenamiento] = {
+                                    'id': str(evidencia.id),
+                                    'nombre': evidencia.archivo_nombre,
+                                    'url': url_almacenamiento,
+                                    'tipo': evidencia.archivo_tipo or '',
+                                    'es_imagen': evidencia.archivo_tipo and evidencia.archivo_tipo.startswith('image/'),
+                                    'descripcion': evidencia.descripcion or ''  # Descripción de la evidencia (no del avance)
+                                }
+                        
+                        # Convertir el diccionario a lista
+                        evidencias_data = list(evidencias_unicas.values())
+                    
+                    # Formatear fecha
+                    fecha_display = ''
+                    if cambio.fecha_cambio:
+                        from django.utils.timezone import localtime
+                        import pytz
+                        guatemala_tz = pytz.timezone('America/Guatemala')
+                        if timezone.is_aware(cambio.fecha_cambio):
+                            fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+                        else:
+                            fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+                        fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+                    
+                    # Obtener todos los colaboradores del grupo
+                    colaboradores_grupo = EventoCambioColaborador.objects.filter(
+                        grupo_id=cambio.grupo_id
+                    ).select_related('colaborador').values('colaborador__id', 'colaborador__nombre')
+                    
+                    colaboradores_nombres = [c['colaborador__nombre'] for c in colaboradores_grupo if c['colaborador__nombre']]
+                    
+                    cambios_por_grupo[grupo_id] = {
+                        'evento_id': str(actividad.id),
+                        'evento': {
+                            'id': str(actividad.id),
+                            'nombre': actividad.nombre,
+                            'estado': actividad.estado,
+                            'tipo': actividad.tipo.nombre if actividad.tipo else '-'
+                        },
+                        'comunidad': ', '.join(comunidades_nombres) if comunidades_nombres else '-',
+                        'colaboradores_ids': [str(c['colaborador__id']) for c in colaboradores_grupo if c['colaborador__id']],
+                        'colaboradores_nombres': colaboradores_nombres,
+                        'colaborador_nombre': ', '.join(colaboradores_nombres) if colaboradores_nombres else 'Sin nombre',  # Todos los colaboradores
+                        'descripcion_cambio': cambio.descripcion_cambio,  # Descripción del avance (no de la evidencia)
+                        'fecha_cambio': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                        'fecha_display': fecha_display,
+                        'evidencias': evidencias_data
+                    }
+            
+            # Convertir el diccionario agrupado a lista
+            data = list(cambios_por_grupo.values())
             
             # El frontend espera data directamente (no en un campo 'data')
             return JsonResponse({
                 'data': data,
                 'total': len(data)
             })
+        
+        elif report_type == 'comunidades':
+            # Obtener filtros específicos para reporte de comunidades
+            comunidades_filtro = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
+            comunidades_filtro = [c.strip() for c in comunidades_filtro if c.strip()]
+            
+            evento_filtro_param = request.GET.get('evento', '')
+            if evento_filtro_param:
+                evento_filtro = [e.strip() for e in evento_filtro_param.split(',') if e.strip()]
+            else:
+                evento_filtro = []
+            
+            # Obtener período para calcular fechas correctamente
+            periodo = request.GET.get('periodo', 'todo')
+            from django.utils import timezone
+            from datetime import timedelta, datetime, time
+            
+            # Calcular fechas según período
+            if periodo == 'ultimo_mes':
+                fecha_inicio_dt = timezone.now() - timedelta(days=30)
+                fecha_fin_dt = timezone.now()
+            elif periodo == 'ultima_semana':
+                fecha_inicio_dt = timezone.now() - timedelta(days=7)
+                fecha_fin_dt = timezone.now()
+            elif periodo == 'rango' and fecha_inicio and fecha_fin:
+                try:
+                    fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d')
+                    fecha_fin_dt = datetime.combine(datetime.strptime(fecha_fin, '%Y-%m-%d').date(), time.max)
+                    if timezone.is_naive(fecha_inicio_dt):
+                        fecha_inicio_dt = timezone.make_aware(fecha_inicio_dt)
+                    if timezone.is_naive(fecha_fin_dt):
+                        fecha_fin_dt = timezone.make_aware(fecha_fin_dt)
+                except:
+                    fecha_inicio_dt = None
+                    fecha_fin_dt = None
+            else:
+                fecha_inicio_dt = None
+                fecha_fin_dt = None
+            
+            # Construir query base de actividades
+            actividades_query = Actividad.objects.filter(eliminado_en__isnull=True)
+            
+            # Aplicar filtros de fecha
+            if fecha_inicio_dt:
+                actividades_query = actividades_query.filter(fecha__gte=fecha_inicio_dt.date())
+            if fecha_fin_dt:
+                actividades_query = actividades_query.filter(fecha__lte=fecha_fin_dt.date())
+            
+            # Aplicar filtro de tipo de actividad
+            if tipo_actividad and isinstance(tipo_actividad, list) and len(tipo_actividad) > 0:
+                tipos_validos = [t for t in tipo_actividad if isinstance(t, str) and t.strip() != '']
+                if tipos_validos:
+                    tipos = TipoActividad.objects.filter(nombre__in=tipos_validos, activo=True)
+                    if tipos.exists():
+                        tipo_ids = [t.id for t in tipos]
+                        actividades_query = actividades_query.filter(tipo_id__in=tipo_ids)
+            
+            # Aplicar filtro de evento si está presente
+            if evento_filtro and len(evento_filtro) > 0:
+                actividades_query = actividades_query.filter(id__in=evento_filtro)
+            
+            # Obtener IDs de actividades filtradas
+            actividad_ids = list(actividades_query.values_list('id', flat=True))
+            
+            # Si hay filtro de comunidades, filtrar actividades que tengan esa comunidad (directa o M2M)
+            if comunidades_filtro:
+                # Actividades con comunidad directa en el filtro
+                actividad_ids_directas = set(actividades_query.filter(
+                    comunidad_id__in=comunidades_filtro
+                ).values_list('id', flat=True))
+                
+                # Actividades con comunidades M2M en el filtro
+                actividad_ids_m2m = set(ActividadComunidad.objects.filter(
+                    comunidad_id__in=comunidades_filtro,
+                    actividad_id__in=actividad_ids
+                ).values_list('actividad_id', flat=True).distinct())
+                
+                # Combinar IDs
+                actividad_ids = list(actividad_ids_directas | actividad_ids_m2m)
+            
+            # Obtener comunidades a procesar
+            if comunidades_filtro:
+                comunidades_a_procesar = Comunidad.objects.filter(
+                    id__in=comunidades_filtro,
+                    activo=True
+                ).select_related('tipo', 'region')
+            else:
+                # Si no hay filtro de comunidades, obtener todas las comunidades que tienen actividades
+                comunidades_ids_directas = set(actividades_query.filter(
+                    comunidad_id__isnull=False
+                ).values_list('comunidad_id', flat=True).distinct())
+                
+                comunidades_ids_m2m = set(ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids
+                ).values_list('comunidad_id', flat=True).distinct())
+                
+                todas_comunidades_ids = list(comunidades_ids_directas | comunidades_ids_m2m)
+                comunidades_a_procesar = Comunidad.objects.filter(
+                    id__in=todas_comunidades_ids,
+                    activo=True
+                ).select_related('tipo', 'region')
+            
+            # Procesar cada comunidad
+            comunidades_data = []
+            for comunidad in comunidades_a_procesar:
+                # Obtener actividades de esta comunidad (directa o M2M)
+                actividad_ids_comunidad_directa = set(actividades_query.filter(
+                    comunidad_id=comunidad.id
+                ).values_list('id', flat=True))
+                
+                actividad_ids_comunidad_m2m = set(ActividadComunidad.objects.filter(
+                    comunidad_id=comunidad.id,
+                    actividad_id__in=actividad_ids
+                ).values_list('actividad_id', flat=True).distinct())
+                
+                actividad_ids_comunidad = list(actividad_ids_comunidad_directa | actividad_ids_comunidad_m2m)
+                
+                # Obtener actividades de esta comunidad
+                actividades_comunidad = Actividad.objects.filter(
+                    id__in=actividad_ids_comunidad
+                ).select_related('tipo', 'comunidad', 'comunidad__region')
+                
+                # Obtener beneficiarios de esta comunidad que están en estas actividades
+                beneficiarios_comunidad = Beneficiario.objects.filter(
+                    comunidad_id=comunidad.id,
+                    activo=True
+                ).select_related('tipo')
+                
+                # Filtrar beneficiarios que están en las actividades
+                beneficiarios_en_actividades = ActividadBeneficiario.objects.filter(
+                    actividad_id__in=actividad_ids_comunidad,
+                    beneficiario_id__in=[b.id for b in beneficiarios_comunidad]
+                ).values_list('beneficiario_id', flat=True).distinct()
+                
+                beneficiarios_filtrados = beneficiarios_comunidad.filter(
+                    id__in=beneficiarios_en_actividades
+                )
+                
+                # Procesar proyectos/eventos
+                proyectos_data = []
+                for actividad in actividades_comunidad:
+                    proyectos_data.append({
+                        'nombre': actividad.nombre,
+                        'tipo': actividad.tipo.nombre if actividad.tipo else '-',
+                        'estado': actividad.estado,
+                        'fecha': actividad.fecha.strftime('%Y-%m-%d') if actividad.fecha else '-'
+                    })
+                
+                # Procesar beneficiarios
+                beneficiarios_data = []
+                for beneficiario in beneficiarios_filtrados:
+                    # Obtener eventos en los que participa este beneficiario
+                    eventos_beneficiario = ActividadBeneficiario.objects.filter(
+                        beneficiario_id=beneficiario.id,
+                        actividad_id__in=actividad_ids_comunidad
+                    ).select_related('actividad').values_list('actividad__nombre', flat=True).distinct()
+                    
+                    # Obtener nombre del beneficiario según tipo
+                    nombre_beneficiario = ''
+                    if hasattr(beneficiario, 'individual'):
+                        nombre_beneficiario = f"{beneficiario.individual.nombre} {beneficiario.individual.apellido}".strip()
+                    elif hasattr(beneficiario, 'familia'):
+                        nombre_beneficiario = beneficiario.familia.nombre_familia
+                    elif hasattr(beneficiario, 'institucion'):
+                        nombre_beneficiario = beneficiario.institucion.nombre_institucion
+                    
+                    tipo_beneficiario = beneficiario.tipo.nombre if beneficiario.tipo else '-'
+                    
+                    beneficiarios_data.append({
+                        'nombre': nombre_beneficiario or 'Sin nombre',
+                        'tipo': tipo_beneficiario.capitalize() if tipo_beneficiario else '-',
+                        'eventos': list(eventos_beneficiario)
+                    })
+                
+                comunidades_data.append({
+                    'nombre': comunidad.nombre,
+                    'cocode': comunidad.cocode or '-',
+                    'region': comunidad.region.nombre if comunidad.region else '-',
+                    'tipo': comunidad.tipo.nombre if comunidad.tipo else '-',
+                    'numero_beneficiarios': len(beneficiarios_data),
+                    'numero_proyectos': len(proyectos_data),
+                    'proyectos': proyectos_data,
+                    'beneficiarios': beneficiarios_data
+                })
+            
+            # El frontend espera un objeto con 'comunidades'
+            return JsonResponse({
+                'data': {
+                    'comunidades': comunidades_data
+                },
+                'total': len(comunidades_data)
+            })
+        
         elif report_type == 'reporte-evento-individual':
             # Obtener el evento específico
             evento_id = request.GET.get('evento')
@@ -7446,6 +8309,231 @@ def api_generar_reporte(request, report_type):
                 return JsonResponse({
                     'error': 'Evento no encontrado'
                 }, status=404)
+        elif report_type == 'actividad-usuarios':
+            # Obtener filtros específicos para reporte de actividad de usuarios
+            periodo = request.GET.get('periodo', 'todo')
+            fecha_inicio_param = request.GET.get('fecha_inicio')
+            fecha_fin_param = request.GET.get('fecha_fin')
+            
+            comunidades_filtro = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
+            comunidades_filtro = [c.strip() for c in comunidades_filtro if c.strip()]
+            
+            evento_filtro_param = request.GET.get('evento', '')
+            evento_filtro = evento_filtro_param.strip() if evento_filtro_param else None
+            
+            tipo_actividad_param = request.GET.get('tipo_actividad', '')
+            tipo_actividad = [t.strip() for t in tipo_actividad_param.split(',') if t.strip()] if tipo_actividad_param else []
+            
+            usuarios_filtro = request.GET.get('usuarios', '').split(',') if request.GET.get('usuarios') else []
+            usuarios_filtro = [u.strip() for u in usuarios_filtro if u.strip()]
+            
+            # Calcular fechas según período
+            from django.utils import timezone
+            from datetime import timedelta, datetime, time
+            
+            fecha_inicio_dt = None
+            fecha_fin_dt = None
+            
+            if periodo == 'ultimo_mes':
+                fecha_inicio_dt = timezone.now() - timedelta(days=30)
+                fecha_fin_dt = timezone.now()
+            elif periodo == 'ultima_semana':
+                fecha_inicio_dt = timezone.now() - timedelta(days=7)
+                fecha_fin_dt = timezone.now()
+            elif periodo == 'rango' and fecha_inicio_param and fecha_fin_param:
+                try:
+                    fecha_inicio_dt = datetime.strptime(fecha_inicio_param, '%Y-%m-%d')
+                    fecha_fin_dt = datetime.combine(datetime.strptime(fecha_fin_param, '%Y-%m-%d').date(), time.max)
+                    if timezone.is_naive(fecha_inicio_dt):
+                        fecha_inicio_dt = timezone.make_aware(fecha_inicio_dt)
+                    if timezone.is_naive(fecha_fin_dt):
+                        fecha_fin_dt = timezone.make_aware(fecha_fin_dt)
+                except:
+                    fecha_inicio_dt = None
+                    fecha_fin_dt = None
+            
+            # Obtener actividades base según filtros
+            actividades_base = Actividad.objects.filter(eliminado_en__isnull=True)
+            
+            # Aplicar filtro de tipo de actividad
+            if tipo_actividad and len(tipo_actividad) > 0:
+                tipos = TipoActividad.objects.filter(nombre__in=tipo_actividad, activo=True)
+                if tipos.exists():
+                    tipo_ids = [t.id for t in tipos]
+                    actividades_base = actividades_base.filter(tipo_id__in=tipo_ids)
+            
+            # Aplicar filtro de evento
+            if evento_filtro:
+                actividades_base = actividades_base.filter(id=evento_filtro)
+            
+            # Aplicar filtro de comunidades (directa o M2M)
+            if comunidades_filtro:
+                actividad_ids_directas = set(actividades_base.filter(
+                    comunidad_id__in=comunidades_filtro
+                ).values_list('id', flat=True))
+                
+                actividad_ids_m2m = set(ActividadComunidad.objects.filter(
+                    comunidad_id__in=comunidades_filtro,
+                    actividad_id__in=actividades_base.values_list('id', flat=True)
+                ).values_list('actividad_id', flat=True).distinct())
+                
+                actividad_ids = list(actividad_ids_directas | actividad_ids_m2m)
+                actividades_base = actividades_base.filter(id__in=actividad_ids)
+            
+            actividad_ids = list(actividades_base.values_list('id', flat=True))
+            
+            # Obtener todos los usuarios del sistema y colaboradores con usuario
+            usuarios_sistema = Usuario.objects.filter(activo=True).select_related('puesto')
+            colaboradores_con_usuario = Colaborador.objects.filter(
+                activo=True,
+                usuario__isnull=False
+            ).select_related('usuario', 'puesto')
+            
+            # Si hay filtro de usuarios, aplicar
+            if usuarios_filtro:
+                usuarios_sistema = usuarios_sistema.filter(id__in=usuarios_filtro)
+                colaboradores_con_usuario = colaboradores_con_usuario.filter(usuario_id__in=usuarios_filtro)
+            
+            # Obtener cambios de usuarios (ActividadCambio)
+            cambios_usuarios = ActividadCambio.objects.filter(
+                actividad_id__in=actividad_ids
+            ).select_related('responsable', 'actividad', 'actividad__tipo', 'actividad__comunidad')
+            
+            if fecha_inicio_dt:
+                cambios_usuarios = cambios_usuarios.filter(fecha_cambio__gte=fecha_inicio_dt)
+            if fecha_fin_dt:
+                cambios_usuarios = cambios_usuarios.filter(fecha_cambio__lte=fecha_fin_dt)
+            
+            if usuarios_filtro:
+                cambios_usuarios = cambios_usuarios.filter(responsable_id__in=usuarios_filtro)
+            
+            # Obtener cambios de colaboradores con usuario (EventoCambioColaborador)
+            colaborador_ids_con_usuario = [c.id for c in colaboradores_con_usuario]
+            cambios_colaboradores = EventoCambioColaborador.objects.filter(
+                actividad_id__in=actividad_ids,
+                colaborador_id__in=colaborador_ids_con_usuario
+            ).select_related('colaborador', 'colaborador__usuario', 'actividad', 'actividad__tipo', 'actividad__comunidad')
+            
+            if fecha_inicio_dt:
+                cambios_colaboradores = cambios_colaboradores.filter(fecha_cambio__gte=fecha_inicio_dt)
+            if fecha_fin_dt:
+                cambios_colaboradores = cambios_colaboradores.filter(fecha_cambio__lte=fecha_fin_dt)
+            
+            # Agrupar cambios por usuario
+            usuarios_dict = {}
+            
+            # Procesar cambios de usuarios
+            for cambio in cambios_usuarios:
+                usuario = cambio.responsable
+                if not usuario:
+                    continue
+                
+                usuario_id = str(usuario.id)
+                if usuario_id not in usuarios_dict:
+                    usuarios_dict[usuario_id] = {
+                        'id': usuario_id,
+                        'username': usuario.username,
+                        'nombre': usuario.nombre or usuario.username,
+                        'rol': usuario.rol,
+                        'rol_display': usuario.get_rol_display() if hasattr(usuario, 'get_rol_display') else usuario.rol,
+                        'puesto': usuario.puesto.nombre if usuario.puesto else None,
+                        'puesto_nombre': usuario.puesto.nombre if usuario.puesto else None,
+                        'cambios': [],
+                        'total_cambios': 0
+                    }
+                
+                # Formatear fecha
+                fecha_display = ''
+                if cambio.fecha_cambio:
+                    import pytz
+                    guatemala_tz = pytz.timezone('America/Guatemala')
+                    if timezone.is_aware(cambio.fecha_cambio):
+                        fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+                    else:
+                        fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+                    fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+                
+                usuarios_dict[usuario_id]['cambios'].append({
+                    'tipo_cambio': 'Cambio de Actividad',
+                    'descripcion': cambio.descripcion_cambio,
+                    'fecha': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                    'fecha_display': fecha_display,
+                    'evento_id': str(cambio.actividad.id),
+                    'evento_nombre': cambio.actividad.nombre
+                })
+                usuarios_dict[usuario_id]['total_cambios'] += 1
+            
+            # Procesar cambios de colaboradores con usuario
+            for cambio in cambios_colaboradores:
+                colaborador = cambio.colaborador
+                if not colaborador or not colaborador.usuario:
+                    continue
+                
+                usuario = colaborador.usuario
+                usuario_id = str(usuario.id)
+                
+                if usuario_id not in usuarios_dict:
+                    usuarios_dict[usuario_id] = {
+                        'id': usuario_id,
+                        'username': usuario.username,
+                        'nombre': usuario.nombre or usuario.username,
+                        'rol': usuario.rol,
+                        'rol_display': usuario.get_rol_display() if hasattr(usuario, 'get_rol_display') else usuario.rol,
+                        'puesto': colaborador.puesto.nombre if colaborador.puesto else (usuario.puesto.nombre if usuario.puesto else None),
+                        'puesto_nombre': colaborador.puesto.nombre if colaborador.puesto else (usuario.puesto.nombre if usuario.puesto else None),
+                        'cambios': [],
+                        'total_cambios': 0
+                    }
+                
+                # Formatear fecha
+                fecha_display = ''
+                if cambio.fecha_cambio:
+                    import pytz
+                    guatemala_tz = pytz.timezone('America/Guatemala')
+                    if timezone.is_aware(cambio.fecha_cambio):
+                        fecha_local = cambio.fecha_cambio.astimezone(guatemala_tz)
+                    else:
+                        fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
+                    fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
+                
+                usuarios_dict[usuario_id]['cambios'].append({
+                    'tipo_cambio': 'Cambio por Colaborador',
+                    'descripcion': cambio.descripcion_cambio,
+                    'fecha': cambio.fecha_cambio.isoformat() if cambio.fecha_cambio else None,
+                    'fecha_display': fecha_display,
+                    'evento_id': str(cambio.actividad.id),
+                    'evento_nombre': cambio.actividad.nombre
+                })
+                usuarios_dict[usuario_id]['total_cambios'] += 1
+            
+            # Si hay filtro de usuarios pero no tienen cambios, agregarlos sin actividad
+            if usuarios_filtro:
+                for usuario in usuarios_sistema:
+                    usuario_id = str(usuario.id)
+                    if usuario_id not in usuarios_dict:
+                        usuarios_dict[usuario_id] = {
+                            'id': usuario_id,
+                            'username': usuario.username,
+                            'nombre': usuario.nombre or usuario.username,
+                            'rol': usuario.rol,
+                            'rol_display': usuario.get_rol_display() if hasattr(usuario, 'get_rol_display') else usuario.rol,
+                            'puesto': usuario.puesto.nombre if usuario.puesto else None,
+                            'puesto_nombre': usuario.puesto.nombre if usuario.puesto else None,
+                            'cambios': [],
+                            'total_cambios': 0,
+                            'sin_actividad': True
+                        }
+            
+            # Convertir a lista y ordenar por total de cambios
+            usuarios_lista = list(usuarios_dict.values())
+            usuarios_lista.sort(key=lambda x: x['total_cambios'], reverse=True)
+            
+            return JsonResponse({
+                'data': {
+                    'usuarios': usuarios_lista
+                },
+                'total': len(usuarios_lista)
+            })
         elif report_type == 'reporte-general':
             # Obtener filtros
             periodo = request.GET.get('periodo', 'todo')

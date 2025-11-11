@@ -57,7 +57,7 @@ function renderDashboard(data) {
     // Renderizar tablas
     renderTableComunidadesActivas(data.top_comunidades || []);
     renderTableResponsables(data.top_responsables || []);
-    renderTableProximas(data.proximas_actividades || []);
+    renderTableProximas(data.actividades_trabajadas_recientemente || []);
 }
 
 // Gráfico: Actividades por Mes
@@ -289,7 +289,7 @@ function renderTableProximas(data) {
     tbody.innerHTML = '';
     
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="loading-cell">No hay actividades próximas</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">No hay actividades trabajadas recientemente</td></tr>';
         return;
     }
     
@@ -298,6 +298,7 @@ function renderTableProximas(data) {
         row.innerHTML = `
             <td>${escapeHtml(item.nombre || '-')}</td>
             <td>${item.fecha || '-'}</td>
+            <td>${item.fecha_ultimo_cambio || '-'}</td>
             <td>${escapeHtml(item.comunidad || '-')}</td>
             <td><span class="status-badge status-${item.estado || 'planificado'}">${formatEstado(item.estado)}</span></td>
         `;
@@ -395,9 +396,6 @@ async function loadFormData(reportType) {
         // Cargar todas las comunidades para el buscador
         await loadAllComunidades();
         
-        // Cargar tipos de actividad
-        await loadTiposActividad(reportType);
-        
         // Cargar eventos si es el reporte de beneficiarios
         if (reportType === 'beneficiarios-por-region-comunidad') {
             await loadEventos();
@@ -405,11 +403,12 @@ async function loadFormData(reportType) {
             setupEventoSearchBeneficiarios();
         }
         
-        // Configurar switches
-        setupSwitches(reportType);
-        
-        // Configurar selectores de período
-        setupPeriodSelectors(reportType);
+        // Configurar switches (solo para actividades, no para beneficiarios)
+        if (reportType === 'actividades-por-region-comunidad') {
+            setupSwitches(reportType);
+            // Configurar selectores de período (solo para actividades)
+            setupPeriodSelectors(reportType);
+        }
         
         // Configurar buscadores de comunidades
         setupComunidadSearch(reportType);
@@ -504,28 +503,31 @@ async function loadAllComunidades() {
     }
 }
 
-// Cargar tipos de actividad
+// Cargar tipos de actividad (solo para reporte de beneficiarios)
 async function loadTiposActividad(reportType) {
     try {
         const response = await fetch('/api/tipos-actividad/');
         if (response.ok) {
             const tipos = await response.json();
-            const selectId = reportType === 'actividades-por-region-comunidad' 
-                ? 'filterTipoActividadActividades'
-                : 'filterTipoActividadBeneficiarios';
+            // Solo cargar para reporte de beneficiarios (actividades usa checkboxes estáticos)
+            const selectId = 'filterTipoActividadBeneficiarios';
             const select = document.getElementById(selectId);
             
             if (select) {
-                // Limpiar opciones existentes
+                // Limpiar opciones existentes completamente
                 select.innerHTML = '';
                 
-                // Agregar opciones de tipos de actividad
+                // Agregar opciones de tipos de actividad (NINGUNA seleccionada por defecto)
                 tipos.forEach(tipo => {
                     const option = document.createElement('option');
                     option.value = tipo.nombre;
                     option.textContent = tipo.nombre;
+                    option.selected = false; // Asegurar que ninguna esté seleccionada
                     select.appendChild(option);
                 });
+                
+                // Asegurar que no haya ninguna opción seleccionada
+                select.selectedIndex = -1;
             }
         }
     } catch (error) {
@@ -1715,6 +1717,7 @@ let selectedEventoComunidades = null;
 let eventoComunidadesCheckboxes = [];
 let selectedComunidadesComunidades = [];
 let comunidadComunidadesCheckboxes = [];
+let comunidadesDelEvento = []; // Comunidades relacionadas con el evento seleccionado
 
 // Cargar eventos para reporte de comunidades
 async function loadEventosComunidades() {
@@ -1768,6 +1771,8 @@ function renderEventoComunidadesChecklist(filterQuery = '') {
                 selectedEventoComunidades = evento.id;
                 updateSelectedEventoComunidadesTag();
                 renderEventoComunidadesChecklist(filterQuery);
+                // Cargar comunidades del evento seleccionado
+                loadComunidadesDelEvento(evento.id);
             }
         });
         
@@ -1800,9 +1805,13 @@ function updateSelectedEventoComunidadesTag() {
             removeBtn.textContent = '×';
             removeBtn.addEventListener('click', function() {
                 selectedEventoComunidades = null;
+                comunidadesDelEvento = []; // Limpiar comunidades del evento
                 updateSelectedEventoComunidadesTag();
                 const searchInput = document.getElementById('searchEventoComunidades');
                 renderEventoComunidadesChecklist(searchInput ? searchInput.value : '');
+                // Actualizar lista de comunidades para mostrar todas
+                const comunidadSearchInput = document.getElementById('searchComunidadComunidades');
+                renderComunidadComunidadesChecklist(comunidadSearchInput ? comunidadSearchInput.value : '');
             });
             
             tag.appendChild(removeBtn);
@@ -1863,12 +1872,63 @@ function setupEventoSearchComunidades() {
     });
 }
 
+// Cargar comunidades relacionadas con un evento específico
+async function loadComunidadesDelEvento(eventoId) {
+    try {
+        const response = await fetch(`/api/evento/${eventoId}/`);
+        if (response.ok) {
+            const data = await response.json();
+            const evento = data.evento || data; // El endpoint retorna {success: true, evento: {...}}
+            
+            // Obtener comunidades del evento (directa y M2M)
+            comunidadesDelEvento = [];
+            
+            // El endpoint retorna 'comunidades' que es un array de objetos con 'comunidad_id'
+            if (evento.comunidades && Array.isArray(evento.comunidades)) {
+                evento.comunidades.forEach(comunidadData => {
+                    if (comunidadData.comunidad_id && !comunidadesDelEvento.includes(comunidadData.comunidad_id)) {
+                        comunidadesDelEvento.push(comunidadData.comunidad_id);
+                    }
+                });
+            }
+            
+            // También verificar comunidad directa (por si no está en el array de comunidades)
+            if (evento.comunidad_id && !comunidadesDelEvento.includes(evento.comunidad_id)) {
+                comunidadesDelEvento.push(evento.comunidad_id);
+            }
+            
+            // Limpiar comunidades seleccionadas que no pertenecen al nuevo evento
+            selectedComunidadesComunidades = selectedComunidadesComunidades.filter(comunidadId => 
+                comunidadesDelEvento.includes(comunidadId)
+            );
+            updateSelectedComunidadesComunidadesTags();
+            
+            // Actualizar lista de comunidades
+            const searchInput = document.getElementById('searchComunidadComunidades');
+            renderComunidadComunidadesChecklist(searchInput ? searchInput.value : '');
+        }
+    } catch (error) {
+        console.error('Error cargando comunidades del evento:', error);
+        comunidadesDelEvento = [];
+    }
+}
+
 // Renderizar checklist de comunidades (selección múltiple)
 function renderComunidadComunidadesChecklist(filterQuery = '') {
     const checklistContainer = document.getElementById('filterComunidadComunidades');
     if (!checklistContainer) return;
     
-    const filtered = allComunidades.filter(comunidad => {
+    // Si hay un evento seleccionado, filtrar solo las comunidades de ese evento
+    // Si no hay evento seleccionado, mostrar todas las comunidades
+    let comunidadesDisponibles = allComunidades;
+    if (selectedEventoComunidades && comunidadesDelEvento.length > 0) {
+        // Filtrar solo las comunidades relacionadas con el evento
+        comunidadesDisponibles = allComunidades.filter(comunidad => 
+            comunidadesDelEvento.includes(comunidad.id)
+        );
+    }
+    
+    const filtered = comunidadesDisponibles.filter(comunidad => {
         if (selectedComunidadesComunidades.includes(comunidad.id)) {
             return false;
         }
@@ -2017,6 +2077,7 @@ let comunidadActividadUsuariosCheckboxes = [];
 let allUsuariosActividadUsuarios = [];
 let selectedUsuariosActividadUsuarios = [];
 let usuariosActividadUsuariosCheckboxes = [];
+let comunidadesDelEventoActividadUsuarios = []; // Comunidades relacionadas con el evento seleccionado
 
 // Cargar eventos para reporte de actividad de usuarios
 async function loadEventosActividadUsuarios() {
@@ -2070,6 +2131,8 @@ function renderEventoActividadUsuariosChecklist(filterQuery = '') {
                 selectedEventoActividadUsuarios = evento.id;
                 updateSelectedEventoActividadUsuariosTag();
                 renderEventoActividadUsuariosChecklist(filterQuery);
+                // Cargar comunidades del evento seleccionado
+                loadComunidadesDelEventoActividadUsuarios(evento.id);
             }
         });
         
@@ -2105,6 +2168,11 @@ function updateSelectedEventoActividadUsuariosTag() {
                 updateSelectedEventoActividadUsuariosTag();
                 const searchInput = document.getElementById('searchEventoActividadUsuarios');
                 renderEventoActividadUsuariosChecklist(searchInput ? searchInput.value : '');
+                
+                // Limpiar filtro de comunidades y mostrar todas
+                comunidadesDelEventoActividadUsuarios = [];
+                const comunidadSearchInput = document.getElementById('searchComunidadActividadUsuarios');
+                renderComunidadActividadUsuariosChecklist(comunidadSearchInput ? comunidadSearchInput.value : '');
             });
             
             tag.appendChild(removeBtn);
@@ -2170,7 +2238,16 @@ function renderComunidadActividadUsuariosChecklist(filterQuery = '') {
     const checklistContainer = document.getElementById('filterComunidadActividadUsuarios');
     if (!checklistContainer) return;
     
-    const filtered = allComunidades.filter(comunidad => {
+    // Determinar qué comunidades mostrar
+    let comunidadesDisponibles = allComunidades;
+    if (selectedEventoActividadUsuarios && comunidadesDelEventoActividadUsuarios.length > 0) {
+        // Si hay un evento seleccionado, mostrar solo las comunidades relacionadas
+        comunidadesDisponibles = allComunidades.filter(c => 
+            comunidadesDelEventoActividadUsuarios.includes(c.id)
+        );
+    }
+    
+    const filtered = comunidadesDisponibles.filter(comunidad => {
         if (selectedComunidadesActividadUsuarios.includes(comunidad.id)) {
             return false;
         }
@@ -2287,6 +2364,47 @@ function setupComunidadSearchActividadUsuarios() {
             }, 10);
         }
     });
+}
+
+// Cargar comunidades relacionadas con un evento específico para reporte de actividad de usuarios
+async function loadComunidadesDelEventoActividadUsuarios(eventoId) {
+    try {
+        const response = await fetch(`/api/evento/${eventoId}/`);
+        if (response.ok) {
+            const data = await response.json();
+            const evento = data.evento || data;
+            
+            // Obtener comunidades del evento (directa y M2M)
+            comunidadesDelEventoActividadUsuarios = [];
+            
+            // El endpoint retorna 'comunidades' que es un array de objetos con 'comunidad_id'
+            if (evento.comunidades && Array.isArray(evento.comunidades)) {
+                evento.comunidades.forEach(comunidadData => {
+                    if (comunidadData.comunidad_id && !comunidadesDelEventoActividadUsuarios.includes(comunidadData.comunidad_id)) {
+                        comunidadesDelEventoActividadUsuarios.push(comunidadData.comunidad_id);
+                    }
+                });
+            }
+            
+            // También verificar comunidad directa (por si no está en el array de comunidades)
+            if (evento.comunidad_id && !comunidadesDelEventoActividadUsuarios.includes(evento.comunidad_id)) {
+                comunidadesDelEventoActividadUsuarios.push(evento.comunidad_id);
+            }
+            
+            // Limpiar comunidades seleccionadas que no pertenecen al nuevo evento
+            selectedComunidadesActividadUsuarios = selectedComunidadesActividadUsuarios.filter(comunidadId => 
+                comunidadesDelEventoActividadUsuarios.includes(comunidadId)
+            );
+            updateSelectedComunidadesActividadUsuariosTags();
+            
+            // Actualizar lista de comunidades
+            const searchInput = document.getElementById('searchComunidadActividadUsuarios');
+            renderComunidadActividadUsuariosChecklist(searchInput ? searchInput.value : '');
+        }
+    } catch (error) {
+        console.error('Error cargando comunidades del evento:', error);
+        comunidadesDelEventoActividadUsuarios = [];
+    }
 }
 
 // Cargar usuarios para reporte de actividad de usuarios
@@ -2621,29 +2739,151 @@ function applyFiltersForm(reportType) {
     
     if (reportType === 'actividades-por-region-comunidad') {
         // Obtener estados seleccionados
-        const estadosSeleccionados = Array.from(
-            document.querySelectorAll('#filterEstadoActividades input[type="checkbox"]:checked')
-        ).map(cb => cb.value);
+        let estadosSeleccionados = ['planificado', 'en_progreso', 'completado', 'cancelado']; // Default
+        try {
+            const estadosContainer = document.getElementById('filterEstadoActividades');
+            if (estadosContainer && estadosContainer.querySelectorAll) {
+                const checkboxes = estadosContainer.querySelectorAll('input[type="checkbox"]:checked');
+                if (checkboxes) {
+                    if (checkboxes.length > 0) {
+                        estadosSeleccionados = [];
+                        for (let i = 0; i < checkboxes.length; i++) {
+                            const cb = checkboxes[i];
+                            if (cb && cb.value) {
+                                estadosSeleccionados.push(cb.value);
+                            }
+                        }
+                        // Si no se seleccionó ninguno, usar todos por defecto
+                        if (estadosSeleccionados.length === 0) {
+                            estadosSeleccionados = ['planificado', 'en_progreso', 'completado', 'cancelado'];
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error obteniendo estados:', error);
+            // Usar valores por defecto
+            estadosSeleccionados = ['planificado', 'en_progreso', 'completado', 'cancelado'];
+        }
         
-        // Obtener tipos de actividad seleccionados
-        const tiposActividadSeleccionados = Array.from(
-            document.getElementById('filterTipoActividadActividades').selectedOptions
-        ).map(opt => opt.value).filter(v => v);
+        // Obtener tipos de actividad seleccionados desde checkboxes
+        let tiposActividadSeleccionados = [];
+        try {
+            const tiposActividadContainer = document.getElementById('filterTipoActividadActividades');
+            if (tiposActividadContainer && tiposActividadContainer.querySelectorAll) {
+                const checkboxes = tiposActividadContainer.querySelectorAll('input[type="checkbox"]:checked');
+                if (checkboxes && checkboxes.length > 0) {
+                    for (let i = 0; i < checkboxes.length; i++) {
+                        const cb = checkboxes[i];
+                        if (cb && cb.value && cb.value.trim() !== '') {
+                            tiposActividadSeleccionados.push(cb.value.trim());
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error obteniendo tipos de actividad:', error);
+            tiposActividadSeleccionados = [];
+        }
+        
+        // Obtener período y fechas
+        let periodo = 'todo_el_tiempo';
+        let fechaInicio = '';
+        let fechaFin = '';
+        try {
+            const periodoSelect = document.getElementById('filterPeriodoActividades');
+            if (periodoSelect) {
+                periodo = periodoSelect.value || 'todo_el_tiempo';
+            }
+        } catch (error) {
+            console.error('Error obteniendo período:', error);
+        }
+        
+        if (periodo === 'todo_el_tiempo') {
+            // No aplicar filtros de fecha - mostrar todas las actividades
+            fechaInicio = '';
+            fechaFin = '';
+        } else if (periodo === 'rango') {
+            try {
+                const fechaInicioInput = document.getElementById('filterFechaInicioActividades');
+                const fechaFinInput = document.getElementById('filterFechaFinActividades');
+                fechaInicio = fechaInicioInput ? (fechaInicioInput.value || '') : '';
+                fechaFin = fechaFinInput ? (fechaFinInput.value || '') : '';
+            } catch (error) {
+                console.error('Error obteniendo fechas de rango:', error);
+            }
+        } else if (periodo === 'ultimo_mes') {
+            try {
+                const fecha = new Date();
+                fecha.setMonth(fecha.getMonth() - 1);
+                fechaInicio = fecha.toISOString().split('T')[0];
+                fechaFin = new Date().toISOString().split('T')[0];
+            } catch (error) {
+                console.error('Error calculando último mes:', error);
+            }
+        } else if (periodo === 'ultima_semana') {
+            try {
+                const fecha = new Date();
+                fecha.setDate(fecha.getDate() - 7);
+                fechaInicio = fecha.toISOString().split('T')[0];
+                fechaFin = new Date().toISOString().split('T')[0];
+            } catch (error) {
+                console.error('Error calculando última semana:', error);
+            }
+        }
+        
+        // Obtener switch de agrupar por
+        let agruparPor = 'region';
+        try {
+            const switchAgrupar = document.getElementById('switchAgruparActividades');
+            if (switchAgrupar) {
+                agruparPor = switchAgrupar.checked ? 'comunidad' : 'region';
+            }
+        } catch (error) {
+            console.error('Error obteniendo switch agrupar:', error);
+        }
+        
+        // Obtener comunidades seleccionadas
+        let comunidadesSeleccionadas = [];
+        try {
+            if (selectedComunidades && selectedComunidades.actividades) {
+                comunidadesSeleccionadas = Array.isArray(selectedComunidades.actividades) 
+                    ? selectedComunidades.actividades 
+                    : [];
+            }
+        } catch (error) {
+            console.error('Error obteniendo comunidades:', error);
+        }
         
         filters = {
-            agrupar_por: document.getElementById('switchAgruparActividades').checked ? 'comunidad' : 'region',
-            periodo: document.getElementById('filterPeriodoActividades').value,
-            fecha_inicio: document.getElementById('filterFechaInicioActividades').value,
-            fecha_fin: document.getElementById('filterFechaFinActividades').value,
-            comunidades: selectedComunidades.actividades,
-            estado: estadosSeleccionados.length > 0 ? estadosSeleccionados : ['planificado', 'en_progreso', 'completado', 'cancelado'],
-            tipo_actividad: tiposActividadSeleccionados
+            agrupar_por: agruparPor,
+            periodo: periodo,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            comunidades: comunidadesSeleccionadas,
+            estado: estadosSeleccionados,
+            tipo_actividad: tiposActividadSeleccionados // Si está vacío, no se enviará el parámetro (mostrar todos los tipos)
         };
     } else if (reportType === 'beneficiarios-por-region-comunidad') {
-        // Obtener tipos de actividad seleccionados
-        const tiposActividadSeleccionados = Array.from(
-            document.getElementById('filterTipoActividadBeneficiarios').selectedOptions
-        ).map(opt => opt.value).filter(v => v);
+        // Obtener tipos de actividad seleccionados desde checkboxes
+        let tiposActividadSeleccionados = [];
+        try {
+            const tiposActividadContainer = document.getElementById('filterTipoActividadBeneficiarios');
+            if (tiposActividadContainer && tiposActividadContainer.querySelectorAll) {
+                const checkboxes = tiposActividadContainer.querySelectorAll('input[type="checkbox"]:checked');
+                if (checkboxes && checkboxes.length > 0) {
+                    for (let i = 0; i < checkboxes.length; i++) {
+                        const cb = checkboxes[i];
+                        if (cb && cb.value && cb.value.trim() !== '') {
+                            tiposActividadSeleccionados.push(cb.value.trim());
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error obteniendo tipos de actividad:', error);
+            tiposActividadSeleccionados = [];
+        }
         
         // Obtener tipos de beneficiario seleccionados
         const tiposBeneficiarioSeleccionados = Array.from(
@@ -2651,13 +2891,10 @@ function applyFiltersForm(reportType) {
         ).map(cb => cb.value);
         
         filters = {
-            agrupar_por: document.getElementById('switchAgruparBeneficiarios').checked ? 'comunidad' : 'region',
-            periodo: document.getElementById('filterPeriodoBeneficiarios').value,
-            fecha_inicio: document.getElementById('filterFechaInicioBeneficiarios').value,
-            fecha_fin: document.getElementById('filterFechaFinBeneficiarios').value,
+            agrupar_por: 'comunidad', // Siempre agrupar por comunidad
             comunidades: selectedComunidades.beneficiarios,
             evento: Array.from(document.querySelectorAll('#filterEventosBeneficiarios input[type="checkbox"]:checked')).map(cb => cb.value),
-            tipo_actividad: tiposActividadSeleccionados,
+            tipo_actividad: tiposActividadSeleccionados, // Si está vacío, no se enviará el parámetro (mostrar todos los tipos)
             tipo_beneficiario: tiposBeneficiarioSeleccionados.length > 0 ? tiposBeneficiarioSeleccionados : ['individual', 'familia', 'institución', 'otro']
         };
     } else if (reportType === 'actividad-de-personal') {
@@ -2848,7 +3085,7 @@ function resetFiltersForm(reportType) {
     if (reportType === 'actividades-por-region-comunidad') {
         document.getElementById('switchAgruparActividades').checked = false;
         document.getElementById('switchLabelActividades').textContent = 'Región';
-        document.getElementById('filterPeriodoActividades').value = 'ultimo_mes';
+        document.getElementById('filterPeriodoActividades').value = 'todo_el_tiempo';
         document.getElementById('dateRangeActividades').style.display = 'none';
         document.getElementById('filterFechaInicioActividades').value = '';
         document.getElementById('filterFechaFinActividades').value = '';
@@ -2859,19 +3096,15 @@ function resetFiltersForm(reportType) {
             cb.checked = true;
         });
         
-        // Resetear selector de tipo de actividad
-        document.getElementById('filterTipoActividadActividades').selectedIndex = -1;
+        // Resetear checkboxes de tipo de actividad (ninguno marcado por defecto)
+        document.querySelectorAll('#filterTipoActividadActividades input[type="checkbox"]').forEach(cb => {
+            cb.checked = false;
+        });
         
         selectedComunidades.actividades = [];
         const selectedContainer = document.querySelector('#searchResultsActividades').parentElement.querySelector('.selected-comunidades');
         if (selectedContainer) selectedContainer.remove();
     } else if (reportType === 'beneficiarios-por-region-comunidad') {
-        document.getElementById('switchAgruparBeneficiarios').checked = false;
-        document.getElementById('switchLabelBeneficiarios').textContent = 'Región';
-        document.getElementById('filterPeriodoBeneficiarios').value = 'ultimo_mes';
-        document.getElementById('dateRangeBeneficiarios').style.display = 'none';
-        document.getElementById('filterFechaInicioBeneficiarios').value = '';
-        document.getElementById('filterFechaFinBeneficiarios').value = '';
         document.getElementById('searchComunidadBeneficiarios').value = '';
         // Limpiar selecciones de eventos
         selectedEventosBeneficiarios = [];
@@ -2879,8 +3112,13 @@ function resetFiltersForm(reportType) {
         document.getElementById('searchEventoBeneficiarios').value = '';
         renderEventosBeneficiariosChecklist();
         
-        // Resetear selector de tipo de actividad
-        document.getElementById('filterTipoActividadBeneficiarios').selectedIndex = -1;
+        // Resetear checkboxes de tipo de actividad (ninguno marcado por defecto)
+        const tipoActividadCheckboxes = document.querySelectorAll('#filterTipoActividadBeneficiarios input[type="checkbox"]');
+        if (tipoActividadCheckboxes) {
+            for (let i = 0; i < tipoActividadCheckboxes.length; i++) {
+                tipoActividadCheckboxes[i].checked = false;
+            }
+        }
         
         // Resetear checkboxes de tipo de beneficiario (todos marcados)
         document.querySelectorAll('#filterTipoBeneficiarioBeneficiarios input[type="checkbox"]').forEach(cb => {
@@ -3268,20 +3506,51 @@ async function generateReport(reportType, filters) {
             
             // Filtros específicos para actividades
             if (reportType === 'actividades-por-region-comunidad') {
+                // Manejar período de fechas
+                if (filters.periodo === 'todo_el_tiempo') {
+                    // No enviar parámetros de fecha - mostrar todas las actividades
+                    // (incluso futuras)
+                } else if (filters.periodo === 'rango') {
+                    if (filters.fecha_inicio) params.append('fecha_inicio', filters.fecha_inicio);
+                    if (filters.fecha_fin) params.append('fecha_fin', filters.fecha_fin);
+                } else if (filters.periodo === 'ultimo_mes' || filters.periodo === 'ultima_semana') {
+                    if (filters.fecha_inicio) params.append('fecha_inicio', filters.fecha_inicio);
+                    if (filters.fecha_fin) params.append('fecha_fin', filters.fecha_fin);
+                }
+                
                 if (filters.estado && filters.estado.length > 0) {
                     params.append('estado', filters.estado.join(','));
                 }
-                if (filters.tipo_actividad && filters.tipo_actividad.length > 0) {
-                    params.append('tipo_actividad', filters.tipo_actividad.join(','));
+                
+                // IMPORTANTE: Solo enviar tipo_actividad si hay tipos seleccionados explícitamente
+                // Si está vacío o undefined, NO enviar el parámetro (para mostrar TODOS los tipos)
+                if (filters.tipo_actividad && Array.isArray(filters.tipo_actividad) && filters.tipo_actividad.length > 0) {
+                    // Validar que todos los valores sean válidos (no vacíos)
+                    const tiposValidos = filters.tipo_actividad.filter(t => t && t.trim() !== '');
+                    if (tiposValidos.length > 0) {
+                        params.append('tipo_actividad', tiposValidos.join(','));
+                    }
                 }
             }
             
             // Filtros específicos para beneficiarios
             if (reportType === 'beneficiarios-por-region-comunidad') {
-                if (filters.evento) params.append('evento', filters.evento);
-                if (filters.tipo_actividad && filters.tipo_actividad.length > 0) {
-                    params.append('tipo_actividad', filters.tipo_actividad.join(','));
+                // NO enviar fechas - buscar globalmente siempre
+                
+                // IMPORTANTE: Solo enviar tipo_actividad si hay tipos seleccionados explícitamente
+                // Si está vacío o undefined, NO enviar el parámetro (para mostrar TODOS los tipos)
+                if (filters.tipo_actividad && Array.isArray(filters.tipo_actividad) && filters.tipo_actividad.length > 0) {
+                    // Validar que todos los valores sean válidos (no vacíos)
+                    const tiposValidos = filters.tipo_actividad.filter(t => t && t.trim() !== '');
+                    if (tiposValidos.length > 0) {
+                        params.append('tipo_actividad', tiposValidos.join(','));
+                    }
                 }
+                
+                if (filters.evento && filters.evento.length > 0) {
+                    params.append('evento', filters.evento.join(','));
+                }
+                
                 if (filters.tipo_beneficiario && filters.tipo_beneficiario.length > 0) {
                     params.append('tipo_beneficiario', filters.tipo_beneficiario.join(','));
                 }
@@ -3348,7 +3617,12 @@ async function generateReport(reportType, filters) {
                 params.append('comunidades', filters.comunidades.join(','));
             }
             if (filters.evento) {
-                params.append('evento', filters.evento);
+                // Si evento es un string, enviarlo directamente; si es un array, unirlo con comas
+                if (Array.isArray(filters.evento)) {
+                    params.append('evento', filters.evento.join(','));
+                } else {
+                    params.append('evento', filters.evento);
+                }
             }
             if (filters.tipo_actividad && filters.tipo_actividad.length > 0) {
                 params.append('tipo_actividad', filters.tipo_actividad.join(','));
@@ -3462,10 +3736,12 @@ function renderActividadesReport(data) {
     html += '<th>Beneficiarios Individuales</th>';
     html += '<th>Beneficiarios Familias</th>';
     html += '<th>Beneficiarios Instituciones</th>';
+    html += '<th>Beneficiarios Exclusivos</th>';
     html += '<th>Responsables</th>';
     html += '</tr></thead><tbody>';
     
-    let todasLasActividades = [];
+    // Usar un Map para evitar actividades duplicadas (basado en nombre + fecha)
+    const actividadesUnicasMap = new Map();
     
     data.forEach(item => {
         html += '<tr>';
@@ -3475,36 +3751,59 @@ function renderActividadesReport(data) {
         html += `<td data-label="Beneficiarios Individuales"><span class="cell-value">${item.beneficiarios_individuales || 0}</span></td>`;
         html += `<td data-label="Beneficiarios Familias"><span class="cell-value">${item.beneficiarios_familias || 0}</span></td>`;
         html += `<td data-label="Beneficiarios Instituciones"><span class="cell-value">${item.beneficiarios_instituciones || 0}</span></td>`;
+        html += `<td data-label="Beneficiarios Exclusivos"><span class="cell-value">${item.beneficiarios_exclusivos || 0}</span></td>`;
         html += `<td data-label="Responsables"><span class="cell-value">${escapeHtml(item.responsables || '-')}</span></td>`;
         html += '</tr>';
         
-        // Acumular actividades para la tabla de detalles
+        // Acumular actividades únicas para la tabla de detalles (usar nombre + fecha como clave única)
         if (item.actividades && Array.isArray(item.actividades)) {
-            todasLasActividades = todasLasActividades.concat(item.actividades);
+            item.actividades.forEach(actividad => {
+                // Crear clave única basada en nombre y fecha
+                const claveUnica = `${actividad.nombre || ''}_${actividad.fecha || ''}`;
+                // Solo agregar si no existe ya (evitar duplicados)
+                if (!actividadesUnicasMap.has(claveUnica)) {
+                    actividadesUnicasMap.set(claveUnica, actividad);
+                }
+            });
         }
     });
     
     html += '</tbody></table></div>';
     
-    // Agregar tabla expandible con detalles de actividades
+    // Convertir Map a Array para mostrar
+    const todasLasActividades = Array.from(actividadesUnicasMap.values());
+    
+    // Agregar tabla expandible con detalles de actividades (SIN DUPLICADOS)
     if (todasLasActividades.length > 0) {
         html += '<div style="margin-top: 32px;"><h3 style="color: var(--text-100); margin-bottom: 16px;">Detalles de Actividades</h3>';
         html += '<div class="table-responsive-wrapper"><table class="results-table"><thead><tr>';
         html += '<th>Nombre</th>';
         html += '<th>Fecha</th>';
         html += '<th>Estado</th>';
+        html += '<th>Tipo de Actividad</th>';
         html += '<th>Comunidad</th>';
         html += '<th>Responsable</th>';
+        html += '<th>Colaborador</th>';
         html += '<th>Total Beneficiarios</th>';
         html += '</tr></thead><tbody>';
+        
+        // Ordenar por fecha (más reciente primero)
+        todasLasActividades.sort((a, b) => {
+            if (a.fecha && b.fecha) {
+                return b.fecha.localeCompare(a.fecha);
+            }
+            return 0;
+        });
         
         todasLasActividades.forEach(actividad => {
             html += '<tr>';
             html += `<td data-label="Nombre"><span class="cell-value">${escapeHtml(actividad.nombre || '-')}</span></td>`;
             html += `<td data-label="Fecha"><span class="cell-value">${actividad.fecha || '-'}</span></td>`;
             html += `<td data-label="Estado"><span class="status-badge status-${actividad.estado || 'planificado'}">${formatEstado(actividad.estado)}</span></td>`;
+            html += `<td data-label="Tipo de Actividad"><span class="cell-value">${escapeHtml(actividad.tipo_actividad || '-')}</span></td>`;
             html += `<td data-label="Comunidad"><span class="cell-value">${escapeHtml(actividad.comunidad || '-')}</span></td>`;
             html += `<td data-label="Responsable"><span class="cell-value">${escapeHtml(actividad.responsable || '-')}</span></td>`;
+            html += `<td data-label="Colaborador"><span class="cell-value">${escapeHtml(actividad.colaborador || '-')}</span></td>`;
             html += `<td data-label="Total Beneficiarios"><span class="cell-value">${actividad.total_beneficiarios || 0}</span></td>`;
             html += '</tr>';
         });
@@ -3515,35 +3814,66 @@ function renderActividadesReport(data) {
     resultsContainer.innerHTML = html;
 }
 
-// Renderizar reporte de beneficiarios (con mejoras)
+// Renderizar reporte de beneficiarios (con mejoras - agrupados por comunidad)
 function renderBeneficiariosReport(data) {
     const resultsContainer = document.getElementById('resultsContainer');
     
-    let html = '<div class="table-responsive-wrapper"><table class="results-table"><thead><tr>';
-    html += '<th>Nombre</th>';
-    html += '<th>Tipo</th>';
-    html += '<th>Comunidad</th>';
-    html += '<th>Región</th>';
-    html += '<th>DPI/Documento</th>';
-    html += '<th>Teléfono</th>';
-    html += '<th>Email</th>';
-    html += '<th>Evento</th>';
-    html += '</tr></thead><tbody>';
+    if (!data || data.length === 0) {
+        resultsContainer.innerHTML = '<div class="loading-state"><p>No se encontraron beneficiarios para este reporte.</p></div>';
+        return;
+    }
     
+    // Agrupar por comunidad para mostrar mejor
+    const comunidadesMap = new Map();
     data.forEach(item => {
-        html += '<tr>';
-        html += `<td data-label="Nombre"><span class="cell-value">${escapeHtml(item.nombre || '-')}</span></td>`;
-        html += `<td data-label="Tipo"><span class="cell-value">${escapeHtml(item.tipo || '-')}</span></td>`;
-        html += `<td data-label="Comunidad"><span class="cell-value">${escapeHtml(item.comunidad || '-')}</span></td>`;
-        html += `<td data-label="Región"><span class="cell-value">${escapeHtml(item.region || '-')}</span></td>`;
-        html += `<td data-label="DPI/Documento"><span class="cell-value">${escapeHtml(item.dpi || item.documento || '-')}</span></td>`;
-        html += `<td data-label="Teléfono"><span class="cell-value">${escapeHtml(item.telefono || '-')}</span></td>`;
-        html += `<td data-label="Email"><span class="cell-value">${escapeHtml(item.email || '-')}</span></td>`;
-        html += `<td data-label="Evento"><span class="cell-value">${escapeHtml(item.evento || '-')}</span></td>`;
-        html += '</tr>';
+        const comunidadKey = item.comunidad || 'Sin comunidad';
+        if (!comunidadesMap.has(comunidadKey)) {
+            comunidadesMap.set(comunidadKey, {
+                comunidad: item.comunidad || 'Sin comunidad',
+                region: item.region || 'Sin región',
+                beneficiarios: []
+            });
+        }
+        comunidadesMap.get(comunidadKey).beneficiarios.push(item);
     });
     
-    html += '</tbody></table></div>';
+    let html = '';
+    
+    // Mostrar cada comunidad con sus beneficiarios
+    comunidadesMap.forEach((comunidadData, comunidadKey) => {
+        html += `<div class="comunidad-group" style="margin-bottom: 32px;">`;
+        html += `<h3 style="color: var(--text-100); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color);">`;
+        html += `${escapeHtml(comunidadData.comunidad)}`;
+        if (comunidadData.region && comunidadData.region !== 'Sin región') {
+            html += ` <span style="color: var(--text-70); font-size: 0.9em; font-weight: normal;">(${escapeHtml(comunidadData.region)})</span>`;
+        }
+        html += ` <span style="color: var(--text-70); font-size: 0.85em; font-weight: normal;">(${comunidadData.beneficiarios.length} beneficiario${comunidadData.beneficiarios.length !== 1 ? 's' : ''})</span>`;
+        html += `</h3>`;
+        
+        html += '<div class="table-responsive-wrapper"><table class="results-table"><thead><tr>';
+        html += '<th>Nombre</th>';
+        html += '<th>Tipo</th>';
+        html += '<th>DPI/Documento</th>';
+        html += '<th>Teléfono</th>';
+        html += '<th>Email</th>';
+        html += '<th>Evento</th>';
+        html += '</tr></thead><tbody>';
+        
+        comunidadData.beneficiarios.forEach(item => {
+            html += '<tr>';
+            html += `<td data-label="Nombre"><span class="cell-value">${escapeHtml(item.nombre || '-')}</span></td>`;
+            html += `<td data-label="Tipo"><span class="cell-value">${escapeHtml(item.tipo || '-')}</span></td>`;
+            html += `<td data-label="DPI/Documento"><span class="cell-value">${escapeHtml(item.dpi || item.documento || '-')}</span></td>`;
+            html += `<td data-label="Teléfono"><span class="cell-value">${escapeHtml(item.telefono || '-')}</span></td>`;
+            html += `<td data-label="Email"><span class="cell-value">${escapeHtml(item.email || '-')}</span></td>`;
+            html += `<td data-label="Evento"><span class="cell-value">${escapeHtml(item.evento || '-')}</span></td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div>';
+        html += '</div>';
+    });
+    
     resultsContainer.innerHTML = html;
 }
 
@@ -3708,7 +4038,8 @@ function renderAvancesEventosGeneralesReport(data) {
             html += `<div class="cambio-item" style="padding: 16px; background: var(--bg-900); border-radius: var(--radius-sm); margin-bottom: 16px; border-left: 4px solid var(--primary-color);">`;
             html += `<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">`;
             html += `<div>`;
-            html += `<div style="color: var(--text-100); font-weight: 500; margin-bottom: 4px;">${escapeHtml(cambio.descripcion || 'Sin descripción')}</div>`;
+            // Mostrar la descripción del avance (descripcion_cambio), no la descripción de la evidencia
+            html += `<div style="color: var(--text-100); font-weight: 500; margin-bottom: 4px;">${escapeHtml(cambio.descripcion_cambio || 'Sin descripción')}</div>`;
             html += `<div style="color: var(--text-70); font-size: 0.875rem;">Hecho por: <strong>${escapeHtml(cambio.colaborador_nombre || 'Sin nombre')}</strong></div>`;
             html += `<div style="color: var(--text-70); font-size: 0.875rem;">Fecha: ${cambio.fecha_display || cambio.fecha_cambio || '-'}</div>`;
             html += `</div>`;
@@ -4014,8 +4345,29 @@ function showError(message) {
     }, 5000);
 }
 
+// Variable global para almacenar los datos originales del reporte de comunidades
+let comunidadesReportDataOriginal = null;
+
 // Renderizar reporte de comunidades
 function renderComunidadesReport(data) {
+    const resultsContainer = document.getElementById('resultsContainer');
+    if (!resultsContainer) return;
+    
+    if (!data || !data.comunidades || data.comunidades.length === 0) {
+        resultsContainer.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-70);">No se encontraron comunidades que cumplan con los criterios de búsqueda.</div>';
+        comunidadesReportDataOriginal = null;
+        return;
+    }
+    
+    // Guardar datos originales para re-ordenamiento y filtrado
+    comunidadesReportDataOriginal = JSON.parse(JSON.stringify(data));
+    
+    // Renderizar con los datos originales (sin filtros iniciales)
+    renderComunidadesReportFiltered(data);
+}
+
+// Función para renderizar comunidades con filtros y ordenamiento aplicados
+function renderComunidadesReportFiltered(data) {
     const resultsContainer = document.getElementById('resultsContainer');
     if (!resultsContainer) return;
     
@@ -4024,25 +4376,69 @@ function renderComunidadesReport(data) {
         return;
     }
     
+    // Obtener valores actuales de los selectores (si existen)
+    const ordenarActivasSelect = document.getElementById('ordenarComunidadesActivas');
+    const ordenarTipoSelect = document.getElementById('ordenarComunidadesTipo');
+    
+    const ordenActivas = ordenarActivasSelect ? ordenarActivasSelect.value : 'mas_activas';
+    const tipoFiltro = ordenarTipoSelect ? ordenarTipoSelect.value : 'todos';
+    
+    // Filtrar por tipo
+    let comunidadesFiltradas = data.comunidades;
+    if (tipoFiltro !== 'todos') {
+        comunidadesFiltradas = comunidadesFiltradas.filter(comunidad => {
+            const tipoComunidad = (comunidad.tipo || '').toLowerCase();
+            return tipoComunidad === tipoFiltro.toLowerCase();
+        });
+    }
+    
+    // Ordenar por actividad (número de proyectos)
+    comunidadesFiltradas = [...comunidadesFiltradas]; // Crear copia para no mutar el original
+    if (ordenActivas === 'mas_activas') {
+        comunidadesFiltradas.sort((a, b) => {
+            const proyectosA = a.numero_proyectos || 0;
+            const proyectosB = b.numero_proyectos || 0;
+            if (proyectosB !== proyectosA) {
+                return proyectosB - proyectosA; // Más proyectos primero
+            }
+            // Si tienen el mismo número de proyectos, ordenar por beneficiarios
+            const benefA = a.numero_beneficiarios || 0;
+            const benefB = b.numero_beneficiarios || 0;
+            return benefB - benefA;
+        });
+    } else if (ordenActivas === 'menos_activas') {
+        comunidadesFiltradas.sort((a, b) => {
+            const proyectosA = a.numero_proyectos || 0;
+            const proyectosB = b.numero_proyectos || 0;
+            if (proyectosA !== proyectosB) {
+                return proyectosA - proyectosB; // Menos proyectos primero
+            }
+            // Si tienen el mismo número de proyectos, ordenar por beneficiarios
+            const benefA = a.numero_beneficiarios || 0;
+            const benefB = b.numero_beneficiarios || 0;
+            return benefA - benefB;
+        });
+    }
+    
     let html = '<div class="comunidades-report-container">';
     
     // Opciones de ordenamiento
     html += '<div style="display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: center;">';
     html += '<label style="color: var(--text-100); font-weight: 500;">Ordenar por:</label>';
     html += '<select id="ordenarComunidadesActivas" style="padding: 8px 12px; background: var(--bg-800); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-100);">';
-    html += '<option value="mas_activas">Más Activas</option>';
-    html += '<option value="menos_activas">Menos Activas</option>';
+    html += `<option value="mas_activas" ${ordenActivas === 'mas_activas' ? 'selected' : ''}>Más Activas</option>`;
+    html += `<option value="menos_activas" ${ordenActivas === 'menos_activas' ? 'selected' : ''}>Menos Activas</option>`;
     html += '</select>';
     html += '<select id="ordenarComunidadesTipo" style="padding: 8px 12px; background: var(--bg-800); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-100);">';
-    html += '<option value="todos">Todos los Tipos</option>';
-    html += '<option value="barrio">Barrio</option>';
-    html += '<option value="caserío">Caserío</option>';
-    html += '<option value="aldea">Aldea</option>';
+    html += `<option value="todos" ${tipoFiltro === 'todos' ? 'selected' : ''}>Todos los Tipos</option>`;
+    html += `<option value="barrio" ${tipoFiltro === 'barrio' ? 'selected' : ''}>Barrio</option>`;
+    html += `<option value="caserío" ${tipoFiltro === 'caserío' ? 'selected' : ''}>Caserío</option>`;
+    html += `<option value="aldea" ${tipoFiltro === 'aldea' ? 'selected' : ''}>Aldea</option>`;
     html += '</select>';
     html += '</div>';
     
     // Renderizar cada comunidad
-    data.comunidades.forEach(comunidad => {
+    comunidadesFiltradas.forEach(comunidad => {
         html += `<div class="comunidad-card" style="background: var(--bg-800); border-radius: var(--radius-sm); padding: 24px; margin-bottom: 24px; border-left: 4px solid var(--primary-color);">`;
         
         // Información general de la comunidad
@@ -4101,21 +4497,34 @@ function renderComunidadesReport(data) {
     html += '</div>';
     resultsContainer.innerHTML = html;
     
-    // Agregar event listeners para ordenamiento (por ahora solo UI, la lógica se puede implementar después)
+    // Agregar event listeners para ordenamiento y filtrado dinámico
     const ordenarActivas = document.getElementById('ordenarComunidadesActivas');
     const ordenarTipo = document.getElementById('ordenarComunidadesTipo');
     
+    // Función para actualizar el reporte cuando cambien los filtros
+    const actualizarReporte = () => {
+        if (comunidadesReportDataOriginal) {
+            renderComunidadesReportFiltered(comunidadesReportDataOriginal);
+        }
+    };
+    
     if (ordenarActivas) {
-        ordenarActivas.addEventListener('change', function() {
-            // TODO: Implementar ordenamiento
-            console.log('Ordenar por:', this.value);
+        // Remover listeners anteriores si existen
+        const nuevaOrdenarActivas = ordenarActivas.cloneNode(true);
+        ordenarActivas.parentNode.replaceChild(nuevaOrdenarActivas, ordenarActivas);
+        
+        nuevaOrdenarActivas.addEventListener('change', function() {
+            actualizarReporte();
         });
     }
     
     if (ordenarTipo) {
-        ordenarTipo.addEventListener('change', function() {
-            // TODO: Implementar filtrado por tipo
-            console.log('Filtrar por tipo:', this.value);
+        // Remover listeners anteriores si existen
+        const nuevaOrdenarTipo = ordenarTipo.cloneNode(true);
+        ordenarTipo.parentNode.replaceChild(nuevaOrdenarTipo, ordenarTipo);
+        
+        nuevaOrdenarTipo.addEventListener('change', function() {
+            actualizarReporte();
         });
     }
 }
@@ -4143,20 +4552,28 @@ function renderActividadUsuariosReport(data) {
     
     // Renderizar cada usuario
     data.usuarios.forEach(usuario => {
-        html += `<div class="usuario-card" style="background: var(--bg-800); border-radius: var(--radius-sm); padding: 24px; margin-bottom: 24px; border-left: 4px solid var(--primary-color);">`;
+        html += `<div class="usuario-card" style="background: var(--bg-800); border-radius: var(--radius-sm); padding: 20px; margin-bottom: 20px; border-left: 4px solid var(--primary-color);">`;
         
-        // Título con información general del usuario
-        html += `<h3 style="color: var(--text-100); margin-bottom: 16px; font-size: 1.25rem;">${escapeHtml(usuario.nombre || usuario.username || 'Sin nombre')}</h3>`;
-        html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">`;
-        html += `<div><strong style="color: var(--text-80);">Usuario:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.username || '-')}</span></div>`;
-        html += `<div><strong style="color: var(--text-80);">Rol:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.rol_display || usuario.rol || '-')}</span></div>`;
-        html += `<div><strong style="color: var(--text-80);">Puesto:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.puesto_nombre || usuario.puesto || '-')}</span></div>`;
-        html += `<div><strong style="color: var(--text-80);">Total de Cambios:</strong> <span style="color: var(--text-70);">${usuario.total_cambios || 0}</span></div>`;
+        // Título con información general del usuario - Mejorado para responsive
+        html += `<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">`;
+        html += `<h3 style="color: var(--text-100); margin: 0; font-size: 1.25rem; flex: 1; min-width: 200px;">${escapeHtml(usuario.nombre || usuario.username || 'Sin nombre')}</h3>`;
+        html += `<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; flex: 1; min-width: 200px;">`;
+        html += `<span style="padding: 4px 12px; background: var(--bg-900); border-radius: 12px; color: var(--text-70); font-size: 0.875rem; white-space: nowrap;"><strong>Total:</strong> ${usuario.total_cambios || 0}</span>`;
+        html += `</div>`;
+        html += `</div>`;
+        
+        // Información del usuario en grid responsive
+        html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; font-size: 0.9rem;">`;
+        html += `<div><strong style="color: var(--text-80); display: block; margin-bottom: 4px;">Usuario:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.username || '-')}</span></div>`;
+        html += `<div><strong style="color: var(--text-80); display: block; margin-bottom: 4px;">Rol:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.rol_display || usuario.rol || '-')}</span></div>`;
+        if (usuario.puesto_nombre || usuario.puesto) {
+            html += `<div><strong style="color: var(--text-80); display: block; margin-bottom: 4px;">Puesto:</strong> <span style="color: var(--text-70);">${escapeHtml(usuario.puesto_nombre || usuario.puesto || '-')}</span></div>`;
+        }
         html += `</div>`;
         
         // Verificar si el usuario tiene actividad
         if (usuario.sin_actividad) {
-            html += `<div style="padding: 24px; background: var(--bg-900); border-radius: var(--radius-sm); text-align: center; color: var(--text-70);">`;
+            html += `<div style="padding: 16px; background: var(--bg-900); border-radius: var(--radius-sm); text-align: center; color: var(--text-70); font-size: 0.9rem;">`;
             html += `<p style="margin: 0;">Este usuario no tiene actividad registrada en los eventos o comunidades seleccionados.</p>`;
             html += `</div>`;
         } else if (usuario.cambios && usuario.cambios.length > 0) {
@@ -4174,31 +4591,30 @@ function renderActividadUsuariosReport(data) {
                 cambiosPorEvento[eventoId].cambios.push(cambio);
             });
             
-            // Renderizar cambios por evento
+            // Renderizar cambios por evento - Mejorado para responsive
             Object.keys(cambiosPorEvento).forEach(eventoId => {
                 const eventoData = cambiosPorEvento[eventoId];
-                html += `<h4 style="color: var(--text-100); margin-bottom: 12px; margin-top: 24px; border-bottom: 2px solid var(--primary-color); padding-bottom: 8px;">${escapeHtml(eventoData.nombre)}</h4>`;
-                html += `<div style="overflow-x: auto;">`;
-                html += `<table class="results-table" style="width: 100%;">`;
-                html += `<thead><tr>`;
-                html += `<th>Cambio</th>`;
-                html += `<th>Descripción</th>`;
-                html += `<th>Fecha</th>`;
-                html += `</tr></thead>`;
-                html += `<tbody>`;
+                html += `<div style="margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--primary-color);">`;
+                html += `<h4 style="color: var(--text-100); margin: 0 0 12px 0; font-size: 1.1rem; font-weight: 600;">${escapeHtml(eventoData.nombre)}</h4>`;
+                
+                // Usar cards en lugar de tabla para mejor responsive
                 eventoData.cambios.forEach(cambio => {
-                    html += `<tr>`;
-                    html += `<td>${escapeHtml(cambio.tipo_cambio || '-')}</td>`;
-                    html += `<td>${escapeHtml(cambio.descripcion || '-')}</td>`;
-                    html += `<td>${cambio.fecha_display || cambio.fecha || '-'}</td>`;
-                    html += `</tr>`;
+                    html += `<div style="background: var(--bg-900); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 12px; border-left: 3px solid var(--primary-color);">`;
+                    html += `<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: space-between;">`;
+                    html += `<div style="flex: 1; min-width: 200px;">`;
+                    html += `<div style="color: var(--text-80); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">${escapeHtml(cambio.tipo_cambio || 'Cambio')}</div>`;
+                    html += `<div style="color: var(--text-100); font-size: 0.95rem; line-height: 1.5; word-wrap: break-word;">${escapeHtml(cambio.descripcion || '-')}</div>`;
+                    html += `</div>`;
+                    html += `<div style="flex-shrink: 0; text-align: right; min-width: 100px;">`;
+                    html += `<div style="color: var(--text-70); font-size: 0.85rem; white-space: nowrap;">${cambio.fecha_display || cambio.fecha || '-'}</div>`;
+                    html += `</div>`;
+                    html += `</div>`;
+                    html += `</div>`;
                 });
-                html += `</tbody>`;
-                html += `</table>`;
                 html += `</div>`;
             });
         } else {
-            html += `<div style="padding: 24px; background: var(--bg-900); border-radius: var(--radius-sm); text-align: center; color: var(--text-70);">`;
+            html += `<div style="padding: 16px; background: var(--bg-900); border-radius: var(--radius-sm); text-align: center; color: var(--text-70); font-size: 0.9rem;">`;
             html += `<p style="margin: 0;">No se encontraron cambios registrados para este usuario.</p>`;
             html += `</div>`;
         }

@@ -185,7 +185,7 @@
               </thead>
               <tbody>
                 <tr>
-                  <td colspan="4" class="loading-cell">Cargando datos...</td>
+                  <td colspan="5" class="loading-cell">Cargando datos...</td>
                 </tr>
               </tbody>
             </table>
@@ -193,20 +193,21 @@
         </div>
 
         <div class="table-card">
-          <h3 class="table-title">Próximas Actividades (7 días)</h3>
+          <h3 class="table-title">Actividades Trabajadas Recientemente</h3>
           <div class="table-container">
             <table class="results-table" id="tableProximas">
               <thead>
                 <tr>
                   <th>Nombre</th>
-                  <th>Fecha</th>
+                  <th>Fecha Evento</th>
+                  <th>Último Cambio</th>
                   <th>Comunidad</th>
                   <th>Estado</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td colspan="4" class="loading-cell">Cargando datos...</td>
+                  <td colspan="5" class="loading-cell">Cargando datos...</td>
                 </tr>
               </tbody>
             </table>
@@ -383,6 +384,7 @@
                 <label class="filter-label">Período de Fechas</label>
                 <div class="date-selector">
                   <select class="filter-select" id="filterPeriodoActividades">
+                    <option value="todo_el_tiempo">Todo el tiempo</option>
                     <option value="ultimo_mes">Último mes</option>
                     <option value="ultima_semana">Esta última semana</option>
                     <option value="rango">Rango de fechas</option>
@@ -412,9 +414,11 @@
               
               <div class="filter-group filter-group-full">
                 <label class="filter-label">Tipo de Actividad</label>
-                <select class="filter-select" id="filterTipoActividadActividades" multiple>
-                  <option value="">Cargando...</option>
-                </select>
+                <div class="filter-checkboxes" id="filterTipoActividadActividades">
+                  <label><input type="checkbox" value="Capacitación"> Capacitación</label>
+                  <label><input type="checkbox" value="Entrega"> Entrega</label>
+                  <label><input type="checkbox" value="Proyecto de Ayuda"> Proyecto de Ayuda</label>
+                </div>
               </div>
               
               <div class="filter-group filter-group-full">
@@ -435,42 +439,12 @@
           <div class="report-form" id="form-beneficiarios-por-region-comunidad" style="display: none;">
             <div class="filters-grid">
               <div class="filter-group filter-group-full">
-                <label class="filter-label">Agrupar por</label>
-                <div class="switch-container">
-                  <label class="switch">
-                    <input type="checkbox" id="switchAgruparBeneficiarios">
-                    <span class="switch-slider"></span>
-                  </label>
-                  <span class="switch-label" id="switchLabelBeneficiarios">Región</span>
-                </div>
-              </div>
-              
-              <div class="filter-group filter-group-full">
-                <label class="filter-label">Período de Fechas</label>
-                <div class="date-selector">
-                  <select class="filter-select" id="filterPeriodoBeneficiarios">
-                    <option value="ultimo_mes">Último mes</option>
-                    <option value="ultima_semana">Esta última semana</option>
-                    <option value="rango">Rango de fechas</option>
-                  </select>
-                </div>
-                <div class="date-range-container" id="dateRangeBeneficiarios" style="display: none;">
-                  <div class="filter-group">
-                    <label class="filter-label">Fecha Inicio</label>
-                    <input type="date" class="filter-input" id="filterFechaInicioBeneficiarios">
-                  </div>
-                  <div class="filter-group">
-                    <label class="filter-label">Fecha Fin</label>
-                    <input type="date" class="filter-input" id="filterFechaFinBeneficiarios">
-                  </div>
-                </div>
-              </div>
-              
-              <div class="filter-group filter-group-full">
                 <label class="filter-label">Tipo de Actividad</label>
-                <select class="filter-select" id="filterTipoActividadBeneficiarios" multiple>
-                  <option value="">Cargando...</option>
-                </select>
+                <div class="filter-checkboxes" id="filterTipoActividadBeneficiarios">
+                  <label><input type="checkbox" value="Capacitación"> Capacitación</label>
+                  <label><input type="checkbox" value="Entrega"> Entrega</label>
+                  <label><input type="checkbox" value="Proyecto de Ayuda"> Proyecto de Ayuda</label>
+                </div>
               </div>
               
               <div class="filter-group filter-group-full">
