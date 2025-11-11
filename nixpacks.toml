@@ -5,6 +5,7 @@ nixPkgs = ["python3", "postgresql_16.dev", "gcc", "pkg-config", "cairo.dev", "pa
 cmds = [
   "python -m venv --copies /opt/venv",
   ". /opt/venv/bin/activate",
-  "export PKG_CONFIG_PATH=$(pkg-config --variable pc_path pkg-config 2>/dev/null || echo ''):$PKG_CONFIG_PATH",
-  "pip install -r requirements.txt || (pip install --no-build-isolation pycairo && pip install -r requirements.txt)"
+  "PYCAIRO_DIR=$(find /nix/store -type d -path '*/python3.12-pycairo*/lib/python3.12/site-packages' | head -1)",
+  "if [ -n \"$PYCAIRO_DIR\" ]; then cp -r \"$PYCAIRO_DIR/cairo\" \"$PYCAIRO_DIR/cairo-*.dist-info\" /opt/venv/lib/python3.12/site-packages/ 2>/dev/null || true; fi",
+  "pip install -r requirements.txt"
 ]
