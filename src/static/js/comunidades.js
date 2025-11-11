@@ -12,6 +12,61 @@ const COMMUNITY_DETAIL_ENDPOINT = (id) => `/api/comunidad/${id}/`;
 const USER_AUTH = window.USER_AUTH || { isAuthenticated: false, isAdmin: false, isPersonal: false };
 const CAN_EDIT_COMMUNITIES = USER_AUTH.isAuthenticated && (USER_AUTH.isAdmin || USER_AUTH.isPersonal);
 
+function consumePendingNavigationTarget({ storageKey, queryParam }) {
+  let targetId = null;
+
+  if (queryParam) {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has(queryParam)) {
+        targetId = params.get(queryParam);
+        params.delete(queryParam);
+        if (typeof window.history?.replaceState === 'function') {
+          const newSearch = params.toString();
+          const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}${window.location.hash}`;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ No se pudo leer el parámetro de navegación de la URL:', error);
+    }
+  }
+
+  if ((!targetId || !String(targetId).trim()) && storageKey && typeof window.sessionStorage !== 'undefined') {
+    try {
+      const storedValue = window.sessionStorage.getItem(storageKey);
+      if (storedValue) {
+        const parsed = JSON.parse(storedValue);
+        if (parsed && parsed.id) {
+          targetId = parsed.id;
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ No se pudo obtener ${storageKey} desde sessionStorage:`, error);
+    } finally {
+      try {
+        window.sessionStorage.removeItem(storageKey);
+      } catch (_) {
+        /* noop */
+      }
+    }
+  } else if (storageKey && typeof window.sessionStorage !== 'undefined') {
+    try {
+      window.sessionStorage.removeItem(storageKey);
+    } catch (_) {
+      /* noop */
+    }
+  }
+
+  const normalizedId = targetId !== undefined && targetId !== null ? String(targetId).trim() : '';
+  return normalizedId || null;
+}
+
+let pendingCommunityDetailId = consumePendingNavigationTarget({
+  storageKey: 'pendingCommunityDetail',
+  queryParam: 'community',
+});
+
 function normalizeTitle(value = '') {
   return value
     .normalize('NFD')
@@ -484,6 +539,10 @@ async function showCommunityDetail(communityId) {
   
   // Scroll al inicio
   window.scrollTo(0, 0);
+}
+
+if (typeof window !== 'undefined') {
+  window.showCommunityDetail = showCommunityDetail;
 }
 
 // Función para cargar datos de la comunidad en la vista detallada
@@ -1696,6 +1755,16 @@ function addCommunityViewMoreListeners() {
 document.addEventListener('DOMContentLoaded', function() {
   setupEditDataFormConstraints();
   addCommunityViewMoreListeners();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (pendingCommunityDetailId) {
+    const targetId = pendingCommunityDetailId;
+    pendingCommunityDetailId = null;
+    setTimeout(() => {
+      showCommunityDetail(targetId);
+    }, 120);
+  }
 });
 
 // Cerrar modales al hacer clic fuera de ellos

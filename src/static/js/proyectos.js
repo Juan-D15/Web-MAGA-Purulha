@@ -772,9 +772,6 @@ async function refreshLatestProjectsFromServer() {
     console.error('❌ Error al refrescar los últimos proyectos:', error);
   }
 }
-
-
-
 // Función para crear una tarjeta de proyecto destacado
 
 function crearTarjetaProyectoDestacado(proyecto) {
@@ -949,7 +946,13 @@ async function loadProjectDetails(projectId) {
 
       currentProjectId = proyecto.id;
 
+      const puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
+
+      puedeGestionarProyectoActual = puedeGestionar;
+
       mostrarDetalleProyecto(proyecto);
+
+      aplicarVisibilidadBotonesGestion(puedeGestionar);
 
       if (shouldRefreshLatestProjects) {
         shouldRefreshLatestProjects = false;
@@ -1268,53 +1271,27 @@ function mostrarDetalleProyecto(proyecto) {
 
   const detailCommunities = document.getElementById('detailCommunities');
 
-  if (detailCommunities && proyecto.comunidades) {
+  if (detailCommunities) {
 
-    if (proyecto.comunidades.length === 0) {
+    const rawCommunities = [
 
-      detailCommunities.innerHTML = '<p style="color: #6c757d;">No hay comunidades asignadas a este proyecto.</p>';
+      ...(Array.isArray(proyecto.communities) ? proyecto.communities : []),
+
+      ...(Array.isArray(proyecto.comunidades) ? proyecto.comunidades : []),
+
+    ];
+
+    const normalizedCommunities = normalizeCommunitiesData(rawCommunities);
+
+    if (normalizedCommunities.length) {
+
+      loadCommunities(normalizedCommunities);
 
     } else {
 
-      detailCommunities.innerHTML = proyecto.comunidades.map(comunidad => {
-
-        const regionNombre = comunidad.region_nombre || 'Sin región';
-
-        const regionSede = comunidad.region_sede || 'Sin sede';
-
-        const regionTexto = `${regionNombre} — ${regionSede}`;
-
-        
-
-        return `
-
-        <div class="community-card" style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 12px; margin-bottom: 15px; border-left: 3px solid #28a745;">
-
-          <div style="display: flex; align-items: center; gap: 12px;">
-
-            <div style="font-size: 1.5rem;">📍</div>
-
-            <div style="flex: 1;">
-
-              <h4 style="margin: 0 0 6px 0; color: #ffffff; font-size: 1rem; font-weight: 600;">${comunidad.comunidad_nombre || 'Sin nombre'}</h4>
-
-              <p style="margin: 0; color: #b8c5d1; font-size: 0.9rem;">${regionTexto}</p>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      `;
-
-      }).join('');
+      loadCommunities([]);
 
     }
-
-  } else if (detailCommunities) {
-
-    detailCommunities.innerHTML = '<p style="color: #6c757d;">No hay comunidades asignadas a este proyecto.</p>';
 
   }
 
@@ -1545,9 +1522,6 @@ function mostrarDetalleProyecto(proyecto) {
   console.log('✅ Vista de detalle actualizada');
 
 }
-
-
-
 // Función para generar elementos de lista
 
 function generateListItems(projects, showType = false) {
@@ -2313,9 +2287,6 @@ function showProjectDetail(projectId) {
   loadProjectDetails(projectId);
 
 }
-
-
-
 // Función para cargar los datos del proyecto en la vista detallada (LEGACY - usar mostrarDetalleProyecto)
 
 function loadProjectDetail(project) {
@@ -2418,9 +2389,31 @@ function loadProjectDetail(project) {
 
   // Ubicación
 
-  if (project.communities) {
+  const projectCommunities = [
 
-    loadCommunities(project.communities);
+    ...(Array.isArray(project.communities) ? project.communities : []),
+
+    ...(Array.isArray(project.comunidades) ? project.comunidades : []),
+
+  ];
+
+  if (projectCommunities.length) {
+
+    const normalizedCommunities = normalizeCommunitiesData(projectCommunities);
+
+    if (normalizedCommunities.length) {
+
+      loadCommunities(normalizedCommunities);
+
+    } else {
+
+      loadCommunities([]);
+
+    }
+
+  } else {
+
+    loadCommunities([]);
 
   }
 
@@ -2504,7 +2497,9 @@ function backFromDetail() {
 
   console.log('🔙 Volviendo a la vista principal');
 
-  
+  puedeGestionarProyectoActual = Boolean(
+    window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin
+  );
 
   const mainView = document.querySelector('.projects-main');
 
@@ -2744,8 +2739,6 @@ const predefinedCards = [
 
   { id: 'level', icon: '🎓', label: 'Nivel Educativo', placeholder: 'Ej: Básico', category: 'Educativo' },
 
-  { id: 'beneficiaries', icon: '👨‍👩‍👧‍👦', label: 'Beneficiarios', placeholder: 'Ej: 50 familias', category: 'Social' },
-
   { id: 'materials', icon: '🔧', label: 'Materiales', placeholder: 'Ej: Semillas, herramientas', category: 'Recursos' },
 
   { id: 'location', icon: '📍', label: 'Ubicación Específica', placeholder: 'Ej: Campo experimental', category: 'Físico' },
@@ -2794,82 +2787,282 @@ let pendingDeleteAction = null;
 
 let pendingDeleteData = null;
 
+let puedeGestionarProyectoActual = Boolean(
+  window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin
+);
+
+let usuarioActualInfoCache = null;
+let usuarioActualInfoPromise = null;
+
+const MENSAJE_PERMISOS_INSUFICIENTES = 'No tienes permisos para gestionar este evento.';
+
+async function obtenerUsuarioActualInfo() {
+  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
+    return null;
+  }
+
+  if (usuarioActualInfoCache) {
+    return usuarioActualInfoCache;
+  }
+
+  if (usuarioActualInfoPromise) {
+    return usuarioActualInfoPromise;
+  }
+
+  const url = (window.DJANGO_URLS && window.DJANGO_URLS.usuario) || '/api/usuario/';
+
+  usuarioActualInfoPromise = fetch(url, { credentials: 'include' })
+    .then(response => {
+      if (!response.ok) {
+        return null;
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data && data.autenticado !== false) {
+        usuarioActualInfoCache = data;
+
+        window.USER_AUTH = window.USER_AUTH || {};
+
+        if (typeof data.isAdmin === 'boolean') {
+          window.USER_AUTH.isAdmin = data.isAdmin;
+        }
+
+        if (typeof data.permisos === 'object' && data.permisos) {
+          window.USER_AUTH.permisos = Object.assign(
+            {},
+            window.USER_AUTH.permisos || {},
+            data.permisos
+          );
+
+          if (typeof data.permisos.es_personal === 'boolean') {
+            window.USER_AUTH.isPersonal = data.permisos.es_personal;
+          }
+
+          if (typeof data.permisos.es_admin === 'boolean') {
+            window.USER_AUTH.isAdmin = window.USER_AUTH.isAdmin || data.permisos.es_admin;
+          }
+        }
+
+        if (data.userId) {
+          window.USER_AUTH.userId = data.userId;
+        } else if (data.id) {
+          window.USER_AUTH.userId = data.id;
+        }
+
+        if (data.collaboratorId || data.colaborador_id) {
+          window.USER_AUTH.collaboratorId = data.collaboratorId || data.colaborador_id;
+        }
+
+        if (data.username) {
+          window.USER_AUTH.username = data.username;
+        }
+      }
+
+      return usuarioActualInfoCache;
+    })
+    .catch(error => {
+      console.error('Error al obtener la información del usuario actual:', error);
+      return null;
+    })
+    .finally(() => {
+      usuarioActualInfoPromise = null;
+    });
+
+  return usuarioActualInfoPromise;
+}
+
+function obtenerIdentificadoresPersonal(proyecto) {
+  const ids = new Set();
+  const usernames = new Set();
+
+  if (!proyecto || !Array.isArray(proyecto.personal)) {
+    if (proyecto && proyecto.responsable_id) {
+      ids.add(String(proyecto.responsable_id));
+    }
+    if (proyecto && proyecto.responsable_colaborador_id) {
+      ids.add(String(proyecto.responsable_colaborador_id));
+    }
+    if (proyecto && proyecto.responsable_username) {
+      usernames.add(String(proyecto.responsable_username).toLowerCase());
+    }
+    return { ids, usernames };
+  }
+
+  proyecto.personal.forEach(persona => {
+    if (!persona) {
+      return;
+    }
+
+    const posiblesIds = [
+      persona.id,
+      persona.colaborador_id,
+      persona.colaboradorId,
+      persona.usuario_id,
+      persona.usuarioId
+    ];
+
+    posiblesIds.forEach(valor => {
+      if (valor || valor === 0) {
+        ids.add(String(valor));
+      }
+    });
+
+    if (persona.username) {
+      usernames.add(String(persona.username).toLowerCase());
+    }
+
+    if (persona.usuario_username) {
+      usernames.add(String(persona.usuario_username).toLowerCase());
+    }
+  });
+
+  if (proyecto.responsable_id) {
+    ids.add(String(proyecto.responsable_id));
+  }
+
+  if (proyecto.responsable_colaborador_id) {
+    ids.add(String(proyecto.responsable_colaborador_id));
+  }
+
+  if (proyecto.responsable_username) {
+    usernames.add(String(proyecto.responsable_username).toLowerCase());
+  }
+
+  return { ids, usernames };
+}
+
+async function usuarioPuedeGestionarProyecto(proyecto) {
+  if (!proyecto) {
+    return false;
+  }
+
+  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
+    return true;
+  }
+
+  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
+    return false;
+  }
+
+  const info = await obtenerUsuarioActualInfo();
+  const assigned = obtenerIdentificadoresPersonal(proyecto);
+
+  const collaboratorId =
+    (info && (info.collaboratorId || info.colaborador_id)) || window.USER_AUTH.collaboratorId;
+  const userId = (info && (info.userId || info.id)) || window.USER_AUTH.userId;
+  const username = (info && info.username) || window.USER_AUTH.username || '';
+
+  if (collaboratorId && assigned.ids.has(String(collaboratorId))) {
+    return true;
+  }
+
+  if (userId && assigned.ids.has(String(userId))) {
+    return true;
+  }
+
+  if (username && assigned.usernames.has(String(username).toLowerCase())) {
+    return true;
+  }
+
+  return false;
+}
+
+function tienePermisoGestionActual() {
+  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
+    return true;
+  }
+  return !!puedeGestionarProyectoActual;
+}
+
+function mostrarMensajePermisoDenegado() {
+  if (typeof showErrorMessage === 'function') {
+    showErrorMessage(MENSAJE_PERMISOS_INSUFICIENTES);
+  } else {
+    alert(MENSAJE_PERMISOS_INSUFICIENTES);
+  }
+}
+
+function aplicarVisibilidadBotonesGestion(puedeGestionar) {
+  const toggleElementoGestion = (element) => {
+    if (!element) {
+      return;
+    }
+
+    if (!element.dataset.originalDisplayValue) {
+      const computed = window.getComputedStyle(element);
+      let originalDisplay = computed ? computed.display : '';
+      if (!originalDisplay || originalDisplay === 'none') {
+        originalDisplay = element.tagName === 'BUTTON' ? 'inline-flex' : 'block';
+      }
+      element.dataset.originalDisplayValue = originalDisplay;
+    }
+
+    if (puedeGestionar) {
+      element.style.display = element.dataset.originalDisplayValue || '';
+      element.removeAttribute('aria-hidden');
+      element.classList.remove('is-hidden-by-permissions');
+      if (element.tagName === 'BUTTON') {
+        element.disabled = false;
+      }
+    } else {
+      if (element.tagName === 'BUTTON') {
+        element.disabled = true;
+      }
+      element.style.display = 'none';
+      element.setAttribute('aria-hidden', 'true');
+      element.classList.add('is-hidden-by-permissions');
+    }
+  };
+
+  const manageClassSelectors = ['.btn-edit-item', '.btn-add-evidence'];
+  manageClassSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(toggleElementoGestion);
+  });
+
+  const manageIdSelectors = ['#addCustomCardBtn'];
+  manageIdSelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(toggleElementoGestion);
+  });
+
+  const manageDisableOnlySelectors = [
+    '#confirmCommunitySelectionBtn',
+    '#confirmChangeSelectionBtn',
+    '#confirmFileSelectionBtn',
+    '#confirmDeleteBtn'
+  ];
+
+  manageDisableOnlySelectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(element => {
+      element.disabled = !puedeGestionar;
+    });
+  });
+
+  document.querySelectorAll('.remove-card-btn').forEach(btn => {
+    if (puedeGestionar) {
+      btn.disabled = false;
+      btn.classList.remove('disabled');
+    } else {
+      btn.disabled = true;
+      btn.classList.add('disabled');
+    }
+  });
+
+  const selectedCardsContainer = document.getElementById('selectedCardsContainer');
+  if (selectedCardsContainer && typeof loadSelectedCards === 'function') {
+    loadSelectedCards();
+  }
+}
+
 
 
 // Función para verificar si el usuario puede gestionar la galería (admin o personal)
 
 function puedeGestionarGaleria() {
-
-  // Primero verificar desde el elemento oculto de permisos (siempre presente para admin/personal)
-
-  const userPermissions = document.getElementById('userPermissions');
-
-  if (userPermissions) {
-
-    const isAdmin = userPermissions.dataset.isAdmin === 'true';
-
-    const isPersonal = userPermissions.dataset.isPersonal === 'true';
-
-    if (isAdmin || isPersonal) {
-
-      return true;
-
-    }
-
+  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
+    return true;
   }
-
-  
-
-  // Verificar desde el botón editEventBtn que tiene los datos (fallback)
-
-  const editEventBtn = document.getElementById('editEventBtn');
-
-  if (editEventBtn) {
-
-    const isAdmin = editEventBtn.dataset.isAdmin === 'true';
-
-    const isPersonal = editEventBtn.dataset.isPersonal === 'true';
-
-    if (isAdmin || isPersonal) {
-
-      return true;
-
-    }
-
-  }
-
-  
-
-  // Verificar desde window.USER_AUTH si está disponible
-
-  if (window.USER_AUTH && window.USER_AUTH.isAuthenticated) {
-
-    if (window.USER_AUTH.isAdmin || window.USER_AUTH.isPersonal) {
-
-      return true;
-
-    }
-
-  }
-
-  
-
-  // Verificar desde variable global usuario_maga si está disponible
-
-  if (typeof usuario_maga !== 'undefined' && usuario_maga) {
-
-    if (usuario_maga.es_admin || usuario_maga.es_personal) {
-
-      return true;
-
-    }
-
-  }
-
-  
-
-  return false;
-
+  return !!puedeGestionarProyectoActual;
 }
 
 
@@ -3105,9 +3298,6 @@ function addChangeToProject(changeData) {
   showSuccessMessage('Cambio agregado exitosamente');
 
 }
-
-
-
 // Función para actualizar descripción
 
 function updateProjectDescription(newDescription) {
@@ -3419,6 +3609,196 @@ function showErrorMessage(message) {
 
 }
 
+function openCommunityInlinePanel({ hostCard, community, regionId, description }) {
+  closeCommunityInlinePanel(hostCard);
+
+  const panelDescriptionRaw =
+    description ||
+    community.description ||
+    community.detail ||
+    community.descripcion ||
+    community.descripcion_general ||
+    '';
+  const panelDescription = typeof panelDescriptionRaw === 'string' ? panelDescriptionRaw.trim() : '';
+  const hasPanelDescription = Boolean(panelDescription);
+
+  const panel = document.createElement('div');
+  panel.className = 'community-inline-panel';
+  panel.innerHTML = `
+    <div class="community-inline-panel__content">
+      <header class="community-inline-panel__header">
+        <div class="community-inline-panel__title-group">
+          <h3>${escapeHtml(community.name)}</h3>
+          <p>${escapeHtml(community.region || 'Sin región asignada')}</p>
+        </div>
+        <button type="button" class="community-inline-panel__close" aria-label="Cerrar panel">×</button>
+      </header>
+
+      <section class="community-inline-panel__body">
+        ${
+          hasPanelDescription
+            ? `
+        <div class="community-inline-panel__description">
+          <h4>Descripción</h4>
+          <p>${escapeHtml(panelDescription)}</p>
+        </div>
+        `
+            : ''
+        }
+        <div class="community-inline-panel__actions">
+          <button type="button" class="btn-secondary community-inline-panel__action" data-region-id="${regionId || ''}">
+            Ver región
+          </button>
+          <button type="button" class="btn-primary community-inline-panel__action" data-community-id="${community.id || ''}">
+            Ver comunidad
+          </button>
+        </div>
+      </section>
+    </div>
+  `;
+
+  hostCard.classList.add('is-open');
+  hostCard.appendChild(panel);
+
+  panel.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+
+  panel.querySelector('.community-inline-panel__close').addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeCommunityInlinePanel(hostCard);
+  });
+
+  panel.querySelectorAll('.community-inline-panel__action').forEach((actionBtn) => {
+    actionBtn.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const regionTarget = actionBtn.getAttribute('data-region-id');
+      const communityTarget = actionBtn.getAttribute('data-community-id');
+
+      closeCommunityInlinePanel(hostCard);
+
+      if (regionTarget) {
+        await navigateToRegion(regionTarget);
+      } else if (communityTarget) {
+        await navigateToCommunity(communityTarget);
+      }
+    });
+  });
+}
+
+function closeCommunityInlinePanel(card) {
+  if (!card) return;
+  card.classList.remove('is-open');
+  const panel = card.querySelector('.community-inline-panel');
+  if (panel) {
+    panel.remove();
+  }
+}
+
+function showCommunityDetailPanel({ communityId, regionId, communities }) {
+  const community = communities.find((item) => item.id === communityId);
+  if (!community) {
+    showErrorMessage('No se encontró información de la comunidad.');
+    return;
+  }
+
+  const targetCard = document.querySelector(`.location-item--community[data-community-id="${communityId}"]`);
+
+  if (targetCard) {
+    const descriptionText = targetCard.dataset.description || community.description || community.detail || 'No hay descripción disponible para esta comunidad.';
+
+    openCommunityInlinePanel({
+      hostCard: targetCard,
+      community,
+      regionId,
+      description: descriptionText,
+    });
+    targetCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+function redirectToDetailPage({ storageKey, queryParam, targetId, pathname }) {
+  if (!targetId) {
+    return;
+  }
+
+  const targetValue = String(targetId).trim();
+  if (!targetValue) {
+    return;
+  }
+
+  try {
+    if (typeof window.sessionStorage !== 'undefined') {
+      const payload = JSON.stringify({ id: targetValue, timestamp: Date.now() });
+      window.sessionStorage.setItem(storageKey, payload);
+    }
+  } catch (storageError) {
+    console.warn(`⚠️ No se pudo guardar ${storageKey} en sessionStorage:`, storageError);
+  }
+
+  try {
+    const targetUrl = new URL(pathname, window.location.origin);
+    if (queryParam) {
+      targetUrl.searchParams.set(queryParam, targetValue);
+    }
+    window.location.href = targetUrl.toString();
+  } catch (urlError) {
+    console.warn('⚠️ No se pudo construir la URL con URL API, usando fallback:', urlError);
+    const querySuffix = queryParam ? `?${encodeURIComponent(queryParam)}=${encodeURIComponent(targetValue)}` : '';
+    window.location.href = `${pathname}${querySuffix}`;
+  }
+}
+
+async function navigateToRegion(regionId) {
+  const normalizedId = regionId !== undefined && regionId !== null ? String(regionId).trim() : '';
+
+  if (!normalizedId) {
+    showErrorMessage('No se encontró la región asociada a esta comunidad.');
+    return;
+  }
+
+  try {
+    if (typeof window.showRegionDetail === 'function') {
+      await window.showRegionDetail(normalizedId);
+      return;
+    }
+  } catch (error) {
+    console.error('Error al navegar a la región:', error);
+  }
+
+  redirectToDetailPage({
+    storageKey: 'pendingRegionDetail',
+    queryParam: 'region',
+    targetId: normalizedId,
+    pathname: '/regiones/',
+  });
+}
+
+async function navigateToCommunity(communityId) {
+  const normalizedId = communityId !== undefined && communityId !== null ? String(communityId).trim() : '';
+
+  if (!normalizedId) {
+    showErrorMessage('No se encontró la comunidad seleccionada.');
+    return;
+  }
+
+  try {
+    if (typeof window.showCommunityDetail === 'function') {
+      await window.showCommunityDetail(normalizedId);
+      return;
+    }
+  } catch (error) {
+    console.error('Error al navegar a la comunidad:', error);
+  }
+
+  redirectToDetailPage({
+    storageKey: 'pendingCommunityDetail',
+    queryParam: 'community',
+    targetId: normalizedId,
+    pathname: '/comunidades/',
+  });
+}
+
 
 
 // Función para cargar personal en la vista detallada
@@ -3521,60 +3901,174 @@ function loadGalleryWithDescriptions(gallery) {
 
 
 
+// Normalizar datos de comunidades provenientes de distintas fuentes
+
+function normalizeCommunitiesData(rawList) {
+  if (!Array.isArray(rawList)) {
+    return [];
+  }
+
+  const seenKeys = new Set();
+  const normalized = [];
+
+  rawList.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+
+    const regionObject = item.region && typeof item.region === 'object' ? item.region : null;
+
+    const regionName =
+      item.region_nombre ||
+      item.region_name ||
+      (regionObject && (regionObject.nombre || regionObject.name)) ||
+      (typeof item.region === 'string' ? item.region : '');
+
+    const regionSede =
+      item.region_sede ||
+      (regionObject &&
+        (regionObject.sede ||
+          regionObject.location ||
+          regionObject.descripcion ||
+          regionObject.detail)) ||
+      (typeof item.sede === 'string' ? item.sede : '');
+
+    const regionText =
+      regionName && regionSede
+        ? `${regionName} — ${regionSede}`
+        : regionName || regionSede || '';
+
+    const descriptionText =
+      item.description ||
+      item.descripcion ||
+      item.detalle ||
+      item.detail ||
+      item.descripcion_general ||
+      '';
+
+    const normalizedItem = {
+      ...item,
+      id: item.id ?? item.comunidad_id ?? item.community_id ?? item.uuid ?? item.pk ?? '',
+      name:
+        item.name ??
+        item.nombre ??
+        item.comunidad_nombre ??
+        item.community_name ??
+        'Comunidad sin nombre',
+      region:
+        regionText ||
+        (typeof item.region === 'string' ? item.region : '') ||
+        (typeof item.type === 'string' ? item.type : '') ||
+        'Sin región asignada',
+      region_id: item.region_id ?? (regionObject && (regionObject.id || regionObject.pk)) ?? '',
+      description: descriptionText,
+    };
+
+    if (typeof normalizedItem.name === 'string') {
+      normalizedItem.name = normalizedItem.name.trim() || 'Comunidad sin nombre';
+    }
+
+    if (typeof normalizedItem.region === 'string') {
+      normalizedItem.region = normalizedItem.region.trim() || 'Sin región asignada';
+    } else {
+      normalizedItem.region = 'Sin región asignada';
+    }
+
+    const uniqueKey = normalizedItem.id || normalizedItem.name;
+
+    if (uniqueKey && seenKeys.has(uniqueKey)) {
+      return;
+    }
+
+    if (uniqueKey) {
+      seenKeys.add(uniqueKey);
+    }
+
+    normalized.push(normalizedItem);
+  });
+
+  return normalized;
+}
+
 // Función para cargar comunidades
 
 function loadCommunities(communities) {
-
-  const container = document.getElementById('detailLocationInfo');
+  const container = document.getElementById('detailCommunities');
 
   if (!container) return;
 
-
-
   container.innerHTML = '';
 
-  
+  const communitiesList = Array.isArray(communities) ? communities : [];
 
-  communities.forEach((community, index) => {
-
-    const locationItem = document.createElement('div');
-
-    locationItem.className = 'location-item';
-
-    locationItem.innerHTML = `
-
-      <div class="location-icon">📍</div>
-
-      <div class="location-content">
-
-        <h4>${community.name}</h4>
-
-        <p>${community.region}</p>
-
+  if (!communitiesList.length) {
+    container.innerHTML = `
+      <div class="communities-empty">
+        <p>No hay comunidades registradas para este proyecto.</p>
       </div>
+    `;
+    return;
+  }
 
-      <button class="btn-remove-item" data-community-index="${index}">
+  communitiesList.forEach((community) => {
+    const card = document.createElement('div');
+    card.className = 'location-item location-item--community';
 
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    const descriptionText =
+      community.description ||
+      community.detail ||
+      community.descripcion ||
+      community.descripcion_general ||
+      '';
+    card.dataset.communityId = community.id || '';
+    card.dataset.description = descriptionText;
+    card.dataset.regionId = community.region_id || '';
 
-          <line x1="18" y1="6" x2="6" y2="18"></line>
+    const regionLabel = escapeHtml(community.region || 'Sin región asignada');
+    const communityName = escapeHtml(community.name || 'Comunidad sin nombre');
+    const hasDescription = Boolean(community.description && community.description.trim());
 
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-
-        </svg>
-
-      </button>
-
+    card.innerHTML = `
+      <div class="location-card-main">
+        <div class="location-icon">📍</div>
+        <div class="location-content">
+          <h4>${communityName}</h4>
+          <p class="location-card-region">${regionLabel}</p>
+        </div>
+      </div>
+      ${hasDescription ? `<p class="location-card-description">${escapeHtml(descriptionText)}</p>` : ''}
     `;
 
-    container.appendChild(locationItem);
+    const openPanel = (event) => {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
 
+      if (card.classList.contains('is-open')) {
+        closeCommunityInlinePanel(card);
+        return;
+      }
+
+      container.querySelectorAll('.location-item--community.is-open').forEach((openCard) => {
+        if (openCard !== card) {
+          closeCommunityInlinePanel(openCard);
+        }
+      });
+
+      openCommunityInlinePanel({
+        hostCard: card,
+        community,
+        regionId: community.region_id || '',
+        description: descriptionText,
+      });
+    };
+
+    card.addEventListener('click', openPanel);
+
+    container.appendChild(card);
   });
-
 }
-
-
-
 // Función para renderizar cambios desde la API
 
 function renderCambios(cambios) {
@@ -3798,9 +4292,6 @@ function renderCambios(cambios) {
   console.log('✅ Cambios renderizados correctamente. Total elementos en contenedor:', container.children.length);
 
 }
-
-
-
 // Función para mostrar modal de imagen en tamaño completo
 
 function showImageViewModal(imageUrl, imageDescription = '') {
@@ -3864,6 +4355,14 @@ function closeImageViewModal() {
 // Función para mostrar modal de agregar imagen
 
 function showAddImageModal() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   showModal('addImageModal');
 
@@ -4160,6 +4659,14 @@ function handleImageSelect(event) {
 
 async function addImageToProject() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   if (!pendingProjectGalleryImages.length) {
 
     showErrorMessage('Selecciona al menos una imagen antes de continuar.');
@@ -4378,12 +4885,17 @@ async function eliminarImagenGaleria(imagenId) {
     showErrorMessage('Error al eliminar la imagen. Por favor, intenta de nuevo.');
   }
 }
-
-
-
 // Función para mostrar modal de editar descripción
 
 function showEditDescriptionModal() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const currentProject = getCurrentProject();
 
@@ -4428,6 +4940,14 @@ function showEditDescriptionModal() {
 // Función para actualizar descripción del proyecto
 
 async function updateProjectDescription() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const newDescription = document.getElementById('editDescriptionText').value.trim();
 
@@ -4534,6 +5054,14 @@ let currentEditProject = null;
 
 function showEditDataModal() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   console.log('showEditDataModal() llamada');
 
   currentEditProject = getCurrentProject();
@@ -4566,19 +5094,29 @@ function showEditDataModal() {
 
   // Convertir las tarjetas existentes al formato de tarjetas seleccionadas
 
-  selectedCards = tarjetasDatos.map(tarjeta => ({
+  selectedCards = tarjetasDatos.map(tarjeta => {
 
-    id: tarjeta.id,
+    const tituloNormalizado = (tarjeta.titulo || '').toLowerCase().trim();
 
-    icon: tarjeta.icono || '📊',
+    const isLocked = tituloNormalizado === 'beneficiarios';
 
-    label: tarjeta.titulo,
+    return {
 
-    value: tarjeta.valor || '',
+      id: tarjeta.id,
 
-    isCustom: true // Las tarjetas de la BD se consideran personalizadas
+      icon: tarjeta.icono || '📊',
 
-  }));
+      label: tarjeta.titulo,
+
+      value: tarjeta.valor || '',
+
+      isCustom: true, // Las tarjetas de la BD se consideran personalizadas
+
+      isLocked
+
+    };
+
+  });
 
   
 
@@ -4597,9 +5135,6 @@ function showEditDataModal() {
   showModal('editDataModal');
 
 }
-
-
-
 // Función para cargar la interfaz del modal de edición
 
 function loadEditDataModal() {
@@ -4716,68 +5251,67 @@ function loadSelectedCards() {
 
   
 
-  selectedCards.forEach((card, index) => {
+  const puedeEditarTarjetas = !!puedeGestionarProyectoActual;
 
+  selectedCards.forEach((card, index) => {
     const cardElement = document.createElement('div');
 
     cardElement.className = 'selected-card';
 
     cardElement.dataset.index = index;
 
-    
+    const icon = escapeHtml(card.icon || '📊');
 
-    // Escapar HTML para evitar XSS
+    const label = escapeHtml(card.label || '');
 
-    const icon = card.icon || '📊';
+    const value = escapeHtml(card.value || '');
 
-    const label = (card.label || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const isLocked = !!card.isLocked;
 
-    const value = (card.value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const esSoloLectura = isLocked || !puedeEditarTarjetas;
 
-    
+    if (esSoloLectura) {
+      cardElement.classList.add('selected-card-locked');
 
-    cardElement.innerHTML = `
+      const indicatorLabel = isLocked ? 'Fijo' : 'Solo lectura';
 
-      <div class="selected-card-icon">
+      const indicatorTitle = isLocked
+        ? 'Este dato no se puede editar ni eliminar'
+        : 'No tienes permisos para editar este dato';
 
-        <input type="text" value="${icon}" placeholder="📊" class="card-icon-input" data-index="${index}" maxlength="2" style="width: 40px; text-align: center; font-size: 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 4px;">
-
-      </div>
-
-      <div class="selected-card-info">
-
-        <div class="selected-card-label">
-
-          <input type="text" value="${label}" placeholder="Título de la tarjeta..." class="card-label-input" data-index="${index}">
-
+      cardElement.innerHTML = `
+        <div class="selected-card-icon">
+          <span class="card-icon-locked" title="${indicatorTitle}">${icon}</span>
         </div>
-
-        <div class="selected-card-value">
-
-          <input type="text" value="${value}" placeholder="Ingresa el valor..." class="card-value-input" data-index="${index}">
-
+        <div class="selected-card-info">
+          <div class="selected-card-label selected-card-label-locked">${label}</div>
+          <div class="selected-card-value selected-card-value-locked">${value}</div>
         </div>
-
-      </div>
-
-      <button class="remove-card-btn" data-index="${index}" title="Eliminar tarjeta">
-
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-
-        </svg>
-
-      </button>
-
-    `;
-
-    
+        <div class="selected-card-lock-indicator" title="${indicatorTitle}" style="color: #6c757d; font-size: 0.75rem; margin-top: 8px;">${indicatorLabel}</div>
+      `;
+    } else {
+      cardElement.innerHTML = `
+        <div class="selected-card-icon">
+          <input type="text" value="${icon}" placeholder="📊" class="card-icon-input" data-index="${index}" maxlength="2" style="width: 40px; text-align: center; font-size: 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 4px;">
+        </div>
+        <div class="selected-card-info">
+          <div class="selected-card-label">
+            <input type="text" value="${label}" placeholder="Título de la tarjeta..." class="card-label-input" data-index="${index}">
+          </div>
+          <div class="selected-card-value">
+            <input type="text" value="${value}" placeholder="Ingresa el valor..." class="card-value-input" data-index="${index}">
+          </div>
+        </div>
+        <button class="remove-card-btn" data-index="${index}" title="Eliminar tarjeta">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      `;
+    }
 
     container.appendChild(cardElement);
-
   });
 
   
@@ -4844,6 +5378,14 @@ function loadSelectedCards() {
 
 function togglePredefinedCard(card) {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   const cardElement = document.querySelector(`[data-card-id="${card.id}"]`);
 
   
@@ -4870,7 +5412,7 @@ function togglePredefinedCard(card) {
 
     // Verificar si ya existe una tarjeta con el mismo label (evitar duplicados)
 
-    const duplicateLabel = selectedCards.some(selected => selected.label === card.label);
+    const duplicateLabel = selectedCards.some(selected => (selected.label || '').toLowerCase() === card.label.toLowerCase());
 
     if (duplicateLabel) {
 
@@ -5068,6 +5610,14 @@ function filterPredefinedCards() {
 
 function addCustomCard() {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
   const icon = document.getElementById('customIcon').value.trim();
 
   const label = document.getElementById('customLabel').value.trim();
@@ -5088,7 +5638,9 @@ function addCustomCard() {
 
   // Verificar si ya existe una tarjeta con el mismo título
 
-  if (selectedCards.some(card => card.label === label)) {
+  const normalizedLabel = label.toLowerCase();
+
+  if (selectedCards.some(card => (card.label || '').toLowerCase() === normalizedLabel)) {
 
     showErrorMessage('Ya existe una tarjeta con este título');
 
@@ -5142,6 +5694,22 @@ function addCustomCard() {
 
 function removeSelectedCard(index) {
 
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
+
+  if (selectedCards[index] && selectedCards[index].isLocked) {
+
+    showErrorMessage('Este dato es fijo y no se puede eliminar.');
+
+    return;
+
+  }
+
   showConfirmDeleteModal(
 
     '¿Estás seguro de que deseas eliminar este dato del proyecto?',
@@ -5177,9 +5745,6 @@ function updateSelectedCardValue(index, value) {
   }
 
 }
-
-
-
 // Función para generar ID único para tarjetas
 
 function generateCardId() {
@@ -5187,9 +5752,6 @@ function generateCardId() {
   return 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
 }
-
-
-
 // Función para limpiar formulario de datos
 
 function clearDataForm() {
@@ -5352,11 +5914,9 @@ function addCommunityToProject() {
 
 async function showAddPersonnelModal() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -5389,9 +5949,6 @@ async function showAddPersonnelModal() {
   }
 
 }
-
-
-
 // Función para cargar colaboradores desde la API
 
 async function loadPersonnelListFromAPI() {
@@ -5530,11 +6087,9 @@ function clearPersonnelForm() {
 
 async function addPersonnelToProject() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -5718,6 +6273,14 @@ function getCookie(name) {
 // Función para mostrar modal de agregar cambio
 
 function showAddChangeModal() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   editingCambioId = null;
   editingCambioGroupId = null;
@@ -5942,9 +6505,6 @@ async function eliminarCambio(cambioId) {
   }
 
 }
-
-
-
 // Función para editar cambio
 
 function editarCambio(cambioId, cambio) {
@@ -6154,12 +6714,17 @@ async function updateExistingEvidenceDescriptions() {
   await Promise.all(updatePromises);
 
 }
-
-
-
 // Función para agregar cambio al proyecto usando API
 
 async function addChangeToProject() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const description = document.getElementById('changeDescription').value.trim();
 
@@ -6539,11 +7104,9 @@ function addCommunityToProject() {
 
 async function showAddPersonnelModal() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -6710,18 +7273,13 @@ function clearPersonnelForm() {
   document.getElementById('personnelRole').value = '';
 
 }
-
-
-
 // Función para agregar personal al proyecto
 
 async function addPersonnelToProject() {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden agregar personal a los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -6899,9 +7457,6 @@ function getCookie(name) {
   return cookieValue;
 
 }
-
-
-
 // Event listeners
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -7207,13 +7762,29 @@ document.addEventListener('DOMContentLoaded', function() {
   const generateReportBtn = document.getElementById('generateReportBtn');
 
   if (generateReportBtn) {
-
     generateReportBtn.addEventListener('click', function() {
+      const currentProject = getCurrentProject();
 
-      alert('Funcionalidad de generar reporte estará disponible próximamente');
+      if (!currentProject || !currentProject.id) {
+        alert('No se pudo obtener la información del evento para generar el reporte.');
+        return;
+      }
 
+      const baseReportesUrl = (window.DJANGO_URLS && window.DJANGO_URLS.reportes) || '/reportes/';
+      let targetUrl;
+
+      try {
+        targetUrl = new URL(baseReportesUrl, window.location.origin);
+      } catch (error) {
+        console.warn('URL de reportes inválida, usando ruta por defecto.', error);
+        targetUrl = new URL('/reportes/', window.location.origin);
+      }
+
+      targetUrl.searchParams.set('reporte', 'reporte-evento-individual');
+      targetUrl.searchParams.set('evento', currentProject.id);
+
+      window.location.href = targetUrl.toString();
     });
-
   }
 
 
@@ -7517,9 +8088,6 @@ document.addEventListener('DOMContentLoaded', function() {
     cancelCommunityBtn.addEventListener('click', () => hideModal('addCommunityModal'));
 
   }
-
-
-
   const cancelPersonnelBtn = document.getElementById('cancelPersonnelBtn');
 
   if (cancelPersonnelBtn) {
@@ -7701,9 +8269,6 @@ document.addEventListener('DOMContentLoaded', function() {
     fileInput.addEventListener('change', handleFileSelect);
 
   }
-
-
-
   // Event listeners para modales de selección
 
   const closeCommunitySelectionModal = document.getElementById('closeCommunitySelectionModal');
@@ -8317,9 +8882,6 @@ function filterCommunities() {
   });
 
 }
-
-
-
 // Función para cargar lista de personal en modal de cambios (solo colaboradores asignados al proyecto)
 
 async function loadChangePersonnelList() {
@@ -8486,9 +9048,6 @@ function getSelectedChangePersonnel() {
   return selected;
 
 }
-
-
-
 // Función para filtrar personal en modal de cambios
 
 function filterChangePersonnel() {
@@ -8556,6 +9115,14 @@ async function saveProjectData() {
   console.log('saveProjectData() llamada');
 
   console.log('selectedCards:', selectedCards);
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   
 
@@ -8926,7 +9493,13 @@ let selectedProjectFiles = [];
 
 function showAddFileModal() {
 
-  // Eliminar la validación de credenciales, solo abrir el modal
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   showModal('addFileModal');
 
@@ -9119,9 +9692,6 @@ function renderFilePreview() {
   });
 
 }
-
-
-
 function removeProjectFile(fileId) {
 
   selectedProjectFiles = selectedProjectFiles.filter(item => item.id !== parseFloat(fileId));
@@ -9157,6 +9727,14 @@ function formatFileSize(bytes) {
 
 
 async function addFileToProject() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const fileDescription = document.getElementById('fileDescription').value.trim();
 
@@ -9274,9 +9852,6 @@ async function addFileToProject() {
   }
 
 }
-
-
-
 // Función para eliminar archivo del proyecto
 
 async function eliminarArchivoProyecto(archivoId) {
@@ -9686,11 +10261,9 @@ function loadProjectFiles(files) {
 
 async function removePersonnelFromProject(personnelId, personnelType) {
 
-  // Verificar que el usuario es admin
+  if (!tienePermisoGestionActual()) {
 
-  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated || !window.USER_AUTH.isAdmin) {
-
-    alert('Solo los administradores pueden eliminar personal de los eventos.');
+    mostrarMensajePermisoDenegado();
 
     return;
 
@@ -9892,9 +10465,6 @@ function removeChangeFromProject(changeIndex) {
   );
 
 }
-
-
-
 function removeFileFromProject(fileId) {
 
   showCredentialsModal(() => {
@@ -9924,9 +10494,6 @@ function removeFileFromProject(fileId) {
   });
 
 }
-
-
-
 // Función para mostrar modal de confirmación
 
 function showConfirmDeleteModal(message, callback) {
@@ -9944,6 +10511,18 @@ function showConfirmDeleteModal(message, callback) {
 // Función para ejecutar la acción de eliminación
 
 function executeDeleteAction() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    pendingDeleteAction = null;
+
+    hideModal('confirmDeleteModal');
+
+    return;
+
+  }
 
   if (!pendingDeleteAction) {
     return;
@@ -10055,9 +10634,6 @@ function showCommunitySelectionModal(communities) {
   setupSelectionHandlers('communitySelectionList');
 
 }
-
-
-
 // Función para mostrar modal de selección de cambios
 
 function showChangeSelectionModal(changes) {
@@ -10675,9 +11251,6 @@ function loadEvidences(evidences, puedeGestionar = false) {
   });
 
 }
-
-
-
 // Función para mostrar modal de agregar evidencia
 
 function showAddEvidenceModal() {
@@ -10727,15 +11300,8 @@ function clearEvidenceForm() {
   selectedEvidenceFile = null;
 
 }
-
-
-
 // Variable para almacenar el archivo de evidencia seleccionado
-
 let selectedEvidenceFile = null;
-
-
-
 // Función para manejar selección de archivo de evidencia
 
 function handleEvidenceSelect() {
@@ -10809,12 +11375,17 @@ function handleEvidenceSelect() {
   }
 
 }
-
-
-
 // Función para agregar evidencia a un cambio existente usando API
 
 async function addEvidenceToChange() {
+
+  if (!tienePermisoGestionActual()) {
+
+    mostrarMensajePermisoDenegado();
+
+    return;
+
+  }
 
   const fileInput = document.getElementById('evidenceInput');
 

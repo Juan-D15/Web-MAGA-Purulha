@@ -1970,7 +1970,9 @@ def api_crear_evento(request):
             evidencias_guardadas = request.FILES.getlist('evidences')
             
             if evidencias_guardadas:
-                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'evidencias'))
+                evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias')
+                os.makedirs(evidencias_dir, exist_ok=True)
+                fs = FileSystemStorage(location=evidencias_dir)
                 
                 for index, file in enumerate(evidencias_guardadas):
                     # Generar nombre único con microsegundos para evitar duplicados
@@ -2825,7 +2827,9 @@ def api_actualizar_evento(request, evento_id):
             # Agregar nuevas evidencias
             if request.FILES.getlist('evidencias_nuevas'):
                 archivos = request.FILES.getlist('evidencias_nuevas')
-                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'evidencias'))
+                evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias')
+                os.makedirs(evidencias_dir, exist_ok=True)
+                fs = FileSystemStorage(location=evidencias_dir)
                 
                 for idx, archivo in enumerate(archivos):
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')

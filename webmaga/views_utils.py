@@ -445,7 +445,9 @@ def guardar_portada_evento(actividad, archivo):
     if not content_type.startswith('image/'):
         raise ValueError('El archivo de portada debe ser una imagen')
 
-    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'eventos_portada_img'))
+    portada_dir = os.path.join(settings.MEDIA_ROOT, 'eventos_portada_img')
+    os.makedirs(portada_dir, exist_ok=True)
+    fs = FileSystemStorage(location=portada_dir)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
     extension = os.path.splitext(archivo.name)[1]
     filename = f"{timestamp}{extension}"

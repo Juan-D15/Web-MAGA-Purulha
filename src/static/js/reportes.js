@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 5. Configurar botón de volver
     setupBackButton();
+
+    // 6. Procesar parámetros de la URL (si existen)
+    initializeFromQueryParams();
 });
 
 // Función para cargar dashboard
@@ -318,7 +321,7 @@ function setupReportCards() {
 }
 
 // Abrir reporte
-function openReport(reportType) {
+function openReport(reportType, options = {}) {
     currentReportType = reportType;
     
     // Limpiar completamente el contenedor de resultados antes de mostrar el nuevo reporte
@@ -352,9 +355,17 @@ function openReport(reportType) {
     showFormForReport(reportType);
     
     // Cargar datos específicos del formulario (async, esperar a que termine)
-    loadFormData(reportType).then(() => {
-        // Después de cargar datos, resetear filtros
-        resetFiltersForm(reportType);
+    const loadPromise = loadFormData(reportType);
+
+    return loadPromise.then(() => {
+        if (!options.skipReset) {
+            resetFiltersForm(reportType);
+        }
+    }).catch(error => {
+        console.error('Error al preparar el formulario del reporte:', error);
+        if (options.propagateError) {
+            throw error;
+        }
     });
 }
 
@@ -3334,6 +3345,55 @@ function setupBackButton() {
         currentReportType = null;
         currentFilters = {};
     });
+}
+
+// Inicializar vista basada en parámetros de la URL
+async function initializeFromQueryParams() {
+    const params = new URLSearchParams(window.location.search);
+    const reportParam = params.get('reporte');
+
+    if (!reportParam) {
+        return;
+    }
+
+    try {
+        await openReport(reportParam, { propagateError: true });
+    } catch (error) {
+        console.error('Error al abrir el reporte desde la URL:', error);
+        return;
+    }
+
+    if (reportParam === 'reporte-evento-individual') {
+        const eventParam = params.get('evento');
+        if (!eventParam) {
+            return;
+        }
+
+        const matchingEvent = Array.isArray(allEventosIndividual)
+            ? allEventosIndividual.find(evento => String(evento.id) === String(eventParam))
+            : null;
+
+        if (!matchingEvent) {
+            showError('No se encontró el evento solicitado para el reporte.');
+            return;
+        }
+
+        selectedEventoIndividual = matchingEvent.id;
+        updateSelectedEventoIndividualTag();
+
+        const searchInput = document.getElementById('searchEventoIndividual');
+        renderEventoIndividualChecklist(searchInput ? searchInput.value : '');
+
+        const container = document.getElementById('eventoIndividualContainer');
+        if (container) {
+            container.style.display = 'block';
+        }
+
+        const toggleIcon = document.getElementById('toggleIconEventoIndividual');
+        if (toggleIcon) {
+            toggleIcon.textContent = '▼';
+        }
+    }
 }
 
 // Cargar opciones para filtros
