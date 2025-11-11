@@ -170,6 +170,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Se activan automáticamente cuando DEBUG=False
 
 if not DEBUG:
+    # Configurar proxy reverso (Dokploy/Traefik)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
     # Forzar HTTPS
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
