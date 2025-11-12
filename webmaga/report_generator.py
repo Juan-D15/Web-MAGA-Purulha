@@ -390,146 +390,215 @@ def generate_reportlab_content(elements, report_type, report_data, subtitle_styl
 
 
 def generate_pdf_report(report_type, report_data, filters_info=None):
-    """Genera un reporte en formato PDF usando ReportLab directamente"""
+    """Genera un reporte en formato PDF - Prioriza WeasyPrint para mantener diseño completo"""
     try:
-        # Intentar usar ReportLab para generar PDF nativo (mejor calidad)
-        try:
-            from reportlab.lib.pagesizes import A4, letter
-            from reportlab.lib import colors
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.units import inch, cm
-            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
-            from reportlab.platypus.flowables import HRFlowable
-            from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
-            
-            # Crear buffer para el PDF
-            pdf_file = BytesIO()
-            
-            # Crear documento con márgenes
-            doc = SimpleDocTemplate(
-                pdf_file,
-                pagesize=A4,
-                rightMargin=2*cm,
-                leftMargin=2*cm,
-                topMargin=2.5*cm,
-                bottomMargin=2.5*cm,
-                title=get_report_title(report_type)
-            )
-            
-            # Contenedor para elementos del documento
-            elements = []
-            
-            # Estilos
-            styles = getSampleStyleSheet()
-            
-            # Estilo personalizado para título
-            title_style = ParagraphStyle(
-                'CustomTitle',
-                parent=styles['Heading1'],
-                fontSize=16,
-                textColor=colors.HexColor('#2c3e50'),
-                spaceAfter=12,
-                alignment=TA_CENTER,
-                fontName='Helvetica-Bold'
-            )
-            
-            # Estilo para subtítulos
-            subtitle_style = ParagraphStyle(
-                'CustomSubtitle',
-                parent=styles['Heading2'],
-                fontSize=14,
-                textColor=colors.HexColor('#0772d2'),
-                spaceAfter=10,
-                spaceBefore=16,
-                fontName='Helvetica-Bold',
-                leftIndent=10,
-                borderPadding=8,
-                backColor=colors.HexColor('#f0f7ff'),
-                borderColor=colors.HexColor('#0772d2'),
-                borderWidth=0,
-                borderRadius=4
-            )
-            
-            # Estilo para secciones
-            section_style = ParagraphStyle(
-                'CustomSection',
-                parent=styles['Heading3'],
-                fontSize=12,
-                textColor=colors.HexColor('#2c3e50'),
-                spaceAfter=8,
-                spaceBefore=12,
-                fontName='Helvetica-Bold'
-            )
-            
-            # Estilo para texto normal
-            normal_style = ParagraphStyle(
-                'CustomNormal',
-                parent=styles['Normal'],
-                fontSize=10,
-                textColor=colors.HexColor('#333333'),
-                spaceAfter=6,
-                leading=14,
-                fontName='Helvetica'
-            )
-            
-            # Agregar logo si existe
-            logo_path = os.path.join(settings.BASE_DIR, 'src', 'static', 'img', 'logos', 'logo maga letras png.png')
-            if os.path.exists(logo_path):
-                try:
-                    logo = Image(logo_path, width=2.5*cm, height=2.5*cm)
-                    logo.hAlign = 'CENTER'
-                    elements.append(logo)
-                    elements.append(Spacer(1, 0.3*cm))
-                except Exception as e:
-                    print(f"Error cargando logo: {e}")
-            
-            # Título del reporte
-            title = Paragraph(get_report_title(report_type), title_style)
-            elements.append(title)
-            elements.append(Spacer(1, 0.3*cm))
-            
-            # Información de filtros
-            if filters_info:
-                date_info = Paragraph(f"<i>Filtros aplicados: {filters_info}</i>", normal_style)
-                elements.append(date_info)
-                elements.append(Spacer(1, 0.3*cm))
-            
-            # Fecha de generación
-            fecha_generacion = datetime.now().strftime('%d/%m/%Y %H:%M')
-            date_para = Paragraph(f"<i>Generado el: {fecha_generacion}</i>", normal_style)
-            elements.append(date_para)
-            elements.append(Spacer(1, 0.5*cm))
-            
-            # Línea separadora
-            elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e0e0e0')))
-            elements.append(Spacer(1, 0.5*cm))
-            
-            # Generar contenido específico del reporte usando ReportLab
-            generate_reportlab_content(elements, report_type, report_data, subtitle_style, section_style, normal_style)
-            
-            # Pie de página con información de contacto
-            elements.append(Spacer(1, 1*cm))
-            elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e0e0e0')))
-            elements.append(Spacer(1, 0.3*cm))
-            footer_text = f"<i>Correo: {FOOTER_EMAIL} | Ubicación: {FOOTER_UBICACION}</i>"
-            footer_para = Paragraph(footer_text, ParagraphStyle('Footer', parent=normal_style, fontSize=8, textColor=colors.grey, alignment=TA_CENTER))
-            elements.append(footer_para)
-            
-            # Construir el PDF
-            doc.build(elements)
-            pdf_file.seek(0)
-            return pdf_file
-            
-        except ImportError as ie:
-            print(f"ReportLab no disponible: {ie}")
-            # Fallback al método HTML si ReportLab no está disponible
-            pass
-        except Exception as e:
-            print(f"Error al generar PDF con ReportLab: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            # Fallback al método HTML
-            pass
+        # PRIORIDAD 1: Usar WeasyPrint (soporta HTML/CSS completo, funciona en Linux)
+        if WEASYPRINT_AVAILABLE:
+            try:
+                import weasyprint
+                print("🎨 Generando PDF con WeasyPrint (diseño completo con HTML/CSS)")
+                
+                # Generar HTML del reporte con el diseño original
+                html_content = generate_html_content(report_type, report_data, filters_info)
+                
+                # Obtener imágenes en base64
+                logo_header = get_image_base64('img/logos/logo maga letras png.png')
+                logo_watermark = get_image_base64('img/logos/maga_logo.png')
+                
+                # Construir HTML completo con estilos (el diseño original que ya funcionaba)
+                header_html = ""
+                if logo_header:
+                    header_html = f"""
+                    <div class="page-header">
+                        <img src="{logo_header}" style="max-width: 100px; height: auto;" />
+                    </div>
+                    """
+                
+                watermark_style = ""
+                if logo_watermark:
+                    watermark_style = f"""
+                    background-image: url('{logo_watermark}');
+                    background-size: 350px 350px;
+                    background-repeat: no-repeat;
+                    background-position: center;
+                    opacity: 0.1;
+                    """
+                
+                footer_text = f"Correo: {FOOTER_EMAIL} | Ubicación: {FOOTER_UBICACION}"
+                
+                css_styles = f"""
+                <style>
+                    @page {{
+                        size: A4;
+                        margin: 2.5cm 2cm 2.5cm 2cm;
+                    }}
+                    .page-header {{
+                        text-align: center;
+                        padding: 0.2cm 0;
+                        margin-bottom: 0.3cm;
+                    }}
+                    .page-footer {{
+                        position: fixed;
+                        bottom: 0;
+                        left: 0;
+                        right: 0;
+                        text-align: center;
+                        font-size: 8pt;
+                        color: #666;
+                        padding: 0.5cm;
+                        background-color: white;
+                        border-top: 1px solid #ddd;
+                    }}
+                    body {{
+                        font-family: Arial, sans-serif;
+                        font-size: 10pt;
+                        line-height: 1.4;
+                        color: #333;
+                        margin-bottom: 2cm;
+                        {watermark_style}
+                    }}
+                    h1 {{
+                        color: #2c3e50;
+                        text-align: center;
+                        font-size: 16pt;
+                        margin-top: 0.2cm;
+                        margin-bottom: 0.5cm;
+                        padding: 0;
+                    }}
+                    h2 {{
+                        color: #0772d2;
+                        font-size: 14pt;
+                        font-weight: bold;
+                        margin-top: 0.8cm;
+                        margin-bottom: 0.5cm;
+                        padding: 0.3cm 0.5cm;
+                        background: linear-gradient(135deg, #f0f7ff 0%, #e6f2ff 100%);
+                        border-left: 4px solid #0772d2;
+                        border-radius: 4px;
+                        page-break-before: always;
+                    }}
+                    h2:first-of-type {{
+                        page-break-before: auto !important;
+                    }}
+                    .section-break {{
+                        page-break-before: always;
+                    }}
+                    .section-break:first-child {{
+                        page-break-before: auto !important;
+                    }}
+                    h3 {{
+                        color: #2c3e50;
+                        font-size: 12pt;
+                        font-weight: 600;
+                        margin-top: 0.6cm;
+                        margin-bottom: 0.4cm;
+                        padding-bottom: 0.2cm;
+                        border-bottom: 2px solid #e0e0e0;
+                    }}
+                    p {{
+                        margin: 0.25cm 0;
+                        line-height: 1.5;
+                    }}
+                    .date-info {{
+                        text-align: right;
+                        font-size: 9pt;
+                        color: #666;
+                        margin-bottom: 0.5cm;
+                        font-style: italic;
+                    }}
+                    table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 0.5cm auto;
+                        font-size: 9pt;
+                        page-break-inside: avoid;
+                        border: 1px solid #000;
+                    }}
+                    th {{
+                        background-color: #2c3e50;
+                        color: white;
+                        padding: 6px;
+                        text-align: left;
+                        font-weight: bold;
+                        border: 1px solid #000;
+                    }}
+                    td {{
+                        padding: 5px;
+                        border: 1px solid #000;
+                    }}
+                    tr:nth-child(even) {{
+                        background-color: #f5f5f5;
+                    }}
+                    .metric-box {{
+                        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                        padding: 0.5cm 0.6cm;
+                        margin: 0.5cm 0;
+                        border: 1px solid #e0e0e0;
+                        border-left: 4px solid #0772d2;
+                        border-radius: 6px;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                    }}
+                    .metric-label {{
+                        font-weight: 600;
+                        color: #2c3e50;
+                        font-size: 9.5pt;
+                        display: inline-block;
+                        min-width: 180px;
+                    }}
+                    .metric-value {{
+                        font-size: 16pt;
+                        color: #0772d2;
+                        margin-top: 2px;
+                        font-weight: bold;
+                    }}
+                    ul, ol {{
+                        margin: 0.3cm 0;
+                        padding-left: 1.5cm;
+                    }}
+                    li {{
+                        margin: 0.2cm 0;
+                    }}
+                    img {{
+                        max-width: 100%;
+                        height: auto;
+                    }}
+                </style>
+                """
+                
+                footer_html = f"""
+                <div class="page-footer">
+                    {footer_text}
+                </div>
+                """
+                
+                full_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    {css_styles}
+                </head>
+                <body>
+                    {header_html}
+                    {html_content}
+                    {footer_html}
+                </body>
+                </html>
+                """
+                
+                # Generar PDF con WeasyPrint
+                pdf_file = BytesIO()
+                weasyprint.HTML(string=full_html).write_pdf(pdf_file)
+                pdf_file.seek(0)
+                print("✅ PDF generado exitosamente con WeasyPrint")
+                return pdf_file
+                
+            except Exception as e:
+                print(f"❌ Error al generar PDF con WeasyPrint: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                # Continuar al siguiente método
+                pass
         
         # Fallback: Generar HTML del reporte (método anterior)
         html_content = generate_html_content(report_type, report_data, filters_info)
