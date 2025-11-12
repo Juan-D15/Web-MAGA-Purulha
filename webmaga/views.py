@@ -10897,7 +10897,17 @@ def api_exportar_reporte(request, report_type):
             response = HttpResponse(response_content, content_type=content_type)
             report_title = get_report_title(report_type)
             filename = f"{report_title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+            
+            # Configurar headers para evitar extensión incorrecta en navegadores
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response['Content-Type'] = content_type
+            response['Content-Length'] = len(response_content)
+            
+            # Headers adicionales para asegurar descarga correcta
+            response['X-Content-Type-Options'] = 'nosniff'
+            response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
 
             records_count = None
             try:
