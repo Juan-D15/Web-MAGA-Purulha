@@ -22,12 +22,15 @@ try:
 except ImportError:
     XHTML2PDF_AVAILABLE = False
 
-# Intentar importar weasyprint (funciona en Linux y Windows)
+# Intentar importar weasyprint (funciona en Linux y Windows, pero requiere librerías del sistema)
 try:
     import weasyprint
     WEASYPRINT_AVAILABLE = True
-except ImportError:
+except Exception as e:
+    # Capturar cualquier error: ImportError, OSError, etc.
+    # OSError ocurre cuando las librerías del sistema (libgobject, etc.) no están disponibles
     WEASYPRINT_AVAILABLE = False
+    print(f"⚠️ WeasyPrint no disponible: {type(e).__name__}: {e}")
 
 
 # Información del pie de página
@@ -396,6 +399,7 @@ def generate_pdf_report(report_type, report_data, filters_info=None):
         # PRIORIDAD 1: Usar WeasyPrint (soporta HTML/CSS completo, funciona en Linux)
         if WEASYPRINT_AVAILABLE:
             try:
+                # Importar weasyprint aquí para manejar errores de librerías del sistema
                 import weasyprint
                 print("🎨 Generando PDF con WeasyPrint (diseño completo con HTML/CSS)")
                 

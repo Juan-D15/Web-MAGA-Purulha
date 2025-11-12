@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python3", "postgresql_16.dev", "gcc", "pkg-config", "cairo.dev", "pango", "gdk-pixbuf", "gobject-introspection", "glib", "libffi", "python3Packages.pycairo"]
+nixPkgs = ["python3", "postgresql_16.dev", "gcc", "pkg-config", "cairo.dev", "cairo", "pango", "gdk-pixbuf", "gobject-introspection", "glib", "glib.dev", "libffi", "harfbuzz", "fontconfig", "freetype", "python3Packages.pycairo"]
 
 [phases.install]
 cmds = [
