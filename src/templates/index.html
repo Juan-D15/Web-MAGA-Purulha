@@ -2767,17 +2767,10 @@
         // Cerrar el modal del día
         closeCalModal();
         
-        // Recargar todo el calendario para actualizar las píldoras inmediatamente
-        renderCalendar(viewYear, viewMonth);
-        
-        // Reabrir el modal del día con datos actualizados
-        setTimeout(async () => {
-          const dateISO = parseLabelToISO(dateLabel);
-          const events = await fetchMonthEvents(viewYear, viewMonth);
-          const byDate = groupByDate(events);
-          const dayEvents = byDate.get(dateISO) || [];
-          openCalModal(dateLabel, dayEvents);
-        }, 300);
+        // Recargar la página para evitar problemas de caché
+        // Esto asegura que el recordatorio eliminado no aparezca en caché
+        console.log('[Calendario] Recordatorio eliminado, recargando página para actualizar caché...');
+        window.location.reload();
       } else {
         console.warn('Error al eliminar recordatorio:', res.status);
         alert('No se pudo eliminar el recordatorio.');
@@ -4112,21 +4105,35 @@
     console.log('[Notificaciones] Verificando recordatorios pendientes...');
     await checkPendingReminders();
     
-    // Verificar cada 30 segundos (más frecuente para mejor respuesta)
+    // Verificar cada 30 segundos (más frecuente para mejor respuesta, especialmente en Android)
     if (reminderCheckInterval) {
       clearInterval(reminderCheckInterval);
     }
     reminderCheckInterval = setInterval(async () => {
-      console.log('[Notificaciones] Verificación periódica de recordatorios...');
-      await checkPendingReminders();
+      // Solo verificar si la página está visible o si el Service Worker no está disponible
+      // Si el Service Worker está disponible, él se encargará de verificar incluso cuando la página está en segundo plano
+      if (document.visibilityState === 'visible' || !('serviceWorker' in navigator)) {
+        console.log('[Notificaciones] Verificación periódica de recordatorios...');
+        await checkPendingReminders();
+      } else {
+        console.log('[Notificaciones] Página en segundo plano, Service Worker se encargará de las notificaciones');
+      }
     }, 30000); // Cada 30 segundos
     
-    // También verificar cuando la página se vuelve visible
+    // También verificar cuando la página se vuelve visible (importante para Android)
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         console.log('[Notificaciones] Página visible, verificando recordatorios...');
         checkPendingReminders();
+      } else {
+        console.log('[Notificaciones] Página en segundo plano, Service Worker continuará verificando');
       }
+    });
+    
+    // Verificar cuando la página se enfoca (útil cuando se cambia de pestaña)
+    window.addEventListener('focus', () => {
+      console.log('[Notificaciones] Ventana enfocada, verificando recordatorios...');
+      checkPendingReminders();
     });
     
     // Escuchar mensajes del Service Worker (si está disponible)

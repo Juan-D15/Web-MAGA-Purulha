@@ -1,7 +1,9 @@
 // Service Worker para notificaciones de recordatorios
 const CACHE_NAME = 'webmaga-reminders-v1';
-const CHECK_INTERVAL = 60000; // Verificar cada minuto
+const CHECK_INTERVAL = 30000; // Verificar cada 30 segundos (más frecuente para Android)
 let checkIntervalId = null;
+let lastCheckTime = 0;
+let sentNotifications = new Set(); // Para evitar notificaciones duplicadas
 
 // Instalación del Service Worker
 self.addEventListener('install', (event) => {
@@ -110,18 +112,30 @@ async function checkRemindersFromServiceWorker() {
       credentials: 'same-origin',
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      cache: 'no-store' // Evitar caché
     });
     
     if (!response.ok) {
-      console.warn('[Service Worker] Error al obtener recordatorios:', response.status);
+      console.warn('[Service Worker] Error al obtener recordatorios:', response.status, response.statusText);
+      // Si es error 401/403, el usuario no está autenticado, no es crítico
+      if (response.status === 401 || response.status === 403) {
+        console.log('[Service Worker] Usuario no autenticado, saltando verificación');
+      }
       return;
     }
     
     const reminders = await response.json();
     
-    if (!Array.isArray(reminders) || reminders.length === 0) {
+    if (!Array.isArray(reminders)) {
+      console.warn('[Service Worker] Respuesta no es un array:', reminders);
+      return;
+    }
+    
+    if (reminders.length === 0) {
+      console.log('[Service Worker] No hay recordatorios pendientes');
       return;
     }
     
@@ -135,15 +149,24 @@ async function checkRemindersFromServiceWorker() {
       const yaEnviado = reminder.enviado || false;
       
       // Mostrar notificaciones que están listas:
-      // 1. Recordatorios futuros (tiempo restante > 0 y muy cercanos, dentro de 1 minuto)
-      // 2. Recordatorios que ya pasaron pero están dentro del límite de 15 minutos
-      const debeMostrar = (tiempoRestante > 0 && tiempoRestante <= 60) || // Próximos 60 segundos
-                          (tiempoRestante <= 0 && tiempoRestante >= -900); // Dentro de 15 minutos después
+      // 1. Recordatorios que ya pasaron pero están dentro del límite de 15 minutos (prioridad)
+      // 2. Recordatorios futuros que están muy cercanos (dentro de 2 minutos para mejor detección)
+      const debeMostrar = (tiempoRestante <= 0 && tiempoRestante >= -900) || // Ya pasó pero dentro de 15 minutos
+                          (tiempoRestante > 0 && tiempoRestante <= 120); // Próximos 2 minutos (más margen para Android)
       
       if (debeMostrar) {
         // Verificar si ya fue enviado
         if (yaEnviado && !recordar) {
           return; // Ya enviado y sin recordar, saltar
+        }
+        
+        // Crear clave única para evitar duplicados
+        const notificationKey = `${reminderId}-${recordar ? 'reenviar' : 'principal'}`;
+        
+        // Verificar si ya enviamos esta notificación recientemente (últimos 5 minutos)
+        if (sentNotifications.has(notificationKey)) {
+          console.log('[Service Worker] Notificación ya enviada recientemente, saltando:', notificationKey);
+          return;
         }
         
         // Construir título y cuerpo
@@ -164,6 +187,8 @@ async function checkRemindersFromServiceWorker() {
         
         const tag = `reminder-${reminderId}${recordar ? '-reenviar' : ''}`;
         
+        console.log('[Service Worker] Mostrando notificación push:', { reminderId, tag, title });
+        
         // Mostrar notificación usando Promise para asegurar que se muestre
         // Incluir vibración (se ignora en desktop, funciona en Android)
         const notificationPromise = self.registration.showNotification(title, {
@@ -182,9 +207,15 @@ async function checkRemindersFromServiceWorker() {
         });
         
         notificationPromise.then(() => {
-          console.log('[Service Worker] ✅ Notificación mostrada:', reminderId);
+          console.log('[Service Worker] ✅ Notificación PUSH mostrada exitosamente:', reminderId);
           
-          // Marcar como enviado si no es reenvío
+          // Marcar como enviado para evitar duplicados (por 5 minutos)
+          sentNotifications.add(notificationKey);
+          setTimeout(() => {
+            sentNotifications.delete(notificationKey);
+          }, 5 * 60 * 1000); // 5 minutos
+          
+          // Marcar como enviado en el backend si no es reenvío
           if (!recordar && !yaEnviado) {
             fetch(`${baseUrl}/api/reminders/${reminderId}/mark-sent/`, {
               method: 'POST',
@@ -198,6 +229,7 @@ async function checkRemindersFromServiceWorker() {
           }
         }).catch(err => {
           console.error('[Service Worker] ❌ Error al mostrar notificación:', err);
+          // Si falla, no agregar a sentNotifications para que pueda reintentar
         });
         
         // Asegurar que la promesa se complete antes de continuar
@@ -253,7 +285,21 @@ function startPeriodicCheck() {
     clearInterval(checkIntervalId);
   }
   
+  // Verificar inmediatamente al iniciar
+  console.log('[Service Worker] Verificación inicial de recordatorios...');
+  checkRemindersFromServiceWorker();
+  
   checkIntervalId = setInterval(() => {
+    const now = Date.now();
+    // Evitar verificaciones demasiado frecuentes (mínimo 25 segundos entre checks)
+    if (now - lastCheckTime < 25000) {
+      console.log('[Service Worker] Saltando verificación (muy reciente)');
+      return;
+    }
+    lastCheckTime = now;
+    
+    console.log('[Service Worker] Verificación periódica de recordatorios...');
+    
     // Verificar recordatorios directamente desde el Service Worker (funciona incluso si la página está cerrada)
     checkRemindersFromServiceWorker();
     
@@ -268,9 +314,6 @@ function startPeriodicCheck() {
   }, CHECK_INTERVAL);
   
   console.log('[Service Worker] Verificación periódica iniciada (cada', CHECK_INTERVAL / 1000, 'segundos)');
-  
-  // Verificar inmediatamente al iniciar
-  checkRemindersFromServiceWorker();
 }
 
 // Detener verificación cuando el Service Worker se desactiva
