@@ -3278,22 +3278,104 @@
   let reminderCheckInterval = null;
   let scheduledNotifications = new Map(); // Map<reminderId -> {notificationId, timeoutId, isReenviar}>
   
-  // Registrar Service Worker
-  if ('serviceWorker' in navigator) {
+  // Registrar Service Worker con mejor manejo de errores
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+      console.warn('[Notificaciones] Service Worker no soportado en este navegador');
+      return;
+    }
+    
+    // Verificar que estamos en HTTPS (requerido para Service Workers, excepto localhost)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      console.warn('[Notificaciones] Service Worker requiere HTTPS (excepto localhost)');
+      console.warn('[Notificaciones] Protocolo actual:', location.protocol);
+      return;
+    }
+    
+    console.log('[Notificaciones] Intentando registrar Service Worker...');
+    console.log('[Notificaciones] URL:', '/static/js/service-worker.js');
+    console.log('[Notificaciones] Scope:', '/');
+    
     navigator.serviceWorker.register('/static/js/service-worker.js', { scope: '/' })
       .then(registration => {
-        console.log('[Notificaciones] Service Worker registrado:', registration);
+        console.log('[Notificaciones] ✅ Service Worker registrado exitosamente');
+        console.log('[Notificaciones] Scope:', registration.scope);
+        console.log('[Notificaciones] Active:', registration.active);
+        console.log('[Notificaciones] Installing:', registration.installing);
+        console.log('[Notificaciones] Waiting:', registration.waiting);
+        
+        // Verificar estado del Service Worker
+        if (registration.active) {
+          console.log('[Notificaciones] ✅ Service Worker está ACTIVO');
+        } else if (registration.installing) {
+          console.log('[Notificaciones] ⏳ Service Worker está INSTALÁNDOSE');
+          registration.installing.addEventListener('statechange', () => {
+            console.log('[Notificaciones] Estado del Service Worker:', registration.installing.state);
+            if (registration.installing.state === 'activated') {
+              console.log('[Notificaciones] ✅ Service Worker ACTIVADO');
+            }
+          });
+        } else if (registration.waiting) {
+          console.log('[Notificaciones] ⏳ Service Worker está ESPERANDO');
+        }
+        
+        // Escuchar actualizaciones
+        registration.addEventListener('updatefound', () => {
+          console.log('[Notificaciones] Nueva versión del Service Worker encontrada');
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              console.log('[Notificaciones] Estado del nuevo Service Worker:', newWorker.state);
+              if (newWorker.state === 'activated') {
+                console.log('[Notificaciones] ✅ Nuevo Service Worker ACTIVADO');
+              }
+            });
+          }
+        });
         
         // Escuchar mensajes del Service Worker
         navigator.serviceWorker.addEventListener('message', (event) => {
+          console.log('[Notificaciones] Mensaje recibido del Service Worker:', event.data);
           if (event.data && event.data.type === 'CHECK_REMINDERS') {
             checkPendingReminders();
           }
         });
+        
+        // Verificar estado periódicamente y actualizar si es necesario
+        setInterval(() => {
+          registration.update().catch(err => {
+            console.warn('[Notificaciones] Error al actualizar Service Worker:', err);
+          });
+        }, 60000); // Cada minuto
+        
+        // Verificar que el Service Worker esté listo
+        navigator.serviceWorker.ready.then(reg => {
+          console.log('[Notificaciones] ✅ Service Worker está LISTO');
+          console.log('[Notificaciones] Service Worker activo:', reg.active);
+        }).catch(err => {
+          console.error('[Notificaciones] Error al verificar Service Worker ready:', err);
+        });
       })
       .catch(error => {
-        console.error('[Notificaciones] Error al registrar Service Worker:', error);
+        console.error('[Notificaciones] ❌ Error al registrar Service Worker:', error);
+        console.error('[Notificaciones] Tipo de error:', error.name);
+        console.error('[Notificaciones] Mensaje:', error.message);
+        console.error('[Notificaciones] Stack:', error.stack);
+        
+        // Intentar de nuevo después de 5 segundos
+        setTimeout(() => {
+          console.log('[Notificaciones] Reintentando registro del Service Worker...');
+          registerServiceWorker();
+        }, 5000);
       });
+  }
+
+  // Registrar cuando el DOM esté listo
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', registerServiceWorker);
+  } else {
+    // DOM ya está listo, registrar inmediatamente
+    registerServiceWorker();
   }
   
   // Solicitar permisos de notificación
@@ -3746,83 +3828,52 @@
     
     // PRIORIDAD: En Android/móvil, usar SIEMPRE el Service Worker para notificaciones push
     // En Windows/Desktop, podemos usar ambos métodos
+    let notificationShown = false;
+    
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(registration => {
-        if (registration.active) {
-          // PRIMERO: Mostrar notificación desde el Service Worker (funciona en Android y Windows)
-          registration.showNotification(title, {
-            body: body,
-            icon: '/static/img/logos/logo_maga.png',
-            badge: '/static/img/logos/logo_maga.png',
-            tag: tag,
-            requireInteraction: false,
-            silent: false,
-            vibrate: isAndroid ? [200, 100, 200] : undefined, // Vibración solo en Android
-            data: {
-              reminderId: reminder.id,
-              isReenviar: isReenviar
-            },
-            timestamp: Date.now()
-          }).then(() => {
-            console.log('[Notificaciones] ✅ Notificación mostrada desde Service Worker');
+      navigator.serviceWorker.ready
+        .then(registration => {
+          console.log('[Notificaciones] Service Worker ready, registration:', registration);
+          console.log('[Notificaciones] Service Worker active:', registration.active);
+          
+          if (registration.active) {
+            console.log('[Notificaciones] Intentando mostrar notificación desde Service Worker...');
             
-            // Marcar como enviado en el backend si es necesario (solo para notificaciones principales, no reenvíos)
-            if (marcarComoEnviado && !isReenviar) {
-              marcarNotificacionComoEnviada(reminder.id);
-            }
-          }).catch(err => {
-            console.error('[Notificaciones] ❌ Error al mostrar notificación desde Service Worker:', err);
-            
-            // Fallback: intentar con new Notification() solo si el Service Worker falla
-            if (!isAndroid && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                const notification = new Notification(title, {
-                  body: body,
-                  icon: '/static/img/logos/logo_maga.png',
-                  badge: '/static/img/logos/logo_maga.png',
-                  tag: tag,
-                  requireInteraction: false,
-                  silent: false,
-                  data: {
-                    reminderId: reminder.id,
-                    isReenviar: isReenviar
-                  }
-                });
-                
-                notification.onshow = () => {
-                  console.log('[Notificaciones] ✅ Notificación fallback mostrada');
-                  if (marcarComoEnviado && !isReenviar) {
-                    marcarNotificacionComoEnviada(reminder.id);
-                  }
-                };
-                
-                notification.onclick = () => {
-                  window.focus();
-                  notification.close();
-                };
-              } catch (fallbackError) {
-                console.error('[Notificaciones] Error en fallback:', fallbackError);
+            // PRIMERO: Mostrar notificación desde el Service Worker (funciona en Android y Windows)
+            return registration.showNotification(title, {
+              body: body,
+              icon: '/static/img/logos/logo_maga.png',
+              badge: '/static/img/logos/logo_maga.png',
+              tag: tag,
+              requireInteraction: false,
+              silent: false,
+              vibrate: isAndroid ? [200, 100, 200] : undefined, // Vibración solo en Android
+              data: {
+                reminderId: reminder.id,
+                isReenviar: isReenviar
+              },
+              timestamp: Date.now()
+            }).then(() => {
+              console.log('[Notificaciones] ✅ Notificación mostrada desde Service Worker');
+              notificationShown = true;
+              
+              // Marcar como enviado en el backend si es necesario (solo para notificaciones principales, no reenvíos)
+              if (marcarComoEnviado && !isReenviar) {
+                marcarNotificacionComoEnviada(reminder.id);
               }
-            }
-          });
+            });
+          } else {
+            console.warn('[Notificaciones] Service Worker no está activo, usando fallback');
+            throw new Error('Service Worker no está activo');
+          }
+        })
+        .catch(err => {
+          console.error('[Notificaciones] ❌ Error con Service Worker:', err);
+          console.error('[Notificaciones] Detalles:', err.message, err.stack);
           
-          // También enviar mensaje al Service Worker para sincronización
-          registration.active.postMessage({
-            type: 'SHOW_NOTIFICATION',
-            title: title,
-            body: body,
-            tag: tag,
-            data: {
-              reminderId: reminder.id,
-              isReenviar: isReenviar
-            }
-          });
-          console.log('[Notificaciones] Mensaje enviado al Service Worker');
-        } else {
-          console.warn('[Notificaciones] Service Worker no está activo');
-          
-          // Fallback: usar new Notification() si el Service Worker no está disponible
-          if ('Notification' in window && Notification.permission === 'granted') {
+          // Fallback: usar new Notification() si el Service Worker falla
+          if (!notificationShown && 'Notification' in window && Notification.permission === 'granted') {
+            console.log('[Notificaciones] Usando fallback: new Notification()');
             try {
               const notification = new Notification(title, {
                 body: body,
@@ -3839,56 +3890,47 @@
               
               notification.onshow = () => {
                 console.log('[Notificaciones] ✅ Notificación fallback mostrada');
+                notificationShown = true;
                 if (marcarComoEnviado && !isReenviar) {
                   marcarNotificacionComoEnviada(reminder.id);
                 }
+              };
+              
+              notification.onerror = (error) => {
+                console.error('[Notificaciones] ❌ Error en notificación fallback:', error);
               };
               
               notification.onclick = () => {
                 window.focus();
                 notification.close();
               };
-            } catch (error) {
-              console.error('[Notificaciones] Error en fallback:', error);
+            } catch (fallbackError) {
+              console.error('[Notificaciones] Error al crear notificación fallback:', fallbackError);
             }
           }
+        });
+      
+      // También enviar mensaje al Service Worker para sincronización (no bloquea)
+      navigator.serviceWorker.ready.then(registration => {
+        if (registration.active) {
+          registration.active.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: title,
+            body: body,
+            tag: tag,
+            data: {
+              reminderId: reminder.id,
+              isReenviar: isReenviar
+            }
+          });
+          console.log('[Notificaciones] Mensaje enviado al Service Worker');
         }
       }).catch(err => {
-        console.error('[Notificaciones] Service Worker no disponible:', err);
-        
-        // Fallback final: usar new Notification() si el Service Worker no está disponible
-        if ('Notification' in window && Notification.permission === 'granted') {
-          try {
-            const notification = new Notification(title, {
-              body: body,
-              icon: '/static/img/logos/logo_maga.png',
-              badge: '/static/img/logos/logo_maga.png',
-              tag: tag,
-              requireInteraction: false,
-              silent: false,
-              data: {
-                reminderId: reminder.id,
-                isReenviar: isReenviar
-              }
-            });
-            
-            notification.onshow = () => {
-              console.log('[Notificaciones] ✅ Notificación fallback mostrada');
-              if (marcarComoEnviado && !isReenviar) {
-                marcarNotificacionComoEnviada(reminder.id);
-              }
-            };
-            
-            notification.onclick = () => {
-              window.focus();
-              notification.close();
-            };
-          } catch (error) {
-            console.error('[Notificaciones] Error en fallback final:', error);
-          }
-        }
+        console.warn('[Notificaciones] No se pudo enviar mensaje al Service Worker:', err);
       });
     } else {
+      console.warn('[Notificaciones] Service Worker no disponible en este navegador');
+      
       // Si no hay Service Worker, usar new Notification() como último recurso
       if ('Notification' in window) {
         if (Notification.permission === 'granted') {
