@@ -19,6 +19,7 @@ import hashlib
 import random
 import unicodedata
 import re
+import logging
 from .models import (
     Region, Comunidad, Actividad, TipoActividad,
     Beneficiario, BeneficiarioIndividual, BeneficiarioFamilia, BeneficiarioInstitucion,
@@ -51,6 +52,8 @@ from .views_utils import (
     normalizar_dpi,
     buscar_conflicto_dpi,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # =====================================================
@@ -10634,8 +10637,37 @@ def api_exportar_reporte(request, report_type):
         
         # Obtener formato solicitado
         formato = request.GET.get('formato', 'pdf').lower()
+
+        if hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False):
+            user_label = f"{request.user.get_username()} (id={request.user.id})"
+        else:
+            user_label = 'usuario_no_autenticado'
+
+        query_params = {}
+        for key in request.GET.keys():
+            values = request.GET.getlist(key)
+            if not values:
+                query_params[key] = None
+            elif len(values) == 1:
+                query_params[key] = values[0]
+            else:
+                query_params[key] = values
+
+        logger.info(
+            "Solicitud de exportación de reporte recibida: usuario=%s, tipo=%s, formato=%s, params=%s",
+            user_label,
+            report_type,
+            formato,
+            query_params,
+        )
         
         if formato not in ['pdf', 'word']:
+            logger.warning(
+                "Formato de exportación no válido: usuario=%s, tipo=%s, formato=%s",
+                user_label,
+                report_type,
+                formato,
+            )
             return JsonResponse({
                 'error': 'Formato no válido. Use "pdf" o "word"'
             }, status=400)
@@ -10687,6 +10719,11 @@ def api_exportar_reporte(request, report_type):
             
             # Verificar si la respuesta es exitosa
             if not hasattr(report_response, 'status_code'):
+                logger.error(
+                    "Respuesta inválida al generar datos previos del reporte: usuario=%s, tipo=%s",
+                    user_label,
+                    report_type,
+                )
                 return JsonResponse({
                     'error': 'Error: respuesta inválida del servidor'
                 }, status=500)
@@ -10699,6 +10736,12 @@ def api_exportar_reporte(request, report_type):
                     error_msg = error_data.get('error', 'Error al generar datos del reporte')
                 except:
                     error_msg = 'Error al generar datos del reporte'
+                logger.error(
+                    "Error HTTP al generar datos del reporte: usuario=%s, tipo=%s, detalle=%s",
+                    user_label,
+                    report_type,
+                    error_msg,
+                )
                 return JsonResponse({
                     'error': error_msg
                 }, status=500)
@@ -10712,15 +10755,31 @@ def api_exportar_reporte(request, report_type):
                         content = content.decode('utf-8')
                     report_data_dict = json.loads(content)
                 else:
+                    logger.error(
+                        "No se pudo obtener el contenido de la respuesta del reporte: usuario=%s, tipo=%s",
+                        user_label,
+                        report_type,
+                    )
                     return JsonResponse({
                         'error': 'Error: no se pudo obtener el contenido de la respuesta'
                     }, status=500)
             except json.JSONDecodeError as e:
+                logger.exception(
+                    "Error al decodificar JSON del reporte: usuario=%s, tipo=%s",
+                    user_label,
+                    report_type,
+                )
                 return JsonResponse({
                     'error': f'Error al decodificar respuesta JSON: {str(e)}'
                 }, status=500)
             
             if 'error' in report_data_dict:
+                logger.error(
+                    "La generación de datos del reporte devolvió un error: usuario=%s, tipo=%s, detalle=%s",
+                    user_label,
+                    report_type,
+                    report_data_dict['error'],
+                )
                 return JsonResponse({
                     'error': report_data_dict['error']
                 }, status=500)
@@ -10764,6 +10823,11 @@ def api_exportar_reporte(request, report_type):
                 
         except Exception as e:
             import traceback
+            logger.exception(
+                "Error al obtener datos previos del reporte: usuario=%s, tipo=%s",
+                user_label,
+                report_type,
+            )
             traceback.print_exc()
             return JsonResponse({
                 'error': f'Error al obtener datos del reporte: {str(e)}'
@@ -10782,20 +10846,56 @@ def api_exportar_reporte(request, report_type):
             
             # Verificar que file_buffer no sea None
             if file_buffer is None:
+                logger.error(
+                    "El generador de archivos devolvió un buffer vacío: usuario=%s, tipo=%s, formato=%s",
+                    user_label,
+                    report_type,
+                    formato,
+                )
                 return JsonResponse({
                     'error': 'Error: no se pudo generar el archivo del reporte'
                 }, status=500)
             
             # Crear respuesta HTTP con el archivo
-            response = HttpResponse(file_buffer.read(), content_type=content_type)
+            file_size = None
+            try:
+                file_buffer.seek(0, os.SEEK_END)
+                file_size = file_buffer.tell()
+                file_buffer.seek(0)
+            except Exception:
+                file_size = None
+            response_content = file_buffer.read()
+            response = HttpResponse(response_content, content_type=content_type)
             report_title = get_report_title(report_type)
             filename = f"{report_title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            records_count = None
+            try:
+                records_count = len(report_data)
+            except Exception:
+                records_count = None
+
+            logger.info(
+                "Reporte exportado exitosamente: usuario=%s, tipo=%s, formato=%s, registros=%s, tamaño=%s bytes, archivo=%s",
+                user_label,
+                report_type,
+                formato,
+                records_count,
+                file_size if file_size is not None else 'desconocido',
+                filename,
+            )
             
             return response
             
         except Exception as e:
             import traceback
+            logger.exception(
+                "Error al generar el archivo del reporte: usuario=%s, tipo=%s, formato=%s",
+                user_label,
+                report_type,
+                formato,
+            )
             traceback.print_exc()
             return JsonResponse({
                 'error': f'Error al generar el archivo del reporte: {str(e)}'
@@ -10803,6 +10903,11 @@ def api_exportar_reporte(request, report_type):
         
     except Exception as e:
         import traceback
+        logger.exception(
+            "Error inesperado en la exportación del reporte: usuario=%s, tipo=%s",
+            user_label if 'user_label' in locals() else 'desconocido',
+            report_type,
+        )
         traceback.print_exc()
         return JsonResponse({
             'error': f'Error al exportar reporte: {str(e)}'
