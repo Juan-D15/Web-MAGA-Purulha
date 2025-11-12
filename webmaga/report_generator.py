@@ -218,50 +218,317 @@ def get_image_base64(image_path):
         return None
 
 
-def generate_pdf_report(report_type, report_data, filters_info=None):
-    """Genera un reporte en formato PDF usando la misma plantilla de Word"""
+def generate_reportlab_content(elements, report_type, report_data, subtitle_style, section_style, normal_style):
+    """Genera el contenido específico del reporte usando ReportLab"""
+    from reportlab.lib import colors
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.lib.units import cm
+    
     try:
-        # Generar primero el Word (que usa la plantilla)
-        word_buffer = generate_word_report(report_type, report_data, filters_info)
-        word_buffer.seek(0)  # Asegurar que el buffer esté al inicio
+        if report_type == 'reporte-evento-individual':
+            # Reporte de evento individual
+            if isinstance(report_data, dict) and 'evento' in report_data:
+                evento = report_data['evento']
+            elif isinstance(report_data, dict) and 'nombre' in report_data:
+                evento = report_data
+            else:
+                evento = {}
+            
+            if evento:
+                # Información básica del evento
+                elements.append(Paragraph("Información del Evento", subtitle_style))
+                elements.append(Spacer(1, 0.3*cm))
+                
+                info_data = [
+                    ['Nombre:', evento.get('nombre', '-')],
+                    ['Tipo:', evento.get('tipo', '-')],
+                    ['Estado:', evento.get('estado', '-')],
+                    ['Fecha:', evento.get('fecha', '-')],
+                    ['Comunidad:', evento.get('comunidad', '-')],
+                    ['Región:', evento.get('region', '-')],
+                ]
+                
+                info_table = Table(info_data, colWidths=[4*cm, 12*cm])
+                info_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f7ff')),
+                    ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#2c3e50')),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#ddd')),
+                ]))
+                elements.append(info_table)
+                elements.append(Spacer(1, 0.5*cm))
+                
+                # Descripción
+                if evento.get('descripcion'):
+                    elements.append(Paragraph("Descripción", section_style))
+                    elements.append(Paragraph(evento['descripcion'], normal_style))
+                    elements.append(Spacer(1, 0.3*cm))
+                
+                # Beneficiarios
+                if evento.get('beneficiarios'):
+                    elements.append(PageBreak())
+                    elements.append(Paragraph("Beneficiarios", subtitle_style))
+                    elements.append(Spacer(1, 0.3*cm))
+                    
+                    ben_headers = ['Nombre', 'Tipo', 'Descripción']
+                    ben_data = [ben_headers]
+                    
+                    for ben in evento['beneficiarios'][:50]:  # Limitar a 50
+                        ben_data.append([
+                            ben.get('nombre', '-'),
+                            ben.get('tipo', '-'),
+                            ben.get('descripcion', '-')[:50] + '...' if len(ben.get('descripcion', '')) > 50 else ben.get('descripcion', '-')
+                        ])
+                    
+                    ben_table = Table(ben_data, colWidths=[5*cm, 3*cm, 8*cm])
+                    ben_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 6),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+                    ]))
+                    elements.append(ben_table)
+                    elements.append(Spacer(1, 0.3*cm))
+                
+                # Avances
+                if evento.get('avances'):
+                    elements.append(PageBreak())
+                    elements.append(Paragraph("Avances del Evento", subtitle_style))
+                    elements.append(Spacer(1, 0.3*cm))
+                    
+                    for i, avance in enumerate(evento['avances'][:20], 1):  # Limitar a 20
+                        elements.append(Paragraph(f"<b>Avance #{i}</b>", section_style))
+                        avance_info = f"""
+                        <b>Fecha:</b> {avance.get('fecha', '-')}<br/>
+                        <b>Descripción:</b> {avance.get('descripcion', '-')}<br/>
+                        <b>Realizado por:</b> {avance.get('realizado_por', '-')}
+                        """
+                        elements.append(Paragraph(avance_info, normal_style))
+                        elements.append(Spacer(1, 0.3*cm))
+            else:
+                elements.append(Paragraph("No se encontró información del evento.", normal_style))
         
-        # Intentar convertir Word a PDF usando docx2pdf
+        elif report_type in ['actividades-por-region-comunidad', 'beneficiarios-por-region-comunidad', 
+                            'actividad-de-personal', 'avances-eventos-generales', 'comunidades', 
+                            'actividad-usuarios', 'reporte-general']:
+            # Para otros tipos de reportes, generar tablas genéricas
+            if isinstance(report_data, list) and len(report_data) > 0:
+                # Generar tabla con los datos
+                if len(report_data) > 0:
+                    # Obtener las claves del primer elemento
+                    keys = list(report_data[0].keys())
+                    
+                    # Crear encabezados
+                    headers = [key.replace('_', ' ').title() for key in keys]
+                    table_data = [headers]
+                    
+                    # Agregar datos (limitar a 100 filas)
+                    for item in report_data[:100]:
+                        row = []
+                        for key in keys:
+                            value = item.get(key, '-')
+                            # Truncar valores largos
+                            if isinstance(value, str) and len(value) > 60:
+                                value = value[:57] + '...'
+                            row.append(str(value))
+                        table_data.append(row)
+                    
+                    # Calcular anchos de columna dinámicamente
+                    num_cols = len(keys)
+                    col_width = 16.0 / num_cols  # 16cm total dividido por número de columnas
+                    col_widths = [col_width * cm] * num_cols
+                    
+                    table = Table(table_data, colWidths=col_widths)
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                        ('TOPPADDING', (0, 0), (-1, -1), 5),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+                    ]))
+                    elements.append(table)
+                    elements.append(Spacer(1, 0.5*cm))
+                    
+                    # Mostrar total de registros
+                    total_text = f"<i>Total de registros: {len(report_data)}</i>"
+                    if len(report_data) > 100:
+                        total_text += f" (mostrando primeros 100)"
+                    elements.append(Paragraph(total_text, normal_style))
+            elif isinstance(report_data, dict):
+                # Si es un diccionario, mostrar pares clave-valor
+                for key, value in report_data.items():
+                    if isinstance(value, (list, dict)):
+                        elements.append(Paragraph(f"<b>{key.replace('_', ' ').title()}:</b>", section_style))
+                        elements.append(Paragraph(str(value)[:500], normal_style))
+                    else:
+                        elements.append(Paragraph(f"<b>{key.replace('_', ' ').title()}:</b> {value}", normal_style))
+                    elements.append(Spacer(1, 0.2*cm))
+            else:
+                elements.append(Paragraph("No hay datos disponibles para este reporte.", normal_style))
+        
+        else:
+            elements.append(Paragraph("Tipo de reporte no reconocido.", normal_style))
+    
+    except Exception as e:
+        print(f"Error generando contenido ReportLab: {e}")
+        import traceback
+        traceback.print_exc()
+        elements.append(Paragraph(f"Error al generar el contenido: {str(e)}", normal_style))
+
+
+def generate_pdf_report(report_type, report_data, filters_info=None):
+    """Genera un reporte en formato PDF usando ReportLab directamente"""
+    try:
+        # Intentar usar ReportLab para generar PDF nativo (mejor calidad)
         try:
-            from docx2pdf import convert
-            import tempfile
+            from reportlab.lib.pagesizes import A4, letter
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch, cm
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, Image
+            from reportlab.platypus.flowables import HRFlowable
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
             
-            # Crear archivos temporales
-            with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_word:
-                temp_word.write(word_buffer.read())
-                temp_word_path = temp_word.name
-            
-            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
-                temp_pdf_path = temp_pdf.name
-            
-            # Convertir Word a PDF
-            convert(temp_word_path, temp_pdf_path)
-            
-            # Leer el PDF generado
+            # Crear buffer para el PDF
             pdf_file = BytesIO()
-            with open(temp_pdf_path, 'rb') as f:
-                pdf_file.write(f.read())
             
-            # Limpiar archivos temporales
-            try:
-                os.unlink(temp_word_path)
-                os.unlink(temp_pdf_path)
-            except:
-                pass
+            # Crear documento con márgenes
+            doc = SimpleDocTemplate(
+                pdf_file,
+                pagesize=A4,
+                rightMargin=2*cm,
+                leftMargin=2*cm,
+                topMargin=2.5*cm,
+                bottomMargin=2.5*cm,
+                title=get_report_title(report_type)
+            )
             
+            # Contenedor para elementos del documento
+            elements = []
+            
+            # Estilos
+            styles = getSampleStyleSheet()
+            
+            # Estilo personalizado para título
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                textColor=colors.HexColor('#2c3e50'),
+                spaceAfter=12,
+                alignment=TA_CENTER,
+                fontName='Helvetica-Bold'
+            )
+            
+            # Estilo para subtítulos
+            subtitle_style = ParagraphStyle(
+                'CustomSubtitle',
+                parent=styles['Heading2'],
+                fontSize=14,
+                textColor=colors.HexColor('#0772d2'),
+                spaceAfter=10,
+                spaceBefore=16,
+                fontName='Helvetica-Bold',
+                leftIndent=10,
+                borderPadding=8,
+                backColor=colors.HexColor('#f0f7ff'),
+                borderColor=colors.HexColor('#0772d2'),
+                borderWidth=0,
+                borderRadius=4
+            )
+            
+            # Estilo para secciones
+            section_style = ParagraphStyle(
+                'CustomSection',
+                parent=styles['Heading3'],
+                fontSize=12,
+                textColor=colors.HexColor('#2c3e50'),
+                spaceAfter=8,
+                spaceBefore=12,
+                fontName='Helvetica-Bold'
+            )
+            
+            # Estilo para texto normal
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontSize=10,
+                textColor=colors.HexColor('#333333'),
+                spaceAfter=6,
+                leading=14,
+                fontName='Helvetica'
+            )
+            
+            # Agregar logo si existe
+            logo_path = os.path.join(settings.BASE_DIR, 'src', 'static', 'img', 'logos', 'logo maga letras png.png')
+            if os.path.exists(logo_path):
+                try:
+                    logo = Image(logo_path, width=2.5*cm, height=2.5*cm)
+                    logo.hAlign = 'CENTER'
+                    elements.append(logo)
+                    elements.append(Spacer(1, 0.3*cm))
+                except Exception as e:
+                    print(f"Error cargando logo: {e}")
+            
+            # Título del reporte
+            title = Paragraph(get_report_title(report_type), title_style)
+            elements.append(title)
+            elements.append(Spacer(1, 0.3*cm))
+            
+            # Información de filtros
+            if filters_info:
+                date_info = Paragraph(f"<i>Filtros aplicados: {filters_info}</i>", normal_style)
+                elements.append(date_info)
+                elements.append(Spacer(1, 0.3*cm))
+            
+            # Fecha de generación
+            fecha_generacion = datetime.now().strftime('%d/%m/%Y %H:%M')
+            date_para = Paragraph(f"<i>Generado el: {fecha_generacion}</i>", normal_style)
+            elements.append(date_para)
+            elements.append(Spacer(1, 0.5*cm))
+            
+            # Línea separadora
+            elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e0e0e0')))
+            elements.append(Spacer(1, 0.5*cm))
+            
+            # Generar contenido específico del reporte usando ReportLab
+            generate_reportlab_content(elements, report_type, report_data, subtitle_style, section_style, normal_style)
+            
+            # Pie de página con información de contacto
+            elements.append(Spacer(1, 1*cm))
+            elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e0e0e0')))
+            elements.append(Spacer(1, 0.3*cm))
+            footer_text = f"<i>Correo: {FOOTER_EMAIL} | Ubicación: {FOOTER_UBICACION}</i>"
+            footer_para = Paragraph(footer_text, ParagraphStyle('Footer', parent=normal_style, fontSize=8, textColor=colors.grey, alignment=TA_CENTER))
+            elements.append(footer_para)
+            
+            # Construir el PDF
+            doc.build(elements)
             pdf_file.seek(0)
             return pdf_file
             
-        except ImportError:
-            # Si docx2pdf no está disponible, usar método HTML como fallback
+        except ImportError as ie:
+            print(f"ReportLab no disponible: {ie}")
+            # Fallback al método HTML si ReportLab no está disponible
             pass
         except Exception as e:
-            # Si hay error en la conversión, usar método HTML como fallback
-            print(f"Error al convertir Word a PDF: {str(e)}")
+            print(f"Error al generar PDF con ReportLab: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Fallback al método HTML
             pass
         
         # Fallback: Generar HTML del reporte (método anterior)
