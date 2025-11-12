@@ -1404,7 +1404,7 @@ _COMUNIDAD_TITULOS_PREDEFINIDOS = {
     'teléfono cocode',
     'tipo de comunidad',
 }
-def _serialize_comunidad_detalle(comunidad):
+def _serialize_comunidad_detalle(comunidad, request=None):
     """Devuelve un diccionario serializado con la información completa de la comunidad."""
     galeria_prefetch = getattr(comunidad, 'galeria_api', None)
     if galeria_prefetch is None:
@@ -1479,6 +1479,9 @@ def _serialize_comunidad_detalle(comunidad):
     else:
         coordenadas_texto = ''
 
+    # Verificar si el usuario está autenticado
+    usuario_autenticado = request and request.user.is_authenticated if request else False
+
     data_cards = [
         {
             'icon': '👥',
@@ -1501,21 +1504,25 @@ def _serialize_comunidad_detalle(comunidad):
             'is_default': True,
             'has_value': bool(comunidad.cocode),
         },
-        {
+    ]
+    
+    # Solo incluir la tarjeta de Teléfono COCODE si el usuario está autenticado
+    if usuario_autenticado:
+        data_cards.append({
             'icon': '📞',
             'label': 'Teléfono COCODE',
             'value': comunidad.telefono_cocode or '',
             'is_default': True,
             'has_value': bool(comunidad.telefono_cocode),
-        },
-        {
-            'icon': '🏘️',
-            'label': 'Tipo de Comunidad',
-            'value': comunidad.tipo.get_nombre_display() if comunidad.tipo else '',
-            'is_default': True,
-            'has_value': bool(comunidad.tipo),
-        },
-    ]
+        })
+    
+    data_cards.append({
+        'icon': '🏘️',
+        'label': 'Tipo de Comunidad',
+        'value': comunidad.tipo.get_nombre_display() if comunidad.tipo else '',
+        'is_default': True,
+        'has_value': bool(comunidad.tipo),
+    })
 
     tarjetas_custom = []
     tarjetas_qs = (
@@ -1610,7 +1617,7 @@ def api_comunidad_detalle(request, comunidad_id):
     except Comunidad.DoesNotExist:
         return JsonResponse({'error': 'Comunidad no encontrada'}, status=404)
 
-    payload = _serialize_comunidad_detalle(comunidad)
+    payload = _serialize_comunidad_detalle(comunidad, request)
 
     response = JsonResponse(payload)
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -2593,6 +2600,708 @@ def api_obtener_beneficiario(request, beneficiario_id):
         return JsonResponse({
             'success': False,
             'error': f'Error al obtener beneficiario: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_importar_beneficiarios_excel(request):
+    """API: Importar beneficiarios individuales desde archivo Excel"""
+    try:
+        if 'excel_file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se proporcionó ningún archivo Excel'
+            }, status=400)
+        
+        excel_file = request.FILES['excel_file']
+        
+        # Validar extensión
+        if not excel_file.name.endswith(('.xlsx', '.xls')):
+            return JsonResponse({
+                'success': False,
+                'error': 'El archivo debe ser un Excel (.xlsx o .xls)'
+            }, status=400)
+        
+        # Leer el archivo Excel
+        import openpyxl
+        from openpyxl import load_workbook
+        
+        workbook = load_workbook(excel_file, data_only=True)
+        sheet = workbook.active
+        
+        # Validar encabezados esperados (primera fila)
+        expected_headers = ['tipo', 'comunidad', 'nombre', 'apellido', 'dpi', 'fecha de nacimiento', 'edad', 'genero', 'telefono']
+        headers = []
+        for cell in sheet[1]:
+            headers.append(str(cell.value).lower().strip() if cell.value else '')
+        
+        # Verificar que los encabezados coincidan (case-insensitive)
+        headers_normalized = [h.lower().strip() for h in headers]
+        expected_normalized = [h.lower().strip() for h in expected_headers]
+        
+        if headers_normalized != expected_normalized:
+            return JsonResponse({
+                'success': False,
+                'error': f'Los encabezados del Excel no coinciden con la plantilla esperada. Encabezados encontrados: {headers}'
+            }, status=400)
+        
+        # Obtener tipo de beneficiario "individual"
+        try:
+            tipo_individual = TipoBeneficiario.objects.get(nombre='individual')
+        except TipoBeneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tipo de beneficiario "individual" no encontrado en la base de datos'
+            }, status=500)
+        
+        # Función para normalizar nombres (sin tildes, sin espacios, case-insensitive)
+        def normalizar_nombre_comunidad(nombre):
+            """Normaliza un nombre removiendo tildes, espacios y convirtiendo a minúsculas"""
+            if not nombre:
+                return ''
+            # Convertir a minúsculas y remover espacios
+            nombre = nombre.lower().strip()
+            # Remover tildes y caracteres especiales
+            nombre = unicodedata.normalize('NFD', nombre)
+            nombre = ''.join(c for c in nombre if unicodedata.category(c) != 'Mn')
+            # Remover espacios múltiples y convertir a uno solo
+            nombre = ' '.join(nombre.split())
+            return nombre
+        
+        # Obtener todas las comunidades para búsqueda flexible
+        comunidades_db = Comunidad.objects.filter(activo=True).select_related('region')
+        comunidades_dict = {}
+        for com in comunidades_db:
+            # Crear un diccionario con nombre normalizado como clave
+            nombre_normalizado = normalizar_nombre_comunidad(com.nombre)
+            if nombre_normalizado not in comunidades_dict:
+                comunidades_dict[nombre_normalizado] = com
+        
+        # Procesar filas (empezando desde la fila 2, ya que la 1 son encabezados)
+        resultados = {
+            'exitosos': [],
+            'advertencias': [],
+            'errores': [],
+            'total_procesados': 0,
+            'total_exitosos': 0,
+            'total_advertencias': 0,
+            'total_errores': 0
+        }
+        
+        # Procesar filas SIN guardar en BD (solo validar y preparar datos)
+        # Cerrar workbook después de procesar para liberar memoria
+        try:
+            for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=False), start=2):
+                    # Saltar filas vacías
+                    if all(cell.value is None or str(cell.value).strip() == '' for cell in row):
+                        continue
+                    
+                    resultados['total_procesados'] += 1
+                    
+                    try:
+                        # Extraer valores de las celdas
+                        valores = [cell.value for cell in row[:9]]  # Solo las primeras 9 columnas
+                        
+                        tipo_val = str(valores[0]).strip().lower() if valores[0] else ''
+                        comunidad_nombre = str(valores[1]).strip() if valores[1] else ''
+                        nombre = str(valores[2]).strip() if valores[2] else ''
+                        apellido = str(valores[3]).strip() if valores[3] else ''
+                        dpi_val = str(valores[4]).strip() if valores[4] else ''
+                        fecha_nac_str = valores[5]
+                        edad_val = valores[6]
+                        genero_val = str(valores[7]).strip().lower() if valores[7] else ''
+                        telefono_val = str(valores[8]).strip() if valores[8] else ''
+                        
+                        # Validar tipo (debe ser "individual")
+                        if tipo_val != 'individual':
+                            resultados['errores'].append({
+                                'fila': row_num,
+                                'error': f'Tipo debe ser "individual", se encontró: "{tipo_val}"'
+                            })
+                            resultados['total_errores'] += 1
+                            continue
+                        
+                        # Validar campos obligatorios
+                        if not nombre:
+                            resultados['errores'].append({
+                                'fila': row_num,
+                                'error': 'El campo "nombre" es obligatorio'
+                            })
+                            resultados['total_errores'] += 1
+                            continue
+                        
+                        if not apellido:
+                            resultados['errores'].append({
+                                'fila': row_num,
+                                'error': 'El campo "apellido" es obligatorio'
+                            })
+                            resultados['total_errores'] += 1
+                            continue
+                        
+                        if not comunidad_nombre:
+                            resultados['errores'].append({
+                                'fila': row_num,
+                                'error': 'El campo "comunidad" es obligatorio'
+                            })
+                            resultados['total_errores'] += 1
+                            continue
+                        
+                        # Buscar comunidad (flexible: sin tildes, sin espacios, case-insensitive)
+                        comunidad_nombre_normalizado = normalizar_nombre_comunidad(comunidad_nombre)
+                        comunidad_obj = comunidades_dict.get(comunidad_nombre_normalizado)
+                        
+                        if not comunidad_obj:
+                            # Intentar búsqueda más flexible si no se encontró exacto
+                            comunidad_obj = None
+                            for com in comunidades_db:
+                                if normalizar_nombre_comunidad(com.nombre) == comunidad_nombre_normalizado:
+                                    comunidad_obj = com
+                                    break
+                            
+                            if not comunidad_obj:
+                                resultados['errores'].append({
+                                    'fila': row_num,
+                                    'error': f'Comunidad "{comunidad_nombre}" no encontrada en la base de datos'
+                                })
+                                resultados['total_errores'] += 1
+                                continue
+                        
+                        # Normalizar y validar DPI
+                        dpi_normalizado = normalizar_dpi(dpi_val) if dpi_val else ''
+                        if dpi_normalizado and len(dpi_normalizado) != 13:
+                            resultados['errores'].append({
+                                'fila': row_num,
+                                'error': f'DPI debe tener 13 dígitos, se encontró: {len(dpi_normalizado)}'
+                            })
+                            resultados['total_errores'] += 1
+                            continue
+                        
+                        # Procesar fecha de nacimiento
+                        fecha_nacimiento = None
+                        if fecha_nac_str:
+                            try:
+                                if isinstance(fecha_nac_str, datetime):
+                                    fecha_nacimiento = fecha_nac_str.date()
+                                elif isinstance(fecha_nac_str, str):
+                                    # Intentar parsear diferentes formatos de fecha
+                                    fecha_str = fecha_nac_str.strip()
+                                    formatos = ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%Y/%m/%d']
+                                    for formato in formatos:
+                                        try:
+                                            fecha_nacimiento = datetime.strptime(fecha_str, formato).date()
+                                            break
+                                        except ValueError:
+                                            continue
+                                elif hasattr(fecha_nac_str, 'date'):
+                                    # Si es un objeto date de Python
+                                    fecha_nacimiento = fecha_nac_str.date() if isinstance(fecha_nac_str, datetime) else fecha_nac_str
+                            except (ValueError, AttributeError, TypeError):
+                                # Si no se puede parsear, se deja como None
+                                pass
+                        
+                        # Normalizar género
+                        genero_normalizado = None
+                        if genero_val:
+                            genero_lower = genero_val.lower().strip()
+                            if genero_lower in ['masculino', 'm', 'hombre', 'h']:
+                                genero_normalizado = 'masculino'
+                            elif genero_lower in ['femenino', 'f', 'mujer', 'm']:
+                                genero_normalizado = 'femenino'
+                            elif genero_lower in ['otro', 'o', 'otra']:
+                                genero_normalizado = 'otro'
+                        
+                        # Normalizar teléfono (solo números)
+                        telefono_normalizado = normalizar_dpi(telefono_val) if telefono_val else ''
+                        if telefono_normalizado and len(telefono_normalizado) != 8:
+                            # Si tiene teléfono pero no es válido, se guarda como está pero se registra advertencia
+                            pass
+                        
+                        # Verificar si el DPI ya existe (para actualizar en vez de crear)
+                        beneficiario_existente = None
+                        beneficiario_individual_existente = None
+                        es_actualizacion = False
+                        
+                        if dpi_normalizado:
+                            conflicto = buscar_conflicto_dpi(
+                                BeneficiarioIndividual.objects.all(),
+                                'dpi',
+                                dpi_normalizado
+                            )
+                            if conflicto:
+                                # DPI encontrado - actualizar beneficiario existente
+                                beneficiario_individual_existente = conflicto
+                                beneficiario_existente = conflicto.beneficiario
+                                es_actualizacion = True
+                        
+                        # Preparar datos del beneficiario (NO guardar aún)
+                        datos_beneficiario = {
+                            'fila': row_num,
+                            'tipo': 'individual',
+                            'comunidad_id': str(comunidad_obj.id),
+                            'comunidad_nombre': comunidad_obj.nombre,
+                            'nombre': nombre,
+                            'apellido': apellido,
+                            'dpi': dpi_normalizado or None,
+                            'fecha_nacimiento': fecha_nacimiento.isoformat() if fecha_nacimiento else None,
+                            'genero': genero_normalizado,
+                            'telefono': telefono_normalizado or None,
+                            'es_actualizacion': es_actualizacion,
+                            'beneficiario_existente_id': str(beneficiario_existente.id) if es_actualizacion and beneficiario_existente else None
+                        }
+                        
+                        if es_actualizacion:
+                            resultados['advertencias'].append({
+                                'fila': row_num,
+                                'mensaje': f'DPI detectado: {dpi_normalizado}. Se actualizará el beneficiario con la información nueva.',
+                                'nombre': f'{nombre} {apellido}',
+                                'comunidad': comunidad_obj.nombre,
+                                'dpi': dpi_normalizado,
+                                'datos': datos_beneficiario
+                            })
+                            resultados['total_advertencias'] += 1
+                        else:
+                            resultados['exitosos'].append({
+                                'fila': row_num,
+                                'nombre': f'{nombre} {apellido}',
+                                'comunidad': comunidad_obj.nombre,
+                                'dpi': dpi_normalizado or 'N/A',
+                                'datos': datos_beneficiario
+                            })
+                            resultados['total_exitosos'] += 1
+                        
+                    except Exception as e:
+                        resultados['errores'].append({
+                            'fila': row_num,
+                            'error': f'Error al procesar fila: {str(e)}'
+                        })
+                        resultados['total_errores'] += 1
+                        continue
+        finally:
+            # Cerrar workbook para liberar memoria
+            workbook.close()
+        
+        # Construir mensaje final
+        mensaje_partes = []
+        if resultados['total_exitosos'] > 0:
+            mensaje_partes.append(f"{resultados['total_exitosos']} exitosos")
+        if resultados['total_advertencias'] > 0:
+            mensaje_partes.append(f"{resultados['total_advertencias']} actualizados")
+        if resultados['total_errores'] > 0:
+            mensaje_partes.append(f"{resultados['total_errores']} errores")
+        
+        mensaje_final = f'Importación completada: {", ".join(mensaje_partes)}' if mensaje_partes else 'No se procesaron registros'
+        
+        return JsonResponse({
+            'success': True,
+            'message': mensaje_final,
+            'resultados': resultados,
+            'pendientes': {
+                'exitosos': resultados['exitosos'],
+                'advertencias': resultados['advertencias']
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al procesar el archivo Excel: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_guardar_beneficiarios_general(request):
+    """API: Guardar beneficiarios pendientes de Excel sin vincularlos a ningún evento"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        data = _parse_request_data(request)
+        beneficiarios_pendientes = data.get('beneficiarios_pendientes', [])
+        
+        if not beneficiarios_pendientes:
+            return JsonResponse({
+                'success': False,
+                'error': 'No hay beneficiarios pendientes para guardar'
+            }, status=400)
+        
+        # Obtener tipo de beneficiario "individual"
+        try:
+            tipo_individual = TipoBeneficiario.objects.get(nombre='individual')
+        except TipoBeneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tipo de beneficiario "individual" no encontrado'
+            }, status=500)
+        
+        resultados = {
+            'creados': 0,
+            'actualizados': 0,
+            'errores': []
+        }
+        
+        with transaction.atomic():
+            for benef_data in beneficiarios_pendientes:
+                try:
+                    comunidad_id = benef_data.get('comunidad_id')
+                    nombre = benef_data.get('nombre')
+                    apellido = benef_data.get('apellido')
+                    dpi = benef_data.get('dpi')
+                    fecha_nacimiento = benef_data.get('fecha_nacimiento')
+                    genero = benef_data.get('genero')
+                    telefono = benef_data.get('telefono')
+                    es_actualizacion = benef_data.get('es_actualizacion', False)
+                    beneficiario_existente_id = benef_data.get('beneficiario_existente_id')
+                    
+                    # Validar campos obligatorios
+                    if not nombre or not apellido or not comunidad_id:
+                        resultados['errores'].append({
+                            'error': 'Faltan campos obligatorios',
+                            'datos': benef_data
+                        })
+                        continue
+                    
+                    # Obtener comunidad
+                    try:
+                        comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+                    except Comunidad.DoesNotExist:
+                        resultados['errores'].append({
+                            'error': f'Comunidad {comunidad_id} no encontrada',
+                            'datos': benef_data
+                        })
+                        continue
+                    
+                    # Procesar fecha de nacimiento
+                    fecha_nac = None
+                    if fecha_nacimiento:
+                        try:
+                            if isinstance(fecha_nacimiento, str):
+                                fecha_nac = datetime.fromisoformat(fecha_nacimiento).date()
+                            elif hasattr(fecha_nacimiento, 'date'):
+                                fecha_nac = fecha_nacimiento.date() if isinstance(fecha_nacimiento, datetime) else fecha_nacimiento
+                        except (ValueError, AttributeError, TypeError):
+                            pass
+                    
+                    if es_actualizacion and beneficiario_existente_id:
+                        # Actualizar beneficiario existente
+                        try:
+                            beneficiario = Beneficiario.objects.get(id=beneficiario_existente_id)
+                            beneficiario.comunidad = comunidad
+                            beneficiario.activo = True
+                            beneficiario.save()
+                            
+                            beneficiario_individual = beneficiario.individual
+                            beneficiario_individual.nombre = nombre
+                            beneficiario_individual.apellido = apellido
+                            if fecha_nac:
+                                beneficiario_individual.fecha_nacimiento = fecha_nac
+                            if genero:
+                                beneficiario_individual.genero = genero
+                            if telefono:
+                                beneficiario_individual.telefono = telefono
+                            beneficiario_individual.save()
+                            
+                            resultados['actualizados'] += 1
+                                
+                        except Beneficiario.DoesNotExist:
+                            resultados['errores'].append({
+                                'error': f'Beneficiario {beneficiario_existente_id} no encontrado para actualizar',
+                                'datos': benef_data
+                            })
+                            continue
+                    else:
+                        # Crear nuevo beneficiario
+                        beneficiario = Beneficiario.objects.create(
+                            tipo=tipo_individual,
+                            comunidad=comunidad,
+                            activo=True
+                        )
+                        
+                        BeneficiarioIndividual.objects.create(
+                            beneficiario=beneficiario,
+                            nombre=nombre,
+                            apellido=apellido,
+                            dpi=dpi,
+                            fecha_nacimiento=fecha_nac,
+                            genero=genero,
+                            telefono=telefono
+                        )
+                        
+                        resultados['creados'] += 1
+                        
+                except Exception as e:
+                    resultados['errores'].append({
+                        'error': f'Error al procesar beneficiario: {str(e)}',
+                        'datos': benef_data
+                    })
+                    continue
+        
+        mensaje = f'Proceso completado: {resultados["creados"]} creados, {resultados["actualizados"]} actualizados'
+        if resultados['errores']:
+            mensaje += f', {len(resultados["errores"])} errores'
+        
+        return JsonResponse({
+            'success': True,
+            'message': mensaje,
+            'resultados': resultados
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al guardar beneficiarios: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
+def api_guardar_beneficiarios_pendientes(request):
+    """API: Guardar beneficiarios pendientes de Excel y vincularlos al evento"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        data = _parse_request_data(request)
+        actividad_id = data.get('actividad_id')
+        beneficiarios_pendientes = data.get('beneficiarios_pendientes', [])
+        
+        if not actividad_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'ID de actividad no proporcionado'
+            }, status=400)
+        
+        if not beneficiarios_pendientes:
+            return JsonResponse({
+                'success': False,
+                'error': 'No hay beneficiarios pendientes para guardar'
+            }, status=400)
+        
+        # Validar que la actividad existe
+        try:
+            actividad = Actividad.objects.get(id=actividad_id, eliminado_en__isnull=True)
+        except Actividad.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Actividad no encontrada'
+            }, status=404)
+        
+        # Obtener tipo de beneficiario "individual"
+        try:
+            tipo_individual = TipoBeneficiario.objects.get(nombre='individual')
+        except TipoBeneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tipo de beneficiario "individual" no encontrado'
+            }, status=500)
+        
+        resultados = {
+            'creados': 0,
+            'actualizados': 0,
+            'vinculados': 0,
+            'errores': []
+        }
+        
+        with transaction.atomic():
+            for benef_data in beneficiarios_pendientes:
+                try:
+                    comunidad_id = benef_data.get('comunidad_id')
+                    nombre = benef_data.get('nombre')
+                    apellido = benef_data.get('apellido')
+                    dpi = benef_data.get('dpi')
+                    fecha_nacimiento = benef_data.get('fecha_nacimiento')
+                    genero = benef_data.get('genero')
+                    telefono = benef_data.get('telefono')
+                    es_actualizacion = benef_data.get('es_actualizacion', False)
+                    beneficiario_existente_id = benef_data.get('beneficiario_existente_id')
+                    
+                    # Validar campos obligatorios
+                    if not nombre or not apellido or not comunidad_id:
+                        resultados['errores'].append({
+                            'error': 'Faltan campos obligatorios',
+                            'datos': benef_data
+                        })
+                        continue
+                    
+                    # Obtener comunidad
+                    try:
+                        comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+                    except Comunidad.DoesNotExist:
+                        resultados['errores'].append({
+                            'error': f'Comunidad {comunidad_id} no encontrada',
+                            'datos': benef_data
+                        })
+                        continue
+                    
+                    # Procesar fecha de nacimiento
+                    fecha_nac = None
+                    if fecha_nacimiento:
+                        try:
+                            if isinstance(fecha_nacimiento, str):
+                                fecha_nac = datetime.fromisoformat(fecha_nacimiento).date()
+                            elif hasattr(fecha_nacimiento, 'date'):
+                                fecha_nac = fecha_nacimiento.date() if isinstance(fecha_nacimiento, datetime) else fecha_nacimiento
+                        except (ValueError, AttributeError, TypeError):
+                            pass
+                    
+                    if es_actualizacion and beneficiario_existente_id:
+                        # Actualizar beneficiario existente
+                        try:
+                            beneficiario = Beneficiario.objects.get(id=beneficiario_existente_id)
+                            beneficiario.comunidad = comunidad
+                            beneficiario.activo = True
+                            beneficiario.save()
+                            
+                            beneficiario_individual = beneficiario.individual
+                            beneficiario_individual.nombre = nombre
+                            beneficiario_individual.apellido = apellido
+                            if fecha_nac:
+                                beneficiario_individual.fecha_nacimiento = fecha_nac
+                            if genero:
+                                beneficiario_individual.genero = genero
+                            if telefono:
+                                beneficiario_individual.telefono = telefono
+                            beneficiario_individual.save()
+                            
+                            resultados['actualizados'] += 1
+                            
+                            # Vincular al evento
+                            _, creado = ActividadBeneficiario.objects.get_or_create(
+                                actividad=actividad,
+                                beneficiario=beneficiario
+                            )
+                            if creado:
+                                resultados['vinculados'] += 1
+                                
+                        except Beneficiario.DoesNotExist:
+                            resultados['errores'].append({
+                                'error': f'Beneficiario {beneficiario_existente_id} no encontrado para actualizar',
+                                'datos': benef_data
+                            })
+                            continue
+                    else:
+                        # Crear nuevo beneficiario
+                        beneficiario = Beneficiario.objects.create(
+                            tipo=tipo_individual,
+                            comunidad=comunidad,
+                            activo=True
+                        )
+                        
+                        BeneficiarioIndividual.objects.create(
+                            beneficiario=beneficiario,
+                            nombre=nombre,
+                            apellido=apellido,
+                            dpi=dpi,
+                            fecha_nacimiento=fecha_nac,
+                            genero=genero,
+                            telefono=telefono
+                        )
+                        
+                        resultados['creados'] += 1
+                        
+                        # Vincular al evento
+                        ActividadBeneficiario.objects.create(
+                            actividad=actividad,
+                            beneficiario=beneficiario
+                        )
+                        resultados['vinculados'] += 1
+                        
+                except Exception as e:
+                    resultados['errores'].append({
+                        'error': f'Error al procesar beneficiario: {str(e)}',
+                        'datos': benef_data
+                    })
+                    continue
+        
+        mensaje = f'Proceso completado: {resultados["creados"]} creados, {resultados["actualizados"]} actualizados, {resultados["vinculados"]} vinculados al evento'
+        if resultados['errores']:
+            mensaje += f', {len(resultados["errores"])} errores'
+        
+        return JsonResponse({
+            'success': True,
+            'message': mensaje,
+            'resultados': resultados
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al guardar beneficiarios: {str(e)}'
+        }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["GET"])
+def api_descargar_plantilla_beneficiarios(request):
+    """API: Descargar plantilla Excel para importar beneficiarios individuales"""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        # Crear workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Beneficiarios Individuales"
+        
+        # Definir encabezados
+        headers = ['tipo', 'comunidad', 'nombre', 'apellido', 'dpi', 'fecha de nacimiento', 'edad', 'genero', 'telefono']
+        
+        # Estilo para encabezados
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Escribir encabezados
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+        
+        # Ajustar ancho de columnas
+        column_widths = [12, 25, 20, 20, 15, 18, 8, 12, 12]
+        for col_num, width in enumerate(column_widths, 1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = width
+        
+        # Agregar fila de ejemplo
+        ejemplo = ['individual', 'Ejemplo Comunidad', 'Juan', 'Pérez García', '1234567890101', '1990-01-15', '34', 'masculino', '55123456']
+        for col_num, valor in enumerate(ejemplo, 1):
+            cell = ws.cell(row=2, column=col_num)
+            cell.value = valor
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+        
+        # Crear respuesta HTTP
+        from django.http import HttpResponse
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="plantilla_beneficiarios_individuales.xlsx"'
+        
+        wb.save(response)
+        return response
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al generar la plantilla: {str(e)}'
         }, status=500)
 
 
@@ -10303,7 +11012,7 @@ def api_actualizar_comunidad_datos(request, comunidad_id):
                 orden=card['orden'],
             )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad, request)
 
     return JsonResponse(
         {
@@ -10430,7 +11139,7 @@ def api_agregar_imagen_comunidad(request, comunidad_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload = _serialize_comunidad_detalle(updated)
+    payload = _serialize_comunidad_detalle(updated, request)
 
     return JsonResponse(
         {
@@ -10494,7 +11203,7 @@ def api_eliminar_imagen_comunidad(request, comunidad_id, imagen_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload = _serialize_comunidad_detalle(updated)
+    payload = _serialize_comunidad_detalle(updated, request)
 
     return JsonResponse(
         {
@@ -10546,7 +11255,7 @@ def api_actualizar_comunidad_descripcion(request, comunidad_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
@@ -10615,7 +11324,7 @@ def api_agregar_archivo_comunidad(request, comunidad_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
@@ -10676,7 +11385,7 @@ def api_eliminar_archivo_comunidad(request, comunidad_id, archivo_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
@@ -10720,7 +11429,7 @@ def api_actualizar_archivo_comunidad(request, comunidad_id, archivo_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
