@@ -885,12 +885,26 @@ def api_foto_perfil(request):
         # Obtener foto de perfil
         try:
             foto_perfil = UsuarioFotoPerfil.objects.get(usuario=usuario_maga)
+            foto_url = foto_perfil.url_almacenamiento
+            print(f"📤 GET foto de perfil - URL en BD: {foto_url}")
+            
+            # Verificar si el archivo existe físicamente
+            if foto_url:
+                file_path = _normalizar_ruta_media(foto_url)
+                if file_path:
+                    file_exists = os.path.exists(file_path)
+                    print(f"🔍 Archivo existe físicamente: {file_exists}")
+                    print(f"📂 Ruta del archivo: {file_path}")
+                    if not file_exists:
+                        print(f"⚠️ ADVERTENCIA: El archivo no existe en el sistema de archivos pero está en la BD")
+            
             return JsonResponse({
                 'success': True,
-                'foto_url': foto_perfil.url_almacenamiento,
+                'foto_url': foto_url,
                 'archivo_nombre': foto_perfil.archivo_nombre
             })
         except UsuarioFotoPerfil.DoesNotExist:
+            print(f"📤 GET foto de perfil - No hay foto de perfil para este usuario")
             return JsonResponse({
                 'success': True,
                 'foto_url': None
