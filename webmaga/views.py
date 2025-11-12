@@ -5481,14 +5481,13 @@ def api_reminders_check_background(request):
                 tiempo_absoluto = abs(tiempo_restante)
                 incluir = False
                 
-                if tiempo_restante > 0:
-                    # Aún no ha llegado, incluir si está dentro de los próximos 2 minutos
-                    if tiempo_restante <= 120:  # Próximos 2 minutos
-                        incluir = True
-                elif tiempo_restante < 0:
+                # SOLO incluir recordatorios que YA PASARON (no futuros)
+                # Esto evita que se envíen notificaciones cuando se crea el recordatorio
+                if tiempo_restante <= 0:
                     # Ya pasó, solo incluir si está dentro de los 15 minutos
                     if tiempo_absoluto <= LIMITE_SEGUNDOS:
                         incluir = True
+                # NO incluir recordatorios futuros - esperar a que llegue la hora
                 
                 if incluir:
                     # Formatear fecha y hora

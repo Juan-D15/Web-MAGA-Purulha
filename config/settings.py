@@ -135,6 +135,14 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
+# Configuración de sesiones
+# La sesión durará una semana (7 días) y no se cerrará al cerrar el navegador
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # No cerrar sesión al cerrar el navegador
+SESSION_COOKIE_AGE = 604800  # 7 días en segundos (7 * 24 * 60 * 60 = 604800)
+SESSION_SAVE_EVERY_REQUEST = True  # Renovar la sesión con cada solicitud para mantenerla activa
+SESSION_COOKIE_HTTPONLY = True  # Seguridad: evitar acceso desde JavaScript
+SESSION_COOKIE_SAMESITE = 'Lax'  # Protección CSRF
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

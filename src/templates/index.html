@@ -357,6 +357,14 @@
     .form-label{color:#dfe9f7;font-weight:700;font-size:0.9rem}
     .form-input,.form-select,.form-textarea{background:#1d2531;border:1px solid #ffffff1f;color:#eef5ff;border-radius:8px;padding:8px 10px;font-size:0.9rem}
     .form-textarea{min-height:70px;resize:vertical}
+    /* Asegurar que el color del texto se mantenga negro mientras está enfocado (escribiendo o no) */
+    /* Solo cambiar a blanco cuando pierde el foco (blur) */
+    #reminderDescription{color:#eef5ff !important;background:#1d2531 !important}
+    #reminderDescription:focus{color:#000000 !important;background:#ffffff !important;-webkit-text-fill-color:#000000 !important}
+    #reminderDescription:focus:not(:placeholder-shown){color:#000000 !important;background:#ffffff !important;-webkit-text-fill-color:#000000 !important}
+    /* Prevenir que el autofill cambie el color cuando está enfocado */
+    #reminderDescription:-webkit-autofill:focus{color:#000000 !important;-webkit-text-fill-color:#000000 !important;background:#ffffff !important;box-shadow:0 0 0 1000px #ffffff inset !important}
+    #reminderDescription:-webkit-autofill:not(:focus){color:#eef5ff !important;-webkit-text-fill-color:#eef5ff !important;background:#1d2531 !important;box-shadow:0 0 0 1000px #1d2531 inset !important}
     /* Checklist de colaboradores */
     .collaborators-checklist{max-height:180px;overflow-y:auto;background:#1d2531;border:1px solid #ffffff1f;border-radius:8px;padding:8px;display:grid;gap:6px}
     .collaborator-checkbox{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background .15s ease}
@@ -3059,6 +3067,36 @@
       const newDescInput = descInput.cloneNode(true);
       descInput.parentNode.replaceChild(newDescInput, descInput);
       
+      // Función para mantener el color negro mientras está enfocado
+      const mantenerColorNegro = () => {
+        if(document.activeElement === newDescInput){
+          newDescInput.style.color = '#000000';
+          newDescInput.style.background = '#ffffff';
+          newDescInput.style.webkitTextFillColor = '#000000';
+        }
+      };
+      
+      // Variable para el intervalo de verificación
+      let colorCheckInterval = null;
+      
+      // Asegurar que el color se mantenga negro cuando se enfoca el campo
+      newDescInput.addEventListener('focus', () => {
+        mantenerColorNegro();
+        // Verificar cada 100ms que el color se mantenga negro mientras está enfocado
+        if(colorCheckInterval){
+          clearInterval(colorCheckInterval);
+        }
+        colorCheckInterval = setInterval(() => {
+          if(document.activeElement === newDescInput){
+            mantenerColorNegro();
+          } else {
+            clearInterval(colorCheckInterval);
+            colorCheckInterval = null;
+          }
+        }, 100);
+      });
+      
+      // Mantener color negro mientras está escribiendo
       newDescInput.addEventListener('input', () => {
         const descError = document.getElementById('reminderDescriptionError');
         if(newDescInput.value.trim().length > 0){
@@ -3067,6 +3105,22 @@
           }
           newDescInput.style.border = '';
         }
+        mantenerColorNegro();
+      });
+      
+      // Mantener color negro cuando se presiona una tecla
+      newDescInput.addEventListener('keydown', mantenerColorNegro);
+      newDescInput.addEventListener('keyup', mantenerColorNegro);
+      
+      // Solo cambiar a blanco cuando pierde el foco
+      newDescInput.addEventListener('blur', () => {
+        if(colorCheckInterval){
+          clearInterval(colorCheckInterval);
+          colorCheckInterval = null;
+        }
+        newDescInput.style.color = '#eef5ff';
+        newDescInput.style.background = '#1d2531';
+        newDescInput.style.webkitTextFillColor = '#eef5ff';
       });
     }
   }

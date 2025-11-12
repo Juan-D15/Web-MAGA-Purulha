@@ -157,20 +157,29 @@ async function checkRemindersFromServiceWorker() {
       const recordar = reminder.recordar || false;
       const yaEnviado = reminder.enviado || false;
       
-      // Mostrar notificaciones que están listas:
-      // 1. Recordatorios que ya pasaron pero están dentro del límite de 15 minutos (prioridad)
-      // 2. Recordatorios futuros que están muy cercanos (dentro de 2 minutos para mejor detección)
-      const debeMostrar = (tiempoRestante <= 0 && tiempoRestante >= -900) || // Ya pasó pero dentro de 15 minutos
-                          (tiempoRestante > 0 && tiempoRestante <= 120); // Próximos 2 minutos (más margen para Android)
+      // SOLO mostrar notificaciones para recordatorios que YA PASARON
+      // NO enviar notificaciones para recordatorios futuros - esperar a que llegue la hora
+      // Solo incluir recordatorios que ya pasaron pero están dentro de los 15 minutos
+      const debeMostrar = tiempoRestante <= 0 && tiempoRestante >= -900; // Ya pasó pero dentro de 15 minutos
       
       if (debeMostrar) {
         // Verificar si ya fue enviado
+        // Si ya fue enviado y NO tiene la opción "recordar", no enviar
         if (yaEnviado && !recordar) {
           return; // Ya enviado y sin recordar, saltar
         }
         
+        // IMPORTANTE: El Service Worker NO debe reenviar automáticamente
+        // Solo debe enviar la notificación principal una vez
+        // El reenvío solo ocurre cuando el usuario recarga index.html y tiene "recordar" activado
+        if (yaEnviado && recordar) {
+          // Si ya fue enviado y tiene "recordar", NO reenviar desde el Service Worker
+          // El reenvío se maneja solo en index.html cuando el usuario recarga la página
+          return;
+        }
+        
         // Crear clave única para evitar duplicados
-        const notificationKey = `${reminderId}-${recordar ? 'reenviar' : 'principal'}`;
+        const notificationKey = `${reminderId}-principal`;
         
         // Verificar si ya enviamos esta notificación recientemente (últimos 5 minutos)
         if (sentNotifications.has(notificationKey)) {
@@ -178,8 +187,8 @@ async function checkRemindersFromServiceWorker() {
           return;
         }
         
-        // Construir título y cuerpo
-        const title = recordar ? '🔔 Recordatorio (Recordar)' : '🔔 Recordatorio';
+        // Construir título y cuerpo (solo notificación principal, no reenvío)
+        const title = '🔔 Recordatorio';
         let body = reminder.descripcion || '';
         
         if (reminder.evento_nombre || reminder.titulo) {
@@ -194,9 +203,9 @@ async function checkRemindersFromServiceWorker() {
           body += (body ? '\n' : '') + `👥 Personal: ${reminder.owners_text}`;
         }
         
-        const tag = `reminder-${reminderId}${recordar ? '-reenviar' : ''}`;
+        const tag = `reminder-${reminderId}`;
         
-        console.log('[Service Worker] Mostrando notificación push:', { reminderId, tag, title });
+        console.log('[Service Worker] Mostrando notificación push:', { reminderId, tag, title, tiempoRestante });
         
         // Mostrar notificación usando Promise para asegurar que se muestre
         // Incluir vibración (se ignora en desktop, funciona en Android)
@@ -210,7 +219,7 @@ async function checkRemindersFromServiceWorker() {
           vibrate: [200, 100, 200], // Vibración (se ignora en desktop, funciona en Android)
           data: {
             reminderId: reminderId,
-            isReenviar: recordar
+            isReenviar: false  // Service Worker solo envía notificaciones principales
           },
           timestamp: Date.now()
         });
@@ -224,8 +233,8 @@ async function checkRemindersFromServiceWorker() {
             sentNotifications.delete(notificationKey);
           }, 5 * 60 * 1000); // 5 minutos
           
-          // Marcar como enviado en el backend si no es reenvío
-          if (!recordar && !yaEnviado) {
+          // Marcar como enviado en el backend (solo notificación principal)
+          if (!yaEnviado) {
             fetch(`${baseUrl}/api/reminders/${reminderId}/marcar-enviado/`, {
               method: 'POST',
               credentials: 'same-origin',
