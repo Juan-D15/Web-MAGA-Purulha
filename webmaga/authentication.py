@@ -30,10 +30,12 @@ class UsuarioMAGABackend(BaseBackend):
                 return None
             
             # Verificar si el usuario está activo
+            # NOTA: Esto aplica tanto para usuarios admin como personal
             if not usuario_maga.activo:
                 return None
             
             # Verificar si está bloqueado
+            # NOTA: Esto aplica tanto para usuarios admin como personal
             if usuario_maga.bloqueado_hasta:
                 from django.utils import timezone
                 if usuario_maga.bloqueado_hasta > timezone.now():
@@ -54,17 +56,20 @@ class UsuarioMAGABackend(BaseBackend):
                 usuario_maga.save(update_fields=['ultimo_login'])
                 
                 # Crear o obtener el User de Django para la sesión
+                # NOTA: Los usuarios admin (rol == 'admin') se autentican igual que los personal
+                # La única diferencia es que se les asigna is_staff=True e is_superuser=True
                 user, created = User.objects.get_or_create(
                     username=usuario_maga.username,
                     defaults={
                         'email': usuario_maga.email,
                         'is_active': usuario_maga.activo,
-                        'is_staff': usuario_maga.rol == 'admin',
-                        'is_superuser': usuario_maga.rol == 'admin'
+                        'is_staff': usuario_maga.rol == 'admin',  # Admin tiene acceso al admin de Django
+                        'is_superuser': usuario_maga.rol == 'admin'  # Admin tiene todos los permisos
                     }
                 )
                 
                 # Actualizar campos si el usuario ya existía
+                # NOTA: Si un usuario cambió de rol, se actualiza aquí
                 if not created:
                     user.email = usuario_maga.email
                     user.is_active = usuario_maga.activo

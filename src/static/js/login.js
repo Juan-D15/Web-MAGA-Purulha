@@ -492,15 +492,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Formulario de login: interceptar para soportar modo offline
+  // Formulario de login: interceptar solo para modo offline o para guardar credenciales
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
     loginForm.addEventListener('submit', async function(e) {
+      // Si ya se está enviando automáticamente, permitir el envío normal
       if (this.dataset.autoSubmitting === 'true') {
         return;
       }
-      e.preventDefault();
-      clearLoginInlineMessage();
 
       const usernameInput = document.getElementById('usernameOrEmail');
       const passwordInput = document.getElementById('password');
@@ -510,7 +509,10 @@ document.addEventListener('DOMContentLoaded', function() {
       const usernameValue = usernameInput?.value?.trim() || '';
       const passwordValue = passwordInput?.value || '';
 
+      // Validación básica del lado del cliente
       if (!usernameValue || !passwordValue) {
+        e.preventDefault();
+        clearLoginInlineMessage();
         showLoginInlineMessage('Ingresa tu usuario y contraseña para continuar.', 'error');
         if (submitButton) {
           submitButton.disabled = false;
@@ -519,13 +521,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
 
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = navigator.onLine ? 'Validando...' : 'Verificando...';
-      }
+      // Si estamos en modo offline, manejar el login offline
+      if (!navigator.onLine) {
+        e.preventDefault();
+        clearLoginInlineMessage();
+        
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = 'Verificando...';
+        }
 
-      try {
-        if (!navigator.onLine) {
+        try {
           if (!window.OfflineAuth || typeof window.OfflineAuth.tryOfflineLogin !== 'function') {
             throw new Error('Este dispositivo no cuenta con credenciales offline guardadas.');
           }
@@ -537,28 +543,43 @@ document.addEventListener('DOMContentLoaded', function() {
           setTimeout(() => {
             window.location.href = result.redirectUrl || '/';
           }, 600);
-          return;
+        } catch (error) {
+          console.error('Error en flujo de login offline:', error);
+          showLoginInlineMessage(error.message || 'No fue posible iniciar sesión.', 'error');
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Acceder';
+          }
         }
+        return;
+      }
 
+      // Si estamos en línea, permitir que el formulario se envíe normalmente
+      // Solo guardar credenciales si está marcado "recordar usuario" (sin bloquear el envío)
+      try {
         if (rememberCheckbox?.checked && window.OfflineAuth && typeof window.OfflineAuth.storeCredential === 'function') {
-          await window.OfflineAuth.storeCredential(usernameValue, passwordValue);
+          // Guardar en segundo plano sin bloquear el envío
+          window.OfflineAuth.storeCredential(usernameValue, passwordValue).catch(err => {
+            console.warn('No se pudo guardar credencial para modo offline:', err);
+          });
         } else if (window.OfflineAuth && typeof window.OfflineAuth.removeCredential === 'function') {
+          // Remover credencial si no está marcado "recordar"
           window.OfflineAuth.removeCredential(usernameValue);
         }
-
-        this.dataset.autoSubmitting = 'true';
-        if (submitButton) {
-          submitButton.textContent = 'Validando...';
-        }
-        HTMLFormElement.prototype.submit.call(this);
-      } catch (error) {
-        console.error('Error en flujo de login:', error);
-        showLoginInlineMessage(error.message || 'No fue posible iniciar sesión.', 'error');
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.textContent = 'Acceder';
-        }
+      } catch (err) {
+        // Si hay un error con OfflineAuth, no bloquear el envío del formulario
+        console.warn('Error al manejar credenciales offline:', err);
       }
+
+      // Mostrar estado de carga pero permitir que el formulario se envíe normalmente
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Validando...';
+      }
+
+      // El formulario se enviará normalmente al servidor para validación
+      // Django validará las credenciales y mostrará errores si es necesario
+      // Si hay errores, Django renderizará el template nuevamente con form.non_field_errors
     });
   }
   

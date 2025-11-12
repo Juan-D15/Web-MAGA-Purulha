@@ -143,32 +143,15 @@
   </div>
 
   <div id="djangoContextData"
-       data-url-mapa-completo="{% url 'webmaga:mapa-completo' %}"
        data-url-login="{% url 'webmaga:login' %}"
        data-url-logout="{% url 'webmaga:logout' %}"
-       data-url-gestiones="{% url 'webmaga:gestioneseventos' %}"
-       data-url-proyectos="{% url 'webmaga:proyectos' %}"
-       data-url-reportes="{% url 'webmaga:reportes-index' %}"
-       data-url-perfil="{% url 'webmaga:perfilusuario' %}"
-       data-url-config="{% url 'webmaga:configgeneral' %}"
-       data-url-preguntas="{% url 'webmaga:preguntas-frecuentes' %}"
-       data-url-usuario="{% url 'webmaga:api-usuario' %}"
-       data-url-calendar="{% url 'webmaga:api-calendar-events' %}"
-       data-url-events-list="{% url 'webmaga:api-events-list' %}"
-       data-url-avances="{% url 'webmaga:api-avances' %}"
-       data-url-reminders="{% url 'webmaga:api-reminders' %}"
-       data-url-reminders-pending="{% url 'webmaga:api-reminders-pending' %}"
-       data-url-marcar-notificacion="/api/reminders/"
-       data-url-collaborators="{% url 'webmaga:api-collaborators' %}"
-       data-user-authenticated="{% if user.is_authenticated %}true{% else %}false{% endif %}"
-       data-user-admin="{% if es_admin %}true{% else %}false{% endif %}"
-       data-user-personal="{% if es_personal %}true{% else %}false{% endif %}"
-       data-user-username="{{ usuario_maga.username|default:'' }}"
-       data-user-email="{{ usuario_maga.email|default:'' }}"
+       data-user-authenticated="false"
+       data-user-admin="false"
+       data-user-personal="false"
+       data-user-username=""
+       data-user-email=""
        style="display:none;"></div>
 
-  <script src="{% static 'js/context-loader.js' %}?v=2"></script>
-  <script src="{% static 'js/offline-auth.js' %}?v=1"></script>
   <script src="{% static 'js/login.js' %}?v=3"></script>
 </body>
 </html>

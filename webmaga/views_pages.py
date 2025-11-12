@@ -253,10 +253,8 @@ def login_view(request):
             # Las cookies persistentes (con max_age) se mantienen en Android a diferencia de las session cookies
             session_key = request.session.session_key
             if session_key:
-                expires = datetime.utcnow() + timedelta(seconds=604800)  # 7 días desde ahora
                 cookie_kwargs = {
                     'max_age': 604800,  # 7 días en segundos (crítico para Android)
-                    'expires': expires,
                     'path': getattr(settings, 'SESSION_COOKIE_PATH', '/'),
                     'httponly': getattr(settings, 'SESSION_COOKIE_HTTPONLY', True),
                     'samesite': getattr(settings, 'SESSION_COOKIE_SAMESITE', 'Lax')
