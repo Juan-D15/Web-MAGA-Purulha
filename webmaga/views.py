@@ -740,8 +740,15 @@ def api_foto_perfil(request):
                 }, status=400)
             
             # Crear directorio si no existe
-            perfiles_dir = os.path.join(settings.MEDIA_ROOT, 'perfiles_img')
+            perfiles_dir = os.path.join(str(settings.MEDIA_ROOT), 'perfiles_img')
             os.makedirs(perfiles_dir, exist_ok=True)
+            
+            # Verificar permisos de escritura
+            if not os.access(perfiles_dir, os.W_OK):
+                return JsonResponse({
+                    'success': False,
+                    'error': f'No se tienen permisos de escritura en {perfiles_dir}'
+                }, status=500)
             
             # Guardar archivo
             fs = FileSystemStorage(location=perfiles_dir)
@@ -766,8 +773,9 @@ def api_foto_perfil(request):
                 # Si ya existe, eliminar archivo anterior
                 old_url = foto_perfil.url_almacenamiento
                 if old_url:
-                    old_path = old_url.replace('/media/', settings.MEDIA_ROOT + '/')
-                    if os.path.exists(old_path):
+                    # Usar la función de normalización existente o construir la ruta correctamente
+                    old_path = _normalizar_ruta_media(old_url)
+                    if old_path and os.path.exists(old_path):
                         try:
                             os.remove(old_path)
                         except:
@@ -787,6 +795,10 @@ def api_foto_perfil(request):
             })
             
         except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"❌ Error al subir foto de perfil: {str(e)}")
+            print(f"📋 Traceback completo:\n{error_trace}")
             return JsonResponse({
                 'success': False,
                 'error': f'Error al subir la foto: {str(e)}'
