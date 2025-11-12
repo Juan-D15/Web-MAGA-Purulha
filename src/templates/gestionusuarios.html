@@ -82,6 +82,20 @@
             </button>
           </div>
 
+          <!-- Filtros -->
+          <div class="list-filters" style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+            <div style="position: relative; flex: 1 1 260px; min-width: 220px;">
+              <input type="search" id="usersSearchInput" class="form-input" placeholder="Buscar por usuario, nombre, correo o teléfono...">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            <select id="usersPuestoFilter" class="form-select" style="flex: 0 0 220px;">
+              <option value="">Todos los puestos</option>
+            </select>
+          </div>
+
           <!-- Lista de Usuarios -->
           <div id="usersListContainer">
             <h3 style="color: var(--text-primary); margin-bottom: 20px;">Usuarios Existentes</h3>
@@ -117,6 +131,20 @@
               </svg>
               Crear Nuevo Colaborador
             </button>
+          </div>
+
+          <!-- Filtros -->
+          <div class="list-filters" style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+            <div style="position: relative; flex: 1 1 260px; min-width: 220px;">
+              <input type="search" id="colaboradoresSearchInput" class="form-input" placeholder="Buscar por nombre, correo, teléfono o puesto...">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            <select id="colaboradoresPuestoFilter" class="form-select" style="flex: 0 0 220px;">
+              <option value="">Todos los puestos</option>
+            </select>
           </div>
 
           <!-- Lista de Colaboradores -->
@@ -422,14 +450,13 @@
             </small>
           </div>
 
-          <!-- Personal Fijo -->
           <div class="form-group">
-            <label class="form-label">
-              <input type="checkbox" id="editColaboradorEsPersonalFijo" name="es_personal_fijo">
-              <span>Es Personal Fijo</span>
-            </label>
+            <label class="form-label">Personal Fijo</label>
+            <div id="editColaboradorPersonalFijoStatus" class="status-pill" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: 0.85rem; background: rgba(108, 117, 125, 0.15); color: #6c757d;">
+              <span>Sin usuario asignado</span>
+            </div>
             <small style="color: var(--text-muted); display: block; margin-top: 6px;">
-              Los colaboradores con usuario asignado son automáticamente personal fijo.
+              Este estado se actualiza automáticamente cuando el colaborador tiene usuario del sistema.
             </small>
           </div>
 
@@ -513,9 +540,24 @@
           <!-- Selección de Colaborador Existente -->
           <div class="form-group">
             <label for="colaboradorSelect" class="form-label">Vincular con Colaborador Existente (Opcional)</label>
-            <select id="colaboradorSelect" class="form-select">
-              <option value="">Seleccione un colaborador...</option>
-            </select>
+            <div class="collaborator-picker" style="display: grid; gap: 8px;">
+              <div class="collaborator-search" style="display: grid; grid-template-columns: 1fr 220px; gap: 8px;">
+                <div style="position: relative;">
+                  <input type="search" id="colaboradorSearchInput" class="form-input" placeholder="Buscar por nombre, correo o teléfono...">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </div>
+                <select id="colaboradorPuestoFilter" class="form-select">
+                  <option value="">Todos los puestos</option>
+                </select>
+              </div>
+              <div id="colaboradorSuggestions" style="display: none; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; background: rgba(20, 28, 40, 0.95); max-height: 220px; overflow-y: auto; padding: 6px; box-shadow: 0 12px 30px rgba(0,0,0,0.35); z-index: 5;"></div>
+              <select id="colaboradorSelect" class="form-select">
+                <option value="">Seleccione un colaborador...</option>
+              </select>
+            </div>
             <small style="color: var(--text-muted); display: block; margin-top: 6px;">
               Si selecciona un colaborador, algunos campos se autocompletarán. Los colaboradores que ya tienen usuario asignado aparecerán marcados.
             </small>
@@ -710,15 +752,8 @@
             </small>
           </div>
 
-          <!-- Es Personal Fijo -->
-          <div class="form-group">
-            <label class="form-label">
-              <input type="checkbox" id="colaboradorEsPersonalFijo" name="es_personal_fijo" disabled>
-              Es Personal Fijo de Oficina
-            </label>
-            <small>
-              Un colaborador solo puede ser marcado como "Personal Fijo" cuando se vincula con un usuario del sistema. Para hacerlo, cree primero el usuario y vincúlelo al colaborador.
-            </small>
+          <div class="info-note" style="margin-top: 12px; font-size: 0.85rem; color: var(--text-muted);">
+            Los colaboradores se marcan automáticamente como <strong>Personal Fijo</strong> cuando se les asigna un usuario del sistema.
           </div>
 
           <!-- Estado -->
@@ -773,5 +808,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestionusuarios.js' %}?v=2"></script>
+  <script src="{% static 'js/gestionusuarios.js' %}?v=3"></script>
 {% endblock %}

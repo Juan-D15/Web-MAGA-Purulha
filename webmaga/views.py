@@ -5006,6 +5006,16 @@ def api_actualizar_archivo_evento(request, evento_id, archivo_id):
 # =====================================================
 # APIs PARA GESTIÓN DE CAMBIOS
 # =====================================================
+def _to_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ('1', 'true', 'yes', 'on')
+    return bool(value)
+
+
 @solo_administrador
 @require_http_methods(["GET"])
 def api_listar_usuarios(request):
@@ -5065,15 +5075,15 @@ def api_crear_usuario(request):
     try:
         data = json.loads(request.body or '{}')
         
-        username = data.get('username', '').strip()
-        nombre = data.get('nombre', '').strip()
-        email = data.get('email', '').strip()
-        telefono = data.get('telefono', '').strip()
-        password = data.get('password', '')
-        password_confirm = data.get('password_confirm', '')
-        rol = data.get('rol', '').strip()
-        puesto_id = data.get('puesto_id', '').strip()
-        colaborador_id = data.get('colaborador_id', '').strip()
+        username = (data.get('username') or '').strip()
+        nombre = (data.get('nombre') or '').strip()
+        email = (data.get('email') or '').strip()
+        telefono = (data.get('telefono') or '').strip()
+        password = data.get('password') or ''
+        password_confirm = data.get('password_confirm') or ''
+        rol = (data.get('rol') or '').strip()
+        puesto_id = (data.get('puesto_id') or '').strip()
+        colaborador_id = (data.get('colaborador_id') or '').strip()
         
         # Validaciones
         if not username or not email or not password:
@@ -5126,6 +5136,11 @@ def api_crear_usuario(request):
                         'success': False,
                         'error': 'Este colaborador ya tiene un usuario asignado'
                     }, status=400)
+                if not colaborador.activo:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'No se puede vincular un colaborador inactivo.'
+                    }, status=400)
             except Colaborador.DoesNotExist:
                 return JsonResponse({
                     'success': False,
@@ -5165,8 +5180,9 @@ def api_crear_usuario(request):
         # Vincular con colaborador si se proporciona
         if colaborador:
             colaborador.usuario = usuario
-            colaborador.es_personal_fijo = True
-            colaborador.save()
+            if not colaborador.es_personal_fijo:
+                colaborador.es_personal_fijo = True
+            colaborador.save(update_fields=['usuario', 'es_personal_fijo'])
         
         return JsonResponse({
             'success': True,
@@ -6185,14 +6201,14 @@ def api_crear_colaborador(request):
         usuario_maga = get_usuario_maga(request.user)
         data = json.loads(request.body or '{}')
         
-        nombre = data.get('nombre', '').strip()
-        puesto_id = data.get('puesto_id', '').strip()
-        descripcion = data.get('descripcion', '').strip()
-        telefono = data.get('telefono', '').strip()
-        correo = data.get('correo', '').strip()
-        dpi = data.get('dpi', '').strip()
-        es_personal_fijo = data.get('es_personal_fijo', False)
-        activo = data.get('activo', True)
+        nombre = (data.get('nombre') or '').strip()
+        puesto_id = (data.get('puesto_id') or '').strip()
+        descripcion = (data.get('descripcion') or '').strip()
+        telefono = (data.get('telefono') or '').strip()
+        correo = (data.get('correo') or '').strip()
+        dpi = (data.get('dpi') or '').strip()
+        es_personal_fijo = _to_bool(data.get('es_personal_fijo'), False)
+        activo = _to_bool(data.get('activo'), True)
         
         # Validaciones
         if not nombre:
@@ -6212,18 +6228,14 @@ def api_crear_colaborador(request):
                     'error': 'Puesto no encontrado'
                 }, status=404)
         
-        # Validar restricción de personal fijo
-        # Si es_personal_fijo es True, debe tener usuario_id asignado
-        # Si no tiene usuario_id, no puede ser personal fijo
+        # Validar restricción de personal fijo: solo se permite si se vincula un usuario
         if es_personal_fijo:
-            # No se puede crear un colaborador como personal fijo sin usuario asignado
-            # Esto solo se puede hacer cuando se vincula con un usuario existente o se crea primero el usuario
             return JsonResponse({
                 'success': False,
-                'error': 'No se puede crear un colaborador como personal fijo sin usuario asignado. Primero cree el usuario del sistema y luego vincúlelo.'
+                'error': 'No se puede marcar como personal fijo sin un usuario vinculado. Primero cree el colaborador y luego genere el usuario correspondiente desde la gestión de usuarios.'
             }, status=400)
-        
-        # Crear colaborador (siempre como no personal fijo al inicio)
+
+        # Crear colaborador
         colaborador = Colaborador.objects.create(
             nombre=nombre,
             puesto=puesto,
@@ -6231,7 +6243,7 @@ def api_crear_colaborador(request):
             telefono=telefono if telefono else None,
             correo=correo if correo else None,
             dpi=dpi if dpi else None,
-            es_personal_fijo=False,  # Siempre False al crear, solo se cambia cuando se vincula con usuario
+            es_personal_fijo=False,
             activo=activo,
             creado_por=usuario_maga if usuario_maga else None
         )
@@ -6409,13 +6421,13 @@ def api_actualizar_usuario(request, usuario_id):
         usuario = Usuario.objects.get(id=usuario_id)
         data = json.loads(request.body or '{}')
         
-        nombre = data.get('nombre', '').strip()
-        email = data.get('email', '').strip()
-        telefono = data.get('telefono', '').strip()
-        password = data.get('password', '')
-        password_confirm = data.get('password_confirm', '')
-        rol = data.get('rol', '').strip()
-        puesto_id = data.get('puesto_id', '').strip()
+        nombre = (data.get('nombre') or '').strip()
+        email = (data.get('email') or '').strip()
+        telefono = (data.get('telefono') or '').strip()
+        password = data.get('password') or ''
+        password_confirm = data.get('password_confirm') or ''
+        rol = (data.get('rol') or '').strip()
+        puesto_id = (data.get('puesto_id') or '').strip()
         
         # Validaciones
         if not email:
@@ -6703,14 +6715,14 @@ def api_actualizar_colaborador(request, colaborador_id):
         colaborador = Colaborador.objects.get(id=colaborador_id)
         data = json.loads(request.body or '{}')
         
-        nombre = data.get('nombre', '').strip()
-        puesto_id = data.get('puesto_id', '').strip()
-        descripcion = data.get('descripcion', '').strip()
-        telefono = data.get('telefono', '').strip()
-        correo = data.get('correo', '').strip()
-        dpi = data.get('dpi', '').strip()
-        es_personal_fijo = data.get('es_personal_fijo', False)
-        activo = data.get('activo', True)
+        nombre = (data.get('nombre') or '').strip()
+        puesto_id = (data.get('puesto_id') or '').strip()
+        descripcion = (data.get('descripcion') or '').strip()
+        telefono = (data.get('telefono') or '').strip()
+        correo = (data.get('correo') or '').strip()
+        dpi = (data.get('dpi') or '').strip()
+        es_personal_fijo = _to_bool(data.get('es_personal_fijo'), False)
+        activo = _to_bool(data.get('activo'), True)
         
         # Validaciones
         if not nombre:
@@ -6730,12 +6742,19 @@ def api_actualizar_colaborador(request, colaborador_id):
                     'error': 'Puesto no encontrado'
                 }, status=404)
         
-        # Validar que si tiene usuario, no se puede cambiar es_personal_fijo a False
-        if colaborador.usuario and not es_personal_fijo:
-            return JsonResponse({
-                'success': False,
-                'error': 'No se puede desmarcar como personal fijo si tiene usuario asignado'
-            }, status=400)
+        # Validar coherencia entre personal fijo y usuario
+        if colaborador.usuario:
+            if not es_personal_fijo:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No se puede desmarcar como personal fijo si tiene usuario asignado'
+                }, status=400)
+        else:
+            if es_personal_fijo:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Para marcar a un colaborador como personal fijo primero debes vincularlo a un usuario del sistema desde la gestión de usuarios.'
+                }, status=400)
         
         # Actualizar colaborador
         colaborador.nombre = nombre
