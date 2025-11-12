@@ -3816,10 +3816,11 @@
     }
     
     // También enviar al Service Worker para que muestre notificación incluso si la página no está activa
-    // (Esto puede no funcionar en modo incógnito, pero no es crítico)
+    // Esto es CRÍTICO para Android cuando la página está cerrada o en segundo plano
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then(registration => {
         if (registration.active) {
+          // Enviar mensaje al Service Worker
           registration.active.postMessage({
             type: 'SHOW_NOTIFICATION',
             title: title,
@@ -3831,10 +3832,29 @@
             }
           });
           console.log('[Notificaciones] Mensaje enviado al Service Worker');
+          
+          // También mostrar notificación directamente desde el Service Worker (para Android)
+          // Esto asegura que se muestre incluso si la página está cerrada
+          registration.showNotification(title, {
+            body: body,
+            icon: '/static/img/logos/logo_maga.png',
+            badge: '/static/img/logos/logo_maga.png',
+            tag: tag,
+            requireInteraction: false,
+            silent: false,
+            vibrate: [200, 100, 200], // Vibración para Android
+            data: {
+              reminderId: reminder.id,
+              isReenviar: isReenviar
+            },
+            timestamp: Date.now()
+          }).catch(err => {
+            console.warn('[Notificaciones] Error al mostrar notificación desde Service Worker:', err);
+          });
         }
       }).catch(err => {
         // Service Worker no disponible (modo incógnito), no es crítico
-        console.log('[Notificaciones] Service Worker no disponible (puede ser modo incógnito)');
+        console.log('[Notificaciones] Service Worker no disponible (puede ser modo incógnito):', err);
       });
     }
     
