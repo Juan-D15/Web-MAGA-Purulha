@@ -5289,6 +5289,241 @@ def api_reminders_pending(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@require_http_methods(["GET"])
+@login_required
+def api_reminders_check_background(request):
+    """Endpoint para que el Service Worker verifique recordatorios en segundo plano.
+    Solo devuelve recordatorios si el usuario tiene sesión activa.
+    Este endpoint puede ser llamado incluso cuando la página está cerrada."""
+    try:
+        from django.utils.timezone import now
+        import pytz
+        from django.db import connection
+        
+        # Verificar que el usuario tiene sesión activa
+        if not request.user.is_authenticated:
+            return JsonResponse({'reminders': [], 'session_active': False}, safe=False)
+        
+        # Obtener información del usuario actual
+        user_id = None
+        colaborador_usuario_id = None
+        try:
+            usuario_maga = get_usuario_maga(request.user)
+            if usuario_maga:
+                user_id = str(usuario_maga.id)
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        except Exception:
+            pass
+        
+        if not user_id:
+            return JsonResponse({'reminders': [], 'session_active': False}, safe=False)
+        
+        # Obtener recordatorios pendientes (misma lógica que api_reminders_pending)
+        guatemala_tz = pytz.timezone('America/Guatemala')
+        ahora_guatemala = now().astimezone(guatemala_tz)
+        
+        with connection.cursor() as cur:
+            # Verificar si existe columna recordar
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='recordatorios' AND column_name='recordar'
+            """)
+            tiene_recordar = cur.fetchone() is not None
+            
+            if colaborador_usuario_id:
+                if tiene_recordar:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               COALESCE(r.recordar, FALSE) as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        INNER JOIN recordatorio_colaboradores rc ON rc.recordatorio_id = r.id
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND rc.colaborador_id = %s
+                          AND (
+                            (r.due_at >= %s AND (r.enviado = FALSE OR r.enviado IS NULL))
+                            OR
+                            (r.due_at < %s 
+                             AND r.due_at >= %s - INTERVAL '15 minutes'
+                             AND COALESCE(r.recordar, FALSE) = TRUE)
+                          )
+                        ORDER BY r.due_at ASC
+                        """,
+                        [colaborador_usuario_id, ahora_guatemala, ahora_guatemala, ahora_guatemala]
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               FALSE as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        INNER JOIN recordatorio_colaboradores rc ON rc.recordatorio_id = r.id
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND r.due_at >= %s
+                          AND rc.colaborador_id = %s
+                          AND (r.enviado = FALSE OR r.enviado IS NULL)
+                        ORDER BY r.due_at ASC
+                        """,
+                        [ahora_guatemala, colaborador_usuario_id]
+                    )
+            else:
+                if tiene_recordar:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               COALESCE(r.recordar, FALSE) as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND r.created_by = %s
+                          AND (
+                            (r.due_at >= %s AND (r.enviado = FALSE OR r.enviado IS NULL))
+                            OR
+                            (r.due_at < %s 
+                             AND r.due_at >= %s - INTERVAL '15 minutes'
+                             AND COALESCE(r.recordar, FALSE) = TRUE)
+                          )
+                        ORDER BY r.due_at ASC
+                        """,
+                        [user_id, ahora_guatemala, ahora_guatemala, ahora_guatemala]
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT r.id::text,
+                               r.titulo,
+                               r.descripcion,
+                               r.due_at,
+                               r.enviar_notificacion,
+                               r.enviado,
+                               FALSE as recordar,
+                               a.nombre as evento_nombre
+                        FROM recordatorios r
+                        LEFT JOIN actividades a ON a.id = r.actividad_id
+                        WHERE r.enviar_notificacion = TRUE
+                          AND r.due_at >= %s
+                          AND r.created_by = %s
+                          AND (r.enviado = FALSE OR r.enviado IS NULL)
+                        ORDER BY r.due_at ASC
+                        """,
+                        [ahora_guatemala, user_id]
+                    )
+            
+            rows = cur.fetchall()
+        
+        results = []
+        for row in rows:
+            if tiene_recordar:
+                if len(row) >= 8:
+                    rid, titulo, desc, due_at, enviar, enviado, recordar, evento_nombre = row
+                else:
+                    rid, titulo, desc, due_at, enviar, enviado, recordar = row
+                    evento_nombre = None
+            else:
+                if len(row) >= 8:
+                    rid, titulo, desc, due_at, enviar, enviado, recordar, evento_nombre = row[0], row[1], row[2], row[3], row[4], row[5], False, row[7]
+                else:
+                    rid, titulo, desc, due_at, enviar, enviado = row[0], row[1], row[2], row[3], row[4], row[5]
+                    recordar = False
+                    evento_nombre = row[7] if len(row) > 7 else None
+            
+            # Obtener personal involucrado
+            owners_names = []
+            with connection.cursor() as cur2:
+                cur2.execute(
+                    """
+                    SELECT c.nombre
+                    FROM recordatorio_colaboradores rc
+                    JOIN colaboradores c ON c.id = rc.colaborador_id
+                    WHERE rc.recordatorio_id = %s
+                    ORDER BY c.nombre
+                    """,
+                    [rid]
+                )
+                owners_names = [r[0] for r in cur2.fetchall()]
+            owners_text = ', '.join(owners_names) if owners_names else 'Sin personal asignado'
+            
+            # Convertir due_at a zona horaria de Guatemala
+            if due_at:
+                if due_at.tzinfo is None:
+                    due_at_guatemala = guatemala_tz.localize(due_at)
+                else:
+                    due_at_guatemala = due_at.astimezone(guatemala_tz)
+                
+                # Calcular tiempo hasta el recordatorio
+                tiempo_restante = (due_at_guatemala - ahora_guatemala).total_seconds()
+                
+                # Límite de 15 minutos (900 segundos) después de la hora del recordatorio
+                LIMITE_MINUTOS = 15
+                LIMITE_SEGUNDOS = LIMITE_MINUTOS * 60
+                
+                tiempo_absoluto = abs(tiempo_restante)
+                incluir = False
+                
+                # SOLO incluir recordatorios que YA PASARON (no futuros)
+                # Esto evita que se envíen notificaciones cuando se crea el recordatorio
+                if tiempo_restante <= 0:
+                    # Ya pasó, solo incluir si está dentro de los 15 minutos
+                    if tiempo_absoluto <= LIMITE_SEGUNDOS:
+                        incluir = True
+                # NO incluir recordatorios futuros - esperar a que llegue la hora
+                
+                if incluir:
+                    # Formatear fecha y hora
+                    fecha_str = due_at_guatemala.strftime('%d/%m/%Y')
+                    hora_str = due_at_guatemala.strftime('%H:%M')
+                    
+                    results.append({
+                        'id': rid,
+                        'titulo': titulo or 'Recordatorio',
+                        'descripcion': desc or '',
+                        'due_at': due_at_guatemala.isoformat(),
+                        'due_at_timestamp': int(due_at_guatemala.timestamp() * 1000),
+                        'tiempo_restante_segundos': int(tiempo_restante),
+                        'recordar': bool(recordar) if recordar is not None else False,
+                        'evento_nombre': evento_nombre or 'Sin evento',
+                        'fecha': fecha_str,
+                        'hora': hora_str,
+                        'owners_text': owners_text,
+                        'enviado': bool(enviado) if enviado is not None else False
+                    })
+        
+        response = JsonResponse({
+            'reminders': results,
+            'session_active': True
+        }, safe=False)
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        return response
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'reminders': [], 'session_active': False, 'error': str(e)}, status=500)
+
+
 @require_http_methods(["POST"])
 @login_required
 def api_marcar_notificacion_enviada(request, reminder_id):
@@ -5384,35 +5619,6 @@ def api_reminder_detail(request, reminder_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=400)
-
-
-@require_http_methods(["GET"])
-def serve_service_worker(request):
-    """Servir Service Worker con header Service-Worker-Allowed para permitir scope /"""
-    try:
-        # Ruta al archivo del Service Worker
-        sw_path = os.path.join(settings.STATICFILES_DIRS[0], 'js', 'service-worker.js')
-        
-        # Verificar que el archivo exista
-        if not os.path.exists(sw_path):
-            return HttpResponse('Service Worker not found', status=404, content_type='text/plain')
-        
-        # Leer el contenido del archivo
-        with open(sw_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # Crear respuesta con el header Service-Worker-Allowed
-        response = HttpResponse(content, content_type='application/javascript')
-        response['Service-Worker-Allowed'] = '/'
-        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response['Pragma'] = 'no-cache'
-        response['Expires'] = '0'
-        
-        return response
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return HttpResponse(f'Error serving Service Worker: {str(e)}', status=500, content_type='text/plain')
 
 
 @require_http_methods(["GET"])
