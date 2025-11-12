@@ -229,10 +229,12 @@ def login_view(request):
             user = form.get_user()
             auth_login(request, user)
 
-            if not form.cleaned_data.get('remember_me'):
-                request.session.set_expiry(0)
-            else:
-                request.session.set_expiry(30 * 24 * 60 * 60)
+            # Configurar sesión para que dure una semana (7 días) y no se cierre al cerrar el navegador
+            # Esto se aplica siempre, independientemente del checkbox "remember_me"
+            # 7 días = 7 * 24 * 60 * 60 = 604800 segundos
+            # La configuración SESSION_EXPIRE_AT_BROWSER_CLOSE = False en settings.py
+            # asegura que la sesión no se cierre al cerrar el navegador
+            request.session.set_expiry(604800)  # Una semana en segundos
 
             messages.success(request, f'¡Bienvenido, {user.username}!')
             next_url = request.GET.get('next', 'webmaga:index')
