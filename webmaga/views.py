@@ -766,8 +766,9 @@ def api_foto_perfil(request):
                 # Si ya existe, eliminar archivo anterior
                 old_url = foto_perfil.url_almacenamiento
                 if old_url:
-                    old_path = old_url.replace('/media/', settings.MEDIA_ROOT + '/')
-                    if os.path.exists(old_path):
+                    # Usar la función de normalización existente o construir la ruta correctamente
+                    old_path = _normalizar_ruta_media(old_url)
+                    if old_path and os.path.exists(old_path):
                         try:
                             os.remove(old_path)
                         except:
@@ -5065,15 +5066,15 @@ def api_crear_usuario(request):
     try:
         data = json.loads(request.body or '{}')
         
-        username = data.get('username', '').strip()
-        nombre = data.get('nombre', '').strip()
-        email = data.get('email', '').strip()
-        telefono = data.get('telefono', '').strip()
+        username = (data.get('username') or '').strip()
+        nombre = (data.get('nombre') or '').strip()
+        email = (data.get('email') or '').strip()
+        telefono = (data.get('telefono') or '').strip()
         password = data.get('password', '')
         password_confirm = data.get('password_confirm', '')
-        rol = data.get('rol', '').strip()
-        puesto_id = data.get('puesto_id', '').strip()
-        colaborador_id = data.get('colaborador_id', '').strip()
+        rol = (data.get('rol') or '').strip()
+        puesto_id = (data.get('puesto_id') or '').strip()
+        colaborador_id = (data.get('colaborador_id') or '').strip()
         
         # Validaciones
         if not username or not email or not password:
