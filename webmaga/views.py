@@ -5469,9 +5469,27 @@ def api_obtener_detalle_proyecto(request, evento_id):
         from django.utils.timezone import localtime, is_aware, make_aware
         import pytz
         
-        evento = Actividad.objects.select_related(
-            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador'
-        ).prefetch_related(
+        # Verificar si las columnas comunidad_id y region_id existen en eventos_cambios_colaboradores
+        from django.db import connection
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'eventos_cambios_colaboradores' 
+                    AND column_name IN ('comunidad_id', 'region_id');
+                """)
+                existing_columns = {row[0] for row in cursor.fetchall()}
+                has_cambios_colaboradores_comunidad = 'comunidad_id' in existing_columns
+                has_cambios_colaboradores_region = 'region_id' in existing_columns
+        except Exception as e:
+            # Si hay un error al verificar, asumir que las columnas no existen
+            print(f'⚠️ Error al verificar columnas en eventos_cambios_colaboradores: {e}')
+            has_cambios_colaboradores_comunidad = False
+            has_cambios_colaboradores_region = False
+
+        # Construir prefetch_related dinámicamente según las columnas disponibles
+        prefetch_fields = [
             'personal__usuario__puesto',
             'personal__colaborador__puesto',
             'beneficiarios__beneficiario__individual',
@@ -5481,11 +5499,27 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'archivos',
             'galeria_imagenes',
             'cambios__responsable',
-            'cambios_colaboradores__colaborador',
-            'cambios_colaboradores__evidencias',
             'comunidades_relacionadas__comunidad__region',
             'comunidades_relacionadas__region'
-        ).get(id=evento_id, eliminado_en__isnull=True)
+        ]
+        
+        # Solo agregar prefetch de cambios_colaboradores si las columnas existen
+        # Si no existen, omitir el prefetch y dejar que obtener_cambios_evento maneje la carga
+        if has_cambios_colaboradores_comunidad or has_cambios_colaboradores_region:
+            cambios_colaboradores_queryset = EventoCambioColaborador.objects.select_related('colaborador').prefetch_related('evidencias')
+            if has_cambios_colaboradores_comunidad:
+                cambios_colaboradores_queryset = cambios_colaboradores_queryset.select_related('comunidad')
+            if has_cambios_colaboradores_region:
+                cambios_colaboradores_queryset = cambios_colaboradores_queryset.select_related('region')
+            prefetch_fields.append(
+                Prefetch('cambios_colaboradores', queryset=cambios_colaboradores_queryset)
+            )
+        # Si las columnas no existen, no hacer prefetch para evitar errores
+        # La función obtener_cambios_evento manejará la carga de manera segura
+        
+        evento = Actividad.objects.select_related(
+            'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador'
+        ).prefetch_related(*prefetch_fields).get(id=evento_id, eliminado_en__isnull=True)
         
         # Personal asignado
         personal_data = []
@@ -9607,9 +9641,27 @@ def api_generar_reporte(request, report_type):
                 }, status=400)
             
             try:
-                evento = Actividad.objects.select_related(
-                    'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador', 'portada'
-                ).prefetch_related(
+                # Verificar si las columnas comunidad_id y region_id existen en eventos_cambios_colaboradores
+                from django.db import connection
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute("""
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'eventos_cambios_colaboradores' 
+                            AND column_name IN ('comunidad_id', 'region_id');
+                        """)
+                        existing_columns = {row[0] for row in cursor.fetchall()}
+                        has_cambios_colaboradores_comunidad = 'comunidad_id' in existing_columns
+                        has_cambios_colaboradores_region = 'region_id' in existing_columns
+                except Exception as e:
+                    # Si hay un error al verificar, asumir que las columnas no existen
+                    print(f'⚠️ Error al verificar columnas en eventos_cambios_colaboradores: {e}')
+                    has_cambios_colaboradores_comunidad = False
+                    has_cambios_colaboradores_region = False
+
+                # Construir prefetch_related dinámicamente según las columnas disponibles
+                prefetch_fields = [
                     'personal__usuario__puesto',
                     'personal__colaborador__puesto',
                     'beneficiarios__beneficiario__individual',
@@ -9620,11 +9672,27 @@ def api_generar_reporte(request, report_type):
                     'archivos',
                     'galeria_imagenes',
                     'cambios__responsable',
-                    'cambios_colaboradores__colaborador',
-                    'cambios_colaboradores__evidencias',
                     'comunidades_relacionadas__comunidad__region',
                     'comunidades_relacionadas__region'
-                ).get(id=evento_id, eliminado_en__isnull=True)
+                ]
+                
+                # Solo agregar prefetch de cambios_colaboradores si las columnas existen
+                # Si no existen, omitir el prefetch y dejar que obtener_cambios_evento maneje la carga
+                if has_cambios_colaboradores_comunidad or has_cambios_colaboradores_region:
+                    cambios_colaboradores_queryset = EventoCambioColaborador.objects.select_related('colaborador').prefetch_related('evidencias')
+                    if has_cambios_colaboradores_comunidad:
+                        cambios_colaboradores_queryset = cambios_colaboradores_queryset.select_related('comunidad')
+                    if has_cambios_colaboradores_region:
+                        cambios_colaboradores_queryset = cambios_colaboradores_queryset.select_related('region')
+                    prefetch_fields.append(
+                        Prefetch('cambios_colaboradores', queryset=cambios_colaboradores_queryset)
+                    )
+                # Si las columnas no existen, no hacer prefetch para evitar errores
+                # La función obtener_cambios_evento manejará la carga de manera segura
+                
+                evento = Actividad.objects.select_related(
+                    'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador', 'portada'
+                ).prefetch_related(*prefetch_fields).get(id=evento_id, eliminado_en__isnull=True)
                 
                 # Personal asignado
                 personal_data = []
