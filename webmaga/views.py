@@ -4802,7 +4802,11 @@ def api_reminders(request):
         
         try:
             with connection.cursor() as cur:
-                # Si es admin, mostrar todos los recordatorios del día
+                # Si es admin, mostrar todos los recordatorios del día EXCEPTO los personales
+                # Un recordatorio es personal si:
+                # - El creador es personal (no admin)
+                # - Solo tiene un colaborador asignado
+                # - Ese colaborador pertenece al mismo usuario que creó el recordatorio
                 if is_admin:
                     cur.execute(
                         """
@@ -4818,6 +4822,25 @@ def api_reminders(request):
                         FROM recordatorios r
                         LEFT JOIN usuarios u ON u.id = r.created_by
                         WHERE (r.due_at AT TIME ZONE 'America/Guatemala')::date = %s::date
+                          AND NOT (
+                            -- Excluir recordatorios personales
+                            u.rol = 'personal'
+                            AND (
+                              -- Caso 1: Solo tiene un colaborador y ese colaborador pertenece al creador
+                              (
+                                SELECT COUNT(*)
+                                FROM recordatorio_colaboradores rc
+                                WHERE rc.recordatorio_id = r.id
+                              ) = 1
+                              AND EXISTS (
+                                SELECT 1
+                                FROM recordatorio_colaboradores rc
+                                JOIN colaboradores c ON c.id = rc.colaborador_id
+                                WHERE rc.recordatorio_id = r.id
+                                  AND c.usuario_id = r.created_by
+                              )
+                            )
+                          )
                         ORDER BY r.due_at ASC
                         """,
                         [date_str]
