@@ -715,6 +715,8 @@ input[type="checkbox"]:focus {
     margin-right: 0 !important;
     margin-left: 0 !important;
     align-self: flex-start;
+    padding: 8px 16px;
+    font-size: 13px;
   }
 
   .manage-view .view-header .view-title,
