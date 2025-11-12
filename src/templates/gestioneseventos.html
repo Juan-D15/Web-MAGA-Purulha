@@ -88,6 +88,14 @@
             </svg>
             <span>Generar Reporte</span>
           </a>
+          <button type="button" class="action-button" id="openImportExcelBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Añadir Beneficiarios a través de Archivo Excel</span>
+          </button>
         </div>
       </div>
 
@@ -740,6 +748,83 @@
             </select>
           </div>
 
+          <!-- Importar datos de Excel (solo para tipo individual) -->
+          <div id="excel_import_section" class="form-group" style="display: none;">
+            <label class="form-label">Importar datos de Excel</label>
+            <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ffc107;">
+                  <path d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <strong style="color: #ffc107;">Importante:</strong>
+              </div>
+              <p style="color: #b8c5d1; font-size: 0.9rem; margin: 0 0 12px 0; line-height: 1.5;">
+                El archivo Excel debe seguir la plantilla oficial para que la importación funcione correctamente. 
+                Descarga la plantilla antes de completar tu archivo.
+              </p>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button type="button" id="downloadTemplateBtn" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 0.9rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Obtener Plantilla
+                </button>
+              </div>
+            </div>
+            <div class="file-upload" style="margin-top: 12px;">
+              <input type="file" id="excelFileInput" accept=".xlsx,.xls" class="file-input">
+              <label for="excelFileInput" class="file-label" style="flex-direction: column; gap: 6px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <span>Seleccionar archivo Excel (.xlsx o .xls)</span>
+                <small style="color: #6c757d;">Solo archivos Excel con la plantilla correcta</small>
+              </label>
+            </div>
+            <div id="excelFileInfo" style="display: none; margin-top: 12px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #007bff;">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <span id="excelFileName" style="color: #ffffff; font-weight: 500;"></span>
+                </div>
+                <button type="button" id="removeExcelFileBtn" class="btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div id="excelImportStatus" style="display: none; margin-top: 12px;"></div>
+            <div id="excelPendingActions" style="display: none; margin-top: 16px; padding: 16px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div style="flex: 1; min-width: 200px;">
+                  <p style="margin: 0 0 4px 0; color: #ffffff; font-weight: 600; font-size: 0.95rem;">
+                    Beneficiarios listos para agregar
+                  </p>
+                  <p style="margin: 0; color: #b8c5d1; font-size: 0.85rem;">
+                    <span id="excelPendingCount">0</span> beneficiario(s) en espera
+                  </p>
+                </div>
+                <button type="button" id="ingresarBeneficiariosProyectoBtn" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-size: 0.9rem; white-space: nowrap;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  Ingresar Beneficiarios al Proyecto
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Campos para Individual -->
           <div id="campos_individual" style="display: none;">
             <div class="form-group">
@@ -758,8 +843,16 @@
               <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
             </div>
             <div class="form-group">
-              <label for="benef_ind_fecha_nac" class="form-label">Fecha de Nacimiento</label>
+              <label for="benef_ind_fecha_nac" class="form-label">
+                Fecha de Nacimiento
+                <span id="benef_ind_edad_display" style="color: #6c757d; font-weight: normal; margin-left: 8px;"></span>
+              </label>
               <input type="date" id="benef_ind_fecha_nac" class="form-input">
+            </div>
+            <div class="form-group">
+              <label for="benef_ind_edad" class="form-label">Edad</label>
+              <input type="number" id="benef_ind_edad" class="form-input" min="0" max="150" placeholder="Ej: 25" style="-moz-appearance: textfield;">
+              <small style="color: #6c757d;">Solo números</small>
             </div>
             <div class="form-group">
               <label for="benef_ind_genero" class="form-label">Género *</label>
@@ -1150,6 +1243,94 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="cerrarDetallesCambio()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Importar Beneficiarios desde Excel -->
+  <div id="importExcelModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Añadir Beneficiarios desde Archivo Excel</h3>
+        <button class="modal-close" id="closeImportExcelModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Importar datos de Excel</label>
+          <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ffc107;">
+                <path d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <strong style="color: #ffc107;">Importante</strong>
+            </div>
+            <p style="margin: 0; color: #b8c5d1; font-size: 0.9rem; line-height: 1.5;">
+              El archivo Excel debe seguir la plantilla correcta para que la importación funcione. 
+              Descarga la plantilla antes de completar tus datos.
+            </p>
+            <button type="button" id="downloadTemplateBtnGeneral" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 0.9rem; margin-top: 12px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Obtener Plantilla
+            </button>
+          </div>
+          <div class="file-upload" style="margin-top: 12px;">
+            <input type="file" id="excelFileInputGeneral" accept=".xlsx,.xls" class="file-input">
+            <label for="excelFileInputGeneral" class="file-label" style="flex-direction: column; gap: 6px;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #6c757d;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span style="color: #6c757d; font-size: 0.9rem;">Haz clic para seleccionar archivo Excel</span>
+              <span style="color: #6c757d; font-size: 0.85rem;">Formatos soportados: .xlsx, .xls</span>
+            </label>
+          </div>
+          <div id="excelFileInfoGeneral" style="display: none; margin-top: 12px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #007bff;">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+                <span id="excelFileNameGeneral" style="color: #007bff; font-weight: 500;"></span>
+              </div>
+              <button type="button" id="removeExcelFileBtnGeneral" style="background: none; border: none; color: #dc3545; cursor: pointer; padding: 4px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="excelImportStatusGeneral" style="display: none; margin-top: 12px;"></div>
+          <div id="excelPendingActionsGeneral" style="display: none; margin-top: 16px; padding: 16px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+              <div style="flex: 1; min-width: 200px;">
+                <p style="margin: 0 0 4px 0; color: #ffffff; font-weight: 600; font-size: 0.95rem;">
+                  Beneficiarios listos para agregar
+                </p>
+                <p style="margin: 0; color: #b8c5d1; font-size: 0.85rem;">
+                  <span id="excelPendingCountGeneral">0</span> beneficiario(s) en espera
+                </p>
+              </div>
+              <button type="button" id="ingresarBeneficiariosBDGeneralBtn" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-size: 0.9rem; white-space: nowrap;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                Añadir Beneficiarios a la Base de Datos General
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

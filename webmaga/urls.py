@@ -75,6 +75,10 @@ urlpatterns = [
     path('api/personal/', views.api_listar_personal, name='api-personal'),
     path('api/beneficiarios/', views.api_listar_beneficiarios, name='api-beneficiarios'),
     path('api/beneficiario/<uuid:beneficiario_id>/', views.api_obtener_beneficiario, name='api-obtener-beneficiario'),
+    path('api/beneficiarios/importar-excel/', views.api_importar_beneficiarios_excel, name='api-importar-beneficiarios-excel'),
+    path('api/beneficiarios/guardar-pendientes/', views.api_guardar_beneficiarios_pendientes, name='api-guardar-beneficiarios-pendientes'),
+    path('api/beneficiarios/guardar-general/', views.api_guardar_beneficiarios_general, name='api-guardar-beneficiarios-general'),
+    path('api/beneficiarios/descargar-plantilla/', views.api_descargar_plantilla_beneficiarios, name='api-descargar-plantilla-beneficiarios'),
     path('api/verificar-admin/', views.api_verificar_admin, name='api-verificar-admin'),
     
     # APIs de Gestión de Usuarios y Colaboradores

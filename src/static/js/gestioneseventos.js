@@ -189,6 +189,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedBeneficiariosList = [];
     let accumulatedFiles = []; // Archivos acumulados
     let beneficiariosNuevos = []; // Beneficiarios a crear
+    let beneficiariosPendientesExcel = []; // Beneficiarios importados de Excel pendientes de guardar
+    let beneficiariosPendientesExcelGeneral = []; // Beneficiarios importados de Excel pendientes de guardar (modal general)
     let eventoEnEdicion = null;
     let lastEditedEventId = sessionStorage.getItem('lastEditedEventId') || null;
     
@@ -1529,6 +1531,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Cerrar modal
     function closeBeneficiaryModal() {
+        // Limpiar campo de edad y display
+        const edadInput = document.getElementById('benef_ind_edad');
+        const edadDisplay = document.getElementById('benef_ind_edad_display');
+        if (edadInput) edadInput.value = '';
+        if (edadDisplay) edadDisplay.textContent = '';
         addBeneficiaryModal.classList.remove('show');
         setTimeout(() => {
             addBeneficiaryModal.style.display = 'none';
@@ -1573,8 +1580,36 @@ document.addEventListener('DOMContentLoaded', function() {
             hideAllBeneficiaryFields();
             const tipo = this.value;
             console.log('­ƒöä Tipo seleccionado:', tipo);
+            
+            // Mostrar/ocultar sección de importación Excel (solo para individual)
+            const excelImportSection = document.getElementById('excel_import_section');
+            if (excelImportSection) {
+                if (tipo === 'individual') {
+                    excelImportSection.style.display = 'block';
+                } else {
+                    excelImportSection.style.display = 'none';
+                    // Limpiar archivo seleccionado si cambia de tipo
+                    const excelFileInput = document.getElementById('excelFileInput');
+                    if (excelFileInput) {
+                        excelFileInput.value = '';
+                        const excelFileInfo = document.getElementById('excelFileInfo');
+                        if (excelFileInfo) excelFileInfo.style.display = 'none';
+                        const excelImportStatus = document.getElementById('excelImportStatus');
+                        if (excelImportStatus) {
+                            excelImportStatus.style.display = 'none';
+                            excelImportStatus.innerHTML = '';
+                        }
+                        // Limpiar beneficiarios pendientes cuando cambia el tipo
+                        beneficiariosPendientesExcel = [];
+                        actualizarContadorPendientes();
+                    }
+                }
+            }
+            
         if (tipo === 'individual') {
             document.getElementById('campos_individual').style.display = 'block';
+            // Configurar sincronización fecha-edad cuando se muestra el formulario individual
+            setTimeout(() => configurarSincronizacionFechaEdad(), 100);
         } else if (tipo === 'familia') {
             document.getElementById('campos_familia').style.display = 'block';
         } else if (tipo === 'institución') {
@@ -1586,11 +1621,458 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // ===== GESTIÓN DE IMPORTACIÓN EXCEL =====
+    const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
+    const excelFileInput = document.getElementById('excelFileInput');
+    const excelFileInfo = document.getElementById('excelFileInfo');
+    const excelFileName = document.getElementById('excelFileName');
+    const removeExcelFileBtn = document.getElementById('removeExcelFileBtn');
+    const excelImportStatus = document.getElementById('excelImportStatus');
+    const excelPendingActions = document.getElementById('excelPendingActions');
+    const excelPendingCount = document.getElementById('excelPendingCount');
+    const ingresarBeneficiariosProyectoBtn = document.getElementById('ingresarBeneficiariosProyectoBtn');
+    
+    // Función para actualizar contador de beneficiarios pendientes
+    function actualizarContadorPendientes() {
+        const total = beneficiariosPendientesExcel.length;
+        if (excelPendingCount) {
+            excelPendingCount.textContent = total;
+        }
+        if (excelPendingActions) {
+            excelPendingActions.style.display = total > 0 ? 'block' : 'none';
+        }
+    }
+    
+    // Descargar plantilla
+    if (downloadTemplateBtn) {
+        downloadTemplateBtn.addEventListener('click', function() {
+            window.location.href = '/api/beneficiarios/descargar-plantilla/';
+        });
+    }
+    
+    // Manejar selección de archivo Excel
+    if (excelFileInput) {
+        excelFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Validar extensión
+                const validExtensions = ['.xlsx', '.xls'];
+                const fileName = file.name.toLowerCase();
+                const isValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+                
+                if (!isValidExtension) {
+                    mostrarMensaje('error', 'El archivo debe ser un Excel (.xlsx o .xls)');
+                    this.value = '';
+                    return;
+                }
+                
+                // Mostrar información del archivo
+                if (excelFileName) {
+                    excelFileName.textContent = file.name;
+                }
+                if (excelFileInfo) {
+                    excelFileInfo.style.display = 'block';
+                }
+                
+                // Importar automáticamente
+                importarBeneficiariosExcel(file);
+            }
+        });
+    }
+    
+    // Remover archivo Excel
+    if (removeExcelFileBtn) {
+        removeExcelFileBtn.addEventListener('click', function() {
+            if (excelFileInput) {
+                excelFileInput.value = '';
+            }
+            if (excelFileInfo) {
+                excelFileInfo.style.display = 'none';
+            }
+            if (excelImportStatus) {
+                excelImportStatus.style.display = 'none';
+                excelImportStatus.innerHTML = '';
+            }
+            // Limpiar beneficiarios pendientes
+            beneficiariosPendientesExcel = [];
+            actualizarContadorPendientes();
+        });
+    }
+    
+    // Función para importar beneficiarios desde Excel
+    async function importarBeneficiariosExcel(file) {
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('excel_file', file);
+        
+        // Mostrar estado de carga
+        if (excelImportStatus) {
+            excelImportStatus.style.display = 'block';
+            excelImportStatus.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+                    <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #007bff; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite;"></div>
+                    <span style="color: #007bff;">Importando beneficiarios...</span>
+                </div>
+            `;
+        }
+        
+        try {
+            const response = await fetch('/api/beneficiarios/importar-excel/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Almacenar beneficiarios pendientes (NO cerrar modal)
+                if (data.pendientes) {
+                    beneficiariosPendientesExcel = [
+                        ...(data.pendientes.exitosos || []).map(item => item.datos),
+                        ...(data.pendientes.advertencias || []).map(item => item.datos)
+                    ];
+                    actualizarContadorPendientes();
+                }
+                
+                // Mostrar resultados
+                const resultados = data.resultados;
+                let statusHTML = `
+                    <div style="padding: 16px; background: rgba(40, 167, 69, 0.1); border-radius: 8px; border: 1px solid rgba(40, 167, 69, 0.3);">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #28a745;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <strong style="color: #28a745;">${data.message}</strong>
+                        </div>
+                        <div style="color: #b8c5d1; font-size: 0.9rem; line-height: 1.6;">
+                            <p style="margin: 0 0 8px 0;"><strong>Total procesados:</strong> ${resultados.total_procesados}</p>
+                            ${resultados.total_exitosos > 0 ? `<p style="margin: 0 0 8px 0; color: #28a745;"><strong>Listos para agregar:</strong> ${resultados.total_exitosos}</p>` : ''}
+                            ${resultados.total_advertencias > 0 ? `<p style="margin: 0 0 8px 0; color: #ffc107;"><strong>Listos para actualizar:</strong> ${resultados.total_advertencias}</p>` : ''}
+                            ${resultados.total_errores > 0 ? `<p style="margin: 0; color: #dc3545;"><strong>Errores:</strong> ${resultados.total_errores}</p>` : ''}
+                        </div>
+                        ${(resultados.total_exitosos > 0 || resultados.total_advertencias > 0) ? `
+                            <div style="margin-top: 12px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+                                <p style="margin: 0; color: #007bff; font-size: 0.9rem;">
+                                    <strong>⚠️ Importante:</strong> Los beneficiarios están listos pero aún no se han guardado. 
+                                    Presiona "Ingresar Beneficiarios al Proyecto" para guardarlos y vincularlos al evento.
+                                </p>
+                            </div>
+                        ` : ''}
+                `;
+                
+                // Mostrar advertencias (actualizaciones) si las hay
+                if (resultados.advertencias && resultados.advertencias.length > 0) {
+                    statusHTML += `
+                        <div style="margin-top: 12px; padding: 12px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3);">
+                            <strong style="color: #ffc107; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Advertencias (Beneficiarios a actualizar):
+                            </strong>
+                            <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #ffc107; font-size: 0.85rem;">
+                    `;
+                    resultados.advertencias.slice(0, 10).forEach(advertencia => {
+                        statusHTML += `<li>Fila ${advertencia.fila}: ${advertencia.mensaje}</li>`;
+                    });
+                    if (resultados.advertencias.length > 10) {
+                        statusHTML += `<li>... y ${resultados.advertencias.length - 10} advertencias más</li>`;
+                    }
+                    statusHTML += `</ul></div>`;
+                }
+                
+                // Mostrar errores si los hay
+                if (resultados.errores && resultados.errores.length > 0) {
+                    statusHTML += `
+                        <div style="margin-top: 12px; padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
+                            <strong style="color: #dc3545; font-size: 0.9rem;">Errores encontrados:</strong>
+                            <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #dc3545; font-size: 0.85rem;">
+                    `;
+                    resultados.errores.slice(0, 10).forEach(error => {
+                        statusHTML += `<li>Fila ${error.fila}: ${error.error}</li>`;
+                    });
+                    if (resultados.errores.length > 10) {
+                        statusHTML += `<li>... y ${resultados.errores.length - 10} errores más</li>`;
+                    }
+                    statusHTML += `</ul></div>`;
+                }
+                
+                statusHTML += `</div>`;
+                
+                if (excelImportStatus) {
+                    excelImportStatus.innerHTML = statusHTML;
+                }
+            } else {
+                // Mostrar error
+                if (excelImportStatus) {
+                    excelImportStatus.innerHTML = `
+                        <div style="padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
+                            <div style="display: flex; align-items: center; gap: 8px; color: #dc3545;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                                <strong>Error:</strong> ${data.error || 'Error al importar el archivo'}
+                            </div>
+                        </div>
+                    `;
+                }
+                mostrarMensaje('error', data.error || 'Error al importar el archivo Excel');
+            }
+        } catch (error) {
+            console.error('Error al importar Excel:', error);
+            if (excelImportStatus) {
+                excelImportStatus.innerHTML = `
+                    <div style="padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
+                        <div style="display: flex; align-items: center; gap: 8px; color: #dc3545;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <strong>Error:</strong> No se pudo conectar con el servidor
+                        </div>
+                    </div>
+                `;
+            }
+            mostrarMensaje('error', 'Error al importar el archivo Excel. Por favor, intente nuevamente.');
+        }
+    }
+    
+    // Botón para ingresar beneficiarios al proyecto
+    if (ingresarBeneficiariosProyectoBtn) {
+        ingresarBeneficiariosProyectoBtn.addEventListener('click', async function() {
+            if (beneficiariosPendientesExcel.length === 0) {
+                mostrarMensaje('error', 'No hay beneficiarios pendientes para agregar');
+                return;
+            }
+            
+            // Obtener ID del evento (si está en edición o creación)
+            let actividadId = null;
+            
+            // Si estamos editando un evento
+            if (eventoEnEdicion && eventoEnEdicion.id) {
+                actividadId = eventoEnEdicion.id;
+            } else {
+                // Si estamos creando, verificar si hay un evento en el hash de la URL
+                const hashActual = window.location.hash;
+                const matchEvento = hashActual.match(/[&?]evento=([^&]+)/);
+                if (matchEvento) {
+                    actividadId = matchEvento[1];
+                } else {
+                    mostrarMensaje('error', 'Debes crear o seleccionar un evento primero. Los beneficiarios se guardarán automáticamente cuando crees el evento.');
+                    return;
+                }
+            }
+            
+            if (!actividadId) {
+                mostrarMensaje('error', 'No se pudo determinar el evento. Por favor, crea o selecciona un evento primero.');
+                return;
+            }
+            
+            // Mostrar estado de carga
+            ingresarBeneficiariosProyectoBtn.disabled = true;
+            ingresarBeneficiariosProyectoBtn.innerHTML = `
+                <div class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #ffffff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;"></div>
+                Guardando...
+            `;
+            
+            try {
+                const response = await fetch('/api/beneficiarios/guardar-pendientes/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        actividad_id: actividadId,
+                        beneficiarios_pendientes: beneficiariosPendientesExcel
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    mostrarMensaje('success', data.message);
+                    
+                    // Limpiar beneficiarios pendientes
+                    beneficiariosPendientesExcel = [];
+                    actualizarContadorPendientes();
+                    
+                    // Limpiar estado de importación
+                    if (excelFileInput) excelFileInput.value = '';
+                    if (excelFileInfo) excelFileInfo.style.display = 'none';
+                    if (excelImportStatus) {
+                        excelImportStatus.style.display = 'none';
+                        excelImportStatus.innerHTML = '';
+                    }
+                    
+                    // Cerrar modal de beneficiarios
+                    closeBeneficiaryModal();
+                    
+                    // Recargar beneficiarios del evento
+                    if (beneficiariesContainer) {
+                        const event = new CustomEvent('beneficiariosActualizados');
+                        document.dispatchEvent(event);
+                    }
+                } else {
+                    mostrarMensaje('error', data.error || 'Error al guardar los beneficiarios');
+                }
+            } catch (error) {
+                console.error('Error al guardar beneficiarios:', error);
+                mostrarMensaje('error', 'Error al guardar los beneficiarios. Por favor, intente nuevamente.');
+            } finally {
+                ingresarBeneficiariosProyectoBtn.disabled = false;
+                ingresarBeneficiariosProyectoBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Ingresar Beneficiarios al Proyecto
+                `;
+            }
+        });
+    }
+    
+    // Función auxiliar para obtener cookie CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
     function hideAllBeneficiaryFields() {
         document.getElementById('campos_individual').style.display = 'none';
         document.getElementById('campos_familia').style.display = 'none';
         document.getElementById('campos_institucion').style.display = 'none';
         document.getElementById('campos_otro').style.display = 'none';
+    }
+    
+    // ===== SINCRONIZACIÓN FECHA DE NACIMIENTO Y EDAD =====
+    function calcularEdadDesdeFecha(fechaNacimiento) {
+        if (!fechaNacimiento) return null;
+        const fechaNac = new Date(fechaNacimiento);
+        const hoy = new Date();
+        let edad = hoy.getFullYear() - fechaNac.getFullYear();
+        const mes = hoy.getMonth() - fechaNac.getMonth();
+        if (mes < 0 || (mes === 0 && hoy.getDate() < fechaNac.getDate())) {
+            edad--;
+        }
+        return edad >= 0 ? edad : null;
+    }
+    
+    function calcularFechaDesdeEdad(edad) {
+        if (!edad || edad < 0 || edad > 150) return null;
+        const hoy = new Date();
+        const añoNacimiento = hoy.getFullYear() - edad;
+        // Usar 01/01 del año calculado
+        return `${añoNacimiento}-01-01`;
+    }
+    
+    function actualizarEdadDesdeFecha() {
+        const fechaInput = document.getElementById('benef_ind_fecha_nac');
+        const edadInput = document.getElementById('benef_ind_edad');
+        const edadDisplay = document.getElementById('benef_ind_edad_display');
+        
+        if (!fechaInput || !edadInput || !edadDisplay) return;
+        
+        const fechaNac = fechaInput.value;
+        if (fechaNac) {
+            const edad = calcularEdadDesdeFecha(fechaNac);
+            if (edad !== null) {
+                edadInput.value = edad;
+                edadDisplay.textContent = `(Edad: ${edad} años)`;
+            } else {
+                edadInput.value = '';
+                edadDisplay.textContent = '';
+            }
+        } else {
+            edadDisplay.textContent = '';
+        }
+    }
+    
+    function actualizarFechaDesdeEdad() {
+        const fechaInput = document.getElementById('benef_ind_fecha_nac');
+        const edadInput = document.getElementById('benef_ind_edad');
+        const edadDisplay = document.getElementById('benef_ind_edad_display');
+        
+        if (!fechaInput || !edadInput || !edadDisplay) return;
+        
+        const edad = parseInt(edadInput.value);
+        if (!isNaN(edad) && edad >= 0 && edad <= 150) {
+            const fechaNac = calcularFechaDesdeEdad(edad);
+            if (fechaNac) {
+                fechaInput.value = fechaNac;
+                edadDisplay.textContent = `(Edad: ${edad} años)`;
+            }
+        } else if (edadInput.value === '') {
+            edadDisplay.textContent = '';
+        }
+    }
+    
+    // Configurar event listeners para sincronización
+    let sincronizacionFechaEdadConfigurada = false;
+    function configurarSincronizacionFechaEdad() {
+        const fechaInput = document.getElementById('benef_ind_fecha_nac');
+        const edadInput = document.getElementById('benef_ind_edad');
+        
+        if (!fechaInput || !edadInput) return;
+        
+        // Solo configurar una vez usando una propiedad del elemento
+        if (fechaInput.dataset.sincronizacionConfigurada === 'true') return;
+        
+        // Marcar como configurado
+        fechaInput.dataset.sincronizacionConfigurada = 'true';
+        edadInput.dataset.sincronizacionConfigurada = 'true';
+        
+        // Event listeners para fecha de nacimiento
+        fechaInput.addEventListener('change', actualizarEdadDesdeFecha);
+        fechaInput.addEventListener('input', actualizarEdadDesdeFecha);
+        
+        // Event listeners para edad
+        edadInput.addEventListener('input', function(e) {
+            // Remover cualquier carácter que no sea número
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Si hay un valor válido, actualizar fecha
+            if (this.value !== '') {
+                actualizarFechaDesdeEdad();
+            } else {
+                const edadDisplay = document.getElementById('benef_ind_edad_display');
+                if (edadDisplay) edadDisplay.textContent = '';
+            }
+        });
+        
+        // Prevenir entrada de caracteres no numéricos
+        edadInput.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which);
+            if (!/[0-9]/.test(char)) {
+                e.preventDefault();
+            }
+        });
+        
+        // Actualizar cuando se pega texto
+        edadInput.addEventListener('paste', function(e) {
+            setTimeout(() => {
+                this.value = this.value.replace(/[^0-9]/g, '');
+                if (this.value !== '') {
+                    actualizarFechaDesdeEdad();
+                }
+            }, 0);
+        });
     }
     
     function configurarValidacionesBeneficiarios() {
@@ -2693,7 +3175,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 const dpi = detalles.dpi || item.dpi || 'N/A';
                 const telefono = detalles.telefono || item.telefono || 'N/A';
                 const genero = detalles.genero || item.genero || 'N/A';
-                const fechaNac = detalles.fecha_nacimiento || item.fecha_nacimiento || 'N/A';
+                const fechaNac = detalles.fecha_nacimiento || item.fecha_nacimiento || null;
+                
+                // Calcular edad desde fecha de nacimiento
+                let edadDisplay = 'N/A';
+                if (fechaNac && fechaNac !== 'N/A') {
+                    const edad = calcularEdadDesdeFecha(fechaNac);
+                    if (edad !== null && edad >= 0) {
+                        edadDisplay = `${edad} años`;
+                    }
+                }
                 
                 datosDetallados = `
                     <div class="card-field-row">
@@ -2714,8 +3205,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="card-field-value-secondary" style="text-transform: capitalize;">${genero}</span>
                         </div>
                         <div class="card-field">
-                            <span class="card-field-label">Fecha Nac.</span>
-                            <span class="card-field-value-secondary">${fechaNac}</span>
+                            <span class="card-field-label">Edad</span>
+                            <span class="card-field-value-secondary">${edadDisplay}</span>
                         </div>
                         <div class="card-field">
                             <span class="card-field-label">Ubicación</span>
@@ -3121,6 +3612,12 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('benef_ind_genero').value = benef.detalles?.genero || '';
             document.getElementById('benef_ind_telefono').value = benef.detalles?.telefono || '';
             
+            // Configurar sincronización fecha-edad y actualizar edad si hay fecha
+            setTimeout(() => {
+                configurarSincronizacionFechaEdad();
+                actualizarEdadDesdeFecha();
+            }, 100);
+            
             console.log('Ô£à Campos individuales cargados');
         } else if (tipoLowerExistente === 'familia') {
             const campos = document.getElementById('campos_familia');
@@ -3217,6 +3714,12 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('benef_ind_fecha_nac').value = benef.fecha_nacimiento || '';
             document.getElementById('benef_ind_genero').value = benef.genero || '';
             document.getElementById('benef_ind_telefono').value = benef.telefono || '';
+            
+            // Actualizar edad si hay fecha de nacimiento
+            setTimeout(() => {
+                configurarSincronizacionFechaEdad();
+                actualizarEdadDesdeFecha();
+            }, 100);
         } else if (tipoLowerNuevo === 'familia') {
             document.getElementById('campos_familia').style.display = 'block';
             document.getElementById('benef_fam_nombre').value = benef.nombre_familia || '';
@@ -3535,6 +4038,36 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Ô£à Evento creado exitosamente');
                     console.log(`   ­ƒôè Total de archivos guardados: ${data.total_archivos || 0}`);
                     
+                    // Guardar ID del evento creado
+                    const eventoIdCreado = data.id || data.evento_id;
+                    if (eventoIdCreado) {
+                        // Si hay beneficiarios pendientes de Excel, guardarlos automáticamente
+                        if (beneficiariosPendientesExcel.length > 0) {
+                            try {
+                                const responseBenef = await fetch('/api/beneficiarios/guardar-pendientes/', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': getCookie('csrftoken')
+                                    },
+                                    body: JSON.stringify({
+                                        actividad_id: eventoIdCreado,
+                                        beneficiarios_pendientes: beneficiariosPendientesExcel
+                                    })
+                                });
+                                
+                                const dataBenef = await responseBenef.json();
+                                if (dataBenef.success) {
+                                    console.log('✅ Beneficiarios de Excel guardados automáticamente');
+                                    beneficiariosPendientesExcel = [];
+                                    actualizarContadorPendientes();
+                                }
+                            } catch (error) {
+                                console.error('Error al guardar beneficiarios pendientes:', error);
+                            }
+                        }
+                    }
+                    
                     // Mostrar mensaje de éxito con información de archivos
                     let mensaje = data.message || 'Evento creado exitosamente';
                     if (data.total_archivos > 0) {
@@ -3556,6 +4089,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     renderBeneficiariosExistentes(); // Actualizar vista de beneficiarios
                     resetQuickDataState(); // Limpiar tarjetas de datos
                     resetCoverSelection();
+                    
+                    // Limpiar beneficiarios pendientes de Excel
+                    beneficiariosPendientesExcel = [];
+                    actualizarContadorPendientes();
                     
                     // Volver a la vista principal
                     setTimeout(() => {
@@ -6711,4 +7248,337 @@ document.addEventListener('DOMContentLoaded', function() {
             showMainView();
         }
     });
+    
+    // ===== GESTIÓN DE IMPORTACIÓN EXCEL GENERAL (FUERA DE EVENTOS) =====
+    const openImportExcelBtn = document.getElementById('openImportExcelBtn');
+    const importExcelModal = document.getElementById('importExcelModal');
+    const closeImportExcelModal = document.getElementById('closeImportExcelModal');
+    const downloadTemplateBtnGeneral = document.getElementById('downloadTemplateBtnGeneral');
+    const excelFileInputGeneral = document.getElementById('excelFileInputGeneral');
+    const excelFileInfoGeneral = document.getElementById('excelFileInfoGeneral');
+    const excelFileNameGeneral = document.getElementById('excelFileNameGeneral');
+    const removeExcelFileBtnGeneral = document.getElementById('removeExcelFileBtnGeneral');
+    const excelImportStatusGeneral = document.getElementById('excelImportStatusGeneral');
+    const excelPendingActionsGeneral = document.getElementById('excelPendingActionsGeneral');
+    const excelPendingCountGeneral = document.getElementById('excelPendingCountGeneral');
+    const ingresarBeneficiariosBDGeneralBtn = document.getElementById('ingresarBeneficiariosBDGeneralBtn');
+    
+    // Función para actualizar contador de beneficiarios pendientes (general)
+    function actualizarContadorPendientesGeneral() {
+        const total = beneficiariosPendientesExcelGeneral.length;
+        if (excelPendingCountGeneral) {
+            excelPendingCountGeneral.textContent = total;
+        }
+        if (excelPendingActionsGeneral) {
+            excelPendingActionsGeneral.style.display = total > 0 ? 'block' : 'none';
+        }
+    }
+    
+    // Abrir modal de importación Excel general
+    if (openImportExcelBtn) {
+        openImportExcelBtn.addEventListener('click', function() {
+            if (importExcelModal) {
+                importExcelModal.style.display = 'flex';
+                setTimeout(() => {
+                    importExcelModal.classList.add('show');
+                }, 10);
+            }
+        });
+    }
+    
+    // Cerrar modal de importación Excel general
+    function closeImportExcelModalFunc() {
+        if (importExcelModal) {
+            importExcelModal.classList.remove('show');
+            setTimeout(() => {
+                importExcelModal.style.display = 'none';
+            }, 300);
+            // Limpiar campos
+            if (excelFileInputGeneral) excelFileInputGeneral.value = '';
+            if (excelFileInfoGeneral) excelFileInfoGeneral.style.display = 'none';
+            if (excelImportStatusGeneral) {
+                excelImportStatusGeneral.style.display = 'none';
+                excelImportStatusGeneral.innerHTML = '';
+            }
+            beneficiariosPendientesExcelGeneral = [];
+            actualizarContadorPendientesGeneral();
+        }
+    }
+    
+    if (closeImportExcelModal) {
+        closeImportExcelModal.addEventListener('click', closeImportExcelModalFunc);
+    }
+    
+    // Cerrar modal al hacer click fuera
+    if (importExcelModal) {
+        importExcelModal.addEventListener('click', function(e) {
+            if (e.target === importExcelModal) {
+                closeImportExcelModalFunc();
+            }
+        });
+    }
+    
+    // Descargar plantilla (general)
+    if (downloadTemplateBtnGeneral) {
+        downloadTemplateBtnGeneral.addEventListener('click', function() {
+            window.location.href = '/api/beneficiarios/descargar-plantilla/';
+        });
+    }
+    
+    // Manejar selección de archivo Excel (general)
+    if (excelFileInputGeneral) {
+        excelFileInputGeneral.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Validar extensión
+                const validExtensions = ['.xlsx', '.xls'];
+                const fileName = file.name.toLowerCase();
+                const isValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+                
+                if (!isValidExtension) {
+                    mostrarMensaje('error', 'El archivo debe ser un Excel (.xlsx o .xls)');
+                    this.value = '';
+                    return;
+                }
+                
+                // Mostrar información del archivo
+                if (excelFileNameGeneral) {
+                    excelFileNameGeneral.textContent = file.name;
+                }
+                if (excelFileInfoGeneral) {
+                    excelFileInfoGeneral.style.display = 'block';
+                }
+                
+                // Importar automáticamente
+                importarBeneficiariosExcelGeneral(file);
+            }
+        });
+    }
+    
+    // Remover archivo Excel (general)
+    if (removeExcelFileBtnGeneral) {
+        removeExcelFileBtnGeneral.addEventListener('click', function() {
+            if (excelFileInputGeneral) {
+                excelFileInputGeneral.value = '';
+            }
+            if (excelFileInfoGeneral) {
+                excelFileInfoGeneral.style.display = 'none';
+            }
+            if (excelImportStatusGeneral) {
+                excelImportStatusGeneral.style.display = 'none';
+                excelImportStatusGeneral.innerHTML = '';
+            }
+            // Limpiar beneficiarios pendientes
+            beneficiariosPendientesExcelGeneral = [];
+            actualizarContadorPendientesGeneral();
+        });
+    }
+    
+    // Función para importar beneficiarios desde Excel (general)
+    async function importarBeneficiariosExcelGeneral(file) {
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('excel_file', file);
+        
+        // Mostrar estado de carga
+        if (excelImportStatusGeneral) {
+            excelImportStatusGeneral.style.display = 'block';
+            excelImportStatusGeneral.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+                    <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #007bff; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite;"></div>
+                    <span style="color: #007bff;">Importando beneficiarios...</span>
+                </div>
+            `;
+        }
+        
+        try {
+            const response = await fetch('/api/beneficiarios/importar-excel/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Almacenar beneficiarios pendientes (NO cerrar modal)
+                if (data.pendientes) {
+                    beneficiariosPendientesExcelGeneral = [
+                        ...(data.pendientes.exitosos || []).map(item => item.datos),
+                        ...(data.pendientes.advertencias || []).map(item => item.datos)
+                    ];
+                    actualizarContadorPendientesGeneral();
+                }
+                
+                // Mostrar resultados (misma lógica que el modal de eventos)
+                const resultados = data.resultados;
+                let statusHTML = `
+                    <div style="padding: 16px; background: rgba(40, 167, 69, 0.1); border-radius: 8px; border: 1px solid rgba(40, 167, 69, 0.3);">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #28a745;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <strong style="color: #28a745;">${data.message}</strong>
+                        </div>
+                        <div style="color: #b8c5d1; font-size: 0.9rem; line-height: 1.6;">
+                            <p style="margin: 0 0 8px 0;"><strong>Total procesados:</strong> ${resultados.total_procesados}</p>
+                            ${resultados.total_exitosos > 0 ? `<p style="margin: 0 0 8px 0; color: #28a745;"><strong>Listos para agregar:</strong> ${resultados.total_exitosos}</p>` : ''}
+                            ${resultados.total_advertencias > 0 ? `<p style="margin: 0 0 8px 0; color: #ffc107;"><strong>Listos para actualizar:</strong> ${resultados.total_advertencias}</p>` : ''}
+                            ${resultados.total_errores > 0 ? `<p style="margin: 0; color: #dc3545;"><strong>Errores:</strong> ${resultados.total_errores}</p>` : ''}
+                        </div>
+                        ${(resultados.total_exitosos > 0 || resultados.total_advertencias > 0) ? `
+                            <div style="margin-top: 12px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+                                <p style="margin: 0; color: #007bff; font-size: 0.9rem;">
+                                    <strong>⚠️ Importante:</strong> Los beneficiarios están listos pero aún no se han guardado. 
+                                    Presiona "Añadir Beneficiarios a la Base de Datos General" para guardarlos.
+                                </p>
+                            </div>
+                        ` : ''}
+                `;
+                
+                // Mostrar advertencias y errores (misma lógica)
+                if (resultados.advertencias && resultados.advertencias.length > 0) {
+                    statusHTML += `
+                        <div style="margin-top: 12px; padding: 12px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3);">
+                            <strong style="color: #ffc107; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Advertencias (Beneficiarios a actualizar):
+                            </strong>
+                            <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #ffc107; font-size: 0.85rem;">
+                    `;
+                    resultados.advertencias.slice(0, 10).forEach(advertencia => {
+                        statusHTML += `<li>Fila ${advertencia.fila}: ${advertencia.mensaje}</li>`;
+                    });
+                    if (resultados.advertencias.length > 10) {
+                        statusHTML += `<li>... y ${resultados.advertencias.length - 10} advertencias más</li>`;
+                    }
+                    statusHTML += `</ul></div>`;
+                }
+                
+                if (resultados.errores && resultados.errores.length > 0) {
+                    statusHTML += `
+                        <div style="margin-top: 12px; padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
+                            <strong style="color: #dc3545; font-size: 0.9rem;">Errores encontrados:</strong>
+                            <ul style="margin: 8px 0 0 0; padding-left: 20px; color: #dc3545; font-size: 0.85rem;">
+                    `;
+                    resultados.errores.slice(0, 10).forEach(error => {
+                        statusHTML += `<li>Fila ${error.fila}: ${error.error}</li>`;
+                    });
+                    if (resultados.errores.length > 10) {
+                        statusHTML += `<li>... y ${resultados.errores.length - 10} errores más</li>`;
+                    }
+                    statusHTML += `</ul></div>`;
+                }
+                
+                statusHTML += `</div>`;
+                
+                if (excelImportStatusGeneral) {
+                    excelImportStatusGeneral.innerHTML = statusHTML;
+                }
+            } else {
+                // Mostrar error
+                if (excelImportStatusGeneral) {
+                    excelImportStatusGeneral.innerHTML = `
+                        <div style="padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
+                            <div style="display: flex; align-items: center; gap: 8px; color: #dc3545;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                                <strong>Error:</strong> ${data.error || 'Error al importar el archivo'}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error al importar Excel:', error);
+            if (excelImportStatusGeneral) {
+                excelImportStatusGeneral.innerHTML = `
+                    <div style="padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
+                        <div style="display: flex; align-items: center; gap: 8px; color: #dc3545;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <strong>Error de conexión:</strong> No se pudo conectar con el servidor
+                        </div>
+                    </div>
+                `;
+            }
+            mostrarMensaje('error', 'Error al importar el archivo Excel. Por favor, intente nuevamente.');
+        }
+    }
+    
+    // Botón para ingresar beneficiarios a la base de datos general
+    if (ingresarBeneficiariosBDGeneralBtn) {
+        ingresarBeneficiariosBDGeneralBtn.addEventListener('click', async function() {
+            if (beneficiariosPendientesExcelGeneral.length === 0) {
+                mostrarMensaje('error', 'No hay beneficiarios pendientes para agregar');
+                return;
+            }
+            
+            // Mostrar estado de carga
+            ingresarBeneficiariosBDGeneralBtn.disabled = true;
+            ingresarBeneficiariosBDGeneralBtn.innerHTML = `
+                <div class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #ffffff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;"></div>
+                Guardando...
+            `;
+            
+            try {
+                const response = await fetch('/api/beneficiarios/guardar-general/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        beneficiarios_pendientes: beneficiariosPendientesExcelGeneral
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    mostrarMensaje('success', data.message);
+                    
+                    // Limpiar beneficiarios pendientes
+                    beneficiariosPendientesExcelGeneral = [];
+                    actualizarContadorPendientesGeneral();
+                    
+                    // Limpiar estado de importación
+                    if (excelFileInputGeneral) excelFileInputGeneral.value = '';
+                    if (excelFileInfoGeneral) excelFileInfoGeneral.style.display = 'none';
+                    if (excelImportStatusGeneral) {
+                        excelImportStatusGeneral.style.display = 'none';
+                        excelImportStatusGeneral.innerHTML = '';
+                    }
+                    
+                    // Cerrar modal
+                    closeImportExcelModalFunc();
+                } else {
+                    mostrarMensaje('error', data.error || 'Error al guardar los beneficiarios');
+                }
+            } catch (error) {
+                console.error('Error al guardar beneficiarios:', error);
+                mostrarMensaje('error', 'Error al guardar los beneficiarios. Por favor, intente nuevamente.');
+            } finally {
+                ingresarBeneficiariosBDGeneralBtn.disabled = false;
+                ingresarBeneficiariosBDGeneralBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Añadir Beneficiarios a la Base de Datos General
+                `;
+            }
+        });
+    }
+    
 });
