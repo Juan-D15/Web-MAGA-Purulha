@@ -822,6 +822,67 @@ document.addEventListener('DOMContentLoaded', function() {
     let beneficiariesCardId = null; // ID de la tarjeta de Beneficiarios automática
     let tabsInitialized = false; // Flag para saber si las pestañas ya están inicializadas
     
+    function normalizeDpiValue(value) {
+        if (!value) return '';
+        return value.toString().replace(/\D/g, '');
+    }
+
+    function getBeneficiaryDpiValue(beneficiario) {
+        if (!beneficiario) return '';
+        const detalles = beneficiario.detalles || {};
+        const tipo = (beneficiario.tipo || '').toLowerCase();
+        if (tipo === 'individual') {
+            return normalizeDpiValue(beneficiario.dpi || detalles.dpi || '');
+        }
+        if (tipo === 'familia') {
+            return normalizeDpiValue(beneficiario.dpi_jefe_familia || detalles.dpi_jefe_familia || '');
+        }
+        if (tipo === 'institucion' || tipo === 'institución') {
+            return normalizeDpiValue(beneficiario.dpi_representante || detalles.dpi_representante || '');
+        }
+        return '';
+    }
+
+    function describeBeneficiary(beneficiario) {
+        if (!beneficiario) return 'otro beneficiario';
+        const detalles = beneficiario.detalles || {};
+        return beneficiario.display_name
+            || detalles.display_name
+            || beneficiario.nombre
+            || detalles.nombre
+            || beneficiario.nombre_familia
+            || detalles.nombre_familia
+            || beneficiario.nombre_institucion
+            || detalles.nombre_institucion
+            || 'otro beneficiario';
+    }
+
+    function findExistingBeneficiaryByDpi(dpiNormalizado, opciones = {}) {
+        if (!dpiNormalizado) return null;
+        const excludeId = opciones.excludeId ? String(opciones.excludeId) : null;
+        const excludeTempId = opciones.excludeTempId || null;
+
+        for (const benef of beneficiariosExistentes) {
+            if (!benef) continue;
+            if (excludeId && String(benef.id) === excludeId) continue;
+            const candidateDpi = getBeneficiaryDpiValue(benef);
+            if (candidateDpi && candidateDpi === dpiNormalizado) {
+                return { origen: 'existente', item: benef };
+            }
+        }
+
+        for (const benef of beneficiariosNuevos) {
+            if (!benef) continue;
+            if (excludeTempId && benef.temporal_id === excludeTempId) continue;
+            const candidateDpi = getBeneficiaryDpiValue(benef);
+            if (candidateDpi && candidateDpi === dpiNormalizado) {
+                return { origen: 'nuevo', item: benef };
+            }
+        }
+
+        return null;
+    }
+    
     function openModalElement(modalElement) {
         if (!modalElement) return;
         modalElement.style.display = 'flex';
@@ -2261,6 +2322,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 region_codigo: resolvedRegionCodigo,
                 region_sede: resolvedRegionSede
             };
+
+            const tipoNormalizado = (tipo || '').toLowerCase();
+            let dpiParaValidacion = '';
+            if (tipoNormalizado === 'individual') {
+                dpiParaValidacion = normalizeDpiValue(beneficiario.dpi);
+            } else if (tipoNormalizado === 'familia') {
+                dpiParaValidacion = normalizeDpiValue(beneficiario.dpi_jefe_familia);
+            } else if (tipoNormalizado === 'institucion' || tipoNormalizado === 'institución') {
+                dpiParaValidacion = normalizeDpiValue(beneficiario.dpi_representante);
+            }
+
+            if (dpiParaValidacion) {
+                const opcionesExclusion = {};
+                if (beneficiarioEnEdicion) {
+                    if (beneficiarioEnEdicion.esExistente) {
+                        const actual = beneficiariosExistentes[beneficiarioEnEdicion.index];
+                        if (actual && actual.id) {
+                            opcionesExclusion.excludeId = actual.id;
+                        }
+                    } else {
+                        const actual = beneficiariosNuevos[beneficiarioEnEdicion.index];
+                        if (actual && actual.temporal_id) {
+                            opcionesExclusion.excludeTempId = actual.temporal_id;
+                        }
+                    }
+                }
+                const duplicado = findExistingBeneficiaryByDpi(dpiParaValidacion, opcionesExclusion);
+                if (duplicado) {
+                    const nombreDuplicado = describeBeneficiary(duplicado.item);
+                    mostrarMensaje('error', `El DPI ingresado ya está asignado a ${nombreDuplicado}.`);
+                    return;
+                }
+            }
             
             // Agregar o actualizar según el modo
             if (beneficiarioEnEdicion) {

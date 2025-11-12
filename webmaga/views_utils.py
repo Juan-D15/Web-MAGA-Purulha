@@ -1,8 +1,11 @@
 from datetime import datetime
 import os
+import re
 
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
+from django.db.models import F, Value
+from django.db.models.functions import Coalesce, Replace
 from django.utils import timezone
 
 from .models import (
@@ -20,6 +23,40 @@ from .models import (
     EventosEvidenciasCambios,
     TarjetaDato,
 )
+
+
+def normalizar_dpi(valor):
+    """Devuelve una cadena de solo dígitos para comparaciones de DPI."""
+    if not valor:
+        return ''
+    return re.sub(r'\D', '', str(valor))
+
+
+def _expresion_dpi_normalizado(field_name):
+    """Construye una expresión que elimina caracteres comunes en el DPI."""
+    expr = Coalesce(F(field_name), Value(''))
+    for caracter in (' ', '-', '_', '/', '.', '\t', '\u00a0'):
+        expr = Replace(expr, Value(caracter), Value(''))
+    return expr
+
+
+def buscar_conflicto_dpi(queryset, field_name, valor, beneficiario_excluir=None):
+    """
+    Busca si existe un registro con el mismo DPI (normalizado) en el queryset.
+    Retorna la instancia encontrada o None.
+    """
+    valor_normalizado = normalizar_dpi(valor)
+    if not valor_normalizado:
+        return None
+
+    expr = _expresion_dpi_normalizado(field_name)
+    qs = queryset.filter(beneficiario__activo=True).annotate(
+        _dpi_normalizado=expr
+    )
+    if beneficiario_excluir is not None:
+        qs = qs.exclude(beneficiario=beneficiario_excluir)
+
+    return qs.filter(_dpi_normalizado=valor_normalizado).first()
 
 
 def obtener_detalle_beneficiario(beneficiario):
@@ -117,19 +154,20 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
         try:
             if tipo == 'individual':
                 benef_ind = BeneficiarioIndividual.objects.get(beneficiario=beneficiario)
-                nuevo_dpi = benef_data.get('dpi')
-                if nuevo_dpi and nuevo_dpi != benef_ind.dpi:
-                    dpi_existente = (
-                        BeneficiarioIndividual.objects.filter(dpi=nuevo_dpi, beneficiario__activo=True)
-                        .exclude(beneficiario=beneficiario)
-                        .first()
+                nuevo_dpi = normalizar_dpi(benef_data.get('dpi'))
+                if nuevo_dpi:
+                    dpi_existente = buscar_conflicto_dpi(
+                        BeneficiarioIndividual.objects.all(),
+                        'dpi',
+                        nuevo_dpi,
+                        beneficiario,
                     )
                     if dpi_existente:
                         raise ValueError(f'Ya existe un beneficiario individual con el DPI {nuevo_dpi}.')
 
                 benef_ind.nombre = benef_data.get('nombre', benef_ind.nombre)
                 benef_ind.apellido = benef_data.get('apellido', benef_ind.apellido)
-                benef_ind.dpi = nuevo_dpi
+                benef_ind.dpi = nuevo_dpi or None
                 benef_ind.fecha_nacimiento = benef_data.get('fecha_nacimiento')
                 benef_ind.genero = benef_data.get('genero')
                 benef_ind.telefono = benef_data.get('telefono')
@@ -141,14 +179,13 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
 
             elif tipo == 'familia':
                 benef_fam = BeneficiarioFamilia.objects.get(beneficiario=beneficiario)
-                nuevo_dpi_jefe = benef_data.get('dpi_jefe_familia')
-                if nuevo_dpi_jefe and nuevo_dpi_jefe != benef_fam.dpi_jefe_familia:
-                    dpi_existente = (
-                        BeneficiarioFamilia.objects.filter(
-                            dpi_jefe_familia=nuevo_dpi_jefe, beneficiario__activo=True
-                        )
-                        .exclude(beneficiario=beneficiario)
-                        .first()
+                nuevo_dpi_jefe = normalizar_dpi(benef_data.get('dpi_jefe_familia'))
+                if nuevo_dpi_jefe:
+                    dpi_existente = buscar_conflicto_dpi(
+                        BeneficiarioFamilia.objects.all(),
+                        'dpi_jefe_familia',
+                        nuevo_dpi_jefe,
+                        beneficiario,
                     )
                     if dpi_existente:
                         raise ValueError(
@@ -157,7 +194,7 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
 
                 benef_fam.nombre_familia = benef_data.get('nombre_familia', benef_fam.nombre_familia)
                 benef_fam.jefe_familia = benef_data.get('jefe_familia', benef_fam.jefe_familia)
-                benef_fam.dpi_jefe_familia = nuevo_dpi_jefe
+                benef_fam.dpi_jefe_familia = nuevo_dpi_jefe or None
                 benef_fam.telefono = benef_data.get('telefono')
                 benef_fam.numero_miembros = benef_data.get('numero_miembros')
                 benef_fam.save()
@@ -166,14 +203,13 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
 
             elif tipo in ('institucion', 'institución'):
                 benef_inst = BeneficiarioInstitucion.objects.get(beneficiario=beneficiario)
-                nuevo_dpi_rep = benef_data.get('dpi_representante')
-                if nuevo_dpi_rep and nuevo_dpi_rep != benef_inst.dpi_representante:
-                    dpi_existente = (
-                        BeneficiarioInstitucion.objects.filter(
-                            dpi_representante=nuevo_dpi_rep, beneficiario__activo=True
-                        )
-                        .exclude(beneficiario=beneficiario)
-                        .first()
+                nuevo_dpi_rep = normalizar_dpi(benef_data.get('dpi_representante'))
+                if nuevo_dpi_rep:
+                    dpi_existente = buscar_conflicto_dpi(
+                        BeneficiarioInstitucion.objects.all(),
+                        'dpi_representante',
+                        nuevo_dpi_rep,
+                        beneficiario,
                     )
                     if dpi_existente:
                         raise ValueError(
@@ -187,7 +223,7 @@ def aplicar_modificaciones_beneficiarios(beneficiarios_modificados):
                     'tipo_institucion', benef_inst.tipo_institucion
                 )
                 benef_inst.representante_legal = benef_data.get('representante_legal')
-                benef_inst.dpi_representante = nuevo_dpi_rep
+                benef_inst.dpi_representante = nuevo_dpi_rep or None
                 benef_inst.telefono = benef_data.get('telefono')
                 benef_inst.email = benef_data.get('email')
                 benef_inst.numero_beneficiarios_directos = benef_data.get(
@@ -514,6 +550,8 @@ __all__ = [
     'obtener_url_portada_o_evidencia',
     'guardar_portada_evento',
     '_calcular_tiempo_relativo',
+    'normalizar_dpi',
+    'buscar_conflicto_dpi',
 ]
 
 

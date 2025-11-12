@@ -7,7 +7,7 @@ from django.db.models.functions import TruncMonth, TruncYear, Extract
 from django.core.files.storage import FileSystemStorage
 from django.core.mail import send_mail
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 from datetime import datetime
 from django.contrib.auth import authenticate
@@ -48,6 +48,8 @@ from .views_utils import (
     obtener_portada_evento,
     obtener_tarjetas_datos,
     obtener_url_portada_o_evidencia,
+    normalizar_dpi,
+    buscar_conflicto_dpi,
 )
 
 
@@ -2081,7 +2083,40 @@ def api_crear_evento(request):
                         # Obtener el tipo de beneficiario (mapear "otro" a "institucion")
                         tipo_lookup = tipo if tipo != 'otro' else 'institución'
                         tipo_benef = TipoBeneficiario.objects.get(nombre=tipo_lookup)
-                        
+
+                        # Validaciones de DPI antes de crear registros
+                        dpi_individual = dpi_jefe = dpi_rep = ''
+                        if tipo == 'individual':
+                            dpi_individual = normalizar_dpi(benef_data.get('dpi'))
+                            if dpi_individual:
+                                conflicto = buscar_conflicto_dpi(
+                                    BeneficiarioIndividual.objects.all(),
+                                    'dpi',
+                                    dpi_individual,
+                                )
+                                if conflicto:
+                                    raise ValueError(f'Ya existe un beneficiario individual con el DPI {dpi_individual}.')
+                        elif tipo == 'familia':
+                            dpi_jefe = normalizar_dpi(benef_data.get('dpi_jefe_familia'))
+                            if dpi_jefe:
+                                conflicto = buscar_conflicto_dpi(
+                                    BeneficiarioFamilia.objects.all(),
+                                    'dpi_jefe_familia',
+                                    dpi_jefe,
+                                )
+                                if conflicto:
+                                    raise ValueError(f'Ya existe una familia con el DPI del jefe {dpi_jefe}.')
+                        elif tipo == 'institucion' or tipo == 'institución':
+                            dpi_rep = normalizar_dpi(benef_data.get('dpi_representante'))
+                            if dpi_rep:
+                                conflicto = buscar_conflicto_dpi(
+                                    BeneficiarioInstitucion.objects.all(),
+                                    'dpi_representante',
+                                    dpi_rep,
+                                )
+                                if conflicto:
+                                    raise ValueError(f'Ya existe una institución con el DPI del representante {dpi_rep}.')
+
                         # Crear beneficiario principal
                         beneficiario = Beneficiario.objects.create(
                             tipo=tipo_benef,
@@ -2091,61 +2126,31 @@ def api_crear_evento(request):
                         
                         # Crear registro específico según tipo
                         if tipo == 'individual':
-                            dpi_individual = benef_data.get('dpi')
-                            # Validar que no exista otro beneficiario individual con el mismo DPI
-                            if dpi_individual:
-                                dpi_existente = BeneficiarioIndividual.objects.filter(
-                                    dpi=dpi_individual,
-                                    beneficiario__activo=True
-                                ).exclude(beneficiario=beneficiario).first()
-                                if dpi_existente:
-                                    raise ValueError(f'Ya existe un beneficiario individual con el DPI {dpi_individual}.')
-                            
                             BeneficiarioIndividual.objects.create(
                                 beneficiario=beneficiario,
                                 nombre=benef_data.get('nombre', ''),
                                 apellido=benef_data.get('apellido', ''),
-                                dpi=dpi_individual,
+                                dpi=dpi_individual or None,
                                 fecha_nacimiento=benef_data.get('fecha_nacimiento'),
                                 genero=benef_data.get('genero'),
                                 telefono=benef_data.get('telefono')
                             )
                         elif tipo == 'familia':
-                            dpi_jefe = benef_data.get('dpi_jefe_familia')
-                            # Validar que no exista otra familia con el mismo DPI del jefe
-                            if dpi_jefe:
-                                dpi_existente = BeneficiarioFamilia.objects.filter(
-                                    dpi_jefe_familia=dpi_jefe,
-                                    beneficiario__activo=True
-                                ).exclude(beneficiario=beneficiario).first()
-                                if dpi_existente:
-                                    raise ValueError(f'Ya existe una familia con el DPI del jefe {dpi_jefe}.')
-                            
                             BeneficiarioFamilia.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_familia=benef_data.get('nombre_familia', ''),
                                 jefe_familia=benef_data.get('jefe_familia', ''),
-                                dpi_jefe_familia=dpi_jefe,
+                                dpi_jefe_familia=dpi_jefe or None,
                                 telefono=benef_data.get('telefono'),
                                 numero_miembros=benef_data.get('numero_miembros')
                             )
                         elif tipo == 'institucion' or tipo == 'institución':
-                            dpi_rep = benef_data.get('dpi_representante')
-                            # Validar que no exista otra institución con el mismo DPI del representante
-                            if dpi_rep:
-                                dpi_existente = BeneficiarioInstitucion.objects.filter(
-                                    dpi_representante=dpi_rep,
-                                    beneficiario__activo=True
-                                ).exclude(beneficiario=beneficiario).first()
-                                if dpi_existente:
-                                    raise ValueError(f'Ya existe una institución con el DPI del representante {dpi_rep}.')
-                            
                             inst = BeneficiarioInstitucion.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_institucion=benef_data.get('nombre_institucion', ''),
                                 tipo_institucion=benef_data.get('tipo_institucion', 'otro'),
                                 representante_legal=benef_data.get('representante_legal'),
-                                dpi_representante=dpi_rep,
+                                dpi_representante=dpi_rep or None,
                                 telefono=benef_data.get('telefono'),
                                 email=benef_data.get('email'),
                                 numero_beneficiarios_directos=benef_data.get('numero_beneficiarios_directos')
@@ -2172,7 +2177,7 @@ def api_crear_evento(request):
                 except (json.JSONDecodeError, TipoBeneficiario.DoesNotExist) as e:
                     print(f"Error al crear beneficiarios: {e}")
                     pass  # Ignorar si hay errores en beneficiarios
-                except ValueError as e:
+                except (ValueError, IntegrityError) as e:
                     # Retornar error de validación (duplicado)
                     return JsonResponse({
                         'success': False,
@@ -2212,7 +2217,7 @@ def api_crear_evento(request):
                 except json.JSONDecodeError as e:
                     print(f"Error al actualizar beneficiarios: {e}")
                     pass
-                except ValueError as e:
+                except (ValueError, IntegrityError) as e:
                     # Retornar error de validación (duplicado)
                     return JsonResponse({
                         'success': False,
@@ -2980,7 +2985,7 @@ def api_actualizar_evento(request, evento_id):
                 except json.JSONDecodeError as e:
                     print(f"Error al actualizar beneficiarios: {e}")
                     pass
-                except ValueError as e:
+                except (ValueError, IntegrityError) as e:
                     # Retornar error de validación (duplicado)
                     return JsonResponse({
                         'success': False,
@@ -3017,6 +3022,39 @@ def api_actualizar_evento(request, evento_id):
                         tipo_lookup = tipo if tipo != 'otro' else 'institución'
                         tipo_benef = TipoBeneficiario.objects.get(nombre=tipo_lookup)
                         
+                        # Validaciones de DPI
+                        dpi_individual = dpi_jefe = dpi_rep = ''
+                        if tipo == 'individual':
+                            dpi_individual = normalizar_dpi(benef_data.get('dpi'))
+                            if dpi_individual:
+                                conflicto = buscar_conflicto_dpi(
+                                    BeneficiarioIndividual.objects.all(),
+                                    'dpi',
+                                    dpi_individual,
+                                )
+                                if conflicto:
+                                    raise ValueError(f'Ya existe un beneficiario individual con el DPI {dpi_individual}.')
+                        elif tipo == 'familia':
+                            dpi_jefe = normalizar_dpi(benef_data.get('dpi_jefe_familia'))
+                            if dpi_jefe:
+                                conflicto = buscar_conflicto_dpi(
+                                    BeneficiarioFamilia.objects.all(),
+                                    'dpi_jefe_familia',
+                                    dpi_jefe,
+                                )
+                                if conflicto:
+                                    raise ValueError(f'Ya existe una familia con el DPI del jefe {dpi_jefe}.')
+                        elif tipo == 'institucion' or tipo == 'institución':
+                            dpi_rep = normalizar_dpi(benef_data.get('dpi_representante'))
+                            if dpi_rep:
+                                conflicto = buscar_conflicto_dpi(
+                                    BeneficiarioInstitucion.objects.all(),
+                                    'dpi_representante',
+                                    dpi_rep,
+                                )
+                                if conflicto:
+                                    raise ValueError(f'Ya existe una institución con el DPI del representante {dpi_rep}.')
+
                         # Crear beneficiario principal
                         beneficiario = Beneficiario.objects.create(
                             tipo=tipo_benef,
@@ -3026,61 +3064,31 @@ def api_actualizar_evento(request, evento_id):
                         
                         # Crear registro específico según tipo
                         if tipo == 'individual':
-                            dpi_individual = benef_data.get('dpi')
-                            # Validar que no exista otro beneficiario individual con el mismo DPI
-                            if dpi_individual:
-                                dpi_existente = BeneficiarioIndividual.objects.filter(
-                                    dpi=dpi_individual,
-                                    beneficiario__activo=True
-                                ).exclude(beneficiario=beneficiario).first()
-                                if dpi_existente:
-                                    raise ValueError(f'Ya existe un beneficiario individual con el DPI {dpi_individual}.')
-                            
                             BeneficiarioIndividual.objects.create(
                                 beneficiario=beneficiario,
                                 nombre=benef_data.get('nombre', ''),
                                 apellido=benef_data.get('apellido', ''),
-                                dpi=dpi_individual,
+                                dpi=dpi_individual or None,
                                 fecha_nacimiento=benef_data.get('fecha_nacimiento'),
                                 genero=benef_data.get('genero'),
                                 telefono=benef_data.get('telefono')
                             )
                         elif tipo == 'familia':
-                            dpi_jefe = benef_data.get('dpi_jefe_familia')
-                            # Validar que no exista otra familia con el mismo DPI del jefe
-                            if dpi_jefe:
-                                dpi_existente = BeneficiarioFamilia.objects.filter(
-                                    dpi_jefe_familia=dpi_jefe,
-                                    beneficiario__activo=True
-                                ).exclude(beneficiario=beneficiario).first()
-                                if dpi_existente:
-                                    raise ValueError(f'Ya existe una familia con el DPI del jefe {dpi_jefe}.')
-                            
                             BeneficiarioFamilia.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_familia=benef_data.get('nombre_familia', ''),
                                 jefe_familia=benef_data.get('jefe_familia', ''),
-                                dpi_jefe_familia=dpi_jefe,
+                                dpi_jefe_familia=dpi_jefe or None,
                                 telefono=benef_data.get('telefono'),
                                 numero_miembros=benef_data.get('numero_miembros')
                             )
                         elif tipo == 'institucion' or tipo == 'institución':
-                            dpi_rep = benef_data.get('dpi_representante')
-                            # Validar que no exista otra institución con el mismo DPI del representante
-                            if dpi_rep:
-                                dpi_existente = BeneficiarioInstitucion.objects.filter(
-                                    dpi_representante=dpi_rep,
-                                    beneficiario__activo=True
-                                ).exclude(beneficiario=beneficiario).first()
-                                if dpi_existente:
-                                    raise ValueError(f'Ya existe una institución con el DPI del representante {dpi_rep}.')
-                            
                             BeneficiarioInstitucion.objects.create(
                                 beneficiario=beneficiario,
                                 nombre_institucion=benef_data.get('nombre_institucion', ''),
                                 tipo_institucion=benef_data.get('tipo_institucion', 'otro'),
                                 representante_legal=benef_data.get('representante_legal'),
-                                dpi_representante=dpi_rep,
+                                dpi_representante=dpi_rep or None,
                                 telefono=benef_data.get('telefono'),
                                 email=benef_data.get('email'),
                                 numero_beneficiarios_directos=benef_data.get('numero_beneficiarios_directos')
@@ -3106,7 +3114,7 @@ def api_actualizar_evento(request, evento_id):
                 except (json.JSONDecodeError, TipoBeneficiario.DoesNotExist) as e:
                     print(f"Error al agregar beneficiarios: {e}")
                     pass
-                except ValueError as e:
+                except (ValueError, IntegrityError) as e:
                     # Retornar error de validación (duplicado)
                     return JsonResponse({
                         'success': False,
@@ -3281,7 +3289,7 @@ def api_actualizar_evento(request, evento_id):
             'success': False,
             'error': 'Comunidad no válida'
         }, status=400)
-    except ValueError as e:
+    except (ValueError, IntegrityError) as e:
         return JsonResponse({
             'success': False,
             'error': str(e)
@@ -6426,6 +6434,30 @@ def api_crear_colaborador(request):
                     'error': 'Puesto no encontrado'
                 }, status=404)
         
+        # Normalizar correo y DPI
+        correo_normalizado = correo.lower() if correo else ''
+        dpi_normalizado = dpi.replace(' ', '') if dpi else ''
+        correo = correo_normalizado
+        dpi = dpi_normalizado
+        correo = correo_normalizado
+        dpi = dpi_normalizado
+
+        # Validar unicidad de correo
+        if correo_normalizado:
+            if Colaborador.objects.filter(correo__iexact=correo_normalizado).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Ya existe un colaborador con ese correo electrónico'
+                }, status=400)
+
+        # Validar unicidad de DPI
+        if dpi_normalizado:
+            if Colaborador.objects.filter(dpi=dpi_normalizado).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Ya existe un colaborador con ese número de DPI'
+                }, status=400)
+
         # Validar restricción de personal fijo: solo se permite si se vincula un usuario
         if es_personal_fijo:
             return JsonResponse({
@@ -6954,6 +6986,24 @@ def api_actualizar_colaborador(request, colaborador_id):
                     'error': 'Para marcar a un colaborador como personal fijo primero debes vincularlo a un usuario del sistema desde la gestión de usuarios.'
                 }, status=400)
         
+        correo_normalizado = correo.lower() if correo else ''
+        dpi_normalizado = dpi.replace(' ', '') if dpi else ''
+
+        # Validar unicidad de correo y DPI
+        if correo:
+            if Colaborador.objects.filter(correo__iexact=correo).exclude(id=colaborador.id).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Ya existe otro colaborador con ese correo electrónico'
+                }, status=400)
+
+        if dpi:
+            if Colaborador.objects.filter(dpi=dpi).exclude(id=colaborador.id).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Ya existe otro colaborador con ese número de DPI'
+                }, status=400)
+
         # Actualizar colaborador
         colaborador.nombre = nombre
         colaborador.puesto = puesto
