@@ -5,7 +5,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
-  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=12">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=13">
   <link rel="stylesheet" href="{% static 'css/proyectos.css' %}">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
 {% endblock %}
@@ -663,7 +663,7 @@
           </div>
           <div class="form-group" style="display: flex !important; flex-direction: column !important; gap: 8px !important; width: 100% !important; flex-shrink: 0 !important; min-height: auto !important; margin: 0 !important;">
             <label for="community_search_input" class="form-label" style="display: block !important; font-weight: 600 !important; color: #ffffff !important; font-size: 15px !important; margin: 0 0 8px 0 !important; visibility: visible !important; opacity: 1 !important;">Buscar comunidad</label>
-            <input type="text" id="community_search_input" class="form-input" placeholder="Buscar por nombre o código" style="width: 100% !important; padding: 12px 16px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 8px !important; background: rgba(255, 255, 255, 0.05) !important; color: #ffffff !important; font-size: 16px !important; display: block !important; visibility: visible !important; opacity: 1 !important; height: auto !important; min-height: 44px !important;">
+            <input type="text" id="community_search_input" class="form-input" placeholder="Buscar por nombre o código" style="width: 100% !important; padding: 12px 16px !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; border-radius: 8px !important; background: #ffffff !important; color: #1b2333 !important; font-size: 16px !important; display: block !important; visibility: visible !important; opacity: 1 !important; height: auto !important; min-height: 44px !important;">
           </div>
         </div>
         <div id="community_list_container" style="display: grid !important; gap: 8px !important; flex: 1 !important; overflow-y: auto !important; min-height: 200px !important; max-height: calc(90vh - 350px) !important; padding-right: 8px;"></div>
@@ -1157,5 +1157,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=15"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=16"></script>
 {% endblock %}

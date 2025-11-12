@@ -1091,8 +1091,8 @@
   padding: 12px 16px;
   border: 2px solid #4A5568;
   border-radius: 8px;
-  background: #343D4C;
-  color: white;
+  background: #ffffff;
+  color: #1b2333;
   font-size: 14px;
   transition: all 0.3s ease;
 }
@@ -1101,8 +1101,9 @@
 .form-textarea:focus {
   outline: none;
   border-color: #007bff;
-  background: #343D4C;
+  background: #ffffff;
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  color: #1b2333;
 }
 
 .form-textarea {
@@ -1113,8 +1114,13 @@
 /* Estilos para placeholders */
 .form-input::placeholder,
 .form-textarea::placeholder {
-  color: #A0AEC0;
+  color: rgba(27, 35, 51, 0.45);
   opacity: 1;
+}
+
+.form-input:focus::placeholder,
+.form-textarea:focus::placeholder {
+  color: rgba(27, 35, 51, 0.35);
 }
 
 .form-input::-webkit-input-placeholder,

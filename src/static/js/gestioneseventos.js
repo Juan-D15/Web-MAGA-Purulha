@@ -52,6 +52,15 @@ function validarNumeroPositivo(numero, min = 1, max = null) {
     return { valido: true, mensaje: '' };
 }
 
+function normalizarTexto(texto) {
+    if (!texto) return '';
+    return texto
+        .toString()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
 function mostrarErrorCampo(input, mensaje) {
     input.style.borderColor = '#dc3545';
     input.style.backgroundColor = 'rgba(220, 53, 69, 0.1)';
@@ -176,6 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let selectedCommunitiesList = [];
     let pendingCommunitySelections = new Map();
     let selectedPersonnelList = [];
+    let personalSearchTerm = '';
     let selectedBeneficiariosList = [];
     let accumulatedFiles = []; // Archivos acumulados
     let beneficiariosNuevos = []; // Beneficiarios a crear
@@ -202,6 +212,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const beneficiariesFilterTypeSelect = document.getElementById('beneficiariesFilterType');
     const beneficiariesFilterRegionSelect = document.getElementById('beneficiariesFilterRegion');
     const beneficiariesFilterCommunitySelect = document.getElementById('beneficiariesFilterCommunity');
+    const personnelSearchInput = document.getElementById('personnelSearch');
     
     // ===== FUNCIONES DE NAVEGACI├ôN =====
     function showMainView() {
@@ -326,6 +337,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         cargarEventos();
+    }
+    
+    if (personnelSearchInput) {
+        personnelSearchInput.addEventListener('input', function(e) {
+            personalSearchTerm = e.target.value || '';
+            renderPersonalList();
+        });
+        personnelSearchInput.addEventListener('search', function(e) {
+            personalSearchTerm = e.target.value || '';
+            renderPersonalList();
+        });
     }
     
     // Event listeners de navegación
@@ -514,14 +536,37 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // ===== RENDERIZAR LISTA DE PERSONAL =====
     function renderPersonalList() {
-        const personnelList = document.getElementById('personnelList');
-        if (!personnelList) return;
+        const personnelListContainer = document.getElementById('personnelList');
+        if (!personnelListContainer) return;
         
-        personnelList.innerHTML = '';
+        personnelListContainer.innerHTML = '';
         
         console.log('­ƒöä Renderizando personal. IDs preseleccionados:', selectedPersonnelList);
         
-        personalList.forEach(persona => {
+        const terminoBusqueda = normalizarTexto(personalSearchTerm);
+        const personalFiltrado = personalList.filter(persona => {
+            if (!terminoBusqueda) return true;
+            const nombre = normalizarTexto(persona.nombre || '');
+            const usuario = normalizarTexto(persona.username || '');
+            return nombre.includes(terminoBusqueda) || usuario.includes(terminoBusqueda);
+        });
+        
+        if (personalFiltrado.length === 0) {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.className = 'personnel-empty-state';
+            emptyMessage.style.color = '#b8c5d1';
+            emptyMessage.style.padding = '16px';
+            emptyMessage.style.textAlign = 'center';
+            emptyMessage.style.fontSize = '0.9rem';
+            emptyMessage.textContent = terminoBusqueda
+                ? `No se encontró personal que coincida con "${personalSearchTerm.trim()}".`
+                : 'No hay personal disponible.';
+            personnelListContainer.appendChild(emptyMessage);
+            console.log('ℹ️ Sin resultados para el filtro de personal:', personalSearchTerm);
+            return;
+        }
+        
+        personalFiltrado.forEach(persona => {
             const item = document.createElement('div');
             item.className = 'personnel-item';
             
@@ -595,10 +640,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             item.appendChild(checkbox);
             item.appendChild(label);
-            personnelList.appendChild(item);
+            personnelListContainer.appendChild(item);
         });
         
-        console.log(`Ô£à ${personalList.length} personal renderizados, ${selectedPersonnelList.length} seleccionados`);
+        console.log(`Ô£à ${personalFiltrado.length} personal renderizados, ${selectedPersonnelList.length} seleccionados`);
     }
     
     function updateSelectedPersonnelDisplay() {

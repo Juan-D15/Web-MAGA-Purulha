@@ -200,8 +200,8 @@ textarea {
   padding: 12px 16px;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
+  background: #ffffff;
+  color: #1b2333;
   font-size: 16px;
   transition: var(--transition);
   box-sizing: border-box;
@@ -224,7 +224,32 @@ textarea:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  color: #1b2333;
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: rgba(27, 35, 51, 0.45);
+}
+
+.form-input:focus::placeholder,
+.form-textarea:focus::placeholder,
+input:focus::placeholder,
+textarea:focus::placeholder {
+  color: rgba(27, 35, 51, 0.35);
+}
+
+.form-input:focus,
+.form-input:focus:-webkit-autofill,
+.form-textarea:focus,
+.form-textarea:focus:-webkit-autofill,
+input:focus,
+input:focus:-webkit-autofill {
+  -webkit-text-fill-color: #1b2333 !important;
+  background: #ffffff !important;
 }
 
 .suggestions-wrapper {
@@ -4536,8 +4561,8 @@ html {
   padding: 12px 16px !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: #ffffff !important;
+  background: #ffffff !important;
+  color: #1b2333 !important;
   font-size: 16px !important;
   display: block !important;
   visibility: visible !important;
@@ -4552,7 +4577,8 @@ html {
   outline: none !important;
   border-color: var(--primary-color) !important;
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25) !important;
-  background: rgba(255, 255, 255, 0.08) !important;
+  background: #ffffff !important;
+  color: #1b2333 !important;
 }
 
 #addCommunityModal #community_list_container {
