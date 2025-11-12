@@ -368,6 +368,83 @@
     .btn-secondary{background:transparent;border:1px solid #ffffff1f;color:#dfe9f7;font-weight:800;padding:10px 14px;border-radius:10px;cursor:pointer}
     .btn-danger{background:linear-gradient(135deg,#d72d2d,#b42318);border:1px solid #ffffff1f;color:#fff;font-weight:800;padding:8px 12px;border-radius:8px;cursor:pointer}
 
+    /* Responsive para modal de recordatorio */
+    @media(max-width:768px){
+      .reminder__panel{
+        width:95vw;
+        max-width:95vw;
+        max-height:90vh;
+        overflow:hidden;
+        display:flex;
+        flex-direction:column;
+      }
+      .reminder__body{
+        max-height:calc(90vh - 60px);
+        overflow-y:auto;
+        overflow-x:hidden;
+        -webkit-overflow-scrolling:touch;
+        padding:12px;
+      }
+      .reminder__header{
+        flex-shrink:0;
+        padding:10px 12px;
+      }
+      .reminder__title{
+        font-size:1rem;
+      }
+      .form-row.two{
+        grid-template-columns:1fr;
+        gap:10px;
+      }
+      .form-actions{
+        flex-direction:column-reverse;
+        gap:8px;
+      }
+      .btn-primary,.btn-secondary{
+        width:100%;
+        justify-content:center;
+      }
+      .collaborators-checklist{
+        max-height:150px;
+      }
+    }
+    @media(max-width:480px){
+      .reminder__panel{
+        width:100vw;
+        max-width:100vw;
+        max-height:100vh;
+        border-radius:0;
+        top:0;
+        left:0;
+        transform:none;
+      }
+      .reminder__body{
+        max-height:calc(100vh - 55px);
+        padding:10px;
+        gap:8px;
+      }
+      .reminder__header{
+        padding:8px 10px;
+      }
+      .reminder__title{
+        font-size:0.95rem;
+      }
+      .form-label{
+        font-size:0.85rem;
+      }
+      .form-input,.form-select,.form-textarea{
+        font-size:0.85rem;
+        padding:6px 8px;
+      }
+      .form-textarea{
+        min-height:60px;
+      }
+      .collaborators-checklist{
+        max-height:120px;
+        padding:6px;
+      }
+    }
+
     /* Responsive calendar */
     @media(max-width:900px){
       .calendar-section{
