@@ -27,6 +27,76 @@ let colaboradorIdParaEliminar = null;
 let deleteUsuarioBtnDefaultHTML = '';
 let deleteColaboradorBtnDefaultHTML = '';
 
+// Contador de modales abiertos para gestionar la clase modal-open en el body
+let modalesAbiertos = 0;
+
+// =====================================================
+// FUNCIONES HELPER PARA GESTIONAR MODALES
+// =====================================================
+
+/**
+ * Añade la clase modal-open al body cuando se abre un modal
+ */
+function abrirModal(modalElement) {
+    if (!modalElement) return;
+    
+    // Cerrar el drawer móvil si está abierto
+    const drawer = document.getElementById('drawer');
+    if (drawer && drawer.classList.contains('open')) {
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+        drawer.setAttribute('inert', '');
+        const btnHamburger = document.getElementById('btnHamburger');
+        if (btnHamburger) {
+            btnHamburger.setAttribute('aria-expanded', 'false');
+        }
+    }
+    
+    // Cerrar el dropdown de usuario si está abierto
+    const navUserDropdown = document.getElementById('navUserDropdown');
+    if (navUserDropdown && navUserDropdown.classList.contains('show')) {
+        navUserDropdown.classList.remove('show');
+    }
+    
+    modalElement.style.display = 'block';
+    modalesAbiertos++;
+    if (modalesAbiertos === 1) {
+        document.body.classList.add('modal-open');
+    }
+}
+
+/**
+ * Quita la clase modal-open del body cuando se cierra un modal
+ */
+function cerrarModal(modalElement) {
+    if (!modalElement) return;
+    modalElement.style.display = 'none';
+    if (modalesAbiertos > 0) {
+        modalesAbiertos--;
+    }
+    if (modalesAbiertos === 0) {
+        document.body.classList.remove('modal-open');
+    }
+}
+
+/**
+ * Verifica si hay modales abiertos y actualiza la clase del body
+ */
+function actualizarEstadoModal() {
+    const modales = document.querySelectorAll('.modal[style*="display: block"], .modal[style*="display:block"]');
+    const modalesVisibles = Array.from(modales).filter(modal => {
+        const style = window.getComputedStyle(modal);
+        return style.display === 'block';
+    });
+    
+    modalesAbiertos = modalesVisibles.length;
+    if (modalesAbiertos > 0) {
+        document.body.classList.add('modal-open');
+    } else {
+        document.body.classList.remove('modal-open');
+    }
+}
+
 // Esperar a que el DOM esté completamente cargado
 document.addEventListener('DOMContentLoaded', function() {
     inicializarNavegacion();
@@ -266,7 +336,7 @@ function inicializarFormularios() {
     if (createUserBtn) {
         createUserBtn.addEventListener('click', () => {
             if (createUsuarioModal) {
-                createUsuarioModal.style.display = 'block';
+                abrirModal(createUsuarioModal);
                 resetearFormularioUsuario();
                 cargarColaboradoresParaSelect();
             }
@@ -365,8 +435,9 @@ function inicializarFormularios() {
     if (createColaboradorBtn) {
         createColaboradorBtn.addEventListener('click', () => {
             if (createColaboradorModal) {
-                createColaboradorModal.style.display = 'block';
+                abrirModal(createColaboradorModal);
                 resetearFormularioColaborador();
+                cargarPuestosParaSelect('colaboradorPuesto');
             }
         });
     }
@@ -1091,10 +1162,10 @@ function abrirModalPuesto(origen) {
     
     if (modal) {
         // Asegurar que el modal de puesto aparezca encima de otros modales
-        modal.style.zIndex = '2000';
-        modal.style.display = 'block';
+        modal.style.zIndex = '5600';
+        abrirModal(modal);
         // Hacer el backdrop más oscuro cuando está encima de otro modal
-        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
     }
     if (puestoForm) puestoForm.reset();
 }
@@ -1102,9 +1173,9 @@ function abrirModalPuesto(origen) {
 function cerrarModalPuesto() {
     const modal = document.getElementById('createPuestoModal');
     if (modal) {
-        modal.style.display = 'none';
+        cerrarModal(modal);
         // Restaurar el backdrop original
-        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        modal.style.backgroundColor = '';
     }
     origenModalPuesto = null;
 }
@@ -1255,7 +1326,7 @@ async function editarUsuario(usuarioId) {
         // Mostrar modal de edición
         const editUsuarioModal = document.getElementById('editUsuarioModal');
         if (editUsuarioModal) {
-            editUsuarioModal.style.display = 'block';
+            abrirModal(editUsuarioModal);
         }
         
         // Cargar puestos en el select
@@ -1399,7 +1470,7 @@ function cerrarModalEditarUsuario() {
     
     const editUsuarioModal = document.getElementById('editUsuarioModal');
     if (editUsuarioModal) {
-        editUsuarioModal.style.display = 'none';
+        cerrarModal(editUsuarioModal);
     }
     
     // Limpiar formulario
@@ -1454,7 +1525,7 @@ function confirmarEliminarUsuario(usuarioId, usuarioUsername) {
     }
     
     resetDeleteUsuarioModalState();
-    modal.style.display = 'block';
+    abrirModal(modal);
 }
 
 async function eliminarUsuario(usuarioId = null) {
@@ -1553,7 +1624,7 @@ async function eliminarUsuario(usuarioId = null) {
 
 function cerrarModalEliminarUsuario({ clearInputs = true } = {}) {
     const modal = document.getElementById('deleteUsuarioModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) cerrarModal(modal);
     resetDeleteUsuarioModalState({ clearInputs });
     usuarioIdParaEliminar = null;
 }
@@ -1582,7 +1653,7 @@ async function editarColaborador(colaboradorId) {
         // Mostrar modal de edición
         const editColaboradorModal = document.getElementById('editColaboradorModal');
         if (editColaboradorModal) {
-            editColaboradorModal.style.display = 'block';
+            abrirModal(editColaboradorModal);
         }
         
         // Cargar puestos en el select
@@ -1680,7 +1751,7 @@ function cerrarModalEditarColaborador() {
     
     const editColaboradorModal = document.getElementById('editColaboradorModal');
     if (editColaboradorModal) {
-        editColaboradorModal.style.display = 'none';
+        cerrarModal(editColaboradorModal);
     }
     
     // Limpiar formulario
@@ -1738,7 +1809,7 @@ function confirmarEliminarColaborador(colaboradorId, colaboradorNombre) {
     }
     
     resetDeleteColaboradorModalState();
-    modal.style.display = 'block';
+    abrirModal(modal);
 }
 
 async function eliminarColaborador(colaboradorId = null) {
@@ -1837,7 +1908,7 @@ async function eliminarColaborador(colaboradorId = null) {
 
 function cerrarModalEliminarColaborador({ clearInputs = true } = {}) {
     const modal = document.getElementById('deleteColaboradorModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) cerrarModal(modal);
     resetDeleteColaboradorModalState({ clearInputs });
     colaboradorIdParaEliminar = null;
 }
@@ -2049,7 +2120,7 @@ function inicializarPasswordToggles() {
 function cerrarModalCrearUsuario() {
     const createUsuarioModal = document.getElementById('createUsuarioModal');
     if (createUsuarioModal) {
-        createUsuarioModal.style.display = 'none';
+        cerrarModal(createUsuarioModal);
     }
     
     const userForm = document.getElementById('userForm');
@@ -2062,7 +2133,7 @@ function cerrarModalCrearUsuario() {
 function cerrarModalCrearColaborador() {
     const createColaboradorModal = document.getElementById('createColaboradorModal');
     if (createColaboradorModal) {
-        createColaboradorModal.style.display = 'none';
+        cerrarModal(createColaboradorModal);
     }
     
     const colaboradorForm = document.getElementById('colaboradorForm');

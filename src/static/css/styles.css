@@ -107,6 +107,24 @@ textarea::placeholder{
     linear-gradient(180deg, var(--bg-950) 0%, #121821 100%);
   border-bottom:1px solid var(--border);
   backdrop-filter:saturate(140%) blur(6px);
+  transition: z-index 0.3s ease;
+}
+
+/* Cuando hay un modal abierto, el header y elementos de navegación se van al fondo */
+body.modal-open .topbar {
+  z-index: 100;
+}
+
+body.modal-open .nav {
+  z-index: 100;
+}
+
+body.modal-open .nav-user-dropdown {
+  z-index: 100;
+}
+
+body.modal-open .drawer {
+  z-index: 100;
 }
 .topbar__inner{
   max-width:1320px;margin:0 auto;padding:18px 22px;
@@ -175,6 +193,16 @@ textarea::placeholder{
 .dd .dd__btn.is-open{background:#ffffff1a;border-color:#ffffff2b;box-shadow:0 0 0 2px #ffffff14 inset}
 .dd__search{display:flex;align-items:center;gap:8px;margin:4px 6px 10px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:linear-gradient(180deg,#2b394f 0%, #243448 100%)}
 .dd__search input{flex:1;background:transparent;border:0;outline:0;color:var(--text-100);font-weight:600;font-size:14px}
+.dd__search-btn{background:transparent;border:0;padding:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-100);transition:all 0.2s ease;flex-shrink:0;width:24px;height:24px;border-radius:4px}
+.dd__search-btn:hover{opacity:0.8;transform:scale(1.1);background:rgba(255,255,255,0.1)}
+.dd__search-btn:active{transform:scale(0.95)}
+.dd__search-btn .icon{pointer-events:none;width:16px;height:16px}
+.dd__search-btn svg{width:16px;height:16px;display:block}
+.ddm__search-btn{background:transparent;border:0;padding:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-100);transition:all 0.2s ease;flex-shrink:0;width:24px;height:24px;border-radius:4px}
+.ddm__search-btn:hover{opacity:0.8;transform:scale(1.1);background:rgba(255,255,255,0.1)}
+.ddm__search-btn:active{transform:scale(0.95)}
+.ddm__search-btn .icon{pointer-events:none;width:16px;height:16px}
+.ddm__search-btn svg{width:16px;height:16px;display:block}
 
 /* ---------- HERO / MAPA ---------- */
 .hero{position:relative;overflow:hidden;border-top:1px solid var(--border);background:radial-gradient(900px 400px at 10% 30%, #ffffff10 0%, transparent 60%),radial-gradient(1100px 600px at 90% 70%, #ffffff0b 0%, transparent 65%),linear-gradient(180deg, #212a38 0%, #243044 35%, #1e2736 100%)}

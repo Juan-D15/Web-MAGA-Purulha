@@ -532,6 +532,187 @@ def api_registrar_sesion_offline(request):
     })
 
 
+@login_required
+@require_http_methods(["POST"])
+def api_enviar_asistencia_tecnica(request):
+    """API: Envía un correo de asistencia técnica/comentario/problema"""
+    data = _parse_request_data(request)
+    
+    nombre = (data.get('nombre') or '').strip()
+    tipo = (data.get('tipo') or '').strip()
+    mensaje = (data.get('mensaje') or '').strip()
+    
+    # Validaciones
+    if not nombre:
+        return JsonResponse({
+            'success': False,
+            'error': 'El nombre es requerido'
+        }, status=400)
+    
+    if not tipo:
+        return JsonResponse({
+            'success': False,
+            'error': 'El tipo es requerido'
+        }, status=400)
+    
+    if not mensaje:
+        return JsonResponse({
+            'success': False,
+            'error': 'El mensaje es requerido'
+        }, status=400)
+    
+    # Obtener información del usuario
+    usuario_maga = get_usuario_maga(request.user)
+    usuario_email = request.user.email if hasattr(request.user, 'email') and request.user.email else 'No disponible'
+    usuario_username = request.user.username if request.user.is_authenticated else 'No disponible'
+    
+    # Mapear tipos a español
+    tipo_map = {
+        'comentario': 'Comentario',
+        'problema': 'Reportar Problema',
+        'sugerencia': 'Sugerencia',
+        'otro': 'Otro'
+    }
+    tipo_display = tipo_map.get(tipo, tipo)
+    
+    # Configurar correo
+    # El remitente debe ser el mismo correo configurado en EMAIL_HOST_USER
+    remitente = settings.EMAIL_HOST_USER or 'recupmagabvpurulha@gmail.com'
+    destinatario = 'recupmagabvpurulha@gmail.com'
+    asunto = f'[Asistencia Técnica] {tipo_display} - {nombre}'
+    
+    # Mensaje en texto plano
+    mensaje_texto = f"""Nuevo mensaje de Asistencia Técnica
+
+Tipo: {tipo_display}
+Nombre: {nombre}
+Usuario: {usuario_username}
+Email del usuario: {usuario_email}
+
+Mensaje:
+{mensaje}
+
+---
+Este correo fue enviado desde el sistema MAGA Purulhá."""
+    
+    # Mensaje HTML (sin espacios iniciales)
+    mensaje_html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asistencia Técnica - MAGA Purulhá</title>
+</head>
+<body style="margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; background-color:#f8fafc;">
+  <div style="max-width:600px; margin:0 auto; background-color:#ffffff;">
+    <div style="padding:32px 24px; background:linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);">
+      <h1 style="margin:0; font-size:24px; font-weight:600; color:#ffffff; text-align:center;">Asistencia Técnica</h1>
+      <p style="margin:8px 0 0; font-size:14px; color:#e0e7ff; text-align:center;">Sistema MAGA Purulhá</p>
+    </div>
+    
+    <div style="padding:32px 24px;">
+      <div style="margin-bottom:24px; padding:20px; background:#f1f5f9; border-radius:12px; border-left:4px solid #3b82f6;">
+        <h2 style="margin:0 0 16px; font-size:18px; font-weight:600; color:#1e293b;">Nuevo mensaje recibido</h2>
+        <div style="margin-bottom:12px;">
+          <strong style="color:#475569; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Tipo:</strong>
+          <p style="margin:4px 0 0; font-size:15px; color:#1e293b; font-weight:500;">{tipo_display}</p>
+        </div>
+        <div style="margin-bottom:12px;">
+          <strong style="color:#475569; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Nombre:</strong>
+          <p style="margin:4px 0 0; font-size:15px; color:#1e293b; font-weight:500;">{nombre}</p>
+        </div>
+        <div style="margin-bottom:12px;">
+          <strong style="color:#475569; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Usuario:</strong>
+          <p style="margin:4px 0 0; font-size:15px; color:#1e293b;">{usuario_username}</p>
+        </div>
+        <div style="margin-bottom:12px;">
+          <strong style="color:#475569; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Email del usuario:</strong>
+          <p style="margin:4px 0 0; font-size:15px; color:#1e293b;">{usuario_email}</p>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:24px;">
+        <strong style="display:block; margin-bottom:8px; color:#475569; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">Mensaje:</strong>
+        <div style="padding:16px 20px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+          <p style="margin:0; font-size:15px; line-height:1.6; color:#334155; white-space:pre-wrap;">{mensaje}</p>
+        </div>
+      </div>
+      
+      <div style="margin-top:32px; padding:16px 20px; background:#f1f5f9; border-radius:12px;">
+        <p style="margin:0; font-size:13px; color:#475569;">Este correo fue enviado automáticamente desde el sistema MAGA Purulhá.</p>
+      </div>
+    </div>
+    
+    <div style="padding:24px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:center;">
+      <p style="margin:0; font-size:12px; color:#94a3b8;">©2025 Oficina Regional MAGA Purulhá B.V.</p>
+    </div>
+  </div>
+</body>
+</html>"""
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Verificar configuración de correo antes de enviar
+    logger.info(f'Configuración de correo - Host: {settings.EMAIL_HOST}, Port: {settings.EMAIL_PORT}, User: {settings.EMAIL_HOST_USER}')
+    
+    if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
+        logger.warning('Configuración de correo no encontrada. Usando valores por defecto.')
+        return JsonResponse({
+            'success': False,
+            'error': 'Configuración de correo no encontrada. Contacta al administrador.',
+            'detail': 'EMAIL_HOST_USER o EMAIL_HOST_PASSWORD no están configurados'
+        }, status=500)
+    
+    # Enviar correo
+    try:
+        logger.info(f'Intentando enviar correo desde {remitente} a {destinatario}')
+        result = send_mail(
+            asunto,
+            mensaje_texto,
+            remitente,
+            [destinatario],
+            fail_silently=False,
+            html_message=mensaje_html
+        )
+        
+        logger.info(f'Correo de asistencia técnica enviado. Resultado: {result}')
+        
+        if not result:
+            return JsonResponse({
+                'success': False,
+                'error': 'El correo no se pudo enviar. Por favor, intenta nuevamente.',
+                'detail': 'send_mail retornó False'
+            }, status=500)
+        
+    except Exception as exc:
+        logger.error(f'Error al enviar correo de asistencia técnica: {str(exc)}', exc_info=True)
+        
+        # Mensaje de error más detallado
+        error_type = type(exc).__name__
+        error_message = str(exc)
+        
+        # Mensaje de error para el usuario
+        if 'Authentication' in error_type or '534' in error_message:
+            user_error = 'Error de autenticación. Verifica que la contraseña de aplicación sea correcta.'
+        elif 'Connection' in error_type or 'Connection refused' in error_message:
+            user_error = 'Error de conexión. Verifica tu conexión a internet o la configuración del servidor de correo.'
+        else:
+            user_error = 'No se pudo enviar el correo. Por favor, intenta nuevamente más tarde.'
+        
+        return JsonResponse({
+            'success': False,
+            'error': user_error,
+            'detail': error_message if settings.DEBUG else None,
+            'error_type': error_type if settings.DEBUG else None
+        }, status=500)
+    
+    return JsonResponse({
+        'success': True,
+        'message': '¡Mensaje enviado exitosamente! Nos pondremos en contacto contigo pronto.'
+    })
+
+
 def api_usuario_actual(request):
     """API: Información del usuario actual y sus permisos"""
     if not request.user.is_authenticated:

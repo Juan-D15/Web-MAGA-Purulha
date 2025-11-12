@@ -101,7 +101,12 @@
             </button>
             <div class="dd__panel" role="menu" aria-label="Comunidades">
               <div class="dd__search" role="search">
-                <span class="icon icon--white" aria-hidden="true"></span>
+                <button type="button" class="dd__search-btn" id="search-comunidades-btn" aria-label="Buscar comunidades" title="Buscar comunidades">
+                  <svg class="icon icon--white" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </button>
                 <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades" id="search-comunidades">
               </div>
               <div class="dd__section">
@@ -114,7 +119,7 @@
           </div>
         </div>
 
-        <!-- Buscador principal (permanece en móvil) -->
+        <!-- Buscador principal (permanece en móvil) - Busca PROYECTOS -->
         <div class="search" role="search">
           <div class="search__wrap">
             <input id="{% block search_input_id %}buscar-proyecto{% endblock %}" type="search" placeholder="{% block search_placeholder %}Buscar proyecto…{% endblock %}" aria-label="{% block search_label %}Buscar proyecto{% endblock %}">
@@ -268,8 +273,13 @@
           </button>
           <div class="ddm__panel">
             <div class="ddm__search">
-              <span class="icon icon--white" aria-hidden="true"></span>
-              <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades">
+              <button type="button" class="ddm__search-btn" id="search-comunidades-mobile-btn" aria-label="Buscar comunidades" title="Buscar comunidades">
+                <svg class="icon icon--white" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+              </button>
+              <input type="search" placeholder="Buscar comunidades…" aria-label="Buscar comunidades" id="search-comunidades-mobile">
             </div>
             <a href="{% url 'webmaga:comunidades' %}" class="ddm__item">Ver Comunidades</a>
             <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
