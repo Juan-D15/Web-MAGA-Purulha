@@ -580,7 +580,7 @@ def api_enviar_asistencia_tecnica(request):
     # Configurar correo
     # El remitente debe ser el mismo correo configurado en EMAIL_HOST_USER
     remitente = settings.EMAIL_HOST_USER or 'recupmagabvpurulha@gmail.com'
-    destinatario = 'recupmagabvpurulha@gmail.com'
+    destinatario = getattr(settings, 'ASISTENCIA_CONTACT_EMAIL', 'recupmagabvpurulha@gmail.com')
     asunto = f'[Asistencia Técnica] {tipo_display} - {nombre}'
     
     # Mensaje en texto plano

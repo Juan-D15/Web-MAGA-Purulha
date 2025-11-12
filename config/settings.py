@@ -41,6 +41,7 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '20'))
+ASISTENCIA_CONTACT_EMAIL = os.environ.get('ASISTENCIA_CONTACT_EMAIL', EMAIL_HOST_USER or 'recupmagabvpurulha@gmail.com')
 
 # Application definition
 
