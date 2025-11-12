@@ -885,12 +885,26 @@ def api_foto_perfil(request):
         # Obtener foto de perfil
         try:
             foto_perfil = UsuarioFotoPerfil.objects.get(usuario=usuario_maga)
+            foto_url = foto_perfil.url_almacenamiento
+            print(f"📤 GET foto de perfil - URL en BD: {foto_url}")
+            
+            # Verificar si el archivo existe físicamente
+            if foto_url:
+                file_path = _normalizar_ruta_media(foto_url)
+                if file_path:
+                    file_exists = os.path.exists(file_path)
+                    print(f"🔍 Archivo existe físicamente: {file_exists}")
+                    print(f"📂 Ruta del archivo: {file_path}")
+                    if not file_exists:
+                        print(f"⚠️ ADVERTENCIA: El archivo no existe en el sistema de archivos pero está en la BD")
+            
             return JsonResponse({
                 'success': True,
-                'foto_url': foto_perfil.url_almacenamiento,
+                'foto_url': foto_url,
                 'archivo_nombre': foto_perfil.archivo_nombre
             })
         except UsuarioFotoPerfil.DoesNotExist:
+            print(f"📤 GET foto de perfil - No hay foto de perfil para este usuario")
             return JsonResponse({
                 'success': True,
                 'foto_url': None
@@ -929,24 +943,43 @@ def api_foto_perfil(request):
             
             # Crear directorio si no existe
             perfiles_dir = os.path.join(str(settings.MEDIA_ROOT), 'perfiles_img')
+            print(f"📁 Directorio de perfiles: {perfiles_dir}")
             os.makedirs(perfiles_dir, exist_ok=True)
+            print(f"✅ Directorio creado/verificado: {perfiles_dir}")
             
             # Verificar permisos de escritura
             if not os.access(perfiles_dir, os.W_OK):
+                print(f"❌ No hay permisos de escritura en {perfiles_dir}")
                 return JsonResponse({
                     'success': False,
                     'error': f'No se tienen permisos de escritura en {perfiles_dir}'
                 }, status=500)
+            print(f"✅ Permisos de escritura verificados")
             
             # Guardar archivo
-            fs = FileSystemStorage(location=perfiles_dir)
+            # Asegurar que location sea un string
+            perfiles_dir_str = str(perfiles_dir)
+            print(f"🔧 Usando directorio (string): {perfiles_dir_str}")
+            fs = FileSystemStorage(location=perfiles_dir_str)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
             file_extension = os.path.splitext(foto.name)[1]
             filename = f"{timestamp}_{usuario_maga.id}{file_extension}"
-            saved_name = fs.save(filename, foto)
+            print(f"💾 Intentando guardar archivo: {filename} en {perfiles_dir}")
+            try:
+                saved_name = fs.save(filename, foto)
+                print(f"✅ Archivo guardado exitosamente: {saved_name}")
+                print(f"📂 Ruta completa del archivo guardado: {os.path.join(perfiles_dir, saved_name)}")
+                print(f"🔍 Verificando si el archivo existe: {os.path.exists(os.path.join(perfiles_dir, saved_name))}")
+            except Exception as save_error:
+                import traceback
+                print(f"❌ Error al guardar archivo: {str(save_error)}")
+                print(f"📋 Traceback:\n{traceback.format_exc()}")
+                raise
             file_url = f"/media/perfiles_img/{saved_name}"
+            print(f"🔗 URL generada: {file_url}")
             
             # Crear o actualizar registro en BD
+            print(f"💾 Creando/actualizando registro en BD...")
             foto_perfil, created = UsuarioFotoPerfil.objects.get_or_create(
                 usuario=usuario_maga,
                 defaults={
@@ -956,6 +989,7 @@ def api_foto_perfil(request):
                     'url_almacenamiento': file_url
                 }
             )
+            print(f"{'✅ Registro creado' if created else '🔄 Registro actualizado'}")
             
             if not created:
                 # Si ya existe, eliminar archivo anterior
@@ -976,6 +1010,7 @@ def api_foto_perfil(request):
                 foto_perfil.url_almacenamiento = file_url
                 foto_perfil.save()
             
+            print(f"✅ Proceso completado exitosamente. URL final: {file_url}")
             return JsonResponse({
                 'success': True,
                 'message': 'Foto de perfil actualizada exitosamente',
