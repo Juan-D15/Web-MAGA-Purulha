@@ -5113,8 +5113,20 @@ function handleImageSelect(event) {
 
 // Función para agregar imagen al proyecto
 
+// Flag para prevenir ejecuciones múltiples simultáneas
+let isUploadingImage = false;
+let isUploadingChange = false;
+let isUploadingFile = false;
+
 async function addImageToProject() {
   console.log('💾 addImageToProject() llamada');
+  
+  // Prevenir ejecuciones múltiples
+  if (isUploadingImage) {
+    console.warn('⚠️ Ya hay una subida de imagen en progreso, ignorando llamada duplicada');
+    return;
+  }
+  
   console.log('💾 Imágenes pendientes a guardar:', pendingProjectGalleryImages.length);
 
   if (!tienePermisoGestionActual()) {
@@ -5136,6 +5148,9 @@ async function addImageToProject() {
   }
   
   console.log('✅ Hay imágenes para subir, continuando...');
+  
+  // Marcar como en proceso
+  isUploadingImage = true;
 
   
 
@@ -5280,6 +5295,9 @@ async function addImageToProject() {
     }
 
   } finally {
+
+    // Liberar el flag
+    isUploadingImage = false;
 
     if (confirmButton) {
 
@@ -7234,6 +7252,12 @@ async function updateExistingEvidenceDescriptions() {
 
 async function addChangeToProject() {
   console.log('💾 addChangeToProject() llamada');
+  
+  // Prevenir ejecuciones múltiples
+  if (isUploadingChange) {
+    console.warn('⚠️ Ya hay una subida de cambio en progreso, ignorando llamada duplicada');
+    return;
+  }
 
   if (!tienePermisoGestionActual()) {
     console.log('❌ Sin permisos para gestionar');
@@ -7244,6 +7268,17 @@ async function addChangeToProject() {
   }
   
   console.log('✅ Permisos verificados');
+  
+  // Marcar como en proceso
+  isUploadingChange = true;
+  
+  // Deshabilitar botón inmediatamente
+  const confirmButton = document.getElementById('confirmChangeBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
 
   const description = document.getElementById('changeDescription').value.trim();
   console.log('📝 Descripción:', description);
@@ -7254,7 +7289,11 @@ async function addChangeToProject() {
   
 
   if (!description) {
-
+    isUploadingChange = false;
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
     showErrorMessage('Por favor ingresa una descripción del cambio');
 
     return;
@@ -7265,6 +7304,11 @@ async function addChangeToProject() {
 
   // Validar que se haya seleccionado al menos un colaborador
   if (selectedPersonnel.length === 0) {
+    isUploadingChange = false;
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
     showErrorMessage('Por favor selecciona al menos un colaborador responsable');
     return;
   }
@@ -7272,7 +7316,11 @@ async function addChangeToProject() {
   const currentProject = getCurrentProject();
 
   if (!currentProject || !currentProject.id) {
-
+    isUploadingChange = false;
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
     showErrorMessage('No se pudo obtener la información del proyecto');
 
     return;
@@ -7501,6 +7549,17 @@ async function addChangeToProject() {
 
     showErrorMessage('Error al guardar el cambio. Por favor, intenta de nuevo.');
 
+  } finally {
+    
+    // Liberar el flag
+    isUploadingChange = false;
+    
+    // Restaurar botón
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
+    
   }
 
 }
@@ -8054,6 +8113,12 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('🖱️ Click capturado por delegación en confirmImageBtn');
       e.preventDefault();
       e.stopPropagation();
+      // Verificar que el botón no esté deshabilitado (ya procesando)
+      const btn = target.id === 'confirmImageBtn' ? target : target.closest('#confirmImageBtn');
+      if (btn && btn.disabled) {
+        console.warn('⚠️ Botón deshabilitado, ignorando click');
+        return;
+      }
       addImageToProject();
       return;
     }
@@ -8081,6 +8146,12 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('🖱️ Click capturado por delegación en confirmChangeBtn');
       e.preventDefault();
       e.stopPropagation();
+      // Verificar que el botón no esté deshabilitado (ya procesando)
+      const btn = target.id === 'confirmChangeBtn' ? target : target.closest('#confirmChangeBtn');
+      if (btn && btn.disabled) {
+        console.warn('⚠️ Botón deshabilitado, ignorando click');
+        return;
+      }
       addChangeToProject();
       return;
     }
@@ -8090,6 +8161,12 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('🖱️ Click capturado por delegación en confirmFileBtn');
       e.preventDefault();
       e.stopPropagation();
+      // Verificar que el botón no esté deshabilitado (ya procesando)
+      const btn = target.id === 'confirmFileBtn' ? target : target.closest('#confirmFileBtn');
+      if (btn && btn.disabled) {
+        console.warn('⚠️ Botón deshabilitado, ignorando click');
+        return;
+      }
       addFileToProject();
       return;
     }
@@ -8843,20 +8920,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   // Event listeners para botones de confirmar
-
-  const confirmImageBtn = document.getElementById('confirmImageBtn');
-  console.log('🔍 Buscando botón confirmImageBtn...', confirmImageBtn);
-
-  if (confirmImageBtn) {
-    console.log('✅ Botón confirmImageBtn encontrado, agregando listener');
-    confirmImageBtn.addEventListener('click', function(e) {
-      console.log('🖱️ Click en botón AGREGAR (confirmImageBtn)');
-      addImageToProject();
-    });
-
-  } else {
-    console.warn('⚠️ Botón confirmImageBtn NO encontrado');
-  }
+  // NOTA: Los listeners para confirmImageBtn, confirmChangeBtn y confirmFileBtn
+  // están manejados por delegación de eventos en document.body (línea ~8040)
+  // para evitar duplicación de eventos. No agregar listeners directos aquí.
 
 
 
@@ -8913,19 +8979,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-  const confirmChangeBtn = document.getElementById('confirmChangeBtn');
-  console.log('🔍 Buscando botón confirmChangeBtn...', confirmChangeBtn);
-
-  if (confirmChangeBtn) {
-    console.log('✅ Botón confirmChangeBtn encontrado, agregando listener');
-    confirmChangeBtn.addEventListener('click', function(e) {
-      console.log('🖱️ Click en botón AGREGAR (confirmChangeBtn)');
-      addChangeToProject();
-    });
-
-  } else {
-    console.warn('⚠️ Botón confirmChangeBtn NO encontrado');
-  }
+  // confirmChangeBtn está manejado por delegación de eventos en document.body
 
   const confirmFileDescriptionBtn = document.getElementById('confirmFileDescriptionBtn');
   console.log('🔍 Buscando botón confirmFileDescriptionBtn...', confirmFileDescriptionBtn);
@@ -9012,19 +9066,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-  const confirmFileBtn = document.getElementById('confirmFileBtn');
-  console.log('🔍 Buscando botón confirmFileBtn...', confirmFileBtn);
-
-  if (confirmFileBtn) {
-    console.log('✅ Botón confirmFileBtn encontrado, agregando listener');
-    confirmFileBtn.addEventListener('click', function(e) {
-      console.log('🖱️ Click en botón AGREGAR (confirmFileBtn)');
-      addFileToProject();
-    });
-
-  } else {
-    console.log('⚠️ Botón confirmFileBtn NO encontrado en el DOM');
-  }
+  // confirmFileBtn está manejado por delegación de eventos en document.body
 
 
 
@@ -10708,6 +10750,12 @@ function formatFileSize(bytes) {
 
 async function addFileToProject() {
   console.log('📄 addFileToProject() llamada');
+  
+  // Prevenir ejecuciones múltiples
+  if (isUploadingFile) {
+    console.warn('⚠️ Ya hay una subida de archivo en progreso, ignorando llamada duplicada');
+    return;
+  }
 
   if (!tienePermisoGestionActual()) {
     console.log('❌ Sin permisos para gestionar');
@@ -10718,6 +10766,17 @@ async function addFileToProject() {
   }
   
   console.log('✅ Permisos verificados');
+  
+  // Marcar como en proceso
+  isUploadingFile = true;
+  
+  // Deshabilitar botón inmediatamente
+  const confirmButton = document.getElementById('confirmFileBtn');
+  const originalLabel = confirmButton ? confirmButton.textContent : null;
+  if (confirmButton) {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Guardando...';
+  }
 
   const fileDescription = document.getElementById('fileDescription').value.trim();
   console.log('📝 Descripción del archivo:', fileDescription);
@@ -10726,7 +10785,11 @@ async function addFileToProject() {
   console.log('📄 Total de archivos en selectedProjectFiles:', selectedProjectFiles.length);
 
   if (selectedProjectFiles.length === 0) {
-
+    isUploadingFile = false;
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
     showErrorMessage('Por favor selecciona al menos un archivo');
 
     return;
@@ -10740,7 +10803,11 @@ async function addFileToProject() {
   let proyecto = getCurrentProject();
 
   if (!proyecto || !proyecto.id) {
-
+    isUploadingFile = false;
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
     alert('Error: No se pudo obtener la información del evento.');
 
     return;
@@ -10834,6 +10901,17 @@ async function addFileToProject() {
 
     alert('Error al agregar archivo. Por favor, intenta de nuevo.');
 
+  } finally {
+    
+    // Liberar el flag
+    isUploadingFile = false;
+    
+    // Restaurar botón
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
+    
   }
 
 }
