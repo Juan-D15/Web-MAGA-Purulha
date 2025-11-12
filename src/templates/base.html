@@ -480,6 +480,60 @@
   <script src="{% static 'js/navigation.js' %}"></script>
   <script src="{% static 'js/admin-gestiones.js' %}"></script>
   
+  <!-- Registrar Service Worker para notificaciones en todas las páginas -->
+  <script>
+    // Registrar Service Worker para notificaciones push (funciona en todas las páginas)
+    function registerServiceWorkerGlobal() {
+      if (!('serviceWorker' in navigator)) {
+        console.warn('[Notificaciones] Service Worker no soportado en este navegador');
+        return;
+      }
+      
+      // Verificar que estamos en HTTPS (requerido para Service Workers, excepto localhost)
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        console.warn('[Notificaciones] Service Worker requiere HTTPS (excepto localhost)');
+        return;
+      }
+      
+      console.log('[Notificaciones] Registrando Service Worker globalmente...');
+      
+      navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+        .then(registration => {
+          console.log('[Notificaciones] ✅ Service Worker registrado exitosamente');
+          
+          // Escuchar actualizaciones
+          registration.addEventListener('updatefound', () => {
+            console.log('[Notificaciones] Nueva versión del Service Worker encontrada');
+            const newWorker = registration.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'activated') {
+                  console.log('[Notificaciones] ✅ Nuevo Service Worker ACTIVADO');
+                }
+              });
+            }
+          });
+          
+          // Verificar estado periódicamente
+          setInterval(() => {
+            registration.update().catch(err => {
+              console.warn('[Notificaciones] Error al actualizar Service Worker:', err);
+            });
+          }, 60000); // Cada minuto
+        })
+        .catch(error => {
+          console.error('[Notificaciones] ❌ Error al registrar Service Worker:', error);
+        });
+    }
+    
+    // Registrar cuando el DOM esté listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', registerServiceWorkerGlobal);
+    } else {
+      registerServiceWorkerGlobal();
+    }
+  </script>
+  
   {% block extra_js %}{% endblock %}
 </body>
 </html>

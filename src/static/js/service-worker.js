@@ -105,7 +105,8 @@ async function checkRemindersFromServiceWorker() {
     
     // Obtener la URL base desde el origen
     const baseUrl = self.location.origin;
-    const apiUrl = `${baseUrl}/api/reminders/pending/`;
+    // Usar el nuevo endpoint que verifica sesión activa
+    const apiUrl = `${baseUrl}/api/reminders/check-background/`;
     
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -120,14 +121,22 @@ async function checkRemindersFromServiceWorker() {
     
     if (!response.ok) {
       console.warn('[Service Worker] Error al obtener recordatorios:', response.status, response.statusText);
-      // Si es error 401/403, el usuario no está autenticado, no es crítico
+      // Si es error 401/403, el usuario no está autenticado o cerró sesión
       if (response.status === 401 || response.status === 403) {
-        console.log('[Service Worker] Usuario no autenticado, saltando verificación');
+        console.log('[Service Worker] Usuario no autenticado o sesión cerrada, saltando verificación');
       }
       return;
     }
     
-    const reminders = await response.json();
+    const data = await response.json();
+    
+    // Verificar si la sesión está activa
+    if (!data.session_active) {
+      console.log('[Service Worker] Sesión no activa, saltando verificación');
+      return;
+    }
+    
+    const reminders = data.reminders || [];
     
     if (!Array.isArray(reminders)) {
       console.warn('[Service Worker] Respuesta no es un array:', reminders);
@@ -217,11 +226,12 @@ async function checkRemindersFromServiceWorker() {
           
           // Marcar como enviado en el backend si no es reenvío
           if (!recordar && !yaEnviado) {
-            fetch(`${baseUrl}/api/reminders/${reminderId}/mark-sent/`, {
+            fetch(`${baseUrl}/api/reminders/${reminderId}/marcar-enviado/`, {
               method: 'POST',
               credentials: 'same-origin',
               headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json'
               }
             }).catch(err => {
               console.warn('[Service Worker] Error al marcar como enviado:', err);
@@ -325,4 +335,5 @@ self.addEventListener('message', (event) => {
     }
   }
 });
+
 

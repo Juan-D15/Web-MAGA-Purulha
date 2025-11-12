@@ -106,6 +106,7 @@ urlpatterns = [
     path('api/calendar-events/', views.api_calendar_events, name='api-calendar-events'),
     path('api/reminders/', views.api_reminders, name='api-reminders'),
     path('api/reminders/pending/', views.api_reminders_pending, name='api-reminders-pending'),
+    path('api/reminders/check-background/', views.api_reminders_check_background, name='api-reminders-check-background'),
     path('api/reminders/<uuid:reminder_id>/marcar-enviado/', views.api_marcar_notificacion_enviada, name='api-marcar-notificacion-enviada'),
     path('api/avances/', views.api_avances, name='api-avances'),
     path('api/reminders/<uuid:reminder_id>/', views.api_reminder_detail, name='api-reminder-detail'),
