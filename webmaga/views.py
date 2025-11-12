@@ -11,7 +11,6 @@ from django.db import transaction, IntegrityError
 from django.utils import timezone
 from datetime import datetime
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User as AuthUser
 import os
 import json
 from datetime import datetime, timedelta
@@ -173,160 +172,6 @@ def _eliminar_queryset_con_archivos(queryset):
 
     queryset.model.objects.filter(pk__in=ids).delete()
     return len(ids)
-
-
-def usuario_puede_gestionar_evento(usuario_maga, evento):
-    if not usuario_maga or not evento:
-        return False
-
-    if usuario_maga.rol == 'admin':
-        return True
-
-    if usuario_maga.rol != 'personal':
-        return False
-
-    def _normalize_uuid(value):
-        if value is None:
-            return None
-        try:
-            return str(value)
-        except Exception:
-            return None
-
-    def _normalize_text(value):
-        if not value:
-            return None
-        return str(value).strip().lower()
-
-    usuario_id = _normalize_uuid(usuario_maga.id)
-    usuario_username = _normalize_text(usuario_maga.username)
-    usuario_email = _normalize_text(usuario_maga.email)
-
-    posibles_usuario_ids = {uid for uid in [usuario_id] if uid}
-    posibles_usernames = {usuario_username} if usuario_username else set()
-    posibles_emails = {usuario_email} if usuario_email else set()
-
-    colaborador = getattr(usuario_maga, 'colaborador', None)
-    colaborador_id = _normalize_uuid(getattr(colaborador, 'id', None)) if colaborador else None
-    colaborador_usuario_id = _normalize_uuid(getattr(colaborador, 'usuario_id', None)) if colaborador else None
-    colaborador_correo = _normalize_text(getattr(colaborador, 'correo', None)) if colaborador else None
-    colaborador_nombre = _normalize_text(getattr(colaborador, 'nombre', None)) if colaborador else None
-
-    colaborador_ids = {cid for cid in [colaborador_id] if cid}
-    if colaborador_usuario_id:
-        posibles_usuario_ids.add(colaborador_usuario_id)
-    if colaborador_correo:
-        posibles_emails.add(colaborador_correo)
-
-    colaborador_nombres = {colaborador_nombre} if colaborador_nombre else set()
-
-    # Revisar responsable directo
-    if _normalize_uuid(evento.responsable_id) in posibles_usuario_ids:
-        return True
-
-    responsable_obj = getattr(evento, 'responsable', None)
-    if responsable_obj:
-        if _normalize_uuid(getattr(responsable_obj, 'id', None)) in posibles_usuario_ids:
-            return True
-        if _normalize_text(getattr(responsable_obj, 'username', None)) in posibles_usernames:
-            return True
-        if _normalize_text(getattr(responsable_obj, 'email', None)) in posibles_emails:
-            return True
-
-    # Revisar colaborador principal asignado en la actividad
-    if _normalize_uuid(evento.colaborador_id) in colaborador_ids:
-        return True
-
-    colaborador_obj = getattr(evento, 'colaborador', None)
-    if colaborador_obj:
-        if _normalize_uuid(getattr(colaborador_obj, 'id', None)) in colaborador_ids:
-            return True
-        if _normalize_uuid(getattr(colaborador_obj, 'usuario_id', None)) in posibles_usuario_ids:
-            return True
-        if _normalize_text(getattr(colaborador_obj, 'correo', None)) in posibles_emails:
-            return True
-        if _normalize_text(getattr(colaborador_obj, 'nombre', None)) in colaborador_nombres:
-            return True
-
-    # Revisar asignaciones directas en ActividadPersonal
-    if posibles_usuario_ids and ActividadPersonal.objects.filter(
-        actividad=evento,
-        usuario_id__in=list(posibles_usuario_ids),
-    ).exists():
-        return True
-
-    if colaborador_ids and ActividadPersonal.objects.filter(
-        actividad=evento,
-        colaborador_id__in=list(colaborador_ids),
-    ).exists():
-        return True
-
-    if posibles_usuario_ids and ActividadPersonal.objects.filter(
-        actividad=evento,
-        colaborador__usuario_id__in=list(posibles_usuario_ids),
-    ).exists():
-        return True
-
-    if posibles_emails and ActividadPersonal.objects.filter(
-        actividad=evento,
-        colaborador__correo__in=list(posibles_emails),
-    ).exists():
-        return True
-
-    # Revisar asignaciones prefetchadas (cuando se utilice select_related)
-    try:
-        personal_prefetch = list(evento.personal.all())
-    except Exception:
-        personal_prefetch = []
-
-    for ap in personal_prefetch:
-        if _normalize_uuid(getattr(ap, 'usuario_id', None)) in posibles_usuario_ids:
-            return True
-
-        usuario_ap = getattr(ap, 'usuario', None)
-        if usuario_ap:
-            if _normalize_uuid(getattr(usuario_ap, 'id', None)) in posibles_usuario_ids:
-                return True
-            if _normalize_text(getattr(usuario_ap, 'username', None)) in posibles_usernames:
-                return True
-            if _normalize_text(getattr(usuario_ap, 'email', None)) in posibles_emails:
-                return True
-
-        if colaborador_ids and _normalize_uuid(getattr(ap, 'colaborador_id', None)) in colaborador_ids:
-            return True
-
-        colaborador_ap = getattr(ap, 'colaborador', None)
-        if colaborador_ap:
-            if _normalize_uuid(getattr(colaborador_ap, 'id', None)) in colaborador_ids:
-                return True
-            if _normalize_uuid(getattr(colaborador_ap, 'usuario_id', None)) in posibles_usuario_ids:
-                return True
-            if _normalize_text(getattr(colaborador_ap, 'correo', None)) in posibles_emails:
-                return True
-            if colaborador_nombres and _normalize_text(getattr(colaborador_ap, 'nombre', None)) in colaborador_nombres:
-                return True
-
-    # Revisar participación como responsable de cambios
-    if colaborador_ids and EventoCambioColaborador.objects.filter(
-        actividad=evento,
-        colaborador_id__in=list(colaborador_ids),
-    ).exists():
-        return True
-
-    if posibles_usuario_ids and EventoCambioColaborador.objects.filter(
-        actividad=evento,
-        colaborador__usuario_id__in=list(posibles_usuario_ids),
-    ).exists():
-        return True
-
-    if posibles_emails and EventoCambioColaborador.objects.filter(
-        actividad=evento,
-        colaborador__correo__in=list(posibles_emails),
-    ).exists():
-        return True
-
-    # Fallback: permitir gestión al personal autenticado incluso si no se encontró coincidencia puntual.
-    return True
 
 
 def parse_fecha_agregacion(valor):
@@ -908,10 +753,12 @@ def api_usuario_actual(request):
         'permisos': {
             'es_admin': usuario_maga.rol == 'admin',
             'es_personal': usuario_maga.rol == 'personal',
-            'puede_gestionar_eventos': usuario_maga.rol in ['admin', 'personal'],
+            'puede_gestionar_eventos': usuario_maga.rol == 'admin',
             'puede_generar_reportes': True,
         }
     })
+
+
 @require_http_methods(["POST"])
 @permiso_admin_o_personal_api
 def api_actualizar_perfil_usuario(request):
@@ -1025,96 +872,160 @@ def api_actualizar_perfil_usuario(request):
 @require_http_methods(["GET", "POST"])
 @permiso_admin_o_personal_api
 def api_foto_perfil(request):
-    """API: Obtener o actualizar la foto de perfil del usuario autenticado."""
+    """API: Obtener o subir/actualizar foto de perfil del usuario actual"""
     usuario_maga = get_usuario_maga(request.user)
-
+    
     if not usuario_maga:
         return JsonResponse({
             'success': False,
-            'error': 'Usuario no autenticado'
-        }, status=401)
-
-    try:
-        if request.method == "GET":
-            try:
-                foto_perfil = UsuarioFotoPerfil.objects.get(usuario=usuario_maga)
-            except UsuarioFotoPerfil.DoesNotExist:
-                return JsonResponse({
-                    'success': True,
-                    'foto_url': None
-                })
-
+            'error': 'Usuario no encontrado'
+        }, status=404)
+    
+    if request.method == 'GET':
+        # Obtener foto de perfil
+        try:
+            foto_perfil = UsuarioFotoPerfil.objects.get(usuario=usuario_maga)
+            foto_url = foto_perfil.url_almacenamiento
+            print(f"📤 GET foto de perfil - URL en BD: {foto_url}")
+            
+            # Verificar si el archivo existe físicamente
+            if foto_url:
+                file_path = _normalizar_ruta_media(foto_url)
+                if file_path:
+                    file_exists = os.path.exists(file_path)
+                    print(f"🔍 Archivo existe físicamente: {file_exists}")
+                    print(f"📂 Ruta del archivo: {file_path}")
+                    if not file_exists:
+                        print(f"⚠️ ADVERTENCIA: El archivo no existe en el sistema de archivos pero está en la BD")
+            
             return JsonResponse({
                 'success': True,
-                'foto_url': foto_perfil.url_almacenamiento,
+                'foto_url': foto_url,
                 'archivo_nombre': foto_perfil.archivo_nombre
             })
-
-        # POST: subir o reemplazar la foto
-        foto = request.FILES.get('foto')
-        if not foto:
+        except UsuarioFotoPerfil.DoesNotExist:
+            print(f"📤 GET foto de perfil - No hay foto de perfil para este usuario")
+            return JsonResponse({
+                'success': True,
+                'foto_url': None
+            })
+    
+    elif request.method == 'POST':
+        # Subir/actualizar foto de perfil
+        try:
+            print(f"📤 Iniciando subida de foto de perfil para usuario: {usuario_maga.id}")
+            foto = request.FILES.get('foto')
+            if not foto:
+                print("❌ No se proporcionó ningún archivo en request.FILES")
+                print(f"📋 Keys en request.FILES: {list(request.FILES.keys())}")
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No se proporcionó ningún archivo'
+                }, status=400)
+            
+            print(f"✅ Archivo recibido: {foto.name}, tamaño: {foto.size}, tipo: {foto.content_type}")
+            
+            # Validar tipo de archivo
+            allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+            if foto.content_type not in allowed_types:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP)'
+                }, status=400)
+            
+            # Validar tamaño (5MB máximo)
+            max_size = 5 * 1024 * 1024  # 5MB
+            if foto.size > max_size:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El archivo es demasiado grande. El tamaño máximo es 5MB'
+                }, status=400)
+            
+            # Crear directorio si no existe
+            perfiles_dir = os.path.join(str(settings.MEDIA_ROOT), 'perfiles_img')
+            print(f"📁 Directorio de perfiles: {perfiles_dir}")
+            os.makedirs(perfiles_dir, exist_ok=True)
+            print(f"✅ Directorio creado/verificado: {perfiles_dir}")
+            
+            # Verificar permisos de escritura
+            if not os.access(perfiles_dir, os.W_OK):
+                print(f"❌ No hay permisos de escritura en {perfiles_dir}")
+                return JsonResponse({
+                    'success': False,
+                    'error': f'No se tienen permisos de escritura en {perfiles_dir}'
+                }, status=500)
+            print(f"✅ Permisos de escritura verificados")
+            
+            # Guardar archivo
+            # Asegurar que location sea un string
+            perfiles_dir_str = str(perfiles_dir)
+            print(f"🔧 Usando directorio (string): {perfiles_dir_str}")
+            fs = FileSystemStorage(location=perfiles_dir_str)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+            file_extension = os.path.splitext(foto.name)[1]
+            filename = f"{timestamp}_{usuario_maga.id}{file_extension}"
+            print(f"💾 Intentando guardar archivo: {filename} en {perfiles_dir}")
+            try:
+                saved_name = fs.save(filename, foto)
+                print(f"✅ Archivo guardado exitosamente: {saved_name}")
+                print(f"📂 Ruta completa del archivo guardado: {os.path.join(perfiles_dir, saved_name)}")
+                print(f"🔍 Verificando si el archivo existe: {os.path.exists(os.path.join(perfiles_dir, saved_name))}")
+            except Exception as save_error:
+                import traceback
+                print(f"❌ Error al guardar archivo: {str(save_error)}")
+                print(f"📋 Traceback:\n{traceback.format_exc()}")
+                raise
+            file_url = f"/media/perfiles_img/{saved_name}"
+            print(f"🔗 URL generada: {file_url}")
+            
+            # Crear o actualizar registro en BD
+            print(f"💾 Creando/actualizando registro en BD...")
+            foto_perfil, created = UsuarioFotoPerfil.objects.get_or_create(
+                usuario=usuario_maga,
+                defaults={
+                    'archivo_nombre': foto.name,
+                    'archivo_tipo': foto.content_type,
+                    'archivo_tamanio': foto.size,
+                    'url_almacenamiento': file_url
+                }
+            )
+            print(f"{'✅ Registro creado' if created else '🔄 Registro actualizado'}")
+            
+            if not created:
+                # Si ya existe, eliminar archivo anterior
+                old_url = foto_perfil.url_almacenamiento
+                if old_url:
+                    # Usar la función de normalización existente o construir la ruta correctamente
+                    old_path = _normalizar_ruta_media(old_url)
+                    if old_path and os.path.exists(old_path):
+                        try:
+                            os.remove(old_path)
+                        except:
+                            pass
+                
+                # Actualizar registro
+                foto_perfil.archivo_nombre = foto.name
+                foto_perfil.archivo_tipo = foto.content_type
+                foto_perfil.archivo_tamanio = foto.size
+                foto_perfil.url_almacenamiento = file_url
+                foto_perfil.save()
+            
+            print(f"✅ Proceso completado exitosamente. URL final: {file_url}")
+            return JsonResponse({
+                'success': True,
+                'message': 'Foto de perfil actualizada exitosamente',
+                'foto_url': file_url
+            })
+            
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"❌ Error al subir foto de perfil: {str(e)}")
+            print(f"📋 Traceback completo:\n{error_trace}")
             return JsonResponse({
                 'success': False,
-                'error': 'No se proporcionó ningún archivo'
-            }, status=400)
-
-        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-        if foto.content_type not in allowed_types:
-            return JsonResponse({
-                'success': False,
-                'error': 'Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP)'
-            }, status=400)
-
-        max_size = 5 * 1024 * 1024  # 5 MB
-        if foto.size > max_size:
-            return JsonResponse({
-                'success': False,
-                'error': 'El archivo es demasiado grande. El tamaño máximo es 5MB'
-            }, status=400)
-
-        perfiles_dir = os.path.join(str(settings.MEDIA_ROOT), 'perfiles_img')
-        os.makedirs(perfiles_dir, exist_ok=True)
-
-        if not os.access(perfiles_dir, os.W_OK):
-            return JsonResponse({
-                'success': False,
-                'error': f'No se tienen permisos de escritura en {perfiles_dir}'
+                'error': f'Error al subir la foto: {str(e)}'
             }, status=500)
-
-        fs = FileSystemStorage(location=perfiles_dir)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
-        extension = os.path.splitext(foto.name)[1]
-        filename = f"{timestamp}_{usuario_maga.id}{extension}"
-        saved_name = fs.save(filename, foto)
-
-        media_url = (settings.MEDIA_URL or '/media/').rstrip('/')
-        file_url = f"{media_url}/perfiles_img/{saved_name}"
-        if not file_url.startswith('/'):
-            file_url = f"/{file_url}"
-
-        foto_perfil, created = UsuarioFotoPerfil.objects.get_or_create(usuario=usuario_maga)
-        if not created:
-            _eliminar_archivo_media(foto_perfil.url_almacenamiento)
-
-        foto_perfil.archivo_nombre = foto.name
-        foto_perfil.archivo_tipo = foto.content_type
-        foto_perfil.archivo_tamanio = foto.size
-        foto_perfil.url_almacenamiento = file_url
-        foto_perfil.save(update_fields=['archivo_nombre', 'archivo_tipo', 'archivo_tamanio', 'url_almacenamiento'])
-
-        return JsonResponse({
-            'success': True,
-            'message': 'Foto de perfil actualizada exitosamente',
-            'foto_url': file_url
-        })
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({
-            'success': False,
-            'error': f'Error al manejar la foto de perfil: {str(e)}'
-        }, status=500)
 
 
 @require_http_methods(["GET"])
@@ -2477,7 +2388,7 @@ def api_crear_evento(request):
         }, status=500)
 
 
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 def api_listar_personal(request):
     """API: Listar colaboradores disponibles para asignar a eventos"""
 
@@ -3523,18 +3434,6 @@ def api_actualizar_evento(request, evento_id):
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
         usuario_maga = get_usuario_maga(request.user)
         
-        if not usuario_maga:
-            return JsonResponse({
-                'success': False,
-                'error': 'Usuario no autenticado'
-            }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
-        
         data = request.POST
         cambios_realizados = []
         
@@ -4281,23 +4180,15 @@ def api_verificar_admin(request):
             'success': False,
             'error': f'Error al verificar credenciales: {str(e)}'
         }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["DELETE"])
 def api_eliminar_evento(request, evento_id):
     """Elimina un evento (soft delete)"""
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
         usuario_maga = get_usuario_maga(request.user)
-        
-        if not usuario_maga:
-            return JsonResponse({
-                'success': False,
-                'error': 'Usuario no autenticado'
-            }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         # Eliminar portada (archivo físico + registro)
         portada = getattr(evento, 'portada', None)
@@ -5592,6 +5483,7 @@ def api_collaborators(request):
         return JsonResponse(data, safe=False)
     except Exception as e:
         return JsonResponse([], safe=False)
+@require_http_methods(["GET"])
 def api_obtener_detalle_proyecto(request, evento_id):
     """
     Obtiene los detalles completos de un proyecto/evento específico
@@ -5652,83 +5544,33 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador'
         ).prefetch_related(*prefetch_fields).get(id=evento_id, eliminado_en__isnull=True)
         
-        usuario_maga = get_usuario_maga(request.user) if request.user.is_authenticated else None
-        usuario_colaborador = getattr(usuario_maga, 'colaborador', None) if usuario_maga else None
-        puede_gestionar_evento = usuario_puede_gestionar_evento(usuario_maga, evento) if usuario_maga else False
-        es_responsable = False
-        es_colaborador_asignado = False
-
-        if usuario_maga:
-            if evento.responsable_id and str(evento.responsable_id) == str(usuario_maga.id):
-                es_responsable = True
-            elif hasattr(evento, 'responsable') and evento.responsable and str(evento.responsable.id) == str(usuario_maga.id):
-                es_responsable = True
-
-            if usuario_colaborador:
-                if evento.colaborador_id and str(evento.colaborador_id) == str(usuario_colaborador.id):
-                    es_colaborador_asignado = True
-                elif hasattr(evento, 'colaborador') and evento.colaborador and str(evento.colaborador.id) == str(usuario_colaborador.id):
-                    es_colaborador_asignado = True
-                elif evento.personal.filter(colaborador_id=usuario_colaborador.id).exists():
-                    es_colaborador_asignado = True
-                elif evento.personal.filter(colaborador__usuario_id=usuario_maga.id).exists():
-                    es_colaborador_asignado = True
-                elif EventoCambioColaborador.objects.filter(actividad=evento, colaborador=usuario_colaborador).exists():
-                    es_colaborador_asignado = True
-
-            if not es_colaborador_asignado and puede_gestionar_evento and usuario_colaborador:
-                # Si logró permisos por coincidencias extendidas, marcarlo como asignado para el frontend.
-                es_colaborador_asignado = True
-
         # Personal asignado
         personal_data = []
         for ap in evento.personal.all():
             if ap.usuario:
-                colaborador_vinculado = getattr(ap.usuario, 'colaborador', None)
-                if colaborador_vinculado:
+                # Si el usuario tiene un colaborador vinculado, incluir información del colaborador
+                colaborador_vinculado = None
+                if hasattr(ap.usuario, 'colaborador') and ap.usuario.colaborador:
+                    colaborador_vinculado = ap.usuario.colaborador
+                    # Incluir como colaborador (con el ID del colaborador, no del usuario)
                     personal_data.append({
-                        'id': str(colaborador_vinculado.id),
+                        'id': str(colaborador_vinculado.id),  # ID del colaborador
                         'username': ap.usuario.username,
-                        'usuario_username': ap.usuario.username,
-                        'username_display': ap.usuario.username,
                         'nombre': colaborador_vinculado.nombre,
                         'rol': ap.rol_en_actividad,
                         'rol_display': 'Personal Fijo' if colaborador_vinculado.es_personal_fijo else 'Colaborador Externo',
                         'puesto': colaborador_vinculado.puesto.nombre if colaborador_vinculado.puesto else 'Sin puesto',
-                        'tipo': 'colaborador',
-                        'usuario_id': str(ap.usuario.id),
-                        'usuarioId': str(ap.usuario.id),
-                        'colaborador_id': str(colaborador_vinculado.id),
-                        'colaboradorId': str(colaborador_vinculado.id),
+                        'tipo': 'colaborador',  # Tipo colaborador aunque sea usuario
+                        'usuario_id': str(ap.usuario.id),  # Guardar también el ID del usuario para referencia
                         'tiene_colaborador': True
                     })
                 else:
-                    personal_data.append({
-                        'id': str(ap.usuario.id),
-                        'username': ap.usuario.username,
-                        'usuario_username': ap.usuario.username,
-                        'username_display': ap.usuario.username,
-                        'nombre': ap.usuario.nombre or ap.usuario.username,
-                        'rol': ap.rol_en_actividad,
-                        'rol_display': getattr(ap.usuario, 'get_rol_display', lambda: 'Personal del Sistema')(),
-                        'puesto': ap.usuario.puesto.nombre if ap.usuario.puesto else 'Sin puesto',
-                        'tipo': 'usuario',
-                        'usuario_id': str(ap.usuario.id),
-                        'usuarioId': str(ap.usuario.id),
-                        'colaborador_id': None,
-                        'colaboradorId': None,
-                        'tiene_colaborador': False
-                    })
+                    # Usuario sin colaborador vinculado - no incluirlo en la lista de cambios
+                    pass
             elif ap.colaborador:
                 personal_data.append({
                     'id': str(ap.colaborador.id),
-                    'colaborador_id': str(ap.colaborador.id),
-                    'colaboradorId': str(ap.colaborador.id),
                     'username': ap.colaborador.correo or '',
-                    'usuario_username': ap.colaborador.usuario.username if hasattr(ap.colaborador, 'usuario') and ap.colaborador.usuario else '',
-                    'username_display': ap.colaborador.usuario.username if hasattr(ap.colaborador, 'usuario') and ap.colaborador.usuario else (ap.colaborador.correo or ''),
-                    'usuario_id': str(ap.colaborador.usuario.id) if hasattr(ap.colaborador, 'usuario') and ap.colaborador.usuario else None,
-                    'usuarioId': str(ap.colaborador.usuario.id) if hasattr(ap.colaborador, 'usuario') and ap.colaborador.usuario else None,
                     'nombre': ap.colaborador.nombre,
                     'rol': ap.rol_en_actividad,
                     'rol_display': 'Personal Fijo' if ap.colaborador.es_personal_fijo else 'Colaborador Externo',
@@ -5850,11 +5692,6 @@ def api_obtener_detalle_proyecto(request, evento_id):
             fecha_str = ''
             fecha_display = ''
         
-        responsable_usuario = evento.responsable
-        responsable_colaborador = evento.colaborador if hasattr(evento, 'colaborador') else None
-        if responsable_usuario and hasattr(responsable_usuario, 'colaborador') and responsable_usuario.colaborador:
-            responsable_colaborador = responsable_colaborador or responsable_usuario.colaborador
-
         proyecto_data = {
             'id': str(evento.id),
             'nombre': evento.nombre,
@@ -5867,11 +5704,7 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'fecha_display': fecha_display,
             'estado': evento.estado,
             'estado_display': evento.get_estado_display() if hasattr(evento, 'get_estado_display') else evento.estado,
-            'responsable': (responsable_usuario.nombre if responsable_usuario and responsable_usuario.nombre else responsable_usuario.username) if responsable_usuario else 'Sin responsable',
-            'responsable_id': str(responsable_usuario.id) if responsable_usuario else None,
-            'responsable_username': responsable_usuario.username if responsable_usuario else None,
-            'responsable_colaborador_id': str(responsable_colaborador.id) if responsable_colaborador else None,
-            'responsable_colaborador_nombre': responsable_colaborador.nombre if responsable_colaborador else None,
+            'responsable': (evento.responsable.nombre if evento.responsable.nombre else evento.responsable.username) if evento.responsable else 'Sin responsable',
             'personal': personal_data,
             'beneficiarios': beneficiarios_data,
             'evidencias': evidencias_data,
@@ -5879,15 +5712,7 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'portada': obtener_portada_evento(evento),
             'tarjetas_datos': obtener_tarjetas_datos(evento),
             'comunidades': obtener_comunidades_evento(evento),
-            'cambios': obtener_cambios_evento(evento),
-            'puede_gestionar': puede_gestionar_evento,
-            'permisos': {
-                'puede_gestionar': puede_gestionar_evento,
-                'es_admin': usuario_maga.rol == 'admin' if usuario_maga else False,
-                'es_personal': usuario_maga.rol == 'personal' if usuario_maga else False,
-                'es_responsable': es_responsable,
-                'es_colaborador_asignado': es_colaborador_asignado
-            }
+            'cambios': obtener_cambios_evento(evento)
         }
         
         print(f'📤 Retornando proyecto con {len(proyecto_data.get("cambios", []))} cambios')
@@ -5922,12 +5747,6 @@ def api_agregar_imagen_galeria(request, evento_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         # Validar que se haya enviado una imagen
         imagen = request.FILES.get('imagen')
@@ -6029,12 +5848,6 @@ def api_eliminar_imagen_galeria(request, evento_id, imagen_id):
                 'error': 'Usuario no autenticado'
             }, status=401)
         
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
-        
         # Obtener la imagen de la galería
         imagen_galeria = EventosGaleria.objects.filter(
             id=imagen_id,
@@ -6070,7 +5883,7 @@ def api_eliminar_imagen_galeria(request, evento_id, imagen_id):
             'success': False,
             'error': f'Error al eliminar imagen: {str(e)}'
         }, status=500)
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_agregar_archivo(request, evento_id):
     """API: Agregar archivo a un evento"""
@@ -6083,12 +5896,6 @@ def api_agregar_archivo(request, evento_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         # Validar que se haya enviado un archivo
         archivo = request.FILES.get('archivo')
@@ -6152,7 +5959,7 @@ def api_agregar_archivo(request, evento_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_archivo(request, evento_id, archivo_id):
     """API: Eliminar archivo de un evento (solo de actividad_archivos, no evidencias)"""
@@ -6165,12 +5972,6 @@ def api_eliminar_archivo(request, evento_id, archivo_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         # Obtener el archivo de actividad_archivos (NO evidencias)
         archivo = ActividadArchivo.objects.filter(
@@ -6209,7 +6010,7 @@ def api_eliminar_archivo(request, evento_id, archivo_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_actualizar_archivo_evento(request, evento_id, archivo_id):
     """API: Actualizar descripción de un archivo del evento"""
@@ -6221,21 +6022,6 @@ def api_actualizar_archivo_evento(request, evento_id, archivo_id):
             'error': 'Archivo no encontrado'
         }, status=404)
 
-    actividad = archivo.actividad
-    usuario_maga = get_usuario_maga(request.user)
-
-    if not usuario_maga:
-        return JsonResponse({
-            'success': False,
-            'error': 'Usuario no autenticado'
-        }, status=401)
-
-    if not usuario_puede_gestionar_evento(usuario_maga, actividad):
-        return JsonResponse({
-            'success': False,
-            'error': 'No tienes permisos para gestionar este evento.'
-        }, status=403)
-
     try:
         payload = json.loads(request.body or '{}')
     except json.JSONDecodeError:
@@ -6246,6 +6032,7 @@ def api_actualizar_archivo_evento(request, evento_id, archivo_id):
     archivo.descripcion = descripcion or ''
     archivo.save(update_fields=['descripcion'])
 
+    actividad = archivo.actividad
     if actividad:
         actividad.actualizado_en = timezone.now()
         actividad.save(update_fields=['actualizado_en'])
@@ -6328,6 +6115,8 @@ def api_listar_usuarios(request):
             'success': False,
             'error': f'Error al listar usuarios: {str(e)}'
         }, status=500)
+@solo_administrador
+@require_http_methods(["POST"])
 def api_crear_usuario(request):
     """API: Crear un nuevo usuario del sistema"""
     try:
@@ -6466,7 +6255,7 @@ def api_crear_usuario(request):
             'success': False,
             'error': f'Error al crear usuario: {str(e)}'
         }, status=500)
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_crear_cambio(request, evento_id):
     """API: Crear un cambio en un evento"""
@@ -6492,12 +6281,6 @@ def api_crear_cambio(request, evento_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         descripcion = request.POST.get('descripcion', '').strip()
         if not descripcion:
@@ -6879,6 +6662,10 @@ def api_crear_cambio(request, evento_id):
             'success': False,
             'error': f'Error al crear cambio: {str(e)}'
         }, status=500)
+
+
+@permiso_gestionar_eventos
+@require_http_methods(["POST"])
 def api_actualizar_cambio(request, evento_id, cambio_id):
     """API: Actualizar un cambio existente"""
     try:
@@ -6959,12 +6746,6 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         descripcion = request.POST.get('descripcion', '').strip()
         if not descripcion:
@@ -7377,7 +7158,7 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             'success': False,
             'error': f'Error al actualizar cambio: {str(e)}'
         }, status=500)
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_cambio(request, evento_id, cambio_id):
     """API: Eliminar un cambio y sus evidencias"""
@@ -7396,12 +7177,6 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         if cambio_colaborador:
             grupo_uuid = cambio_colaborador.grupo_id
@@ -7446,7 +7221,7 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
             'success': False,
             'error': f'Error al eliminar cambio: {str(e)}'
         }, status=500)
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
     """API: Agregar evidencia a un cambio existente"""
@@ -7460,12 +7235,6 @@ def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         archivo = request.FILES.get('archivo')
         if not archivo:
@@ -7845,6 +7614,10 @@ def api_crear_puesto(request):
             'success': False,
             'error': f'Error al crear puesto: {str(e)}'
         }, status=500)
+
+
+@solo_administrador
+@require_http_methods(["GET"])
 def api_obtener_usuario(request, usuario_id):
     """API: Obtener un usuario específico"""
     try:
@@ -7988,24 +7761,12 @@ def api_actualizar_usuario(request, usuario_id):
                     }, status=404)
             # puesto sigue siendo None para el usuario (cumple la restricción)
         
-        # Determinar estado activo
-        activo_valor = data.get('activo')
-        if activo_valor is None:
-            activo = usuario.activo
-        elif isinstance(activo_valor, bool):
-            activo = activo_valor
-        elif isinstance(activo_valor, (int, float)):
-            activo = bool(activo_valor)
-        else:
-            activo = str(activo_valor).strip().lower() in ['true', '1', 'si', 'sí', 'yes', 'on', 'activo']
-
         # Actualizar usuario
         usuario.nombre = nombre if nombre else None
         usuario.email = email
         usuario.telefono = telefono if telefono else None
         usuario.rol = rol
         usuario.puesto = puesto  # None para admin, valor para personal
-        usuario.activo = activo
         
         # Actualizar contraseña si se proporciona
         if password:
@@ -8013,24 +7774,6 @@ def api_actualizar_usuario(request, usuario_id):
             usuario.password_hash = make_password(password)
         
         usuario.save()
-
-        user_django, created = AuthUser.objects.get_or_create(
-            username=usuario.username,
-            defaults={
-                'email': usuario.email,
-                'is_active': usuario.activo,
-                'is_staff': usuario.rol == 'admin',
-                'is_superuser': usuario.rol == 'admin',
-            }
-        )
-        if not created:
-            user_django.email = usuario.email
-            user_django.is_active = usuario.activo
-            user_django.is_staff = usuario.rol == 'admin'
-            user_django.is_superuser = usuario.rol == 'admin'
-        if password:
-            user_django.set_password(password)
-        user_django.save()
         
         # Si el usuario tiene colaborador vinculado, también actualizar campos comunes
         if colaborador:
@@ -8058,8 +7801,7 @@ def api_actualizar_usuario(request, usuario_id):
                 'id': str(usuario.id),
                 'username': usuario.username,
                 'email': usuario.email,
-                'rol': usuario.rol,
-                'activo': usuario.activo,
+                'rol': usuario.rol
             }
         })
         
@@ -8082,7 +7824,7 @@ def api_actualizar_usuario(request, usuario_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["POST"])
 def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
     """API: Actualizar descripción de una evidencia de cambio"""
@@ -8097,12 +7839,6 @@ def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id)
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         descripcion = request.POST.get('descripcion', '').strip()
         evidencia.descripcion = descripcion
@@ -8184,7 +7920,7 @@ def api_eliminar_usuario(request, usuario_id):
         }, status=500)
 
 
-@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
     try:
@@ -8198,12 +7934,6 @@ def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
                 'success': False,
                 'error': 'Usuario no autenticado'
             }, status=401)
-        
-        if not usuario_puede_gestionar_evento(usuario_maga, evento):
-            return JsonResponse({
-                'success': False,
-                'error': 'No tienes permisos para gestionar este evento.'
-            }, status=403)
         
         _eliminar_queryset_con_archivos(
             EventosEvidenciasCambios.objects.filter(pk=evidencia.pk)
@@ -8603,7 +8333,6 @@ def api_dashboard_stats(request):
         return JsonResponse({
             'error': f'Error al obtener estadísticas: {str(e)}'
         }, status=500)
-        
 @solo_administrador
 def api_generar_reporte(request, report_type):
     """API para generar reporte según tipo"""
