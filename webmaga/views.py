@@ -6650,10 +6650,71 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
         cambio_colaborador = None
         cambio = None
         
+        # Intentar buscar por ID primero
         try:
             cambio_colaborador = EventoCambioColaborador.objects.get(id=cambio_id, actividad=evento)
+            print(f'✅ Cambio encontrado por ID: {cambio_id}')
         except EventoCambioColaborador.DoesNotExist:
-            cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+            print(f'⚠️ Cambio no encontrado por ID: {cambio_id}, intentando buscar por grupo_id o cambio_ids')
+            
+            # Si no se encuentra por ID, intentar buscar por grupo_id si viene en el POST
+            grupo_id_str = request.POST.get('grupo_id')
+            cambio_ids_str = request.POST.get('cambio_ids')
+            
+            # Intentar buscar por grupo_id primero
+            if grupo_id_str:
+                try:
+                    import uuid as uuid_module
+                    grupo_id = uuid_module.UUID(grupo_id_str)
+                    # Buscar cualquier cambio del grupo
+                    cambios_del_grupo = EventoCambioColaborador.objects.filter(
+                        grupo_id=grupo_id,
+                        actividad=evento
+                    )
+                    cambio_colaborador = cambios_del_grupo.first()
+                    if cambio_colaborador:
+                        print(f'✅ Cambio encontrado por grupo_id: {grupo_id} (encontrados {cambios_del_grupo.count()} cambios en el grupo)')
+                    else:
+                        print(f'⚠️ No se encontró cambio por grupo_id: {grupo_id} para evento {evento_id}')
+                except (ValueError, TypeError) as e:
+                    print(f'⚠️ Error al parsear grupo_id: {e}, grupo_id_str: {grupo_id_str}')
+                    cambio_colaborador = None
+            
+            # Si aún no se encuentra, intentar buscar por cambio_ids del POST
+            if not cambio_colaborador and cambio_ids_str:
+                try:
+                    cambio_ids = json.loads(cambio_ids_str)
+                    print(f'🔍 Intentando buscar por cambio_ids: {cambio_ids}')
+                    # Buscar cualquier cambio que coincida con alguno de los IDs
+                    for cambio_id_attempt in cambio_ids:
+                        try:
+                            cambio_colaborador = EventoCambioColaborador.objects.get(
+                                id=cambio_id_attempt,
+                                actividad=evento
+                            )
+                            print(f'✅ Cambio encontrado por cambio_id en lista: {cambio_id_attempt}')
+                            break
+                        except EventoCambioColaborador.DoesNotExist:
+                            continue
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
+                    print(f'⚠️ Error al parsear cambio_ids: {e}, cambio_ids_str: {cambio_ids_str}')
+            
+            # Si aún no se encuentra, intentar buscar como ActividadCambio
+            if not cambio_colaborador:
+                try:
+                    cambio = ActividadCambio.objects.get(id=cambio_id, actividad=evento)
+                    print(f'✅ Cambio encontrado como ActividadCambio: {cambio_id}')
+                except ActividadCambio.DoesNotExist:
+                    print(f'❌ No se encontró cambio con ID: {cambio_id}, grupo_id: {grupo_id_str}, cambio_ids: {cambio_ids_str}, ni como ActividadCambio')
+                    cambio = None
+        
+        # Validar que se haya encontrado un cambio
+        if not cambio_colaborador and not cambio:
+            print(f'❌ Error: No se encontró cambio con ID {cambio_id} para evento {evento_id}')
+            return JsonResponse({
+                'success': False,
+                'error': 'Cambio no encontrado'
+            }, status=404)
         
         usuario_maga = get_usuario_maga(request.user)
         
@@ -6812,8 +6873,9 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 cambios_por_colaborador[key] = cambio_rel
 
             if colaboradores_objs:
-                # Eliminar todos los cambios del grupo para recrearlos con las nuevas comunidades
-                grupo_cambios_qs.delete()
+                # Guardar los IDs de los cambios antiguos antes de crear nuevos
+                cambios_antiguos_ids = list(grupo_cambios_qs.values_list('id', flat=True))
+                print(f'📎 Guardando {len(cambios_antiguos_ids)} cambios antiguos para eliminar después')
                 
                 nuevos_o_actualizados = []
                 fecha_cambio_final = fecha_cambio or cambio_colaborador.fecha_cambio
@@ -6857,16 +6919,85 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                         nuevos_o_actualizados.append(cambio_nuevo)
                         print(f'✅ Cambio creado sin comunidad para colaborador {colaborador.nombre}: {cambio_nuevo.id}')
                 
-                # Reasignar evidencias al primer cambio del grupo (para mantener las evidencias)
+                # Reasignar evidencias ANTES de eliminar los cambios antiguos (para evitar CASCADE delete)
                 if nuevos_o_actualizados and evidencias_por_cambio:
                     primer_cambio = nuevos_o_actualizados[0]
+                    print(f'📎 Reasignando {sum(len(evs) for evs in evidencias_por_cambio.values())} evidencia(s) al nuevo cambio {primer_cambio.id}')
                     for cambio_id_antiguo, evidencias_list in evidencias_por_cambio.items():
                         for evidencia in evidencias_list:
-                            evidencia.cambio = primer_cambio
-                            evidencia.save(update_fields=['cambio'])
+                            # Verificar que la evidencia aún existe antes de reasignarla
+                            try:
+                                evidencia.refresh_from_db()
+                                evidencia.cambio = primer_cambio
+                                evidencia.save(update_fields=['cambio'])
+                                print(f'✅ Evidencia {evidencia.id} reasignada al cambio {primer_cambio.id}')
+                            except Exception as e:
+                                print(f'⚠️ Error al reasignar evidencia {evidencia.id}: {e}')
+                    
+                    # Ahora sí eliminar los cambios antiguos (las evidencias ya están reasignadas)
+                    if cambios_antiguos_ids:
+                        EventoCambioColaborador.objects.filter(id__in=cambios_antiguos_ids).delete()
+                        print(f'✅ {len(cambios_antiguos_ids)} cambios antiguos eliminados después de reasignar evidencias')
 
                 if nuevos_o_actualizados:
                     cambio_colaborador = nuevos_o_actualizados[0]
+                    
+                    # Procesar nuevas evidencias si se enviaron
+                    archivos_recibidos = bool(request.FILES)
+                    if archivos_recibidos:
+                        archivos_keys_list = [key for key in request.FILES.keys() if key.startswith('archivo_')]
+                        if not archivos_keys_list:
+                            archivos_keys_list = list(request.FILES.keys())
+                        
+                        if archivos_keys_list:
+                            print(f'📎 Procesando {len(archivos_keys_list)} nueva(s) evidencia(s) al actualizar cambio')
+                            evidencias_dir = os.path.join(str(settings.MEDIA_ROOT), 'evidencias_cambios_eventos')
+                            os.makedirs(evidencias_dir, exist_ok=True)
+                            fs = FileSystemStorage(location=evidencias_dir)
+                            
+                            # Obtener todos los cambios del grupo actualizados para asociar evidencias
+                            cambios_para_evidencias = EventoCambioColaborador.objects.filter(
+                                actividad=evento,
+                                grupo_id=grupo_uuid
+                            )
+                            
+                            for index, key in enumerate(archivos_keys_list):
+                                try:
+                                    archivo = request.FILES[key]
+                                    print(f'📎 Procesando nueva evidencia {key}: {archivo.name} ({archivo.size} bytes)')
+                                    
+                                    # Obtener descripción de la evidencia
+                                    descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
+                                    if not descripcion_evidencia:
+                                        index_num = key.replace('archivo_', '')
+                                        descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index_num}', '').strip()
+                                    if not descripcion_evidencia:
+                                        descripcion_evidencia = request.POST.get('descripcion_evidencia', '').strip()
+                                    
+                                    # Guardar el archivo físico
+                                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+                                    file_extension = os.path.splitext(archivo.name)[1]
+                                    filename = f"{timestamp}_{cambio_colaborador.id}_{index}{file_extension}"
+                                    saved_name = fs.save(filename, archivo)
+                                    file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
+                                    
+                                    # Crear evidencia para cada cambio del grupo
+                                    for cambio_evidencia in cambios_para_evidencias:
+                                        EventosEvidenciasCambios.objects.create(
+                                            actividad=evento,
+                                            cambio=cambio_evidencia,
+                                            archivo_nombre=archivo.name,
+                                            archivo_tipo=archivo.content_type or 'application/octet-stream',
+                                            archivo_tamanio=archivo.size,
+                                            url_almacenamiento=file_url,
+                                            descripcion=descripcion_evidencia if descripcion_evidencia else None,
+                                            creado_por=usuario_maga
+                                        )
+                                    print(f'✅ Nueva evidencia agregada: {archivo.name}')
+                                except Exception as e:
+                                    print(f'❌ Error al procesar nueva evidencia {key}: {e}')
+                                    import traceback
+                                    traceback.print_exc()
 
             else:
                 # No se enviaron colaboradores, mantener colaborador existente
@@ -6874,6 +7005,63 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 if fecha_cambio:
                     cambio_colaborador.fecha_cambio = fecha_cambio
                 cambio_colaborador.save(update_fields=['descripcion_cambio', 'fecha_cambio'])
+                
+                # Procesar nuevas evidencias si se enviaron (cuando NO se recrean cambios)
+                archivos_recibidos = bool(request.FILES)
+                if archivos_recibidos:
+                    archivos_keys_list = [key for key in request.FILES.keys() if key.startswith('archivo_')]
+                    if not archivos_keys_list:
+                        archivos_keys_list = list(request.FILES.keys())
+                    
+                    if archivos_keys_list:
+                        print(f'📎 Procesando {len(archivos_keys_list)} nueva(s) evidencia(s) al actualizar cambio (sin recrear)')
+                        evidencias_dir = os.path.join(str(settings.MEDIA_ROOT), 'evidencias_cambios_eventos')
+                        os.makedirs(evidencias_dir, exist_ok=True)
+                        fs = FileSystemStorage(location=evidencias_dir)
+                        
+                        # Obtener todos los cambios del grupo para asociar evidencias
+                        cambios_para_evidencias = EventoCambioColaborador.objects.filter(
+                            actividad=evento,
+                            grupo_id=grupo_uuid
+                        )
+                        
+                        for index, key in enumerate(archivos_keys_list):
+                            try:
+                                archivo = request.FILES[key]
+                                print(f'📎 Procesando nueva evidencia {key}: {archivo.name} ({archivo.size} bytes)')
+                                
+                                # Obtener descripción de la evidencia
+                                descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index}', '').strip()
+                                if not descripcion_evidencia:
+                                    index_num = key.replace('archivo_', '')
+                                    descripcion_evidencia = request.POST.get(f'descripcion_evidencia_{index_num}', '').strip()
+                                if not descripcion_evidencia:
+                                    descripcion_evidencia = request.POST.get('descripcion_evidencia', '').strip()
+                                
+                                # Guardar el archivo físico
+                                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
+                                file_extension = os.path.splitext(archivo.name)[1]
+                                filename = f"{timestamp}_{cambio_colaborador.id}_{index}{file_extension}"
+                                saved_name = fs.save(filename, archivo)
+                                file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
+                                
+                                # Crear evidencia para cada cambio del grupo
+                                for cambio_evidencia in cambios_para_evidencias:
+                                    EventosEvidenciasCambios.objects.create(
+                                        actividad=evento,
+                                        cambio=cambio_evidencia,
+                                        archivo_nombre=archivo.name,
+                                        archivo_tipo=archivo.content_type or 'application/octet-stream',
+                                        archivo_tamanio=archivo.size,
+                                        url_almacenamiento=file_url,
+                                        descripcion=descripcion_evidencia if descripcion_evidencia else None,
+                                        creado_por=usuario_maga
+                                    )
+                                print(f'✅ Nueva evidencia agregada: {archivo.name}')
+                            except Exception as e:
+                                print(f'❌ Error al procesar nueva evidencia {key}: {e}')
+                                import traceback
+                                traceback.print_exc()
 
             responsables_nombres = []
             grupo_cambios_actualizados = EventoCambioColaborador.objects.filter(
