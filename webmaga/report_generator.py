@@ -4,6 +4,10 @@ Utiliza las plantillas PlantillaPDF.pdf y PlantillaWord.docx
 """
 
 import os
+import sys
+import subprocess
+import tempfile
+import shutil
 from datetime import datetime
 from django.conf import settings
 from django.http import HttpResponse
@@ -394,14 +398,112 @@ def generate_reportlab_content(elements, report_type, report_data, subtitle_styl
 
 
 def generate_pdf_report(report_type, report_data, filters_info=None):
-    """Genera un reporte en formato PDF - Prioriza WeasyPrint para mantener diseño completo"""
+    """Genera un reporte en formato PDF - Convierte el Word generado a PDF para mantener diseño completo"""
     try:
-        # PRIORIDAD 1: Usar WeasyPrint (soporta HTML/CSS completo, funciona en Linux)
+        # PRIORIDAD 1: Generar Word primero (ya tiene el diseño perfecto con imágenes)
+        # y luego convertirlo a PDF
+        print("📄 Generando documento Word con diseño completo...")
+        word_buffer = generate_word_report(report_type, report_data, filters_info)
+        word_buffer.seek(0)
+        
+        # MÉTODO 1: Intentar conversión con docx2pdf (solo Windows)
+        try:
+            import sys
+            if sys.platform == 'win32':
+                from docx2pdf import convert
+                import tempfile
+                
+                print("🔄 Convirtiendo Word a PDF con docx2pdf (Windows)...")
+                
+                # Crear archivos temporales
+                with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_word:
+                    temp_word.write(word_buffer.read())
+                    temp_word_path = temp_word.name
+                
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+                    temp_pdf_path = temp_pdf.name
+                
+                # Convertir Word a PDF
+                convert(temp_word_path, temp_pdf_path)
+                
+                # Leer el PDF generado
+                pdf_file = BytesIO()
+                with open(temp_pdf_path, 'rb') as f:
+                    pdf_file.write(f.read())
+                
+                # Limpiar archivos temporales
+                try:
+                    os.unlink(temp_word_path)
+                    os.unlink(temp_pdf_path)
+                except:
+                    pass
+                
+                pdf_file.seek(0)
+                print("✅ PDF generado exitosamente desde Word (docx2pdf)")
+                return pdf_file
+        except Exception as e:
+            print(f"⚠️ docx2pdf no disponible o falló: {e}")
+            pass
+        
+        # MÉTODO 2: Intentar conversión con LibreOffice (Linux/Mac)
+        try:
+            import subprocess
+            import tempfile
+            import shutil
+            
+            # Verificar si libreoffice está disponible
+            libreoffice_cmd = None
+            for cmd in ['libreoffice', 'soffice']:
+                if shutil.which(cmd):
+                    libreoffice_cmd = cmd
+                    break
+            
+            if libreoffice_cmd:
+                print("🔄 Convirtiendo Word a PDF con LibreOffice...")
+                
+                # Crear directorio temporal
+                temp_dir = tempfile.mkdtemp()
+                temp_word_path = os.path.join(temp_dir, 'reporte.docx')
+                
+                # Guardar Word en archivo temporal
+                with open(temp_word_path, 'wb') as f:
+                    f.write(word_buffer.read())
+                
+                # Convertir con LibreOffice en modo headless
+                subprocess.run([
+                    libreoffice_cmd,
+                    '--headless',
+                    '--convert-to', 'pdf',
+                    '--outdir', temp_dir,
+                    temp_word_path
+                ], check=True, capture_output=True, timeout=30)
+                
+                # Leer el PDF generado
+                pdf_path = os.path.join(temp_dir, 'reporte.pdf')
+                if os.path.exists(pdf_path):
+                    pdf_file = BytesIO()
+                    with open(pdf_path, 'rb') as f:
+                        pdf_file.write(f.read())
+                    
+                    # Limpiar directorio temporal
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                    
+                    pdf_file.seek(0)
+                    print("✅ PDF generado exitosamente desde Word (LibreOffice)")
+                    return pdf_file
+        except Exception as e:
+            print(f"⚠️ LibreOffice no disponible o falló: {e}")
+            pass
+        
+        # MÉTODO 3: Fallback a WeasyPrint si está disponible
         if WEASYPRINT_AVAILABLE:
             try:
                 # Importar weasyprint aquí para manejar errores de librerías del sistema
                 import weasyprint
-                print("🎨 Generando PDF con WeasyPrint (diseño completo con HTML/CSS)")
+                print("🎨 Generando PDF con WeasyPrint (fallback - diseño HTML/CSS)")
                 
                 # Generar HTML del reporte con el diseño original
                 html_content = generate_html_content(report_type, report_data, filters_info)
