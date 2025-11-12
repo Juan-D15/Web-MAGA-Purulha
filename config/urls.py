@@ -24,7 +24,11 @@ urlpatterns = [
     path('', include('webmaga.urls')),
 ]
 
-# Servir archivos media en desarrollo
+# Servir archivos media (tanto en desarrollo como en producción)
+# En producción, WhiteNoise puede servir archivos estáticos, pero para media files
+# necesitamos servirlos directamente desde Django
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Servir archivos estáticos solo en desarrollo (en producción WhiteNoise los sirve)
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])

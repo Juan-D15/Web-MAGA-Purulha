@@ -897,12 +897,17 @@ def api_foto_perfil(request):
     elif request.method == 'POST':
         # Subir/actualizar foto de perfil
         try:
+            print(f"📤 Iniciando subida de foto de perfil para usuario: {usuario_maga.id}")
             foto = request.FILES.get('foto')
             if not foto:
+                print("❌ No se proporcionó ningún archivo en request.FILES")
+                print(f"📋 Keys en request.FILES: {list(request.FILES.keys())}")
                 return JsonResponse({
                     'success': False,
                     'error': 'No se proporcionó ningún archivo'
                 }, status=400)
+            
+            print(f"✅ Archivo recibido: {foto.name}, tamaño: {foto.size}, tipo: {foto.content_type}")
             
             # Validar tipo de archivo
             allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
