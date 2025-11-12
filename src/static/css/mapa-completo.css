@@ -179,22 +179,55 @@ body {
   padding: 8px 12px 8px 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, #2b3748 0%, #243043 100%);
-  box-shadow: inset 0 1px 0 #ffffff0f, 0 6px 22px rgba(0,0,0,.24);
+  background: #2c3647 !important;
+  box-shadow: none;
 }
 
+.nav .search__wrap input,
+.nav .search input[type="search"],
+.search__wrap input[type="search"],
 .search input {
   flex: 1;
-  background: transparent;
+  background: transparent !important;
   border: 0;
   outline: 0;
-  color: var(--text-100);
+  color: #ffffff !important;
   font-weight: 600;
   font-size: 15px;
 }
 
+.nav .search__wrap input:focus,
+.nav .search__wrap input:active,
+.nav .search input[type="search"]:focus,
+.nav .search input[type="search"]:active,
+.search__wrap input[type="search"]:focus,
+.search__wrap input[type="search"]:active,
+.search input:focus,
+.search input:active,
+.nav .search__wrap input:-webkit-autofill,
+.nav .search input[type="search"]:-webkit-autofill,
+.search__wrap input[type="search"]:-webkit-autofill,
+.search input:-webkit-autofill,
+.nav .search__wrap input:-webkit-autofill:hover,
+.nav .search input[type="search"]:-webkit-autofill:hover,
+.search__wrap input[type="search"]:-webkit-autofill:hover,
+.search input:-webkit-autofill:hover,
+.nav .search__wrap input:-webkit-autofill:focus,
+.nav .search input[type="search"]:-webkit-autofill:focus,
+.search__wrap input[type="search"]:-webkit-autofill:focus,
+.search input:-webkit-autofill:focus {
+  color: #ffffff !important;
+  background: transparent !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+}
+
+.nav .search__wrap input::placeholder,
+.nav .search input::placeholder,
+.search__wrap input::placeholder,
 .search input::placeholder {
-  color: var(--text-50);
+  color: var(--text-50) !important;
   opacity: .9;
 }
 
@@ -312,17 +345,46 @@ body {
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, #2b394f 0%, #243448 100%);
+  background: #273449 !important;
 }
 
+.nav .dd__search input,
+.dd__search input[type="search"],
 .dd__search input {
   flex: 1;
-  background: transparent;
+  background: transparent !important;
   border: 0;
   outline: 0;
-  color: var(--text-100);
+  color: #ffffff !important;
   font-weight: 600;
   font-size: 14px;
+}
+
+.nav .dd__search input:focus,
+.nav .dd__search input:active,
+.dd__search input[type="search"]:focus,
+.dd__search input[type="search"]:active,
+.dd__search input:focus,
+.dd__search input:active,
+.nav .dd__search input:-webkit-autofill,
+.dd__search input[type="search"]:-webkit-autofill,
+.dd__search input:-webkit-autofill,
+.nav .dd__search input:-webkit-autofill:hover,
+.dd__search input[type="search"]:-webkit-autofill:hover,
+.dd__search input:-webkit-autofill:hover,
+.nav .dd__search input:-webkit-autofill:focus,
+.dd__search input[type="search"]:-webkit-autofill:focus,
+.dd__search input:-webkit-autofill:focus {
+  color: #ffffff !important;
+  background: transparent !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+}
+
+.dd__search input::placeholder {
+  color: var(--text-50) !important;
+  opacity: .9;
 }
 
 /* ======= DRAWER MÓVIL - Exactamente como index.html ======= */
@@ -479,16 +541,45 @@ body {
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, #2b394f 0%, #243448 100%);
+  background: #2f3a4c !important;
 }
 
+.drawer .ddm__search input,
+.ddm__search input[type="search"],
 .ddm__search input {
   flex: 1;
-  background: transparent;
+  background: transparent !important;
   border: 0;
   outline: 0;
-  color: #fff;
+  color: #ffffff !important;
   font-weight: 600;
+}
+
+.drawer .ddm__search input:focus,
+.drawer .ddm__search input:active,
+.ddm__search input[type="search"]:focus,
+.ddm__search input[type="search"]:active,
+.ddm__search input:focus,
+.ddm__search input:active,
+.drawer .ddm__search input:-webkit-autofill,
+.ddm__search input[type="search"]:-webkit-autofill,
+.ddm__search input:-webkit-autofill,
+.drawer .ddm__search input:-webkit-autofill:hover,
+.ddm__search input[type="search"]:-webkit-autofill:hover,
+.ddm__search input:-webkit-autofill:hover,
+.drawer .ddm__search input:-webkit-autofill:focus,
+.ddm__search input[type="search"]:-webkit-autofill:focus,
+.ddm__search input:-webkit-autofill:focus {
+  color: #ffffff !important;
+  background: transparent !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+}
+
+.ddm__search input::placeholder {
+  color: rgba(255,255,255,0.5) !important;
+  opacity: .9;
 }
 
 /* ======= RESPONSIVE NAV - Exactamente como index.html ======= */
