@@ -395,6 +395,11 @@ async function showCommunitiesList() {
   // Cargar lista de comunidades
   loadCommunitiesList();
   
+  // Re-agregar listeners después de cargar la lista
+  setTimeout(() => {
+    addCommunityViewMoreListeners();
+  }, 100);
+  
   // Scroll al inicio
   window.scrollTo(0, 0);
 }
@@ -509,13 +514,27 @@ function setDetailLoading(isLoading, message = 'Cargando comunidad...') {
 
 // Función para mostrar vista detallada
 async function showCommunityDetail(communityId) {
+  // Prevenir múltiples clics mientras se está cargando
+  if (isDetailLoading) {
+    return;
+  }
+
   const mainView = document.querySelector('.communities-main');
   const listView = document.getElementById('communitiesListView');
   const detailView = document.getElementById('communityDetailView');
   
+  if (!detailView) {
+    console.error('No se encontró la vista detallada');
+    return;
+  }
+  
   // Ocultar otras vistas
-  mainView.style.display = 'none';
-  listView.style.display = 'none';
+  if (mainView) {
+    mainView.style.display = 'none';
+  }
+  if (listView) {
+    listView.style.display = 'none';
+  }
   
   // Mostrar vista detallada
   detailView.style.display = 'block';
@@ -534,7 +553,13 @@ async function showCommunityDetail(communityId) {
     console.error('Error al mostrar comunidad:', error);
     showErrorMessage('No se pudo cargar la información de la comunidad.');
     setDetailLoading(false);
-    showMainView();
+    // Solo regresar a la vista principal si es un error crítico
+    if (mainView) {
+      mainView.style.display = 'block';
+    }
+    if (detailView) {
+      detailView.style.display = 'none';
+    }
   }
   
   // Scroll al inicio
@@ -1846,30 +1871,59 @@ function setupEditDataFormConstraints() {
   }
 }
 
+// Función para manejar clic en botones de comunidad
+function handleCommunityButtonClick(e) {
+  const button = e.target.closest('.community-card__btn, .community-list-item__btn');
+  if (!button) return;
+  
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // Prevenir múltiples clics mientras se está cargando
+  if (isDetailLoading) {
+    return;
+  }
+  
+  const communityId = button.getAttribute('data-community-id');
+  if (communityId) {
+    showCommunityDetail(communityId);
+  }
+}
+
 // Función para agregar event listeners a los botones "Ver más"
 function addCommunityViewMoreListeners() {
-  // Botones en tarjetas principales
+  // Usar delegación de eventos en el documento para capturar todos los clics
+  // Esto evita problemas con elementos dinámicos y múltiples listeners
+  
+  // Delegación de eventos en el contenedor principal (solo una vez)
+  const mainContainer = document.querySelector('.communities-main');
+  const listContainer = document.getElementById('communitiesList');
+  
+  if (mainContainer && !mainContainer.dataset.listenerAdded) {
+    mainContainer.addEventListener('click', handleCommunityButtonClick);
+    mainContainer.dataset.listenerAdded = 'true';
+  }
+  
+  if (listContainer && !listContainer.dataset.listenerAdded) {
+    listContainer.addEventListener('click', handleCommunityButtonClick);
+    listContainer.dataset.listenerAdded = 'true';
+  }
+  
+  // También agregar listeners directos para compatibilidad
   const viewMoreButtons = document.querySelectorAll('.community-card__btn');
   viewMoreButtons.forEach(button => {
-    button.addEventListener('click', function(e) {
-      e.preventDefault();
-      const communityId = this.getAttribute('data-community-id');
-      if (communityId) {
-        showCommunityDetail(communityId);
-      }
-    });
+    if (!button.dataset.listenerAdded) {
+      button.dataset.listenerAdded = 'true';
+      button.addEventListener('click', handleCommunityButtonClick);
+    }
   });
   
-  // Botones en lista
   const listViewMoreButtons = document.querySelectorAll('.community-list-item__btn');
   listViewMoreButtons.forEach(button => {
-    button.addEventListener('click', function(e) {
-      e.preventDefault();
-      const communityId = this.getAttribute('data-community-id');
-      if (communityId) {
-        showCommunityDetail(communityId);
-      }
-    });
+    if (!button.dataset.listenerAdded) {
+      button.dataset.listenerAdded = 'true';
+      button.addEventListener('click', handleCommunityButtonClick);
+    }
   });
 }
 
@@ -2020,12 +2074,24 @@ function loadGalleryWithDeleteButtons(photos) {
       </button>
     ` : '';
     imageItem.innerHTML = `
-      <img src="${encodedUrl}" alt="${escapeHtml(description)}" data-photo-index="${index}">
+      <img src="${encodedUrl}" alt="${escapeHtml(description)}" data-photo-index="${index}" loading="lazy">
       <div class="image-description">${escapeHtml(description)}</div>
       ${controls}
     `;
     const img = imageItem.querySelector('img');
     if (img) {
+      // Manejar errores de carga de imagen sin interrumpir el flujo
+      img.addEventListener('error', function() {
+        console.warn(`No se pudo cargar la imagen: ${photoUrl}`);
+        // Usar una imagen por defecto o ocultar la imagen
+        this.style.display = 'none';
+        // Opcional: mostrar un placeholder
+        const placeholder = document.createElement('div');
+        placeholder.className = 'image-placeholder';
+        placeholder.textContent = 'Imagen no disponible';
+        placeholder.style.cssText = 'display: flex; align-items: center; justify-content: center; min-height: 200px; background: #f0f0f0; color: #666;';
+        this.parentNode.insertBefore(placeholder, this);
+      });
       img.addEventListener('click', () => openImageModal(photoUrl, description));
     }
     container.appendChild(imageItem);

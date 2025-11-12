@@ -1316,7 +1316,7 @@ _COMUNIDAD_TITULOS_PREDEFINIDOS = {
     'teléfono cocode',
     'tipo de comunidad',
 }
-def _serialize_comunidad_detalle(comunidad):
+def _serialize_comunidad_detalle(comunidad, request=None):
     """Devuelve un diccionario serializado con la información completa de la comunidad."""
     galeria_prefetch = getattr(comunidad, 'galeria_api', None)
     if galeria_prefetch is None:
@@ -1391,6 +1391,9 @@ def _serialize_comunidad_detalle(comunidad):
     else:
         coordenadas_texto = ''
 
+    # Verificar si el usuario está autenticado
+    usuario_autenticado = request and request.user.is_authenticated if request else False
+
     data_cards = [
         {
             'icon': '👥',
@@ -1413,21 +1416,25 @@ def _serialize_comunidad_detalle(comunidad):
             'is_default': True,
             'has_value': bool(comunidad.cocode),
         },
-        {
+    ]
+    
+    # Solo incluir la tarjeta de Teléfono COCODE si el usuario está autenticado
+    if usuario_autenticado:
+        data_cards.append({
             'icon': '📞',
             'label': 'Teléfono COCODE',
             'value': comunidad.telefono_cocode or '',
             'is_default': True,
             'has_value': bool(comunidad.telefono_cocode),
-        },
-        {
-            'icon': '🏘️',
-            'label': 'Tipo de Comunidad',
-            'value': comunidad.tipo.get_nombre_display() if comunidad.tipo else '',
-            'is_default': True,
-            'has_value': bool(comunidad.tipo),
-        },
-    ]
+        })
+    
+    data_cards.append({
+        'icon': '🏘️',
+        'label': 'Tipo de Comunidad',
+        'value': comunidad.tipo.get_nombre_display() if comunidad.tipo else '',
+        'is_default': True,
+        'has_value': bool(comunidad.tipo),
+    })
 
     tarjetas_custom = []
     tarjetas_qs = (
@@ -1522,7 +1529,7 @@ def api_comunidad_detalle(request, comunidad_id):
     except Comunidad.DoesNotExist:
         return JsonResponse({'error': 'Comunidad no encontrada'}, status=404)
 
-    payload = _serialize_comunidad_detalle(comunidad)
+    payload = _serialize_comunidad_detalle(comunidad, request)
 
     response = JsonResponse(payload)
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -10735,7 +10742,7 @@ def api_actualizar_comunidad_datos(request, comunidad_id):
                 orden=card['orden'],
             )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad, request)
 
     return JsonResponse(
         {
@@ -10862,7 +10869,7 @@ def api_agregar_imagen_comunidad(request, comunidad_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload = _serialize_comunidad_detalle(updated)
+    payload = _serialize_comunidad_detalle(updated, request)
 
     return JsonResponse(
         {
@@ -10926,7 +10933,7 @@ def api_eliminar_imagen_comunidad(request, comunidad_id, imagen_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload = _serialize_comunidad_detalle(updated)
+    payload = _serialize_comunidad_detalle(updated, request)
 
     return JsonResponse(
         {
@@ -10978,7 +10985,7 @@ def api_actualizar_comunidad_descripcion(request, comunidad_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
@@ -11047,7 +11054,7 @@ def api_agregar_archivo_comunidad(request, comunidad_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
@@ -11108,7 +11115,7 @@ def api_eliminar_archivo_comunidad(request, comunidad_id, archivo_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
@@ -11152,7 +11159,7 @@ def api_actualizar_archivo_comunidad(request, comunidad_id, archivo_id):
         .get(id=comunidad_id, activo=True)
     )
 
-    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada)
+    payload_actualizado = _serialize_comunidad_detalle(comunidad_actualizada, request)
 
     return JsonResponse(
         {
