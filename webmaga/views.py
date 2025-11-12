@@ -38,6 +38,7 @@ from .decorators import (
     usuario_autenticado,
     get_usuario_maga,
     permiso_admin_o_personal_api,
+    usuario_puede_gestionar_evento,
 )
 from .views_utils import (
     aplicar_modificaciones_beneficiarios,
@@ -756,7 +757,7 @@ def api_usuario_actual(request):
         'permisos': {
             'es_admin': usuario_maga.rol == 'admin',
             'es_personal': usuario_maga.rol == 'personal',
-            'puede_gestionar_eventos': usuario_maga.rol == 'admin',
+            'puede_gestionar_eventos': usuario_maga.rol in ['admin', 'personal'],
             'puede_generar_reportes': True,
         }
     })
@@ -5724,6 +5725,13 @@ def api_obtener_detalle_proyecto(request, evento_id):
             fecha_str = ''
             fecha_display = ''
         
+        # Verificar permisos del usuario actual para este evento
+        usuario_maga = get_usuario_maga(request.user) if request.user.is_authenticated else None
+        puede_gestionar = False
+        
+        if usuario_maga:
+            puede_gestionar = usuario_puede_gestionar_evento(usuario_maga, evento_id)
+        
         proyecto_data = {
             'id': str(evento.id),
             'nombre': evento.nombre,
@@ -5744,7 +5752,13 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'portada': obtener_portada_evento(evento),
             'tarjetas_datos': obtener_tarjetas_datos(evento),
             'comunidades': obtener_comunidades_evento(evento),
-            'cambios': obtener_cambios_evento(evento)
+            'cambios': obtener_cambios_evento(evento),
+            'puede_gestionar': puede_gestionar,
+            'permisos': {
+                'puede_gestionar': puede_gestionar,
+                'es_admin': usuario_maga.rol == 'admin' if usuario_maga else False,
+                'es_personal': usuario_maga.rol == 'personal' if usuario_maga else False,
+            }
         }
         
         print(f'📤 Retornando proyecto con {len(proyecto_data.get("cambios", []))} cambios')

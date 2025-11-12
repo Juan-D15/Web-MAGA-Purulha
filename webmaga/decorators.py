@@ -51,6 +51,8 @@ def solo_administrador(view_func):
 def permiso_gestionar_eventos_api(view_func):
     """
     Decorador para APIs que permite a admin y personal gestionar eventos.
+    - Admin: puede gestionar todos los eventos
+    - Personal: puede gestionar solo los eventos donde está asignado
     Devuelve JSON en lugar de redirigir cuando no hay permisos.
     """
     @wraps(view_func)
@@ -76,6 +78,15 @@ def permiso_gestionar_eventos_api(view_func):
                 'success': False,
                 'error': 'No tienes permisos para realizar esta acción. Solo administradores y personal pueden gestionar eventos.'
             }, status=403)
+        
+        # Si es personal y hay un evento_id, verificar que esté asignado
+        evento_id = kwargs.get('evento_id')
+        if evento_id and usuario_maga.rol == 'personal':
+            if not usuario_puede_gestionar_evento(usuario_maga, evento_id):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No tienes permisos para gestionar este evento. Solo puedes gestionar eventos donde estás asignado.'
+                }, status=403)
         
         return view_func(request, *args, **kwargs)
     
@@ -114,10 +125,68 @@ def permiso_admin_o_personal_api(view_func):
     return wrapper
 
 
+def usuario_puede_gestionar_evento(usuario_maga, evento_id=None):
+    """
+    Verifica si un usuario puede gestionar un evento específico.
+    - Admin: puede gestionar todos los eventos
+    - Personal: puede gestionar solo los eventos donde está asignado
+    
+    Args:
+        usuario_maga: Instancia de Usuario
+        evento_id: ID del evento (opcional). Si no se proporciona, solo verifica el rol.
+    
+    Returns:
+        bool: True si el usuario puede gestionar el evento
+    """
+    if not usuario_maga:
+        return False
+    
+    # Admin puede gestionar todos los eventos
+    if usuario_maga.rol == 'admin':
+        return True
+    
+    # Personal solo puede gestionar eventos donde está asignado
+    if usuario_maga.rol == 'personal':
+        # Si no hay evento_id específico, permitir el acceso inicial
+        # La validación específica se hará en cada endpoint
+        if not evento_id:
+            return True
+        
+        # Verificar si el usuario está asignado al evento
+        from .models import ActividadPersonal, Colaborador
+        
+        try:
+            # Verificar por usuario directamente
+            esta_asignado_usuario = ActividadPersonal.objects.filter(
+                actividad_id=evento_id,
+                usuario=usuario_maga
+            ).exists()
+            
+            if esta_asignado_usuario:
+                return True
+            
+            # Verificar por colaborador vinculado
+            if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                esta_asignado_colaborador = ActividadPersonal.objects.filter(
+                    actividad_id=evento_id,
+                    colaborador=usuario_maga.colaborador
+                ).exists()
+                
+                if esta_asignado_colaborador:
+                    return True
+            
+            return False
+        except Exception:
+            return False
+    
+    return False
+
+
 def permiso_gestionar_eventos(view_func):
     """
-    Decorador que permite solo a administradores gestionar eventos.
-    El personal puede visualizar pero no gestionar.
+    Decorador que permite a administradores y personal gestionar eventos.
+    - Admin: puede gestionar todos los eventos
+    - Personal: puede gestionar solo los eventos donde está asignado
     """
     @wraps(view_func)
     @login_required(login_url='webmaga:login')
@@ -128,10 +197,24 @@ def permiso_gestionar_eventos(view_func):
             messages.error(request, 'No tienes permisos para acceder a esta página.')
             return redirect('webmaga:index')
         
-        # Solo admin puede gestionar eventos
-        if usuario_maga.rol != 'admin':
-            messages.error(request, 'Solo los administradores pueden gestionar eventos.')
+        # Admin y personal pueden gestionar eventos
+        if usuario_maga.rol not in ['admin', 'personal']:
+            messages.error(request, 'No tienes permisos para gestionar eventos.')
             return redirect('webmaga:index')
+        
+        # Si es personal y hay un evento_id en los kwargs, verificar asignación
+        evento_id = kwargs.get('evento_id')
+        if evento_id and usuario_maga.rol == 'personal':
+            if not usuario_puede_gestionar_evento(usuario_maga, evento_id):
+                # Para APIs, retornar JSON en lugar de redirección
+                if request.path.startswith('/api/'):
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'No tienes permisos para gestionar este evento. Solo puedes gestionar eventos donde estás asignado.'
+                    }, status=403)
+                else:
+                    messages.error(request, 'No tienes permisos para gestionar este evento.')
+                    return redirect('webmaga:index')
         
         return view_func(request, *args, **kwargs)
     

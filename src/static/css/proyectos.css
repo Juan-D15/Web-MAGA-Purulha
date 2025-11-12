@@ -100,14 +100,14 @@ textarea.project-description-textarea {
   padding: 14px 18px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(17, 25, 40, 0.45);
+  background: rgba(30, 41, 59, 0.85); /* Fondo oscuro por defecto - más acorde al diseño */
   color: var(--text-primary);
   font-size: 1rem;
   line-height: 1.6;
   resize: vertical;
   box-sizing: border-box;
   outline: none;
-  transition: border 0.2s ease, box-shadow 0.2s ease;
+  transition: border 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   display: block;
   position: relative;
   z-index: 5;
@@ -116,7 +116,7 @@ textarea.project-description-textarea {
 textarea.project-description-textarea:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-  background: rgba(17, 25, 40, 0.65);
+  background: rgba(17, 25, 40, 0.95); /* Más oscuro al enfocar */
 }
 
 textarea.project-description-textarea::placeholder {
@@ -2767,8 +2767,8 @@ html {
   padding: 12px 16px;
   border: 2px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
-  color: #1b2333;
+  background: rgba(30, 41, 59, 0.85); /* Fondo oscuro acorde al diseño */
+  color: rgba(255, 255, 255, 0.95); /* Texto claro para contraste */
   font-size: 14px;
   transition: all 0.3s ease;
 }
@@ -2777,13 +2777,14 @@ html {
 .form-textarea:focus {
   outline: none;
   border-color: var(--primary-color);
-  background: #ffffff;
-  color: #1b2333;
+  background: rgba(17, 25, 40, 0.95); /* Más oscuro al enfocar */
+  color: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
 .form-input::placeholder,
 .form-textarea::placeholder {
-  color: rgba(27, 35, 51, 0.45);
+  color: rgba(255, 255, 255, 0.45); /* Placeholder claro para fondo oscuro */
 }
 
 #addChangeModal .form-textarea {

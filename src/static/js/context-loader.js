@@ -36,15 +36,20 @@
     collaborators: data.urlCollaborators || ''
   };
 
+  var isAdmin = parseBool(data.userAdmin);
+  var isPersonal = parseBool(data.userPersonal);
+  
   window.USER_AUTH = {
     isAuthenticated: parseBool(data.userAuthenticated),
-    isAdmin: parseBool(data.userAdmin),
-    isPersonal: parseBool(data.userPersonal),
+    isAdmin: isAdmin,
+    isPersonal: isPersonal,
     username: data.userUsername || '',
     email: data.userEmail || '',
     permisos: {
-      es_admin: parseBool(data.userAdmin),
-      es_personal: parseBool(data.userPersonal)
+      es_admin: isAdmin,
+      es_personal: isPersonal,
+      puede_gestionar_eventos: isAdmin || isPersonal,
+      puede_generar_reportes: parseBool(data.userAuthenticated)
     }
   };
 

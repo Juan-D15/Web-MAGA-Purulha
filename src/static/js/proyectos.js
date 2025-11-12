@@ -945,13 +945,17 @@ async function loadProjectDetails(projectId) {
       let puedeGestionar = null;
       if (typeof proyecto.puede_gestionar === 'boolean') {
         puedeGestionar = proyecto.puede_gestionar;
+        console.log('📋 Usando proyecto.puede_gestionar:', puedeGestionar);
       } else if (proyecto.permisos && typeof proyecto.permisos.puede_gestionar === 'boolean') {
         puedeGestionar = proyecto.permisos.puede_gestionar;
+        console.log('📋 Usando proyecto.permisos.puede_gestionar:', puedeGestionar);
       } else {
         puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
+        console.log('📋 Usando usuarioPuedeGestionarProyecto:', puedeGestionar);
       }
 
       puedeGestionarProyectoActual = Boolean(puedeGestionar);
+      console.log('🔑 puedeGestionarProyectoActual establecido a:', puedeGestionarProyectoActual);
       projectActionButtonSelectors = buildProjectActionButtonSelectors();
 
       mostrarDetalleProyecto(proyecto);
@@ -2451,12 +2455,12 @@ function loadProjectDetail(project) {
   
 
   // Galería de imágenes
-
-  if (project.gallery) {
-
-    loadGalleryWithDescriptions(project.gallery);
-
-  }
+  // NOTA: Deshabilitado porque mostrarDetalleProyecto() ya maneja la galería con renderProjectGalleryImages()
+  // Esto evita duplicación de imágenes
+  
+  // if (project.gallery) {
+  //   loadGalleryWithDescriptions(project.gallery);
+  // }
 
   
 
@@ -3283,10 +3287,22 @@ async function usuarioPuedeGestionarProyecto(proyecto) {
 }
 
 function tienePermisoGestionActual() {
+  console.log('🔐 Verificando permisos de gestión:');
+  console.log('  - window.USER_AUTH:', window.USER_AUTH);
+  console.log('  - isAuthenticated:', window.USER_AUTH?.isAuthenticated);
+  console.log('  - isAdmin:', window.USER_AUTH?.isAdmin);
+  console.log('  - isPersonal:', window.USER_AUTH?.isPersonal);
+  console.log('  - puedeGestionarProyectoActual:', puedeGestionarProyectoActual);
+  console.log('  - USER_AUTH.permisos:', window.USER_AUTH?.permisos);
+  
   if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
+    console.log('✅ Permiso concedido: Usuario es admin');
     return true;
   }
-  return !!puedeGestionarProyectoActual;
+  
+  const resultado = !!puedeGestionarProyectoActual;
+  console.log(resultado ? '✅ Permiso concedido: puedeGestionarProyectoActual es true' : '❌ Permiso denegado: puedeGestionarProyectoActual es false');
+  return resultado;
 }
 
 function mostrarMensajePermisoDenegado() {
@@ -4754,20 +4770,29 @@ function clearImageForm() {
 }
 
 function renderPendingProjectImages() {
+  console.log('🖼️ renderPendingProjectImages() llamada');
+  console.log('🖼️ Imágenes pendientes:', pendingProjectGalleryImages.length);
+  
   const previewContainer = document.getElementById('imagePreview');
+  console.log('🖼️ Preview container:', previewContainer);
+  
   if (!previewContainer) {
+    console.warn('⚠️ Preview container NO encontrado');
     return;
   }
 
   previewContainer.innerHTML = '';
 
   if (!pendingProjectGalleryImages.length) {
+    console.log('ℹ️ No hay imágenes pendientes, mostrando estado vacío');
     const emptyState = document.createElement('div');
     emptyState.className = 'image-preview-empty';
     emptyState.textContent = 'No has seleccionado imágenes.';
     previewContainer.appendChild(emptyState);
     return;
   }
+  
+  console.log('✅ Renderizando', pendingProjectGalleryImages.length, 'imagen(es)');
 
   pendingProjectGalleryImages.forEach((item, index) => {
     const wrapper = document.createElement('div');
@@ -4953,12 +4978,25 @@ function renderProjectGalleryPage() {
 }
 
 function confirmarEliminacionImagenGaleria(imagenId, imageName = '') {
+  console.log('🗑️ confirmarEliminacionImagenGaleria() llamada');
+  console.log('🗑️ ID de imagen a eliminar:', imagenId);
+  console.log('🗑️ Verificando permisos...');
+  
+  if (!tienePermisoGestionActual()) {
+    console.log('❌ Sin permisos para eliminar imagen');
+    mostrarMensajePermisoDenegado();
+    return;
+  }
+  
+  console.log('✅ Permisos verificados, mostrando confirmación');
+  
   const trimmedName = (imageName || '').trim();
   const message = trimmedName
     ? `¿Estás seguro de que deseas eliminar la imagen "${trimmedName}" de la galería?`
     : '¿Estás seguro de que deseas eliminar esta imagen de la galería?';
 
   showConfirmDeleteModal(message, async () => {
+    console.log('✅ Usuario confirmó eliminación');
     await eliminarImagenGaleria(imagenId);
   });
 }
@@ -4991,10 +5029,14 @@ document.addEventListener('click', (event) => {
 // Función para manejar selección de imagen
 
 function handleImageSelect(event) {
+  console.log('📸 handleImageSelect() llamada', event);
   const input = event.target;
+  console.log('📸 Input element:', input);
   const files = Array.from(input.files || []);
+  console.log('📸 Archivos seleccionados:', files.length, files);
 
   if (!files.length) {
+    console.warn('⚠️ No se seleccionaron archivos');
     return;
   }
 
@@ -5054,13 +5096,16 @@ function handleImageSelect(event) {
   });
 
   if (addedFiles > 0) {
+    console.log(`✅ ${addedFiles} imagen(es) agregada(s) a pendientes`);
     renderPendingProjectImages();
   }
 
   if (invalidFiles > 0) {
+    console.warn(`⚠️ ${invalidFiles} archivo(s) inválido(s)`);
     showErrorMessage('Algunos archivos fueron descartados porque no son imágenes válidas.');
   }
 
+  console.log('📸 Total de imágenes pendientes:', pendingProjectGalleryImages.length);
   input.value = '';
 }
 
@@ -5069,22 +5114,28 @@ function handleImageSelect(event) {
 // Función para agregar imagen al proyecto
 
 async function addImageToProject() {
+  console.log('💾 addImageToProject() llamada');
+  console.log('💾 Imágenes pendientes a guardar:', pendingProjectGalleryImages.length);
 
   if (!tienePermisoGestionActual()) {
-
+    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
 
     return;
 
   }
+  
+  console.log('✅ Permisos verificados');
 
   if (!pendingProjectGalleryImages.length) {
-
+    console.warn('⚠️ No hay imágenes pendientes');
     showErrorMessage('Selecciona al menos una imagen antes de continuar.');
 
     return;
 
   }
+  
+  console.log('✅ Hay imágenes para subir, continuando...');
 
   
 
@@ -5247,7 +5298,11 @@ async function addImageToProject() {
 // Función para eliminar imagen de la galería
 
 async function eliminarImagenGaleria(imagenId) {
+  console.log('🗑️ eliminarImagenGaleria() llamada');
+  console.log('🗑️ ID de imagen:', imagenId);
+  
   let currentProject = getCurrentProject();
+  console.log('🗑️ Proyecto actual:', currentProject);
 
   if (!currentProject || !currentProject.id) {
     const detailTitle = document.getElementById('detailTitle');
@@ -5356,16 +5411,20 @@ function showEditDescriptionModal() {
 // Función para actualizar descripción del proyecto
 
 async function updateProjectDescription() {
+  console.log('💾 updateProjectDescription() llamada');
 
   if (!tienePermisoGestionActual()) {
-
+    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
 
     return;
 
   }
+  
+  console.log('✅ Permisos verificados, continuando...');
 
   const newDescription = document.getElementById('editDescriptionText').value.trim();
+  console.log('📝 Descripción a guardar:', newDescription);
 
   
 
@@ -7174,18 +7233,23 @@ async function updateExistingEvidenceDescriptions() {
 // Función para agregar cambio al proyecto usando API
 
 async function addChangeToProject() {
+  console.log('💾 addChangeToProject() llamada');
 
   if (!tienePermisoGestionActual()) {
-
+    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
 
     return;
 
   }
+  
+  console.log('✅ Permisos verificados');
 
   const description = document.getElementById('changeDescription').value.trim();
+  console.log('📝 Descripción:', description);
 
   const selectedPersonnel = getSelectedChangePersonnel();
+  console.log('👥 Personal seleccionado:', selectedPersonnel);
 
   
 
@@ -7971,6 +8035,141 @@ function getCookie(name) {
 document.addEventListener('DOMContentLoaded', function() {
 
   console.log('DOM cargado, configurando event listeners...');
+  
+  // Delegación de eventos para botones de modales (backup en caso de que los listeners directos fallen)
+  document.body.addEventListener('click', function(e) {
+    const target = e.target;
+    
+    // Verificar si es el botón de confirmar eliminación
+    if (target.id === 'confirmDeleteBtn' || target.closest('#confirmDeleteBtn')) {
+      console.log('🖱️ Click capturado por delegación en confirmDeleteBtn');
+      e.preventDefault();
+      e.stopPropagation();
+      executeDeleteAction();
+      return;
+    }
+    
+    // Verificar si es el botón de agregar imagen
+    if (target.id === 'confirmImageBtn' || target.closest('#confirmImageBtn')) {
+      console.log('🖱️ Click capturado por delegación en confirmImageBtn');
+      e.preventDefault();
+      e.stopPropagation();
+      addImageToProject();
+      return;
+    }
+    
+    // Verificar si es el botón de guardar descripción
+    if (target.id === 'confirmDescriptionBtn' || target.closest('#confirmDescriptionBtn')) {
+      console.log('🖱️ Click capturado por delegación en confirmDescriptionBtn');
+      e.preventDefault();
+      e.stopPropagation();
+      updateProjectDescription();
+      return;
+    }
+    
+    // Verificar si es el botón de guardar datos
+    if (target.id === 'confirmDataBtn' || target.closest('#confirmDataBtn')) {
+      console.log('🖱️ Click capturado por delegación en confirmDataBtn');
+      e.preventDefault();
+      e.stopPropagation();
+      saveProjectData();
+      return;
+    }
+    
+    // Verificar si es el botón de agregar cambio
+    if (target.id === 'confirmChangeBtn' || target.closest('#confirmChangeBtn')) {
+      console.log('🖱️ Click capturado por delegación en confirmChangeBtn');
+      e.preventDefault();
+      e.stopPropagation();
+      addChangeToProject();
+      return;
+    }
+    
+    // Verificar si es el botón de agregar archivo del proyecto
+    if (target.id === 'confirmFileBtn' || target.closest('#confirmFileBtn')) {
+      console.log('🖱️ Click capturado por delegación en confirmFileBtn');
+      e.preventDefault();
+      e.stopPropagation();
+      addFileToProject();
+      return;
+    }
+    
+    // Verificar si es el botón de guardar descripción de archivo
+    if (target.id === 'confirmFileDescriptionBtn' || target.closest('#confirmFileDescriptionBtn')) {
+      console.log('🖱️ Click capturado por delegación en confirmFileDescriptionBtn');
+      e.preventDefault();
+      e.stopPropagation();
+      updateProjectFileDescription();
+      return;
+    }
+    
+    // Verificar si es el botón de editar archivo
+    if (target.classList.contains('file-edit-btn') || target.closest('.file-edit-btn')) {
+      console.log('🖱️ Click capturado por delegación en file-edit-btn');
+      e.preventDefault();
+      e.stopPropagation();
+      const btn = target.classList.contains('file-edit-btn') ? target : target.closest('.file-edit-btn');
+      const archivoId = btn.getAttribute('data-edit-archivo-id');
+      const descripcion = btn.getAttribute('data-archivo-descripcion');
+      const decoded = descripcion ? decodeURIComponent(descripcion) : '';
+      console.log('📝 Editar archivo:', { archivoId, descripcion: decoded });
+      showEditProjectFileDescriptionModal(archivoId, decoded);
+      return;
+    }
+    
+    // Verificar si es el botón de eliminar archivo (btn-danger con data-archivo-id)
+    if ((target.classList.contains('btn-danger') || target.closest('.btn-danger')) && 
+        (target.hasAttribute('data-archivo-id') || target.closest('[data-archivo-id]'))) {
+      console.log('🖱️ Click capturado por delegación en btn-danger (eliminar archivo)');
+      e.preventDefault();
+      e.stopPropagation();
+      const btn = target.hasAttribute('data-archivo-id') ? target : target.closest('[data-archivo-id]');
+      const archivoId = btn.getAttribute('data-archivo-id');
+      
+      // Obtener el nombre del archivo para el mensaje de confirmación
+      const fileItem = btn.closest('.file-item');
+      const fileNameElement = fileItem ? fileItem.querySelector('.file-info h4 a, .file-info h4 span') : null;
+      const fileName = fileNameElement ? fileNameElement.textContent.trim() : 'este archivo';
+      
+      console.log('🗑️ Eliminar archivo:', { archivoId, fileName });
+      
+      // Mostrar modal de confirmación
+      showConfirmDeleteModal(
+        `¿Estás seguro de que deseas eliminar el archivo "${fileName}"? Esta acción no se puede deshacer.`,
+        async () => {
+          console.log('✅ Usuario confirmó eliminación del archivo');
+          await eliminarArchivoProyecto(archivoId);
+        }
+      );
+      return;
+    }
+  });
+  
+  // Delegación de eventos para inputs de archivo (backup)
+  document.body.addEventListener('change', function(e) {
+    const target = e.target;
+    
+    // Verificar si es el input de imágenes
+    if (target.id === 'imageFileInput') {
+      console.log('📸 Change capturado por delegación en imageFileInput');
+      handleImageSelect(e);
+      return;
+    }
+    
+    // Verificar si es el input de evidencias de cambios
+    if (target.id === 'changeEvidencesInput') {
+      console.log('📎 Change capturado por delegación en changeEvidencesInput');
+      handleChangeEvidencesSelect(e);
+      return;
+    }
+    
+    // Verificar si es el input de archivos del proyecto
+    if (target.id === 'fileInput') {
+      console.log('📄 Change capturado por delegación en fileInput');
+      handleFileSelect(e);
+      return;
+    }
+  });
 
   // Verificar si hay una búsqueda pendiente desde el buscador principal
   if (typeof sessionStorage !== 'undefined') {
@@ -8438,11 +8637,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // Event listener para selección de imagen
 
   const imageFileInput = document.getElementById('imageFileInput');
+  console.log('🔍 Buscando input imageFileInput...', imageFileInput);
 
   if (imageFileInput) {
-
+    console.log('✅ Input imageFileInput encontrado, agregando listener');
     imageFileInput.addEventListener('change', handleImageSelect);
 
+  } else {
+    console.warn('⚠️ Input imageFileInput NO encontrado');
   }
 
 
@@ -8643,21 +8845,40 @@ document.addEventListener('DOMContentLoaded', function() {
   // Event listeners para botones de confirmar
 
   const confirmImageBtn = document.getElementById('confirmImageBtn');
+  console.log('🔍 Buscando botón confirmImageBtn...', confirmImageBtn);
 
   if (confirmImageBtn) {
+    console.log('✅ Botón confirmImageBtn encontrado, agregando listener');
+    confirmImageBtn.addEventListener('click', function(e) {
+      console.log('🖱️ Click en botón AGREGAR (confirmImageBtn)');
+      addImageToProject();
+    });
 
-    confirmImageBtn.addEventListener('click', addImageToProject);
-
+  } else {
+    console.warn('⚠️ Botón confirmImageBtn NO encontrado');
   }
 
 
 
   const confirmDescriptionBtn = document.getElementById('confirmDescriptionBtn');
+  console.log('🔍 Buscando botón confirmDescriptionBtn...', confirmDescriptionBtn);
 
   if (confirmDescriptionBtn) {
+    console.log('✅ Botón confirmDescriptionBtn encontrado, agregando listener');
+    
+    // Remover listener previo si existe (para evitar duplicados)
+    confirmDescriptionBtn.removeEventListener('click', updateProjectDescription);
+    
+    confirmDescriptionBtn.addEventListener('click', function(e) {
+      console.log('🖱️ Click en botón GUARDAR (confirmDescriptionBtn)', e);
+      e.preventDefault();
+      e.stopPropagation();
+      updateProjectDescription();
+    });
 
-    confirmDescriptionBtn.addEventListener('click', updateProjectDescription);
-
+  } else {
+    console.warn('⚠️ Botón confirmDescriptionBtn NO encontrado en el DOM');
+    console.log('🔍 Elementos del DOM:', document.querySelectorAll('button'));
   }
 
 
@@ -8693,19 +8914,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   const confirmChangeBtn = document.getElementById('confirmChangeBtn');
+  console.log('🔍 Buscando botón confirmChangeBtn...', confirmChangeBtn);
 
   if (confirmChangeBtn) {
+    console.log('✅ Botón confirmChangeBtn encontrado, agregando listener');
+    confirmChangeBtn.addEventListener('click', function(e) {
+      console.log('🖱️ Click en botón AGREGAR (confirmChangeBtn)');
+      addChangeToProject();
+    });
 
-    confirmChangeBtn.addEventListener('click', addChangeToProject);
-
+  } else {
+    console.warn('⚠️ Botón confirmChangeBtn NO encontrado');
   }
 
   const confirmFileDescriptionBtn = document.getElementById('confirmFileDescriptionBtn');
+  console.log('🔍 Buscando botón confirmFileDescriptionBtn...', confirmFileDescriptionBtn);
 
   if (confirmFileDescriptionBtn) {
+    console.log('✅ Botón confirmFileDescriptionBtn encontrado, agregando listener');
+    confirmFileDescriptionBtn.addEventListener('click', function(e) {
+      console.log('🖱️ Click en botón GUARDAR CAMBIOS (confirmFileDescriptionBtn)');
+      updateProjectFileDescription();
+    });
 
-    confirmFileDescriptionBtn.addEventListener('click', updateProjectFileDescription);
-
+  } else {
+    console.log('⚠️ Botón confirmFileDescriptionBtn NO encontrado en el DOM');
   }
 
   const changeUseCurrentTimeCheckbox = document.getElementById('changeUseCurrentTime');
@@ -8723,11 +8956,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // Event listener para el input de evidencias en el modal de cambios
 
   const changeEvidencesInput = document.getElementById('changeEvidencesInput');
+  console.log('🔍 Buscando input changeEvidencesInput...', changeEvidencesInput);
 
   if (changeEvidencesInput) {
-
+    console.log('✅ Input changeEvidencesInput encontrado, agregando listener');
     changeEvidencesInput.addEventListener('change', handleChangeEvidencesSelect);
 
+  } else {
+    console.warn('⚠️ Input changeEvidencesInput NO encontrado');
   }
 
 
@@ -8777,11 +9013,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   const confirmFileBtn = document.getElementById('confirmFileBtn');
+  console.log('🔍 Buscando botón confirmFileBtn...', confirmFileBtn);
 
   if (confirmFileBtn) {
+    console.log('✅ Botón confirmFileBtn encontrado, agregando listener');
+    confirmFileBtn.addEventListener('click', function(e) {
+      console.log('🖱️ Click en botón AGREGAR (confirmFileBtn)');
+      addFileToProject();
+    });
 
-    confirmFileBtn.addEventListener('click', addFileToProject);
-
+  } else {
+    console.log('⚠️ Botón confirmFileBtn NO encontrado en el DOM');
   }
 
 
@@ -9096,11 +9338,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+  console.log('🔍 Buscando botón confirmDeleteBtn...', confirmDeleteBtn);
 
   if (confirmDeleteBtn) {
+    console.log('✅ Botón confirmDeleteBtn encontrado, agregando listener');
+    confirmDeleteBtn.addEventListener('click', function(e) {
+      console.log('🖱️ Click en botón ELIMINAR (confirmDeleteBtn)');
+      executeDeleteAction();
+    });
 
-    confirmDeleteBtn.addEventListener('click', executeDeleteAction);
-
+  } else {
+    console.warn('⚠️ Botón confirmDeleteBtn NO encontrado');
   }
 
 
@@ -10250,22 +10498,27 @@ function clearFileForm() {
 
 
 function handleFileSelect(event) {
+  console.log('📄 handleFileSelect() llamada', event);
 
   const file = event.target.files[0];
+  console.log('📄 Archivo seleccionado:', file);
 
-  if (!file) return;
+  if (!file) {
+    console.log('❌ No se seleccionó ningún archivo');
+    return;
+  }
 
   
 
   // Agregar el archivo al array de archivos seleccionados
-
-  selectedProjectFiles.push({
-
+  const fileObj = {
     file: file,
-
     id: Date.now() + Math.random() // ID único para cada archivo
+  };
 
-  });
+  selectedProjectFiles.push(fileObj);
+  console.log('✅ Archivo agregado a selectedProjectFiles:', fileObj);
+  console.log('📄 Total de archivos en selectedProjectFiles:', selectedProjectFiles.length);
 
   
 
@@ -10284,10 +10537,16 @@ function handleFileSelect(event) {
 
 
 function renderFilePreview() {
+  console.log('📄 renderFilePreview() llamada');
+  console.log('📄 Archivos en selectedProjectFiles:', selectedProjectFiles.length);
 
   const preview = document.getElementById('filePreview');
+  console.log('📄 Preview container:', preview);
 
-  if (!preview) return;
+  if (!preview) {
+    console.log('❌ No se encontró el contenedor filePreview');
+    return;
+  }
 
   
 
@@ -10296,12 +10555,13 @@ function renderFilePreview() {
   
 
   if (selectedProjectFiles.length === 0) {
-
+    console.log('ℹ️ No hay archivos para mostrar');
     return;
 
   }
 
   
+  console.log('✅ Renderizando', selectedProjectFiles.length, 'archivo(s)');
 
   selectedProjectFiles.forEach((fileItem) => {
 
@@ -10447,18 +10707,23 @@ function formatFileSize(bytes) {
 
 
 async function addFileToProject() {
+  console.log('📄 addFileToProject() llamada');
 
   if (!tienePermisoGestionActual()) {
-
+    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
 
     return;
 
   }
+  
+  console.log('✅ Permisos verificados');
 
   const fileDescription = document.getElementById('fileDescription').value.trim();
+  console.log('📝 Descripción del archivo:', fileDescription);
 
   
+  console.log('📄 Total de archivos en selectedProjectFiles:', selectedProjectFiles.length);
 
   if (selectedProjectFiles.length === 0) {
 
@@ -10575,13 +10840,15 @@ async function addFileToProject() {
 // Función para eliminar archivo del proyecto
 
 async function eliminarArchivoProyecto(archivoId) {
+  console.log('🗑️ eliminarArchivoProyecto() llamada', { archivoId });
 
   // Obtener el proyecto actual
 
   let proyecto = getCurrentProject();
+  console.log('📂 Proyecto actual:', proyecto);
 
   if (!proyecto || !proyecto.id) {
-
+    console.log('❌ No se pudo obtener la información del proyecto');
     showErrorMessage('Error: No se pudo obtener la información del evento.');
 
     return;
@@ -10591,6 +10858,7 @@ async function eliminarArchivoProyecto(archivoId) {
   
 
   try {
+    console.log('🌐 Enviando solicitud DELETE a:', `/api/evento/${proyecto.id}/archivo/${archivoId}/eliminar/`);
 
     // Llamar a la API para eliminar
 
@@ -10609,10 +10877,12 @@ async function eliminarArchivoProyecto(archivoId) {
     
 
     const result = await response.json();
+    console.log('📥 Respuesta del servidor:', result);
 
     
 
     if (result.success) {
+      console.log('✅ Archivo eliminado exitosamente');
 
       // Recargar los detalles del proyecto para actualizar la lista
 
@@ -10641,13 +10911,21 @@ async function eliminarArchivoProyecto(archivoId) {
 
 
 function showEditProjectFileDescriptionModal(fileId, description) {
+  console.log('📝 showEditProjectFileDescriptionModal() llamada', { fileId, description });
+  
   if (!puedeGestionarGaleria()) {
+    console.log('❌ Sin permisos para editar archivos');
     showErrorMessage('No tienes permisos para editar archivos.');
     return;
   }
+  
+  console.log('✅ Permisos verificados');
 
   const textarea = document.getElementById('editFileDescriptionInput');
+  console.log('📝 Textarea encontrado:', textarea);
+  
   if (!textarea) {
+    console.log('❌ No se encontró el textarea editFileDescriptionInput');
     return;
   }
 
@@ -10655,6 +10933,7 @@ function showEditProjectFileDescriptionModal(fileId, description) {
     id: fileId,
     originalDescription: description || '',
   };
+  console.log('📝 currentProjectFileEdit actualizado:', currentProjectFileEdit);
 
   textarea.value = description || '';
   showModal('editFileDescriptionModal');
@@ -10663,23 +10942,37 @@ function showEditProjectFileDescriptionModal(fileId, description) {
 
 
 async function updateProjectFileDescription() {
+  console.log('💾 updateProjectFileDescription() llamada');
+  
   if (!puedeGestionarGaleria()) {
+    console.log('❌ Sin permisos para editar archivos');
     showErrorMessage('No tienes permisos para editar archivos.');
     return;
   }
+  
+  console.log('✅ Permisos verificados');
 
   const proyectoId = currentProjectId || (currentProjectData && currentProjectData.id);
+  console.log('📝 Proyecto ID:', proyectoId);
+  console.log('📝 currentProjectFileEdit:', currentProjectFileEdit);
+  
   if (!proyectoId || !currentProjectFileEdit || !currentProjectFileEdit.id) {
+    console.log('❌ No se pudo identificar el archivo a editar');
     showErrorMessage('No se pudo identificar el archivo a editar.');
     return;
   }
 
   const textarea = document.getElementById('editFileDescriptionInput');
+  console.log('📝 Textarea:', textarea);
+  
   if (!textarea) {
+    console.log('❌ No se encontró el textarea');
     return;
   }
 
   const newDescription = textarea.value.trim();
+  console.log('📝 Nueva descripción:', newDescription);
+  
   const confirmButton = document.getElementById('confirmFileDescriptionBtn');
   const originalLabel = confirmButton ? confirmButton.textContent : null;
 
@@ -11231,9 +11524,11 @@ function showConfirmDeleteModal(message, callback) {
 // Función para ejecutar la acción de eliminación
 
 function executeDeleteAction() {
+  console.log('🗑️ executeDeleteAction() llamada');
+  console.log('🗑️ pendingDeleteAction:', pendingDeleteAction);
 
   if (!tienePermisoGestionActual()) {
-
+    console.log('❌ Sin permisos en executeDeleteAction');
     mostrarMensajePermisoDenegado();
 
     pendingDeleteAction = null;
@@ -11243,10 +11538,15 @@ function executeDeleteAction() {
     return;
 
   }
+  
+  console.log('✅ Permisos verificados en executeDeleteAction');
 
   if (!pendingDeleteAction) {
+    console.warn('⚠️ No hay acción pendiente de eliminación');
     return;
   }
+  
+  console.log('✅ Ejecutando acción de eliminación...');
 
   try {
     const result = pendingDeleteAction();
@@ -12334,18 +12634,25 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 // Función para manejar selección de archivos de evidencias en el modal de cambios
 
 function handleChangeEvidencesSelect(event) {
+  console.log('📎 handleChangeEvidencesSelect() llamada', event);
 
   const files = event.target.files;
+  console.log('📎 Archivos seleccionados:', files ? files.length : 0, files);
 
   const preview = document.getElementById('changeEvidencesPreview');
+  console.log('📎 Preview container:', preview);
 
-  if (!preview) return;
+  if (!preview) {
+    console.warn('⚠️ Preview container NO encontrado');
+    return;
+  }
 
   
 
   // Agregar nuevos archivos al array
 
   if (files && files.length > 0) {
+    console.log('✅ Agregando', files.length, 'archivo(s) a selectedEvidencesFiles');
 
     Array.from(files).forEach(file => {
 
@@ -12360,6 +12667,8 @@ function handleChangeEvidencesSelect(event) {
       });
 
     });
+    
+    console.log('📎 Total de archivos en selectedEvidencesFiles:', selectedEvidencesFiles.length);
 
   }
 
