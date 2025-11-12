@@ -893,7 +893,7 @@ async function loadProjectDetails(projectId) {
 
     console.log(`🔄 Cargando detalles del proyecto ${projectId}...`);
 
-    
+    resetProjectPermissionState();
 
     const response = await fetch(`/api/proyecto/${projectId}/`);
 
@@ -927,13 +927,36 @@ async function loadProjectDetails(projectId) {
 
       currentProjectId = proyecto.id;
 
-      const puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
+      if (proyecto.permisos && typeof proyecto.permisos === 'object') {
+        window.USER_AUTH = window.USER_AUTH || {};
+    window.USER_AUTH.permisos = Object.assign({}, window.USER_AUTH.permisos || {}, proyecto.permisos);
+        if (typeof proyecto.permisos.es_admin === 'boolean') {
+          window.USER_AUTH.isAdmin = proyecto.permisos.es_admin;
+        }
+        if (typeof proyecto.permisos.es_personal === 'boolean') {
+          window.USER_AUTH.isPersonal = proyecto.permisos.es_personal;
+        }
+    window.USER_AUTH.permisos.puede_gestionar = Boolean(proyecto.permisos.puede_gestionar);
+  } else if (window.USER_AUTH) {
+    window.USER_AUTH.permisos = Object.assign({}, window.USER_AUTH.permisos || {});
+    window.USER_AUTH.permisos.puede_gestionar = false;
+      }
 
-      puedeGestionarProyectoActual = puedeGestionar;
+      let puedeGestionar = null;
+      if (typeof proyecto.puede_gestionar === 'boolean') {
+        puedeGestionar = proyecto.puede_gestionar;
+      } else if (proyecto.permisos && typeof proyecto.permisos.puede_gestionar === 'boolean') {
+        puedeGestionar = proyecto.permisos.puede_gestionar;
+      } else {
+        puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
+      }
+
+      puedeGestionarProyectoActual = Boolean(puedeGestionar);
+      projectActionButtonSelectors = buildProjectActionButtonSelectors();
 
       mostrarDetalleProyecto(proyecto);
 
-      aplicarVisibilidadBotonesGestion(puedeGestionar);
+      aplicarVisibilidadBotonesGestion(puedeGestionarProyectoActual);
 
       if (shouldRefreshLatestProjects) {
         shouldRefreshLatestProjects = false;
@@ -972,6 +995,8 @@ function mostrarDetalleProyecto(proyecto) {
   console.log('📝 Mostrando datos del proyecto:', proyecto.nombre);
 
   
+  ensureProjectActionHandlers();
+  ensureModalCloseHandlers();
 
   // IMPORTANTE: Guardar el proyecto en las variables globales para que getCurrentProject() funcione
 
@@ -2585,9 +2610,8 @@ function backFromDetail() {
 
   console.log('🔙 Volviendo a la vista principal');
 
-  puedeGestionarProyectoActual = Boolean(
-    window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin
-  );
+  resetProjectPermissionState();
+  projectActionButtonSelectors = buildProjectActionButtonSelectors();
 
   const mainView = document.querySelector('.projects-main');
 
@@ -2729,6 +2753,25 @@ let featuredProjectsData = [];
 let shouldRefreshLatestProjects = false;
 
 let currentProjectFileEdit = null;
+
+function revokePendingImagePreview(item) {
+  if (!item) {
+    return;
+  }
+
+  if (
+    item.objectUrl &&
+    typeof URL !== 'undefined' &&
+    typeof URL.revokeObjectURL === 'function'
+  ) {
+    try {
+      URL.revokeObjectURL(item.objectUrl);
+    } catch (error) {
+      console.warn('No se pudo liberar el recurso de previsualización de imagen:', error);
+    }
+    item.objectUrl = null;
+  }
+}
 
 function getGuatemalaDateParts(sourceDate = new Date()) {
   const baseFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -2879,10 +2922,185 @@ let puedeGestionarProyectoActual = Boolean(
   window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin
 );
 
+function resetProjectPermissionState() {
+  puedeGestionarProyectoActual = false;
+  window.USER_AUTH = window.USER_AUTH || {};
+  window.USER_AUTH.permisos = Object.assign({}, window.USER_AUTH.permisos || {});
+  window.USER_AUTH.permisos.puede_gestionar = false;
+  try {
+    aplicarVisibilidadBotonesGestion(false);
+  } catch (error) {
+    console.warn('No se pudo aplicar visibilidad de botones al resetear permisos:', error);
+  }
+}
+
 let usuarioActualInfoCache = null;
 let usuarioActualInfoPromise = null;
 
 const MENSAJE_PERMISOS_INSUFICIENTES = 'No tienes permisos para gestionar este evento.';
+
+const PROJECT_ACTION_BUTTON_SELECTOR_LIST_BASE = [
+  '#addImageBtn',
+  '#editDataBtn',
+  '#editDescriptionBtn',
+];
+
+function buildProjectActionButtonSelectors() {
+  if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
+    return [];
+  }
+
+  const selectors = PROJECT_ACTION_BUTTON_SELECTOR_LIST_BASE.slice();
+
+  const permissions = (window.USER_AUTH && window.USER_AUTH.permisos) || {};
+  const puedeGestionar = Boolean(puedeGestionarProyectoActual) || Boolean(permissions.puede_gestionar);
+
+  if (puedeGestionar) {
+    selectors.push('#addChangeBtn', '#addFileBtn');
+  }
+
+  return selectors;
+}
+
+let projectActionButtonSelectors = buildProjectActionButtonSelectors();
+
+function isProjectActionButton(element) {
+  if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+    return false;
+  }
+
+  if (typeof element.matches === 'function') {
+    return projectActionButtonSelectors.some((selector) => element.matches(selector));
+  }
+
+  const id = element.getAttribute && element.getAttribute('id');
+  if (!id) {
+    return false;
+  }
+
+  return projectActionButtonSelectors.some((selector) => selector === `#${id}`);
+}
+
+function findProjectActionButton(startElement) {
+  let node = startElement;
+
+  while (node && node !== document) {
+    if (isProjectActionButton(node)) {
+      return node;
+    }
+
+    node = node.parentNode;
+  }
+
+  return null;
+}
+
+let projectActionHandlersRegistered = false;
+let modalCloseHandlersRegistered = false;
+
+function handleProjectActionButtonClick(event) {
+  projectActionButtonSelectors = buildProjectActionButtonSelectors();
+  const actionButton = findProjectActionButton(event.target);
+  if (!actionButton || actionButton.disabled) {
+    return;
+  }
+
+  switch (actionButton.id) {
+    case 'addImageBtn':
+      showAddImageModal();
+      break;
+    case 'editDataBtn':
+      showEditDataModal();
+      break;
+    case 'addChangeBtn':
+      showAddChangeModal();
+      break;
+    case 'addFileBtn':
+      showAddFileModal();
+      break;
+    case 'editDescriptionBtn':
+      showEditDescriptionModal();
+      break;
+    default:
+      break;
+  }
+}
+
+function ensureProjectActionHandlers() {
+  projectActionButtonSelectors = buildProjectActionButtonSelectors();
+
+  if (projectActionHandlersRegistered) {
+    return;
+  }
+
+  document.addEventListener('click', handleProjectActionButtonClick);
+  projectActionHandlersRegistered = true;
+}
+
+const MODAL_CLOSE_MAPPING = {
+  closeImageModal: 'addImageModal',
+  cancelImageBtn: 'addImageModal',
+  closeDescriptionModal: 'editDescriptionModal',
+  cancelDescriptionBtn: 'editDescriptionModal',
+  closeDataModal: 'editDataModal',
+  cancelDataBtn: 'editDataModal',
+  closeCommunityModal: 'addCommunityModal',
+  cancelCommunityBtn: 'addCommunityModal',
+  closePersonnelModal: 'addPersonnelModal',
+  cancelPersonnelBtn: 'addPersonnelModal',
+  closeChangeModal: 'addChangeModal',
+  cancelChangeBtn: 'addChangeModal',
+  closeFileModal: 'addFileModal',
+  cancelFileBtn: 'addFileModal',
+  closeFileDescriptionModal: 'editFileDescriptionModal',
+  cancelFileDescriptionBtn: 'editFileDescriptionModal',
+  closeAddEvidenceModal: 'addEvidenceModal',
+  cancelEvidenceBtn: 'addEvidenceModal',
+  closeChangeDetailsBtn: 'changeDetailsModal',
+  closeChangeDetailsModal: 'changeDetailsModal',
+  closeImageViewModal: 'imageViewModal',
+};
+
+function findModalDismissButton(startElement) {
+  let node = startElement;
+
+  while (node && node !== document) {
+    if (node.id && MODAL_CLOSE_MAPPING[node.id]) {
+      return node;
+    }
+
+    node = node.parentNode;
+  }
+
+  return null;
+}
+
+function handleModalDismissClick(event) {
+  const dismissButton = findModalDismissButton(event.target);
+  if (!dismissButton) {
+    return;
+  }
+
+  const modalId = MODAL_CLOSE_MAPPING[dismissButton.id];
+  if (!modalId) {
+    return;
+  }
+
+  if (typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
+
+  hideModal(modalId);
+}
+
+function ensureModalCloseHandlers() {
+  if (modalCloseHandlersRegistered) {
+    return;
+  }
+
+  document.addEventListener('click', handleModalDismissClick);
+  modalCloseHandlersRegistered = true;
+}
 
 async function obtenerUsuarioActualInfo() {
   if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
@@ -3023,6 +3241,14 @@ function obtenerIdentificadoresPersonal(proyecto) {
 async function usuarioPuedeGestionarProyecto(proyecto) {
   if (!proyecto) {
     return false;
+  }
+
+  if (typeof proyecto.puede_gestionar === 'boolean') {
+    return proyecto.puede_gestionar;
+  }
+
+  if (proyecto.permisos && typeof proyecto.permisos.puede_gestionar === 'boolean') {
+    return proyecto.permisos.puede_gestionar;
   }
 
   if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
@@ -4522,6 +4748,7 @@ function clearImageForm() {
   if (fileInput) {
     fileInput.value = '';
   }
+  pendingProjectGalleryImages.forEach(revokePendingImagePreview);
   pendingProjectGalleryImages = [];
   renderPendingProjectImages();
 }
@@ -4562,7 +4789,8 @@ function renderPendingProjectImages() {
       e.preventDefault();
       const targetIndex = parseInt(removeBtn.dataset.index || '', 10);
       if (!Number.isNaN(targetIndex)) {
-        pendingProjectGalleryImages.splice(targetIndex, 1);
+        const removedItems = pendingProjectGalleryImages.splice(targetIndex, 1);
+        removedItems.forEach(revokePendingImagePreview);
         renderPendingProjectImages();
       }
     });
@@ -4771,23 +4999,63 @@ function handleImageSelect(event) {
   }
 
   let invalidFiles = 0;
+  let addedFiles = 0;
+  const canUseObjectUrl =
+    typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
 
   files.forEach((file) => {
     if (file && file.type && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        pendingProjectGalleryImages.push({
-          file,
-          previewUrl: e.target && e.target.result ? e.target.result : '',
-          description: '',
-        });
-        renderPendingProjectImages();
-      };
-      reader.readAsDataURL(file);
+      if (canUseObjectUrl) {
+        try {
+          const objectUrl = URL.createObjectURL(file);
+          pendingProjectGalleryImages.push({
+            file,
+            previewUrl: objectUrl,
+            objectUrl,
+            description: '',
+          });
+          addedFiles += 1;
+        } catch (error) {
+          console.warn('No se pudo generar la previsualización con createObjectURL:', error);
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            pendingProjectGalleryImages.push({
+              file,
+              previewUrl: e.target && e.target.result ? e.target.result : '',
+              description: '',
+            });
+            renderPendingProjectImages();
+          };
+          reader.onerror = (readError) => {
+            console.error('Error al leer la imagen seleccionada:', readError);
+            showErrorMessage('No se pudo previsualizar una de las imágenes seleccionadas.');
+          };
+          reader.readAsDataURL(file);
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          pendingProjectGalleryImages.push({
+            file,
+            previewUrl: e.target && e.target.result ? e.target.result : '',
+            description: '',
+          });
+          renderPendingProjectImages();
+        };
+        reader.onerror = (readError) => {
+          console.error('Error al leer la imagen seleccionada:', readError);
+          showErrorMessage('No se pudo previsualizar una de las imágenes seleccionadas.');
+        };
+        reader.readAsDataURL(file);
+      }
     } else {
       invalidFiles += 1;
     }
   });
+
+  if (addedFiles > 0) {
+    renderPendingProjectImages();
+  }
 
   if (invalidFiles > 0) {
     showErrorMessage('Algunos archivos fueron descartados porque no son imágenes válidas.');
@@ -4940,6 +5208,11 @@ async function addImageToProject() {
   } catch (error) {
 
     console.error('❌ Error al agregar imagen:', error);
+
+    if (uploadedCount > 0) {
+      const uploadedItems = imagesToUpload.slice(0, uploadedCount);
+      uploadedItems.forEach(revokePendingImagePreview);
+    }
 
     pendingProjectGalleryImages = imagesToUpload.slice(uploadedCount);
 
@@ -8103,63 +8376,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Los botones de agregar/quitar comunidad han sido removidos según solicitud del usuario
 
 
-
-  // El botón de agregar personal ha sido removido según solicitud del usuario
-
-
-
-  const addImageBtn = document.getElementById('addImageBtn');
-
-  if (addImageBtn) {
-
-    addImageBtn.addEventListener('click', showAddImageModal);
-
-  }
-
-
-
-  const editDataBtn = document.getElementById('editDataBtn');
-
-  if (editDataBtn) {
-
-    editDataBtn.addEventListener('click', function() {
-
-      showEditDataModal();
-
-    });
-
-  }
-
-
-
-  const addChangeBtn = document.getElementById('addChangeBtn');
-
-  if (addChangeBtn) {
-
-    addChangeBtn.addEventListener('click', showAddChangeModal);
-
-  }
-
-
-
-  const addFileBtn = document.getElementById('addFileBtn');
-
-  if (addFileBtn) {
-
-    addFileBtn.addEventListener('click', showAddFileModal);
-
-  }
-
-
-
-  const editDescriptionBtn = document.getElementById('editDescriptionBtn');
-
-  if (editDescriptionBtn) {
-
-    editDescriptionBtn.addEventListener('click', showEditDescriptionModal);
-
-  }
-
+  ensureProjectActionHandlers();
 
 
   // Event listeners para modales (ya están definidos más abajo)
@@ -12454,7 +12671,8 @@ document.addEventListener('click', function(event) {
     event.preventDefault();
     const index = parseInt(pendingRemoveButton.dataset.index, 10);
     if (!Number.isNaN(index)) {
-      pendingProjectGalleryImages.splice(index, 1);
+      const removedItems = pendingProjectGalleryImages.splice(index, 1);
+      removedItems.forEach(revokePendingImagePreview);
       renderPendingProjectImages();
     }
     return;

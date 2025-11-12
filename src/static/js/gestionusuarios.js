@@ -1752,6 +1752,8 @@ async function editarUsuario(usuarioId) {
         const editUserPuesto = document.getElementById('editUserPuesto');
         const editUserPuestoGroup = document.getElementById('editUserPuestoGroup');
         const editColaboradorSelect = document.getElementById('editColaboradorSelect');
+        const editUserActivo = document.getElementById('editUserActivo');
+        const editUserInactiveAlert = document.getElementById('editUserInactiveAlert');
         
         if (editUserUsername) {
             editUserUsername.value = usuario.username;
@@ -1794,6 +1796,18 @@ async function editarUsuario(usuarioId) {
             editColaboradorSelect.value = '';
         }
         
+        if (editUserActivo) {
+            editUserActivo.checked = !!usuario.activo;
+            editUserActivo.onchange = () => {
+                if (editUserInactiveAlert) {
+                    editUserInactiveAlert.style.display = editUserActivo.checked ? 'none' : 'block';
+                }
+            };
+        }
+        if (editUserInactiveAlert) {
+            editUserInactiveAlert.style.display = usuario.activo ? 'none' : 'block';
+        }
+        
     } catch (error) {
         console.error('Error al editar usuario:', error);
         mostrarMensaje('Error al cargar usuario: ' + error.message, 'error');
@@ -1813,6 +1827,7 @@ async function actualizarUsuario(usuarioId) {
     const formData = new FormData(editUserForm);
     const editUserPassword = document.getElementById('editUserPassword');
     const editUserPasswordConfirm = document.getElementById('editUserPasswordConfirm');
+    const editUserActivo = document.getElementById('editUserActivo');
     
     const data = {
         nombre: formData.get('nombre'),
@@ -1820,6 +1835,7 @@ async function actualizarUsuario(usuarioId) {
         telefono: formData.get('telefono'),
         rol: formData.get('rol'),
         puesto_id: formData.get('puesto_id') || null,
+        activo: editUserActivo ? editUserActivo.checked : true,
     };
     
     // Solo incluir contraseña si se proporcionó
@@ -1885,6 +1901,11 @@ function cerrarModalEditarUsuario() {
     
     const editUserPuestoGroup = document.getElementById('editUserPuestoGroup');
     if (editUserPuestoGroup) editUserPuestoGroup.style.display = 'none';
+    
+    const editUserInactiveAlert = document.getElementById('editUserInactiveAlert');
+    if (editUserInactiveAlert) {
+        editUserInactiveAlert.style.display = 'none';
+    }
 }
 
 function restoreDeleteUsuarioButton() {

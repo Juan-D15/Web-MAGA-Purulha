@@ -308,6 +308,21 @@
             </small>
           </div>
 
+          <!-- Estado de la Cuenta -->
+          <div class="form-group">
+            <label class="form-label" for="editUserActivo">Estado de la cuenta</label>
+            <label style="display: inline-flex; align-items: center; gap: 10px; font-size: 0.95rem; color: var(--text-primary);">
+              <input type="checkbox" id="editUserActivo" name="activo" style="width: 18px; height: 18px;">
+              <span>Usuario activo</span>
+            </label>
+            <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+              Desmarca esta opción para suspender temporalmente el acceso del usuario al sistema.
+            </small>
+            <div id="editUserInactiveAlert" style="display: none; margin-top: 12px; padding: 12px; border-radius: 8px; background: rgba(220, 53, 69, 0.1); color: #dc3545; font-size: 0.9rem;">
+              Este usuario está inactivo. No podrá iniciar sesión hasta que lo vuelvas a activar.
+            </div>
+          </div>
+
           <!-- Contraseña -->
           <div class="form-group">
             <label for="editUserPassword" class="form-label">Contraseña</label>
@@ -808,5 +823,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestionusuarios.js' %}?v=3"></script>
+  <script src="{% static 'js/gestionusuarios.js' %}?v=4"></script>
 {% endblock %}
