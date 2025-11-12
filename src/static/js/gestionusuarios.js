@@ -21,6 +21,13 @@ let puestosList = [];
 let colaboradoresList = [];
 let usuariosList = [];
 let colaboradorSeleccionado = null;
+let colaboradorFilterTerm = '';
+let colaboradorFilterPuesto = '';
+let colaboradorEditandoDatos = null;
+let usuariosFilterTerm = '';
+let usuariosFilterPuesto = '';
+let colaboradoresGestionFilterTerm = '';
+let colaboradoresGestionFilterPuesto = '';
 
 let usuarioIdParaEliminar = null;
 let colaboradorIdParaEliminar = null;
@@ -240,38 +247,25 @@ async function cargarColaboradoresParaSelect(selectId = 'colaboradorSelect') {
         
         if (data.success) {
             colaboradoresList = data.colaboradores;
+            actualizarOpcionesFiltroColaboradores();
             
-            const select = document.getElementById(selectId);
-            if (select) {
-                // Guardar valor actual
-                const currentValue = select.value;
-                
-                // Limpiar opciones excepto la primera
-                select.innerHTML = '<option value="">Seleccione un colaborador...</option>';
-                
-                // Agregar colaboradores
-                data.colaboradores.forEach(colab => {
-                    const option = document.createElement('option');
-                    option.value = colab.id;
-                    if (colab.tiene_usuario) {
-                        option.textContent = `${colab.nombre} (Ya tiene usuario asignado)`;
-                        option.disabled = true;
-                        option.style.color = '#6c757d';
-                    } else {
-                        option.textContent = colab.nombre;
-                    }
-                    select.appendChild(option);
-                });
-                
-                // Restaurar valor si existe
-                if (currentValue) {
-                    select.value = currentValue;
-                }
-            }
-            
-            // Actualizar también los selects principales si no se especificó un selectId diferente
             if (selectId === 'colaboradorSelect') {
                 actualizarSelectColaboradores();
+            } else {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    const currentValue = select.value;
+                    select.innerHTML = '<option value="">Seleccione un colaborador...</option>';
+                    data.colaboradores.forEach(colab => {
+                        const option = document.createElement('option');
+                        option.value = colab.id;
+                        option.textContent = colab.nombre;
+                        select.appendChild(option);
+                    });
+                    if (currentValue) {
+                        select.value = currentValue;
+                    }
+                }
             }
         }
     } catch (error) {
@@ -286,6 +280,7 @@ async function cargarColaboradoresParaSelect(selectId = 'colaboradorSelect') {
 function actualizarSelectPuestos() {
     const selectUserPuesto = document.getElementById('userPuesto');
     const selectColaboradorPuesto = document.getElementById('colaboradorPuesto');
+    const selectFiltroPuesto = document.getElementById('colaboradorPuestoFilter');
     
     const options = puestosList.map(puesto => 
         `<option value="${puesto.id}">${puesto.codigo} - ${puesto.nombre}</option>`
@@ -302,20 +297,260 @@ function actualizarSelectPuestos() {
         selectColaboradorPuesto.innerHTML = '<option value="">Seleccione un puesto...</option>' + options;
         if (currentValue) selectColaboradorPuesto.value = currentValue;
     }
+
+    if (selectFiltroPuesto) {
+        const currentValue = selectFiltroPuesto.value;
+        const opciones = ['<option value="">Todos los puestos</option>']
+            .concat(puestosList.map(puesto => `<option value="${puesto.id}">${puesto.nombre}</option>`));
+        selectFiltroPuesto.innerHTML = opciones.join('');
+        if (currentValue) selectFiltroPuesto.value = currentValue;
+    }
+}
+
+function actualizarOpcionesFiltroColaboradores() {
+    const selectFiltroPuesto = document.getElementById('colaboradorPuestoFilter');
+    if (!selectFiltroPuesto) return;
+
+    const currentValue = selectFiltroPuesto.value;
+    const puestosDisponibles = new Map();
+    let haySinPuesto = false;
+
+    colaboradoresList.forEach(colab => {
+        if (colab.puesto_id && colab.puesto_nombre) {
+            puestosDisponibles.set(colab.puesto_id, colab.puesto_nombre);
+        } else if (!colab.puesto_id) {
+            haySinPuesto = true;
+        }
+    });
+
+    const opciones = ['<option value="">Todos los puestos</option>'];
+    const puestosOrdenados = Array.from(puestosDisponibles.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    puestosOrdenados.forEach(([id, nombre]) => {
+        opciones.push(`<option value="${id}">${nombre}</option>`);
+    });
+    if (haySinPuesto) {
+        opciones.push('<option value="__sin_puesto">Sin puesto asignado</option>');
+    }
+
+    selectFiltroPuesto.innerHTML = opciones.join('');
+    if (currentValue) {
+        selectFiltroPuesto.value = currentValue;
+        if (selectFiltroPuesto.value !== currentValue) {
+            colaboradorFilterPuesto = '';
+        }
+    }
+}
+
+function actualizarOpcionesFiltroUsuarios() {
+    const select = document.getElementById('usersPuestoFilter');
+    if (!select) return;
+
+    const currentValue = select.value;
+    const puestosDisponibles = new Map();
+    let haySinPuesto = false;
+
+    usuariosList.forEach(usuario => {
+        if (usuario.puesto_id && usuario.puesto_nombre) {
+            puestosDisponibles.set(usuario.puesto_id, usuario.puesto_nombre);
+        } else if (!usuario.puesto_id) {
+            haySinPuesto = true;
+        }
+    });
+
+    const opciones = ['<option value="">Todos los puestos</option>'];
+    const ordenados = Array.from(puestosDisponibles.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    ordenados.forEach(([id, nombre]) => {
+        opciones.push(`<option value="${id}">${nombre}</option>`);
+    });
+    if (haySinPuesto) {
+        opciones.push('<option value="__sin_puesto">Sin puesto asignado</option>');
+    }
+
+    select.innerHTML = opciones.join('');
+    if (currentValue) {
+        select.value = currentValue;
+        if (select.value !== currentValue) {
+            usuariosFilterPuesto = '';
+        }
+    }
+}
+
+function actualizarOpcionesFiltroColaboradoresGestion() {
+    const select = document.getElementById('colaboradoresPuestoFilter');
+    if (!select) return;
+
+    const currentValue = select.value;
+    const puestosDisponibles = new Map();
+    let haySinPuesto = false;
+
+    colaboradoresList.forEach(colab => {
+        if (colab.puesto_id && colab.puesto_nombre) {
+            puestosDisponibles.set(colab.puesto_id, colab.puesto_nombre);
+        } else if (!colab.puesto_id) {
+            haySinPuesto = true;
+        }
+    });
+
+    const opciones = ['<option value="">Todos los puestos</option>'];
+    const ordenados = Array.from(puestosDisponibles.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    ordenados.forEach(([id, nombre]) => {
+        opciones.push(`<option value="${id}">${nombre}</option>`);
+    });
+    if (haySinPuesto) {
+        opciones.push('<option value="__sin_puesto">Sin puesto asignado</option>');
+    }
+
+    select.innerHTML = opciones.join('');
+    if (currentValue) {
+        select.value = currentValue;
+        if (select.value !== currentValue) {
+            colaboradoresGestionFilterPuesto = '';
+        }
+    }
+}
+
+function normalizarTexto(valor) {
+    return valor ? String(valor).toLowerCase() : '';
+}
+
+function filtrarColaborador(colab) {
+    const termino = normalizarTexto(colaboradorFilterTerm);
+    if (termino) {
+        const campos = [
+            colab.nombre,
+            colab.correo,
+            colab.telefono,
+            colab.puesto_nombre,
+        ];
+        const coincideBusqueda = campos.some(campo => normalizarTexto(campo).includes(termino));
+        if (!coincideBusqueda) {
+            return false;
+        }
+    }
+
+    if (colaboradorFilterPuesto) {
+        if (colaboradorFilterPuesto === '__sin_puesto') {
+            if (colab.puesto_id) {
+                return false;
+            }
+        } else if (colab.puesto_id !== colaboradorFilterPuesto) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function obtenerColaboradoresFiltrados() {
+    return colaboradoresList.filter(filtrarColaborador);
+}
+
+function formatearDetalleColaborador(colab) {
+    if (colab.tiene_usuario) {
+        return ' - ⚠️ Ya tiene usuario asignado';
+    }
+    if (!colab.activo) {
+        return ' - Inactivo';
+    }
+    if (!colab.es_personal_fijo) {
+        return ' - Se marcará como personal fijo al crear el usuario';
+    }
+    return '';
 }
 
 function actualizarSelectColaboradores() {
     const selectColaborador = document.getElementById('colaboradorSelect');
     if (!selectColaborador) return;
-    
-    const options = colaboradoresList.map(colab => {
-        const tieneUsuario = colab.tiene_usuario;
-        const disabled = tieneUsuario ? 'disabled' : '';
-        const texto = tieneUsuario ? ` - ⚠️ Ya tiene usuario asignado` : '';
-        return `<option value="${colab.id}" ${disabled}>${colab.nombre}${texto}</option>`;
+
+    const colaboradoresFiltrados = obtenerColaboradoresFiltrados();
+    const opciones = colaboradoresFiltrados.map(colab => {
+        const disponible = Boolean(colab.activo) && !colab.tiene_usuario;
+        const detalle = formatearDetalleColaborador(colab);
+        const disabled = disponible ? '' : 'disabled';
+        const clase = disponible ? '' : ' class="option-disabled"';
+        return `<option value="${colab.id}" ${disabled}${clase}>${colab.nombre}${detalle}</option>`;
     }).join('');
-    
-    selectColaborador.innerHTML = '<option value="">Seleccione un colaborador...</option>' + options;
+
+    let contenido = '<option value="">Seleccione un colaborador...</option>';
+    if (opciones) {
+        contenido += opciones;
+    } else {
+        contenido += '<option value="" disabled>No se encontraron colaboradores con los filtros actuales</option>';
+    }
+    selectColaborador.innerHTML = contenido;
+
+    const seleccionadoActual = colaboradorSeleccionado ? colaboradorSeleccionado.id : '';
+    if (seleccionadoActual && colaboradoresFiltrados.some(colab => colab.id === seleccionadoActual)) {
+        selectColaborador.value = seleccionadoActual;
+    } else {
+        selectColaborador.value = '';
+        if (seleccionadoActual) {
+            colaboradorSeleccionado = null;
+            resetearAutocompletadoUsuario();
+        }
+    }
+
+    const suggestions = document.getElementById('colaboradorSuggestions');
+    if (suggestions && suggestions.style.display === 'block') {
+        renderColaboradorSuggestions();
+    }
+}
+
+function renderColaboradorSuggestions() {
+    const contenedor = document.getElementById('colaboradorSuggestions');
+    const input = document.getElementById('colaboradorSearchInput');
+    if (!contenedor || !input) return;
+
+    const termino = normalizarTexto(colaboradorFilterTerm);
+    if (!termino) {
+        ocultarColaboradorSuggestions();
+        return;
+    }
+
+    const sugerencias = obtenerColaboradoresFiltrados()
+        .filter(colab => colab.activo && !colab.tiene_usuario)
+        .slice(0, 8);
+
+    if (!sugerencias.length) {
+        contenedor.innerHTML = '<div style="padding: 6px 10px; font-size: 0.85rem; color: var(--text-muted);">Sin coincidencias disponibles</div>';
+        contenedor.style.display = 'block';
+        return;
+    }
+
+    contenedor.innerHTML = sugerencias.map(colab => `
+        <button type="button" class="suggestion-item" data-colaborador-id="${colab.id}" style="width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px; border: none; background: transparent; color: var(--text-primary); cursor: pointer; display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-weight: 600;">${colab.nombre}</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">${colab.puesto_nombre || 'Sin puesto'} · ${colab.correo || 'Sin correo'}</span>
+        </button>
+    `).join('');
+
+    contenedor.querySelectorAll('.suggestion-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-colaborador-id');
+            const select = document.getElementById('colaboradorSelect');
+            if (select) {
+                select.value = id;
+                select.dispatchEvent(new Event('change'));
+            }
+            const seleccionado = colaboradoresList.find(colab => colab.id === id);
+            if (seleccionado && input) {
+                input.value = seleccionado.nombre;
+                colaboradorFilterTerm = seleccionado.nombre;
+                actualizarSelectColaboradores();
+            }
+            ocultarColaboradorSuggestions();
+        });
+    });
+
+    contenedor.style.display = 'block';
+}
+
+function ocultarColaboradorSuggestions() {
+    const contenedor = document.getElementById('colaboradorSuggestions');
+    if (contenedor) {
+        contenedor.style.display = 'none';
+        contenedor.innerHTML = '';
+    }
 }
 
 // =====================================================
@@ -331,7 +566,19 @@ function inicializarFormularios() {
     const closeCreateUsuarioModal = document.getElementById('closeCreateUsuarioModal');
     const createUsuarioModal = document.getElementById('createUsuarioModal');
     const colaboradorSelect = document.getElementById('colaboradorSelect');
+    const colaboradorSearchInput = document.getElementById('colaboradorSearchInput');
+    const colaboradorPuestoFilter = document.getElementById('colaboradorPuestoFilter');
+    const colaboradorSuggestions = document.getElementById('colaboradorSuggestions');
     const userRol = document.getElementById('userRol');
+    const userPuesto = document.getElementById('userPuesto');
+    const usersSearchInput = document.getElementById('usersSearchInput');
+    const usersPuestoFilter = document.getElementById('usersPuestoFilter');
+    const colaboradoresSearchInput = document.getElementById('colaboradoresSearchInput');
+    const colaboradoresPuestoFilter = document.getElementById('colaboradoresPuestoFilter');
+    
+    if (userPuesto) {
+        userPuesto.disabled = true;
+    }
     
     if (createUserBtn) {
         createUserBtn.addEventListener('click', () => {
@@ -381,6 +628,64 @@ function inicializarFormularios() {
             } else {
                 resetearAutocompletadoUsuario();
             }
+            ocultarColaboradorSuggestions();
+        });
+    }
+
+    if (colaboradorSearchInput) {
+        colaboradorSearchInput.addEventListener('input', (e) => {
+            colaboradorFilterTerm = e.target.value;
+            actualizarSelectColaboradores();
+            renderColaboradorSuggestions();
+        });
+        colaboradorSearchInput.addEventListener('focus', () => {
+            if (colaboradorFilterTerm) {
+                renderColaboradorSuggestions();
+            }
+        });
+    }
+
+    if (colaboradorPuestoFilter) {
+        colaboradorPuestoFilter.addEventListener('change', (e) => {
+            colaboradorFilterPuesto = e.target.value;
+            actualizarSelectColaboradores();
+            renderColaboradorSuggestions();
+        });
+    }
+
+    if (colaboradorSuggestions) {
+        document.addEventListener('click', (event) => {
+            if (!colaboradorSuggestions.contains(event.target) && event.target !== colaboradorSearchInput) {
+                ocultarColaboradorSuggestions();
+            }
+        });
+    }
+
+    if (usersSearchInput) {
+        usersSearchInput.addEventListener('input', (e) => {
+            usuariosFilterTerm = e.target.value;
+            mostrarUsuarios(usuariosList);
+        });
+    }
+
+    if (usersPuestoFilter) {
+        usersPuestoFilter.addEventListener('change', (e) => {
+            usuariosFilterPuesto = e.target.value;
+            mostrarUsuarios(usuariosList);
+        });
+    }
+
+    if (colaboradoresSearchInput) {
+        colaboradoresSearchInput.addEventListener('input', (e) => {
+            colaboradoresGestionFilterTerm = e.target.value;
+            mostrarColaboradores(colaboradoresList);
+        });
+    }
+
+    if (colaboradoresPuestoFilter) {
+        colaboradoresPuestoFilter.addEventListener('change', (e) => {
+            colaboradoresGestionFilterPuesto = e.target.value;
+            mostrarColaboradores(colaboradoresList);
         });
     }
     
@@ -670,7 +975,8 @@ async function cargarUsuarios() {
         
         if (data.success) {
             usuariosList = data.usuarios;
-            mostrarUsuarios(data.usuarios);
+            actualizarOpcionesFiltroUsuarios();
+            mostrarUsuarios(usuariosList);
         } else {
             usersList.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger-color);">Error al cargar usuarios: ${data.error}</div>`;
         }
@@ -680,16 +986,49 @@ async function cargarUsuarios() {
     }
 }
 
+function filtrarUsuarioGestion(usuario) {
+    const termino = normalizarTexto(usuariosFilterTerm);
+    if (termino) {
+        const campos = [
+            usuario.username,
+            usuario.nombre,
+            usuario.email,
+            usuario.telefono,
+            usuario.rol_display,
+            usuario.colaborador_nombre,
+            usuario.puesto_nombre,
+        ];
+        const coincide = campos.some(campo => normalizarTexto(campo).includes(termino));
+        if (!coincide) {
+            return false;
+        }
+    }
+
+    if (usuariosFilterPuesto) {
+        if (usuariosFilterPuesto === '__sin_puesto') {
+            if (usuario.puesto_id) {
+                return false;
+            }
+        } else if (usuario.puesto_id !== usuariosFilterPuesto) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function mostrarUsuarios(usuarios) {
     const usersList = document.getElementById('usersList');
     if (!usersList) return;
     
-    if (usuarios.length === 0) {
+    const filtrados = usuarios.filter(filtrarUsuarioGestion);
+    
+    if (filtrados.length === 0) {
         usersList.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">No hay usuarios registrados</div>';
         return;
     }
     
-    const html = usuarios.map(usuario => {
+    const html = filtrados.map(usuario => {
         const colaboradorInfo = usuario.tiene_colaborador 
             ? `<div style="margin-top: 8px; padding: 8px; background: rgba(0, 123, 255, 0.1); border-radius: 6px; font-size: 0.9rem; color: #007bff;">
                 👤 Vinculado con: <strong>${usuario.colaborador_nombre || 'Colaborador'}</strong>
@@ -777,11 +1116,13 @@ async function cargarColaboradorParaAutocompletar(colaboradorId) {
                 const valorNormalizado = valor ? String(valor).trim() : '';
                 if (valorNormalizado) {
                     input.value = valorNormalizado;
-                    input.disabled = true;
+                    input.readOnly = true;
                     input.dataset.autocompletado = 'true';
+                    input.classList.add('input-bloqueado');
                 } else {
                     input.value = '';
-                    input.disabled = false;
+                    input.readOnly = false;
+                    input.classList.remove('input-bloqueado');
                     delete input.dataset.autocompletado;
                 }
             };
@@ -795,19 +1136,18 @@ async function cargarColaboradorParaAutocompletar(colaboradorId) {
             bloquearCampoSiTieneValor(userEmail, colaborador.correo);
             bloquearCampoSiTieneValor(userTelefono, colaborador.telefono);
 
-            // Autocompletar puesto siempre que el colaborador tenga puesto
-            if (userPuesto && colaborador.puesto_id) {
-                if (userPuestoGroup) userPuestoGroup.style.display = 'block';
-                userPuesto.value = colaborador.puesto_id;
-                userPuesto.disabled = colaborador.tiene_usuario || false;
-                if (userRol) {
-                    userPuesto.required = userRol.value === 'personal';
+            if (userPuesto) {
+                if (colaborador.puesto_id) {
+                    userPuesto.value = colaborador.puesto_id;
+                    if (userPuestoGroup) userPuestoGroup.style.display = 'block';
+                } else {
+                    userPuesto.value = '';
+                    if (userPuestoGroup) userPuestoGroup.style.display = 'none';
                 }
-            } else if (userPuesto && !colaborador.puesto_id && !colaborador.tiene_usuario) {
-                userPuesto.disabled = false;
-                if (userRol && userRol.value !== 'personal' && userPuestoGroup) {
-                    userPuestoGroup.style.display = 'none';
-                }
+                userPuesto.disabled = true;
+            }
+            if (userRol && userPuesto) {
+                userPuesto.required = userRol.value === 'personal';
             }
         }
     } catch (error) {
@@ -829,27 +1169,28 @@ function resetearAutocompletadoUsuario() {
     
     if (userNombre) {
         userNombre.value = '';
-        userNombre.disabled = false;
+        userNombre.readOnly = false;
+        userNombre.classList.remove('input-bloqueado');
     }
     if (userEmail) {
         userEmail.value = '';
-        userEmail.disabled = false;
+        userEmail.readOnly = false;
+        userEmail.classList.remove('input-bloqueado');
     }
     if (userTelefono) {
         userTelefono.value = '';
-        userTelefono.disabled = false;
+        userTelefono.readOnly = false;
+        userTelefono.classList.remove('input-bloqueado');
     }
     if (userPuesto) {
         userPuesto.value = '';
-        userPuesto.disabled = false;
-        // Ocultar puesto si el rol no es personal
-        if (userRol && userRol.value !== 'personal') {
-            if (userPuestoGroup) userPuestoGroup.style.display = 'none';
-        }
+        userPuesto.disabled = true;
+        if (userPuestoGroup) userPuestoGroup.style.display = 'none';
     }
     if (colaboradorVinculadoMsg) {
         colaboradorVinculadoMsg.style.display = 'none';
     }
+    ocultarColaboradorSuggestions();
 }
 
 function resetearFormularioUsuario() {
@@ -860,10 +1201,21 @@ function resetearFormularioUsuario() {
     resetearAutocompletadoUsuario();
     
     const colaboradorSelect = document.getElementById('colaboradorSelect');
+    const colaboradorSearchInput = document.getElementById('colaboradorSearchInput');
+    const colaboradorPuestoFilter = document.getElementById('colaboradorPuestoFilter');
     if (colaboradorSelect) {
         colaboradorSelect.value = '';
         colaboradorSelect.disabled = false;
     }
+    if (colaboradorSearchInput) {
+        colaboradorSearchInput.value = '';
+    }
+    if (colaboradorPuestoFilter) {
+        colaboradorPuestoFilter.value = '';
+    }
+    colaboradorFilterTerm = '';
+    colaboradorFilterPuesto = '';
+    actualizarSelectColaboradores();
     
     const userPuestoGroup = document.getElementById('userPuestoGroup');
     if (userPuestoGroup) userPuestoGroup.style.display = 'none';
@@ -917,6 +1269,23 @@ async function crearUsuario() {
         return;
     }
     
+    if (colaboradorSelect && colaboradorSelect.value) {
+        const seleccionado = colaboradorSeleccionado
+            ? colaboradorSeleccionado
+            : colaboradoresList.find(colab => colab.id === colaboradorSelect.value);
+        if (seleccionado) {
+            if (!seleccionado.activo) {
+                mostrarMensaje('No es posible vincular un colaborador inactivo.', 'error');
+                return;
+            }
+            if (seleccionado.tiene_usuario) {
+                mostrarMensaje('El colaborador seleccionado ya tiene un usuario asignado.', 'error');
+                return;
+            }
+        }
+    }
+    
+    const userPuesto = document.getElementById('userPuesto');
     const data = {
         username: formData.get('username'),
         nombre: formData.get('nombre'),
@@ -925,7 +1294,7 @@ async function crearUsuario() {
         password: formData.get('password'),
         password_confirm: formData.get('password_confirm'),
         rol: formData.get('rol'),
-        puesto_id: formData.get('puesto_id') || null,
+        puesto_id: userPuesto ? userPuesto.value || null : (formData.get('puesto_id') || null),
         colaborador_id: colaboradorSelect ? colaboradorSelect.value : null,
     };
     
@@ -972,7 +1341,9 @@ async function cargarColaboradores() {
         
         if (data.success) {
             colaboradoresList = data.colaboradores;
-            mostrarColaboradores(data.colaboradores);
+            actualizarOpcionesFiltroColaboradores();
+            actualizarOpcionesFiltroColaboradoresGestion();
+            mostrarColaboradores(colaboradoresList);
         } else {
             colaboradoresListEl.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger-color);">Error al cargar colaboradores: ${data.error}</div>`;
         }
@@ -982,16 +1353,48 @@ async function cargarColaboradores() {
     }
 }
 
+function filtrarColaboradorGestion(colab) {
+    const termino = normalizarTexto(colaboradoresGestionFilterTerm);
+    if (termino) {
+        const campos = [
+            colab.nombre,
+            colab.descripcion,
+            colab.telefono,
+            colab.correo,
+            colab.dpi,
+            colab.puesto_nombre,
+        ];
+        const coincide = campos.some(campo => normalizarTexto(campo).includes(termino));
+        if (!coincide) {
+            return false;
+        }
+    }
+
+    if (colaboradoresGestionFilterPuesto) {
+        if (colaboradoresGestionFilterPuesto === '__sin_puesto') {
+            if (colab.puesto_id) {
+                return false;
+            }
+        } else if (colab.puesto_id !== colaboradoresGestionFilterPuesto) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function mostrarColaboradores(colaboradores) {
     const colaboradoresList = document.getElementById('colaboradoresList');
     if (!colaboradoresList) return;
     
-    if (colaboradores.length === 0) {
+    const filtrados = colaboradores.filter(filtrarColaboradorGestion);
+    
+    if (filtrados.length === 0) {
         colaboradoresList.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">No hay colaboradores registrados</div>';
         return;
     }
     
-    const html = colaboradores.map(colab => {
+    const html = filtrados.map(colab => {
         const usuarioInfo = colab.tiene_usuario 
             ? `<div style="margin-top: 8px; padding: 8px; background: rgba(40, 167, 69, 0.1); border-radius: 6px; font-size: 0.9rem; color: #28a745;">
                 🔗 Usuario: <strong>${colab.usuario_username || 'Usuario asignado'}</strong>
@@ -1066,7 +1469,10 @@ function resetearFormularioColaborador() {
     if (colaboradorActivo) colaboradorActivo.checked = true;
     
     const colaboradorEsPersonalFijo = document.getElementById('colaboradorEsPersonalFijo');
-    if (colaboradorEsPersonalFijo) colaboradorEsPersonalFijo.disabled = false;
+    if (colaboradorEsPersonalFijo) {
+        colaboradorEsPersonalFijo.checked = false;
+        colaboradorEsPersonalFijo.disabled = true;
+    }
 }
 
 async function crearColaborador() {
@@ -1090,7 +1496,7 @@ async function crearColaborador() {
         telefono: formData.get('telefono'),
         correo: formData.get('correo'),
         dpi: formData.get('dpi'),
-        es_personal_fijo: false,  // Siempre false al crear, solo se puede cambiar cuando se vincula con usuario
+        es_personal_fijo: false,
         activo: colaboradorActivo ? colaboradorActivo.checked : true,
     };
     
@@ -1638,6 +2044,7 @@ let colaboradorEditandoId = null;
 async function editarColaborador(colaboradorId) {
     try {
         colaboradorEditandoId = colaboradorId;
+        colaboradorEditandoDatos = null;
         
         // Obtener datos del colaborador
         const response = await fetch(API_URLS.obtenerColaborador(colaboradorId));
@@ -1649,6 +2056,7 @@ async function editarColaborador(colaboradorId) {
         }
         
         const colaborador = data.colaborador;
+        colaboradorEditandoDatos = colaborador;
         
         // Mostrar modal de edición
         const editColaboradorModal = document.getElementById('editColaboradorModal');
@@ -1666,7 +2074,7 @@ async function editarColaborador(colaboradorId) {
         const editColaboradorTelefono = document.getElementById('editColaboradorTelefono');
         const editColaboradorCorreo = document.getElementById('editColaboradorCorreo');
         const editColaboradorDpi = document.getElementById('editColaboradorDpi');
-        const editColaboradorEsPersonalFijo = document.getElementById('editColaboradorEsPersonalFijo');
+        const editColaboradorPersonalFijoStatus = document.getElementById('editColaboradorPersonalFijoStatus');
         const editColaboradorActivo = document.getElementById('editColaboradorActivo');
         
         if (editColaboradorNombre) editColaboradorNombre.value = colaborador.nombre;
@@ -1675,13 +2083,18 @@ async function editarColaborador(colaboradorId) {
         if (editColaboradorTelefono) editColaboradorTelefono.value = colaborador.telefono || '';
         if (editColaboradorCorreo) editColaboradorCorreo.value = colaborador.correo || '';
         if (editColaboradorDpi) editColaboradorDpi.value = colaborador.dpi || '';
-        if (editColaboradorEsPersonalFijo) editColaboradorEsPersonalFijo.checked = colaborador.es_personal_fijo;
-        if (editColaboradorActivo) editColaboradorActivo.checked = colaborador.activo;
-        
-        // Si tiene usuario, deshabilitar es_personal_fijo
-        if (colaborador.tiene_usuario && editColaboradorEsPersonalFijo) {
-            editColaboradorEsPersonalFijo.disabled = true;
+        if (editColaboradorPersonalFijoStatus) {
+            if (colaborador.es_personal_fijo) {
+                editColaboradorPersonalFijoStatus.textContent = 'Personal fijo (con usuario)';
+                editColaboradorPersonalFijoStatus.style.background = 'rgba(13, 110, 253, 0.15)';
+                editColaboradorPersonalFijoStatus.style.color = '#0d6efd';
+            } else {
+                editColaboradorPersonalFijoStatus.textContent = 'Sin usuario asignado';
+                editColaboradorPersonalFijoStatus.style.background = 'rgba(108, 117, 125, 0.15)';
+                editColaboradorPersonalFijoStatus.style.color = '#6c757d';
+            }
         }
+        if (editColaboradorActivo) editColaboradorActivo.checked = colaborador.activo;
         
     } catch (error) {
         console.error('Error al editar colaborador:', error);
@@ -1700,7 +2113,6 @@ async function actualizarColaborador(colaboradorId) {
     }
     
     const formData = new FormData(editColaboradorForm);
-    const editColaboradorEsPersonalFijo = document.getElementById('editColaboradorEsPersonalFijo');
     const editColaboradorActivo = document.getElementById('editColaboradorActivo');
     
     const data = {
@@ -1710,7 +2122,7 @@ async function actualizarColaborador(colaboradorId) {
         telefono: formData.get('telefono'),
         correo: formData.get('correo'),
         dpi: formData.get('dpi'),
-        es_personal_fijo: editColaboradorEsPersonalFijo ? editColaboradorEsPersonalFijo.checked : false,
+        es_personal_fijo: colaboradorEditandoDatos ? colaboradorEditandoDatos.es_personal_fijo : false,
         activo: editColaboradorActivo ? editColaboradorActivo.checked : true,
     };
     
@@ -1748,6 +2160,7 @@ function cancelarEdicionColaborador() {
 
 function cerrarModalEditarColaborador() {
     colaboradorEditandoId = null;
+    colaboradorEditandoDatos = null;
     
     const editColaboradorModal = document.getElementById('editColaboradorModal');
     if (editColaboradorModal) {
@@ -1758,11 +2171,15 @@ function cerrarModalEditarColaborador() {
     const editColaboradorForm = document.getElementById('editColaboradorForm');
     if (editColaboradorForm) editColaboradorForm.reset();
     
-    const editColaboradorEsPersonalFijo = document.getElementById('editColaboradorEsPersonalFijo');
-    if (editColaboradorEsPersonalFijo) editColaboradorEsPersonalFijo.disabled = false;
-    
     const editColaboradorActivo = document.getElementById('editColaboradorActivo');
     if (editColaboradorActivo) editColaboradorActivo.checked = true;
+
+    const editColaboradorPersonalFijoStatus = document.getElementById('editColaboradorPersonalFijoStatus');
+    if (editColaboradorPersonalFijoStatus) {
+        editColaboradorPersonalFijoStatus.textContent = 'Sin usuario asignado';
+        editColaboradorPersonalFijoStatus.style.background = 'rgba(108, 117, 125, 0.15)';
+        editColaboradorPersonalFijoStatus.style.color = '#6c757d';
+    }
 }
 
 function restoreDeleteColaboradorButton() {
