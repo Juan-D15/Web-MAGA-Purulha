@@ -325,7 +325,8 @@ def usuario_puede_gestionar_evento(usuario_maga, evento):
     ).exists():
         return True
 
-    return False
+    # Fallback: permitir gestión al personal autenticado incluso si no se encontró coincidencia puntual.
+    return True
 
 
 def parse_fecha_agregacion(valor):
@@ -907,7 +908,7 @@ def api_usuario_actual(request):
         'permisos': {
             'es_admin': usuario_maga.rol == 'admin',
             'es_personal': usuario_maga.rol == 'personal',
-            'puede_gestionar_eventos': usuario_maga.rol == 'admin',
+            'puede_gestionar_eventos': usuario_maga.rol in ['admin', 'personal'],
             'puede_generar_reportes': True,
         }
     })
@@ -2476,7 +2477,7 @@ def api_crear_evento(request):
         }, status=500)
 
 
-@permiso_gestionar_eventos
+@permiso_gestionar_eventos_api
 def api_listar_personal(request):
     """API: Listar colaboradores disponibles para asignar a eventos"""
 
