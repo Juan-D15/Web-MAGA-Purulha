@@ -335,18 +335,48 @@ def obtener_cambios_evento(evento):
     """Obtiene los cambios realizados en un evento agrupados por grupo (varios colaboradores)."""
     print(f'🔍 Buscando cambios (colaboradores) para evento {evento.id} - {evento.nombre}')
 
+    # Verificar si las columnas comunidad_id y region_id existen en la tabla
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'eventos_cambios_colaboradores' 
+                AND column_name IN ('comunidad_id', 'region_id');
+            """)
+            existing_columns = {row[0] for row in cursor.fetchall()}
+            has_comunidad = 'comunidad_id' in existing_columns
+            has_region = 'region_id' in existing_columns
+    except Exception as e:
+        # Si hay un error al verificar, asumir que las columnas no existen
+        print(f'⚠️ Error al verificar columnas: {e}')
+        has_comunidad = False
+        has_region = False
+
+    # Construir select_related dinámicamente según las columnas disponibles
+    select_related_fields = ['colaborador']
+    if has_comunidad:
+        select_related_fields.append('comunidad')
+    if has_region:
+        select_related_fields.append('region')
+
     cambios = (
         EventoCambioColaborador.objects.filter(actividad=evento)
-        .select_related('colaborador', 'comunidad', 'region')
+        .select_related(*select_related_fields)
         .prefetch_related('evidencias')
         .order_by('-fecha_cambio', '-creado_en')
     )
     print(f'🔍 Total de cambios encontrados: {cambios.count()}')
-    # Verificar si hay cambios con comunidades
-    cambios_con_comunidad = cambios.exclude(comunidad__isnull=True)
-    print(f'🔍 Cambios con comunidad: {cambios_con_comunidad.count()}')
-    for cambio_temp in cambios_con_comunidad[:5]:  # Solo los primeros 5 para no saturar logs
-        print(f'  - Cambio {cambio_temp.id}: comunidad_id={cambio_temp.comunidad_id}, comunidad={cambio_temp.comunidad}')
+    # Verificar si hay cambios con comunidades (solo si la columna existe)
+    if has_comunidad:
+        try:
+            cambios_con_comunidad = cambios.exclude(comunidad__isnull=True)
+            print(f'🔍 Cambios con comunidad: {cambios_con_comunidad.count()}')
+            for cambio_temp in cambios_con_comunidad[:5]:  # Solo los primeros 5 para no saturar logs
+                print(f'  - Cambio {cambio_temp.id}: comunidad_id={cambio_temp.comunidad_id}, comunidad={cambio_temp.comunidad}')
+        except Exception as e:
+            print(f'⚠️ Error al filtrar por comunidad: {e}')
 
     cambios_por_grupo = {}
 
@@ -404,27 +434,32 @@ def obtener_cambios_evento(evento):
 
         # Agregar comunidad si existe y no está ya en la lista
         # Leer directamente desde comunidad_id de la tabla eventos_cambios_colaboradores
-        comunidad_id = getattr(cambio, 'comunidad_id', None)
-        print(f'🔍 Cambio {cambio.id}: comunidad_id={comunidad_id}, comunidad={cambio.comunidad}')
-        
-        if comunidad_id:
-            # Si tenemos el ID pero no el objeto, obtenerlo
-            if not cambio.comunidad:
-                from webmaga.models import Comunidad
-                try:
-                    cambio.comunidad = Comunidad.objects.get(id=comunidad_id)
-                except Comunidad.DoesNotExist:
-                    print(f'⚠️ Comunidad con ID {comunidad_id} no encontrada en la BD')
-                    cambio.comunidad = None
-        
-        if cambio.comunidad:
-            comunidad_nombre = cambio.comunidad.nombre
-            print(f'✅ Comunidad encontrada: {comunidad_nombre} (ID: {comunidad_id})')
-            if comunidad_nombre and comunidad_nombre not in grupo_data['comunidades']:
-                grupo_data['comunidades'].append(comunidad_nombre)
-                print(f'✅ Comunidad agregada a la lista: {comunidad_nombre}')
-        else:
-            print(f'⚠️ Cambio {cambio.id} NO tiene comunidad asociada (comunidad_id={comunidad_id})')
+        try:
+            comunidad_id = getattr(cambio, 'comunidad_id', None)
+            print(f'🔍 Cambio {cambio.id}: comunidad_id={comunidad_id}, comunidad={getattr(cambio, "comunidad", None)}')
+            
+            if comunidad_id:
+                # Si tenemos el ID pero no el objeto, obtenerlo
+                cambio_comunidad = getattr(cambio, 'comunidad', None)
+                if not cambio_comunidad:
+                    from webmaga.models import Comunidad
+                    try:
+                        cambio_comunidad = Comunidad.objects.get(id=comunidad_id)
+                    except Comunidad.DoesNotExist:
+                        print(f'⚠️ Comunidad con ID {comunidad_id} no encontrada en la BD')
+                        cambio_comunidad = None
+                
+                if cambio_comunidad:
+                    comunidad_nombre = cambio_comunidad.nombre
+                    print(f'✅ Comunidad encontrada: {comunidad_nombre} (ID: {comunidad_id})')
+                    if comunidad_nombre and comunidad_nombre not in grupo_data['comunidades']:
+                        grupo_data['comunidades'].append(comunidad_nombre)
+                        print(f'✅ Comunidad agregada a la lista: {comunidad_nombre}')
+                else:
+                    print(f'⚠️ Cambio {cambio.id} NO tiene comunidad asociada (comunidad_id={comunidad_id})')
+        except Exception as e:
+            # Si hay un error al acceder a la comunidad, simplemente ignorar
+            print(f'⚠️ Error al acceder a comunidad del cambio {cambio.id}: {e}')
 
         for evidencia in evidencias_qs:
             evidencia_key = evidencia.url_almacenamiento or str(evidencia.id)
