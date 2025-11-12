@@ -148,33 +148,410 @@
     });
   }
 
-  // ========== BUSCADOR PRINCIPAL ==========
+  // ========== BUSCADOR PRINCIPAL (BUSCA PROYECTOS) ==========
   function initSearchFunctionality() {
     const searchBtn = document.querySelector('.search .mini');
     const searchInput = document.getElementById('buscar-proyecto');
     
     if (searchBtn && searchInput) {
+      // Función para ejecutar la búsqueda de proyectos
+      const executeProjectSearch = () => {
+        const query = searchInput.value.trim();
+        if (!query) return;
+        
+        debugLog('Buscar proyecto:', query);
+        const isOnProjectsPage = window.location.pathname.includes('/proyectos');
+        
+        // Si estamos en la página de proyectos Y las funciones están disponibles, usar búsqueda local
+        if (isOnProjectsPage && typeof window.showListView === 'function' && typeof window.filterProjectsBySearch === 'function') {
+          // Verificar si estamos en la vista de lista
+          const listView = document.getElementById('projectsListView');
+          if (listView && listView.style.display !== 'none') {
+            // Ya estamos en la vista de lista, buscar directamente
+            const projectSearchInput = document.getElementById('projectSearchInput');
+            if (projectSearchInput) {
+              projectSearchInput.value = query;
+            }
+            window.filterProjectsBySearch(query);
+          } else {
+            // Si no estamos en la vista de lista, mostrarla primero y luego buscar
+            if (typeof window.showListView === 'function') {
+              window.showListView();
+              setTimeout(() => {
+                const projectSearchInput = document.getElementById('projectSearchInput');
+                if (projectSearchInput) {
+                  projectSearchInput.value = query;
+                }
+                if (typeof window.filterProjectsBySearch === 'function') {
+                  window.filterProjectsBySearch(query);
+                }
+                // Mostrar el botón de limpiar si hay texto
+                const searchClearBtn = document.getElementById('searchClearBtn');
+                if (searchClearBtn && query.trim()) {
+                  searchClearBtn.style.display = 'block';
+                }
+              }, 500);
+            }
+          }
+        } else {
+          // NO estamos en la página de proyectos O las funciones no están disponibles
+          // Guardar la búsqueda en sessionStorage para aplicarla al cargar
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('projectSearchQuery', query);
+            sessionStorage.setItem('showProjectsList', 'true');
+          }
+          const proyectosUrl = window.DJANGO_URLS?.proyectos || '/proyectos/';
+          window.location.href = proyectosUrl;
+        }
+      };
+
       searchBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        const query = searchInput.value.trim();
-        if (query) {
-          debugLog('Buscar proyecto:', query);
-          // Aquí puedes agregar la funcionalidad de búsqueda
-        }
+        executeProjectSearch();
       });
 
       searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          const query = searchInput.value.trim();
-          if (query) {
-            debugLog('Buscar proyecto:', query);
-            // Aquí puedes agregar la funcionalidad de búsqueda
+          executeProjectSearch();
+        }
+      });
+
+      // Búsqueda en tiempo real si estamos en la página de proyectos
+      if (window.location.pathname.includes('/proyectos')) {
+        let searchTimeout = null;
+        searchInput.addEventListener('input', function() {
+          const query = this.value.trim();
+          
+          // Limpiar timeout anterior
+          if (searchTimeout) {
+            clearTimeout(searchTimeout);
           }
+
+          // Aplicar búsqueda después de un pequeño delay
+          searchTimeout = setTimeout(() => {
+            if (typeof window.filterProjectsBySearch === 'function') {
+              // Verificar si estamos en la vista de listado
+              const listView = document.getElementById('projectsListView');
+              if (listView && listView.style.display !== 'none') {
+                // Ya estamos en la vista de lista, buscar directamente
+                const projectSearchInput = document.getElementById('projectSearchInput');
+                if (projectSearchInput) {
+                  projectSearchInput.value = query;
+                }
+                window.filterProjectsBySearch(query);
+                
+                // Mostrar/ocultar botón de limpiar
+                const searchClearBtn = document.getElementById('searchClearBtn');
+                if (searchClearBtn) {
+                  searchClearBtn.style.display = query ? 'flex' : 'none';
+                }
+              } else if (typeof window.showListView === 'function') {
+                // Si no estamos en la vista de listado, mostrarla primero
+                window.showListView();
+                setTimeout(() => {
+                  if (typeof window.filterProjectsBySearch === 'function') {
+                    const projectSearchInput = document.getElementById('projectSearchInput');
+                    if (projectSearchInput) {
+                      projectSearchInput.value = query;
+                    }
+                    window.filterProjectsBySearch(query);
+                    
+                    // Mostrar/ocultar botón de limpiar
+                    const searchClearBtn = document.getElementById('searchClearBtn');
+                    if (searchClearBtn) {
+                      searchClearBtn.style.display = query ? 'flex' : 'none';
+                    }
+                  }
+                }, 500);
+              }
+            }
+          }, 500);
+        });
+      }
+    }
+
+    // ========== BUSCADOR DE COMUNIDADES EN DROPDOWN ==========
+    const searchComunidadesInput = document.getElementById('search-comunidades');
+    const searchComunidadesBtn = document.getElementById('search-comunidades-btn');
+    
+    // Función para ejecutar la búsqueda (igual que el input de búsqueda en comunidades.html)
+    const executeCommunitiesSearch = () => {
+      if (!searchComunidadesInput) return;
+      
+      const query = searchComunidadesInput.value.trim();
+      const isOnCommunitiesPage = window.location.pathname.includes('/comunidades');
+      
+      // Si estamos en la página de comunidades Y las funciones están disponibles, usar búsqueda local
+      if (isOnCommunitiesPage && typeof window.searchCommunities === 'function' && typeof window.showCommunitiesList === 'function') {
+        // Verificar si estamos en la vista de listado
+        const listView = document.getElementById('communitiesListView');
+        if (listView && listView.style.display !== 'none') {
+          // Ya estamos en la vista de listado, buscar directamente
+          // Sincronizar con el buscador principal
+          const mainSearchInput = document.getElementById('searchCommunities');
+          if (mainSearchInput) {
+            mainSearchInput.value = query;
+          }
+          window.searchCommunities(query);
+        } else {
+          // Si no estamos en la vista de listado, mostrarla primero y luego buscar
+          window.showCommunitiesList().then(() => {
+            setTimeout(() => {
+              if (typeof window.searchCommunities === 'function') {
+                const mainSearchInput = document.getElementById('searchCommunities');
+                if (mainSearchInput) {
+                  mainSearchInput.value = query;
+                }
+                window.searchCommunities(query);
+              }
+            }, 300);
+          });
+        }
+      } else {
+        // NO estamos en la página de comunidades O las funciones no están disponibles
+        // SIEMPRE navegar a la vista del listado
+        // Guardar la búsqueda y navegar
+        navigateToCommunitiesWithSearch(query);
+      }
+    };
+
+    if (searchComunidadesInput) {
+      let searchTimeout = null;
+
+      // Al escribir en el buscador del dropdown
+      searchComunidadesInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        // Filtrar los enlaces del dropdown mientras se escribe
+        filterComunidadesDropdown(query);
+
+        // Si hay una query y estamos en la página de comunidades, aplicar búsqueda en tiempo real
+        if (query && window.location.pathname.includes('/comunidades')) {
+          // Limpiar timeout anterior
+          if (searchTimeout) {
+            clearTimeout(searchTimeout);
+          }
+
+          // Aplicar búsqueda después de un pequeño delay
+          searchTimeout = setTimeout(() => {
+            // Si existe la función de búsqueda de comunidades, usarla
+            if (typeof window.searchCommunities === 'function') {
+              // Verificar si estamos en la vista de listado
+              const listView = document.getElementById('communitiesListView');
+              if (listView && listView.style.display !== 'none') {
+                // Sincronizar con el buscador principal
+                const mainSearchInput = document.getElementById('searchCommunities');
+                if (mainSearchInput) {
+                  mainSearchInput.value = query;
+                }
+                window.searchCommunities(query);
+              } else if (typeof window.showCommunitiesList === 'function') {
+                // Si no estamos en la vista de listado, mostrarla primero
+                window.showCommunitiesList().then(() => {
+                  setTimeout(() => {
+                    if (typeof window.searchCommunities === 'function') {
+                      const mainSearchInput = document.getElementById('searchCommunities');
+                      if (mainSearchInput) {
+                        mainSearchInput.value = query;
+                      }
+                      window.searchCommunities(query);
+                    }
+                  }, 300);
+                });
+              }
+            }
+          }, 500);
+        }
+      });
+
+      // Al presionar Enter, ejecutar la búsqueda y redirigir si es necesario
+      searchComunidadesInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          executeCommunitiesSearch();
+        }
+      });
+
+      // NO navegar automáticamente al hacer blur, solo al presionar Enter o clic en botón
+      // Esto permite que el usuario pueda hacer clic en los enlaces sin problemas
+    }
+
+    // Botón de búsqueda (SVG/icono) - mismo funcionamiento que el input
+    if (searchComunidadesBtn) {
+      searchComunidadesBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        executeCommunitiesSearch();
+      });
+    }
+
+    // ========== BUSCADOR DE COMUNIDADES EN MENÚ HAMBURGUESA (MÓVIL) ==========
+    const searchComunidadesMobileInput = document.getElementById('search-comunidades-mobile');
+    const searchComunidadesMobileBtn = document.getElementById('search-comunidades-mobile-btn');
+    
+    // Función para ejecutar la búsqueda desde el menú móvil (misma lógica)
+    const executeCommunitiesSearchMobile = () => {
+      if (!searchComunidadesMobileInput) return;
+      
+      const query = searchComunidadesMobileInput.value.trim();
+      const isOnCommunitiesPage = window.location.pathname.includes('/comunidades');
+      
+      // Si estamos en la página de comunidades Y las funciones están disponibles, usar búsqueda local
+      if (isOnCommunitiesPage && typeof window.searchCommunities === 'function' && typeof window.showCommunitiesList === 'function') {
+        // Verificar si estamos en la vista de listado
+        const listView = document.getElementById('communitiesListView');
+        if (listView && listView.style.display !== 'none') {
+          // Ya estamos en la vista de listado, buscar directamente
+          // Sincronizar con el buscador principal
+          const mainSearchInput = document.getElementById('searchCommunities');
+          if (mainSearchInput) {
+            mainSearchInput.value = query;
+          }
+          window.searchCommunities(query);
+        } else {
+          // Si no estamos en la vista de listado, mostrarla primero y luego buscar
+          window.showCommunitiesList().then(() => {
+            setTimeout(() => {
+              if (typeof window.searchCommunities === 'function') {
+                const mainSearchInput = document.getElementById('searchCommunities');
+                if (mainSearchInput) {
+                  mainSearchInput.value = query;
+                }
+                window.searchCommunities(query);
+              }
+            }, 300);
+          });
+        }
+      } else {
+        // NO estamos en la página de comunidades O las funciones no están disponibles
+        // SIEMPRE navegar a la vista del listado
+        // Guardar la búsqueda y navegar
+        navigateToCommunitiesWithSearch(query);
+      }
+      
+      // Cerrar el drawer móvil después de navegar
+      if (typeof window.closeDrawer === 'function') {
+        window.closeDrawer();
+      }
+    };
+
+    if (searchComunidadesMobileInput) {
+      let searchTimeoutMobile = null;
+
+      // Al escribir en el buscador del menú móvil
+      searchComunidadesMobileInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        // Si hay una query y estamos en la página de comunidades, aplicar búsqueda en tiempo real
+        if (query && window.location.pathname.includes('/comunidades')) {
+          // Limpiar timeout anterior
+          if (searchTimeoutMobile) {
+            clearTimeout(searchTimeoutMobile);
+          }
+
+          // Aplicar búsqueda después de un pequeño delay
+          searchTimeoutMobile = setTimeout(() => {
+            // Si existe la función de búsqueda de comunidades, usarla
+            if (typeof window.searchCommunities === 'function') {
+              // Verificar si estamos en la vista de listado
+              const listView = document.getElementById('communitiesListView');
+              if (listView && listView.style.display !== 'none') {
+                // Sincronizar con el buscador principal
+                const mainSearchInput = document.getElementById('searchCommunities');
+                if (mainSearchInput) {
+                  mainSearchInput.value = query;
+                }
+                window.searchCommunities(query);
+              } else if (typeof window.showCommunitiesList === 'function') {
+                // Si no estamos en la vista de listado, mostrarla primero
+                window.showCommunitiesList().then(() => {
+                  setTimeout(() => {
+                    if (typeof window.searchCommunities === 'function') {
+                      const mainSearchInput = document.getElementById('searchCommunities');
+                      if (mainSearchInput) {
+                        mainSearchInput.value = query;
+                      }
+                      window.searchCommunities(query);
+                    }
+                  }, 300);
+                });
+              }
+            }
+          }, 500);
+        }
+      });
+
+      // Al presionar Enter, ejecutar la búsqueda y redirigir si es necesario
+      searchComunidadesMobileInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          executeCommunitiesSearchMobile();
         }
       });
     }
+
+    // Botón de búsqueda móvil (SVG/icono) - mismo funcionamiento que el input
+    if (searchComunidadesMobileBtn) {
+      searchComunidadesMobileBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        executeCommunitiesSearchMobile();
+      });
+    }
   }
+
+  // Función para filtrar comunidades en el dropdown
+  function filterComunidadesDropdown(query) {
+    const comunidadesList = document.getElementById('comunidades-list');
+    if (!comunidadesList) return;
+
+    const items = comunidadesList.querySelectorAll('.dd__item');
+    const queryLower = query.toLowerCase();
+
+    items.forEach(item => {
+      const text = item.textContent.toLowerCase();
+      const dataName = item.getAttribute('data-name') || '';
+      if (text.includes(queryLower) || dataName.toLowerCase().includes(queryLower)) {
+        item.style.display = '';
+      } else {
+        item.style.display = 'none';
+      }
+    });
+  }
+
+  // Función para navegar a la página de comunidades con búsqueda
+  function navigateToCommunitiesWithSearch(query) {
+    // Guardar la búsqueda en sessionStorage para que se aplique al cargar la página
+    if (typeof sessionStorage !== 'undefined') {
+      if (query && query.trim()) {
+        sessionStorage.setItem('communitiesSearchQuery', query.trim());
+      } else {
+        sessionStorage.removeItem('communitiesSearchQuery');
+      }
+      // SIEMPRE mostrar el listado al navegar
+      sessionStorage.setItem('showCommunitiesList', 'true');
+    }
+
+    // Obtener URL de comunidades de forma más robusta
+    let comunidadesUrl = '/comunidades/';
+    const comunidadesLink = document.querySelector('a[href*="comunidades"]');
+    if (comunidadesLink) {
+      const href = comunidadesLink.getAttribute('href');
+      if (href) {
+        // Extraer solo la ruta, sin hash ni query params
+        comunidadesUrl = href.split('#')[0].split('?')[0];
+      }
+    }
+
+    // Navegar a la página de comunidades
+    window.location.href = comunidadesUrl;
+  }
+
+  // Exponer la función para que esté disponible globalmente
+  window.navigateToCommunitiesWithSearch = navigateToCommunitiesWithSearch;
 
   // ========== DRAWER MÓVIL ==========
   function initMobileDrawer() {

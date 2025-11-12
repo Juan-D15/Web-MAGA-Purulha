@@ -275,13 +275,24 @@
   border-top: 1px solid var(--border);
   padding: 30px 0 60px;
   min-height: 100vh;
-  overflow-y: auto;
+  width: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+  overflow-y: visible !important;
+  overflow-x: visible !important;
 }
 
 .list-container {
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 24px;
+  width: 100% !important;
+  display: flex;
+  flex-direction: column;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 /* Botón de regreso */
@@ -328,18 +339,43 @@
   margin-left: auto;
   margin-right: auto;
   padding: 0 24px;
+  position: relative;
+  display: block;
+}
+
+.list-header .btn-back {
+  position: absolute !important;
+  left: 24px !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  margin: 0 !important;
+  transform: none !important;
+  right: auto !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  float: none !important;
+  display: inline-flex !important;
 }
 
 .list-title-container {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 20px;
+  width: 100%;
+  min-height: 48px;
+  position: relative;
+  padding: 0;
+  margin: 0;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  clear: both;
 }
 
 .list-title-content {
   flex: 1;
   text-align: center;
+  max-width: 100%;
 }
 
 .list-title {
@@ -363,12 +399,20 @@
   justify-content: space-between;
   align-items: center;
   gap: 2rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   padding: 1.5rem;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
   border-radius: 12px;
   backdrop-filter: blur(10px);
+}
+
+.list-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 0 1.5rem;
 }
 
 .search-controls {
@@ -380,28 +424,33 @@
   position: relative;
   display: flex;
   align-items: center;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1rem;
-  color: var(--text-muted);
-  z-index: 1;
+  width: 100%;
 }
 
 .search-box input {
   width: 100%;
-  padding: 0.75rem 1rem 0.75rem 3rem;
+  padding: 0.75rem 1rem;
   border: 2px solid var(--border-color);
   border-radius: var(--border-radius);
   font-size: 1rem;
   transition: var(--transition);
+  background: var(--background-primary);
+  background-color: #1e2736;
+  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .search-box input:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(7, 114, 210, 0.1);
+  background-color: #1e2736;
+  color: #ffffff;
+}
+
+.search-box input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 
 .filter-controls {
@@ -413,16 +462,48 @@
   padding: 0.75rem 1rem;
   border: 2px solid var(--border-color);
   border-radius: var(--border-radius);
-  background: var(--background-primary);
-  color: var(--text-primary);
+  background: var(--background-primary) !important;
+  background-color: #1e2736 !important;
+  color: var(--text-primary) !important;
+  color: #ffffff !important;
   font-size: 1rem;
   cursor: pointer;
   transition: var(--transition);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
 }
 
 .filter-select:focus {
   outline: none;
   border-color: var(--primary-color);
+  background-color: #1e2736 !important;
+  color: #ffffff !important;
+}
+
+.filter-select:hover {
+  background-color: #243044 !important;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.filter-select option {
+  background-color: #1e2736 !important;
+  background: #1e2736 !important;
+  color: #ffffff !important;
+  padding: 0.5rem;
+}
+
+.filter-select option:hover {
+  background-color: #243044 !important;
+}
+
+.filter-select option:checked {
+  background-color: #007bff !important;
+  color: #ffffff !important;
 }
 
 /* Contenedor de lista */
@@ -430,7 +511,11 @@
   max-width: 1400px;
   margin: 20px auto 80px;
   padding: 0 24px;
-  width: 100%;
+  width: 100% !important;
+  min-height: 200px;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 /* Lista de comunidades */
@@ -438,7 +523,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 100%;
+  width: 100% !important;
+  min-height: 100px;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 /* Elemento de lista */
@@ -468,6 +557,7 @@
   overflow: hidden;
   margin-right: 1.5rem;
   flex-shrink: 0;
+  display: block;
 }
 
 .community-list-item__image img {
@@ -1508,37 +1598,108 @@
   }
   
   .list-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+    position: relative;
+    padding: 0 16px;
+  }
+  
+  .list-header .btn-back {
+    position: relative;
+    left: 0;
+    top: 0;
+    margin-bottom: 1rem;
+    align-self: flex-start;
+  }
+  
+  .list-title-container {
+    min-height: auto;
+    margin-top: 0;
   }
   
   .list-controls {
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
+    padding: 1rem;
+  }
+
+  .list-actions {
+    padding: 0 1rem;
+    margin-bottom: 1.5rem;
   }
   
   .search-controls {
     max-width: none;
   }
   
+  .filter-select {
+    background-color: #1e2736 !important;
+    color: #ffffff !important;
+  }
+  
+  .filter-select option {
+    background-color: #1e2736 !important;
+    color: #ffffff !important;
+  }
+  
   .community-list-item {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 1rem;
+    padding: 16px;
+  }
+  
+  /* Ocultar imágenes en responsive */
+  .communities-list-view .community-list-item__image,
+  .community-list-item__image {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
   }
   
   .community-list-item__content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    width: 100%;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+    width: 100% !important;
+  }
+  
+  .community-list-item__info {
+    width: 100% !important;
   }
   
   .community-list-item__details {
-    flex-direction: column;
-    gap: 0.5rem;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+  }
+  
+  .community-list-item__btn {
+    width: 100% !important;
+    text-align: center !important;
+  }
+  
+  .communities-list-container {
+    padding: 0 16px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  .communities-list {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  .list-container {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
   
   .detail-header {
@@ -1796,4 +1957,162 @@
             opacity: 1 !important;
             background: #dc3545 !important;
           }
+}
+
+/* ======= REGLAS ADICIONALES PARA ASEGURAR POSICIONAMIENTO DEL BOTÓN VOLVER ======= */
+#communitiesListView .list-header .btn-back,
+.communities-list-view .list-header .btn-back,
+.list-header#listHeader .btn-back {
+  position: absolute !important;
+  left: 24px !important;
+  top: 0 !important;
+  right: auto !important;
+  margin: 0 !important;
+  transform: none !important;
+  float: none !important;
+  display: inline-flex !important;
+  z-index: 10 !important;
+}
+
+/* ======= REGLAS ADICIONALES PARA ASEGURAR QUE EL LISTADO NO SE CORTE ======= */
+/* Forzar que el listado se muestre completo sin restricciones de altura */
+#communitiesListView.communities-list-view,
+.communities-list-view#communitiesListView {
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
+}
+
+#communitiesListView .list-container,
+.communities-list-view .list-container {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#communitiesListView .communities-list-container,
+.communities-list-view .communities-list-container {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+#communitiesListView .communities-list,
+.communities-list-view .communities-list,
+#communitiesList {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Asegurar que las imágenes estén ocultas en mobile */
+@media screen and (max-width: 768px) {
+  #communitiesListView .community-list-item__image,
+  .communities-list-view .community-list-item__image,
+  .community-list-item__image {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+  
+  #communitiesListView .community-list-item__image img,
+  .communities-list-view .community-list-item__image img,
+  .community-list-item__image img {
+    display: none !important;
+  }
+}
+
+/* ======= ESTILOS ADICIONALES PARA EL SELECT (COMBOBOX) ======= */
+/* Asegurar que el select tenga fondo oscuro en todos los navegadores */
+#sortCommunities.filter-select,
+.filter-select#sortCommunities,
+.communities-list-view .filter-select,
+#communitiesListView .filter-select {
+  background-color: #1e2736 !important;
+  background: #1e2736 !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+#sortCommunities.filter-select:focus,
+.filter-select#sortCommunities:focus,
+.communities-list-view .filter-select:focus,
+#communitiesListView .filter-select:focus {
+  background-color: #243044 !important;
+  background: #243044 !important;
+  color: #ffffff !important;
+  border-color: #007bff !important;
+}
+
+#sortCommunities.filter-select:hover,
+.filter-select#sortCommunities:hover,
+.communities-list-view .filter-select:hover,
+#communitiesListView .filter-select:hover {
+  background-color: #243044 !important;
+  background: #243044 !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Estilos para las opciones del select */
+#sortCommunities.filter-select option,
+.filter-select#sortCommunities option,
+.communities-list-view .filter-select option,
+#communitiesListView .filter-select option {
+  background-color: #1e2736 !important;
+  background: #1e2736 !important;
+  color: #ffffff !important;
+  padding: 0.75rem 1rem !important;
+}
+
+#sortCommunities.filter-select option:hover,
+.filter-select#sortCommunities option:hover,
+.communities-list-view .filter-select option:hover,
+#communitiesListView .filter-select option:hover {
+  background-color: #243044 !important;
+  background: #243044 !important;
+}
+
+#sortCommunities.filter-select option:checked,
+.filter-select#sortCommunities option:checked,
+.communities-list-view .filter-select option:checked,
+#communitiesListView .filter-select option:checked {
+  background-color: #007bff !important;
+  background: #007bff !important;
+  color: #ffffff !important;
+}
+
+/* Para navegadores WebKit (Chrome, Safari, Edge) */
+#sortCommunities.filter-select::-webkit-list-button,
+.filter-select#sortCommunities::-webkit-list-button {
+  background-color: #1e2736 !important;
+}
+
+/* Estilos adicionales para navegadores que requieren más especificidad */
+select.filter-select {
+  background-color: #1e2736 !important;
+  background: #1e2736 !important;
+  color: #ffffff !important;
+}
+
+select.filter-select option {
+  background-color: #1e2736 !important;
+  background: #1e2736 !important;
+  color: #ffffff !important;
+}
+
+/* Para asegurar que el fondo oscuro se mantenga cuando el select está abierto */
+select.filter-select:not([multiple]) {
+  background-color: #1e2736 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 1rem center !important;
 }

@@ -1573,80 +1573,94 @@ let currentProjectSearchTerm = '';
 
 function applyProjectListFilters() {
 
-  let filteredProjects = [...currentListViewProjects];
+  let filteredProjects = [];
 
-
-
-  if (!currentListViewCategory && currentListViewTypeFilter !== 'all') {
-
-    filteredProjects = filteredProjects.filter((project) => {
-
-      const categoryKey = (project.categoryKey || project.category || '').toLowerCase();
-
-      if (categoryKey === currentListViewTypeFilter) {
-
-        return true;
-
-      }
-
-
-
-      const typeLabel = (project.type || '').toLowerCase();
-
-
-
-      if (!typeLabel) {
-
-        return false;
-
-      }
-
-
-
-      if (currentListViewTypeFilter === 'capacitaciones') {
-
-        return typeLabel.includes('capacit');
-
-      }
-
-
-
-      if (currentListViewTypeFilter === 'entregas') {
-
-        return typeLabel.includes('entrega');
-
-      }
-
-
-
-      if (currentListViewTypeFilter === 'proyectos-ayuda') {
-
-        return typeLabel.includes('ayuda') || typeLabel.includes('proyecto');
-
-      }
-
-
-
-      return false;
-
-    });
-
-  }
-
-
-
+  // Si hay un término de búsqueda, buscar en TODOS los proyectos del sistema
   if (currentProjectSearchTerm.trim() !== '') {
-
+    // Obtener todos los proyectos de todas las categorías
+    const allProjects = [
+      ...projectsData.capacitaciones,
+      ...projectsData.entregas,
+      ...projectsData['proyectos-ayuda']
+    ];
+    
     const searchLower = currentProjectSearchTerm.toLowerCase().trim();
-
-    filteredProjects = filteredProjects.filter((project) => {
-
+    
+    // Buscar en todos los proyectos
+    filteredProjects = allProjects.filter((project) => {
       const nombre = (project.nombre || project.name || '').toLowerCase();
-
-      return nombre.includes(searchLower);
-
+      const ubicacion = (project.ubicacion || project.location || '').toLowerCase();
+      const descripcion = (project.descripcion || project.description || '').toLowerCase();
+      
+      // Buscar en nombre, ubicación y descripción
+      return nombre.includes(searchLower) || 
+             ubicacion.includes(searchLower) || 
+             descripcion.includes(searchLower);
     });
-
+    
+    // Si hay un filtro de tipo activo, aplicarlo después de la búsqueda
+    if (!currentListViewCategory && currentListViewTypeFilter !== 'all') {
+      filteredProjects = filteredProjects.filter((project) => {
+        const categoryKey = (project.categoryKey || project.category || '').toLowerCase();
+        
+        if (categoryKey === currentListViewTypeFilter) {
+          return true;
+        }
+        
+        const typeLabel = (project.type || '').toLowerCase();
+        
+        if (!typeLabel) {
+          return false;
+        }
+        
+        if (currentListViewTypeFilter === 'capacitaciones') {
+          return typeLabel.includes('capacit');
+        }
+        
+        if (currentListViewTypeFilter === 'entregas') {
+          return typeLabel.includes('entrega');
+        }
+        
+        if (currentListViewTypeFilter === 'proyectos-ayuda') {
+          return typeLabel.includes('ayuda') || typeLabel.includes('proyecto');
+        }
+        
+        return false;
+      });
+    }
+  } else {
+    // Si no hay búsqueda, usar la lógica normal con los proyectos de la vista actual
+    filteredProjects = [...currentListViewProjects];
+    
+    if (!currentListViewCategory && currentListViewTypeFilter !== 'all') {
+      filteredProjects = filteredProjects.filter((project) => {
+        const categoryKey = (project.categoryKey || project.category || '').toLowerCase();
+        
+        if (categoryKey === currentListViewTypeFilter) {
+          return true;
+        }
+        
+        const typeLabel = (project.type || '').toLowerCase();
+        
+        if (!typeLabel) {
+          return false;
+        }
+        
+        if (currentListViewTypeFilter === 'capacitaciones') {
+          return typeLabel.includes('capacit');
+        }
+        
+        if (currentListViewTypeFilter === 'entregas') {
+          return typeLabel.includes('entrega');
+        }
+        
+        if (currentListViewTypeFilter === 'proyectos-ayuda') {
+          return typeLabel.includes('ayuda') || typeLabel.includes('proyecto');
+        }
+        
+        return false;
+      });
+    }
   }
 
 
@@ -1674,9 +1688,40 @@ function applyProjectListFilters() {
 function filterProjectsBySearch(searchTerm) {
 
   currentProjectSearchTerm = searchTerm || '';
+  
+  // Si hay un término de búsqueda, asegurarse de que estamos mostrando todos los proyectos
+  if (searchTerm && searchTerm.trim() !== '') {
+    // Si estamos en una categoría específica, cambiar a "Todos los Proyectos"
+    if (currentListViewCategory) {
+      // Actualizar los proyectos a todos los proyectos del sistema
+      currentListViewProjects = [
+        ...projectsData.capacitaciones,
+        ...projectsData.entregas,
+        ...projectsData['proyectos-ayuda']
+      ];
+      currentListViewCategory = null;
+      
+      // Actualizar el título y subtítulo
+      const listTitle = document.getElementById('listTitle');
+      const listSubtitle = document.getElementById('listSubtitle');
+      if (listTitle) listTitle.textContent = 'Todos los Proyectos';
+      if (listSubtitle) listSubtitle.textContent = 'Resultados de búsqueda en todos los proyectos';
+      
+      // Resetear el filtro de tipo a "Todos los tipos"
+      const typeFilter = document.getElementById('projectTypeFilter');
+      if (typeFilter) typeFilter.value = 'all';
+      currentListViewTypeFilter = 'all';
+    }
+  }
 
   applyProjectListFilters();
 
+}
+
+// Exponer funciones globalmente para uso desde navigation.js
+if (typeof window !== 'undefined') {
+  window.showListView = showListView;
+  window.filterProjectsBySearch = filterProjectsBySearch;
 }
 
 
@@ -7654,7 +7699,56 @@ document.addEventListener('DOMContentLoaded', function() {
 
   console.log('DOM cargado, configurando event listeners...');
 
-  
+  // Verificar si hay una búsqueda pendiente desde el buscador principal
+  if (typeof sessionStorage !== 'undefined') {
+    const searchQuery = sessionStorage.getItem('projectSearchQuery');
+    const showList = sessionStorage.getItem('showProjectsList');
+    
+    if (showList === 'true') {
+      // Limpiar el flag
+      sessionStorage.removeItem('showProjectsList');
+      
+      // Función para aplicar la búsqueda pendiente
+      const applyPendingSearch = () => {
+        // Verificar que los proyectos estén cargados
+        const allProjectsLoaded = projectsData.capacitaciones.length > 0 || 
+                                  projectsData.entregas.length > 0 || 
+                                  projectsData['proyectos-ayuda'].length > 0;
+        
+        if (!allProjectsLoaded) {
+          // Esperar un poco más si los proyectos aún no están cargados
+          setTimeout(applyPendingSearch, 300);
+          return;
+        }
+        
+        // Mostrar la vista de listado
+        showListView();
+        
+        // Aplicar la búsqueda si existe
+        if (searchQuery) {
+          sessionStorage.removeItem('projectSearchQuery');
+          
+          // Esperar a que se renderice la lista
+          setTimeout(() => {
+            const searchInput = document.getElementById('projectSearchInput');
+            if (searchInput) {
+              searchInput.value = searchQuery;
+              filterProjectsBySearch(searchQuery);
+              
+              // Mostrar el botón de limpiar si hay texto
+              const searchClearBtn = document.getElementById('searchClearBtn');
+              if (searchClearBtn && searchQuery.trim()) {
+                searchClearBtn.style.display = 'flex';
+              }
+            }
+          }, 300);
+        }
+      };
+      
+      // Esperar a que los proyectos se carguen antes de aplicar la búsqueda
+      setTimeout(applyPendingSearch, 800);
+    }
+  }
 
   // Manejar anclas de URL al cargar la página
 
@@ -7737,6 +7831,12 @@ document.addEventListener('DOMContentLoaded', function() {
       // Filtrar proyectos
 
       filterProjectsBySearch(searchTerm);
+      
+      // Sincronizar con el buscador principal si existe
+      const mainSearchInput = document.getElementById('buscar-proyecto');
+      if (mainSearchInput) {
+        mainSearchInput.value = searchTerm;
+      }
 
     });
 

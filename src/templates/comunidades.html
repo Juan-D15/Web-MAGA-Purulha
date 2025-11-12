@@ -5,7 +5,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/comunidades.css' %}?v=4">
+  <link rel="stylesheet" href="{% static 'css/comunidades.css' %}?v=8">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
 {% endblock %}
@@ -71,12 +71,6 @@
   <main class="communities-list-view" id="communitiesListView" style="display: none;">
     <div class="list-container">
       <div class="list-header">
-        <button class="btn-back" id="btnBackFromList">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Volver
-        </button>
         <div class="list-title-container">
           <div class="list-title-content">
             <h1 class="list-title">Todas las Comunidades</h1>
@@ -88,10 +82,6 @@
       <div class="list-controls">
         <div class="search-controls">
           <div class="search-box">
-            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
-            </svg>
             <input type="text" id="searchCommunities" placeholder="Buscar comunidades...">
           </div>
         </div>
@@ -104,6 +94,15 @@
             <option value="region">Por región</option>
           </select>
         </div>
+      </div>
+
+      <div class="list-actions">
+        <button class="btn-back" id="btnBackFromList">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Volver
+        </button>
       </div>
 
       <div class="communities-list-container">
@@ -455,6 +454,6 @@
 {% endblock %}
 
 {% block extra_js %}  
-  <script src="{% static 'js/comunidades.js' %}?v=4"></script>
+  <script src="{% static 'js/comunidades.js' %}?v=5"></script>
 {% endblock %}
 

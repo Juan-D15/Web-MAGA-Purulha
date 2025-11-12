@@ -134,6 +134,7 @@
     </section>
 
     <!-- ======= SECCIÓN: ASISTENCIA TÉCNICA ======= -->
+    {% if user.is_authenticated %}
     <section class="config-section">
       <div class="config-header">
         <h2 class="section-title">Asistencia Técnica</h2>
@@ -158,7 +159,7 @@
           <form id="formAsistencia" class="asistencia-form">
             <div class="form-group">
               <label for="asistenciaNombre" class="form-label">Nombre *</label>
-              <input type="text" id="asistenciaNombre" class="form-input" placeholder="Tu nombre completo" required>
+              <input type="text" id="asistenciaNombre" class="form-input" placeholder="Tu nombre completo" value="{% if usuario_maga %}{{ usuario_maga.nombre_completo|default:user.username }}{% else %}{{ user.username }}{% endif %}" required>
             </div>
             
             <div class="form-group">
@@ -193,6 +194,7 @@
         </div>
       </div>
     </section>
+    {% endif %}
 
     <!-- ======= SECCIÓN: ACERCA DEL PROYECTO ======= -->
     <section class="config-section">

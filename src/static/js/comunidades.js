@@ -543,6 +543,8 @@ async function showCommunityDetail(communityId) {
 
 if (typeof window !== 'undefined') {
   window.showCommunityDetail = showCommunityDetail;
+  window.searchCommunities = searchCommunities;
+  window.showCommunitiesList = showCommunitiesList;
 }
 
 // Función para cargar datos de la comunidad en la vista detallada
@@ -776,6 +778,7 @@ async function searchCommunities(query) {
     await fetchCommunitiesList();
   }
 
+  // Aplicar filtro de búsqueda
   if (!query.trim()) {
     filteredCommunities = [...allCommunitiesData];
   } else {
@@ -785,6 +788,34 @@ async function searchCommunities(query) {
       community.type.toLowerCase().includes(query.toLowerCase())
     );
   }
+
+  // Aplicar el ordenamiento actual si hay uno seleccionado
+  const sortSelect = document.getElementById('sortCommunities');
+  if (sortSelect && sortSelect.value) {
+    const sortBy = sortSelect.value;
+    switch (sortBy) {
+      case 'name-asc':
+        filteredCommunities.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'name-desc':
+        filteredCommunities.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case 'recent':
+        filteredCommunities.sort((a, b) => {
+          const dateA = a.lastUpdate ? new Date(a.lastUpdate) : new Date(0);
+          const dateB = b.lastUpdate ? new Date(b.lastUpdate) : new Date(0);
+          if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+          if (isNaN(dateA.getTime())) return 1;
+          if (isNaN(dateB.getTime())) return -1;
+          return dateB.getTime() - dateA.getTime();
+        });
+        break;
+      case 'region':
+        filteredCommunities.sort((a, b) => a.region.localeCompare(b.region));
+        break;
+    }
+  }
+
   loadCommunitiesList();
 }
 
@@ -794,6 +825,22 @@ async function sortCommunities(sortBy) {
     await fetchCommunitiesList();
   }
 
+  // Primero aplicar la búsqueda actual si hay una
+  const searchInput = document.getElementById('searchCommunities');
+  const currentQuery = searchInput ? searchInput.value.trim() : '';
+  
+  // Aplicar filtro de búsqueda primero
+  if (currentQuery) {
+    filteredCommunities = allCommunitiesData.filter(community => 
+      community.name.toLowerCase().includes(currentQuery.toLowerCase()) ||
+      community.region.toLowerCase().includes(currentQuery.toLowerCase()) ||
+      community.type.toLowerCase().includes(currentQuery.toLowerCase())
+    );
+  } else {
+    filteredCommunities = [...allCommunitiesData];
+  }
+
+  // Luego aplicar el ordenamiento
   switch (sortBy) {
     case 'name-asc':
       filteredCommunities.sort((a, b) => a.name.localeCompare(b.name));
@@ -802,7 +849,26 @@ async function sortCommunities(sortBy) {
       filteredCommunities.sort((a, b) => b.name.localeCompare(a.name));
       break;
     case 'recent':
-      filteredCommunities.sort((a, b) => new Date(b.lastUpdate) - new Date(a.lastUpdate));
+      filteredCommunities.sort((a, b) => {
+        // Manejar valores null/undefined en lastUpdate
+        const dateA = a.lastUpdate ? new Date(a.lastUpdate) : new Date(0);
+        const dateB = b.lastUpdate ? new Date(b.lastUpdate) : new Date(0);
+        
+        // Si ambas fechas son inválidas, mantener el orden original
+        if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) {
+          return 0;
+        }
+        // Si solo A es inválida, ponerla al final
+        if (isNaN(dateA.getTime())) {
+          return 1;
+        }
+        // Si solo B es inválida, ponerla al final
+        if (isNaN(dateB.getTime())) {
+          return -1;
+        }
+        // Ordenar por fecha descendente (más reciente primero)
+        return dateB.getTime() - dateA.getTime();
+      });
       break;
     case 'region':
       filteredCommunities.sort((a, b) => a.region.localeCompare(b.region));
@@ -1465,6 +1531,46 @@ document.addEventListener('DOMContentLoaded', function() {
     FEATURED_COMMUNITIES_LIMIT = featuredContainer.children.length || 4;
   }
 
+  // Verificar si hay una búsqueda pendiente desde el dropdown del nav
+  if (typeof sessionStorage !== 'undefined') {
+    const searchQuery = sessionStorage.getItem('communitiesSearchQuery');
+    const showList = sessionStorage.getItem('showCommunitiesList');
+    
+    if (showList === 'true') {
+      // Limpiar el flag
+      sessionStorage.removeItem('showCommunitiesList');
+      
+      // Mostrar la vista de listado
+      showCommunitiesList().then(() => {
+        // Aplicar la búsqueda si existe
+        if (searchQuery) {
+          sessionStorage.removeItem('communitiesSearchQuery');
+          
+          // Esperar a que se cargue la lista
+          setTimeout(() => {
+            const searchInput = document.getElementById('searchCommunities');
+            if (searchInput) {
+              searchInput.value = searchQuery;
+              searchCommunities(searchQuery);
+              
+              // Sincronizar con el buscador del dropdown si existe
+              const dropdownSearchInput = document.getElementById('search-comunidades');
+              if (dropdownSearchInput) {
+                dropdownSearchInput.value = searchQuery;
+              }
+              
+              // Sincronizar con el buscador móvil si existe
+              const mobileSearchInput = document.getElementById('search-comunidades-mobile');
+              if (mobileSearchInput) {
+                mobileSearchInput.value = searchQuery;
+              }
+            }
+          }, 300);
+        }
+      });
+    }
+  }
+
   // Botón "Ver todas las comunidades"
   const btnVerTodas = document.getElementById('btnVerTodas');
   if (btnVerTodas) {
@@ -1487,9 +1593,25 @@ document.addEventListener('DOMContentLoaded', function() {
   const searchInput = document.getElementById('searchCommunities');
   if (searchInput) {
     searchInput.addEventListener('input', function() {
-      searchCommunities(this.value);
+      const query = this.value;
+      searchCommunities(query);
+      
+      // Sincronizar con el buscador del dropdown si existe
+      const dropdownSearchInput = document.getElementById('search-comunidades');
+      if (dropdownSearchInput) {
+        dropdownSearchInput.value = query;
+      }
+      
+      // Sincronizar con el buscador móvil si existe
+      const mobileSearchInput = document.getElementById('search-comunidades-mobile');
+      if (mobileSearchInput) {
+        mobileSearchInput.value = query;
+      }
     });
   }
+
+  // El buscador del dropdown está manejado completamente en navigation.js
+  // No necesitamos código adicional aquí para evitar conflictos
   
   // Ordenamiento de comunidades
   const sortSelect = document.getElementById('sortCommunities');
@@ -1755,9 +1877,8 @@ function addCommunityViewMoreListeners() {
 document.addEventListener('DOMContentLoaded', function() {
   setupEditDataFormConstraints();
   addCommunityViewMoreListeners();
-});
 
-document.addEventListener('DOMContentLoaded', function() {
+  // Verificar si hay una comunidad pendiente para mostrar
   if (pendingCommunityDetailId) {
     const targetId = pendingCommunityDetailId;
     pendingCommunityDetailId = null;

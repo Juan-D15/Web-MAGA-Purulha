@@ -199,7 +199,7 @@ function setupAsistenciaForm() {
     }
 }
 
-function handleAsistenciaSubmit() {
+async function handleAsistenciaSubmit() {
     const form = document.getElementById('formAsistencia');
     const submitButton = form.querySelector('button[type="submit"]');
     
@@ -226,20 +226,60 @@ function handleAsistenciaSubmit() {
         `;
     }
     
-    // Simular envío (por ahora solo mostrar mensaje)
-    // TODO: Implementar lógica de envío real cuando esté listo
-    setTimeout(() => {
-        console.log('Datos del formulario:', {
-            nombre,
-            tipo,
-            mensaje
+    // Obtener el token CSRF
+    const csrftoken = getCookie('csrftoken');
+    
+    try {
+        // Enviar petición al servidor
+        const response = await fetch('/api/asistencia-tecnica/enviar/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                nombre: nombre,
+                tipo: tipo,
+                mensaje: mensaje
+            })
         });
         
-        showMessage('¡Mensaje enviado exitosamente! Nos pondremos en contacto contigo pronto.', 'success');
+        const data = await response.json();
         
-        // Limpiar formulario
-        form.reset();
+        // Log para depuración
+        console.log('Respuesta del servidor:', {
+            status: response.status,
+            ok: response.ok,
+            data: data
+        });
         
+        if (response.ok && data.success) {
+            showMessage(data.message || '¡Mensaje enviado exitosamente! Nos pondremos en contacto contigo pronto.', 'success');
+            
+            // Limpiar formulario
+            form.reset();
+            
+            // Restaurar el nombre del usuario si está autenticado
+            if (window.USER_AUTH && window.USER_AUTH.isAuthenticated) {
+                const nombreInput = document.getElementById('asistenciaNombre');
+                if (nombreInput && window.USER_AUTH.username) {
+                    nombreInput.value = window.USER_AUTH.username;
+                }
+            }
+        } else {
+            // Mostrar error detallado
+            const errorMessage = data.error || data.detail || 'Error al enviar el mensaje. Por favor, intenta nuevamente.';
+            console.error('Error del servidor:', {
+                error: data.error,
+                detail: data.detail,
+                status: response.status
+            });
+            showMessage(errorMessage, 'error');
+        }
+    } catch (error) {
+        console.error('Error al enviar el formulario:', error);
+        showMessage('Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.', 'error');
+    } finally {
         // Restaurar botón
         if (submitButton) {
             submitButton.disabled = false;
@@ -251,7 +291,23 @@ function handleAsistenciaSubmit() {
                 Enviar
             `;
         }
-    }, 1000);
+    }
+}
+
+// Función auxiliar para obtener el token CSRF
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 
 // ========== MENSAJES ==========
