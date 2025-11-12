@@ -83,8 +83,9 @@ def serve_service_worker(request):
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # Service Worker DEBE estar antes de include('webmaga.urls') para que se ejecute primero
-    path('static/js/service-worker.js', serve_service_worker, name='serve-service-worker'),
+    # Service Worker en la raíz para evitar conflictos con WhiteNoise/static()
+    # Esto permite que se sirva con el header Service-Worker-Allowed correcto
+    path('service-worker.js', serve_service_worker, name='serve-service-worker'),
     path('', include('webmaga.urls')),
 ]
 

@@ -3293,10 +3293,10 @@
     }
     
     console.log('[Notificaciones] Intentando registrar Service Worker...');
-    console.log('[Notificaciones] URL:', '/static/js/service-worker.js');
+    console.log('[Notificaciones] URL:', '/service-worker.js');
     console.log('[Notificaciones] Scope:', '/');
     
-    navigator.serviceWorker.register('/static/js/service-worker.js', { scope: '/' })
+    navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
       .then(registration => {
         console.log('[Notificaciones] ✅ Service Worker registrado exitosamente');
         console.log('[Notificaciones] Scope:', registration.scope);
