@@ -21,12 +21,13 @@ try:
     XHTML2PDF_AVAILABLE = True
 except ImportError:
     XHTML2PDF_AVAILABLE = False
-    # Intentar weasyprint como alternativa (requiere dependencias del sistema)
-    try:
-        import weasyprint
-        WEASYPRINT_AVAILABLE = True
-    except ImportError:
-        WEASYPRINT_AVAILABLE = False
+
+# Intentar importar weasyprint (funciona en Linux y Windows)
+try:
+    import weasyprint
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
 
 
 # Información del pie de página
