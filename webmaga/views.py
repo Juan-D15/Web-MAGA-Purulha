@@ -141,7 +141,7 @@ def _normalizar_ruta_media(url):
     if not relative_path:
         return None
 
-    return os.path.normpath(os.path.join(settings.MEDIA_ROOT, relative_path))
+    return os.path.normpath(os.path.join(str(settings.MEDIA_ROOT), relative_path))
 
 
 def _eliminar_archivo_media(url):
@@ -1565,15 +1565,35 @@ def api_agregar_imagen_region(request, region_id):
         descripcion = request.POST.get('descripcion', '').strip()
         
         # Crear carpeta si no existe
-        portada_dir = os.path.join(settings.MEDIA_ROOT, 'regiones_portada_img')
+        portada_dir = os.path.join(str(settings.MEDIA_ROOT), 'regiones_portada_img')
         os.makedirs(portada_dir, exist_ok=True)
+        
+        print(f"📤 Subiendo portada a región {region_id}")
+        print(f"📁 Directorio: {portada_dir}")
+        print(f"✅ Archivo recibido: {imagen.name}, tamaño: {imagen.size}, tipo: {imagen.content_type}")
+        
+        # Verificar permisos de escritura
+        if not os.access(portada_dir, os.W_OK):
+            print(f"❌ No hay permisos de escritura en {portada_dir}")
+            return JsonResponse({
+                'success': False,
+                'error': f'No se tienen permisos de escritura en {portada_dir}'
+            }, status=500)
         
         # Guardar archivo
         fs = FileSystemStorage(location=portada_dir)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
         file_extension = os.path.splitext(imagen.name)[1]
         filename = f"{timestamp}_{region_id}{file_extension}"
-        saved_name = fs.save(filename, imagen)
+        print(f"💾 Intentando guardar archivo: {filename}")
+        try:
+            saved_name = fs.save(filename, imagen)
+            print(f"✅ Archivo guardado exitosamente: {saved_name}")
+        except Exception as e:
+            import traceback
+            print(f"❌ Error al guardar archivo: {str(e)}")
+            print(f"📋 Traceback:\n{traceback.format_exc()}")
+            raise
         file_url = f"/media/regiones_portada_img/{saved_name}"
         
         # Crear registro en la BD usando RegionGaleria
@@ -1641,7 +1661,7 @@ def api_eliminar_imagen_region(request, region_id, imagen_id):
         relative_path = ruta
 
     if relative_path:
-        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        file_path = os.path.join(str(settings.MEDIA_ROOT), relative_path.replace('/', os.sep))
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -1697,7 +1717,7 @@ def api_agregar_archivo_region(request, region_id):
     archivo_tipo = extension.replace('.', '') if extension else (archivo.content_type or '')
 
     # Preparar almacenamiento
-    archivos_dir = os.path.join(settings.MEDIA_ROOT, 'regiones_archivos')
+    archivos_dir = os.path.join(str(settings.MEDIA_ROOT), 'regiones_archivos')
     os.makedirs(archivos_dir, exist_ok=True)
 
     fs = FileSystemStorage(location=archivos_dir)
@@ -1762,7 +1782,7 @@ def api_eliminar_archivo_region(request, region_id, archivo_id):
         relative_path = ruta_url
 
     if relative_path:
-        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        file_path = os.path.join(str(settings.MEDIA_ROOT), relative_path.replace('/', os.sep))
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -2229,7 +2249,7 @@ def api_crear_evento(request):
             evidencias_guardadas = request.FILES.getlist('evidences')
             
             if evidencias_guardadas:
-                evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias')
+                evidencias_dir = os.path.join(str(settings.MEDIA_ROOT), 'evidencias')
                 os.makedirs(evidencias_dir, exist_ok=True)
                 fs = FileSystemStorage(location=evidencias_dir)
                 
@@ -3124,7 +3144,7 @@ def api_actualizar_evento(request, evento_id):
             # Agregar nuevas evidencias
             if request.FILES.getlist('evidencias_nuevas'):
                 archivos = request.FILES.getlist('evidencias_nuevas')
-                evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias')
+                evidencias_dir = os.path.join(str(settings.MEDIA_ROOT), 'evidencias')
                 os.makedirs(evidencias_dir, exist_ok=True)
                 fs = FileSystemStorage(location=evidencias_dir)
                 
@@ -4946,15 +4966,35 @@ def api_agregar_imagen_galeria(request, evento_id):
         descripcion = request.POST.get('descripcion', '').strip()
         
         # Crear carpeta si no existe
-        galeria_dir = os.path.join(settings.MEDIA_ROOT, 'galeria_img')
+        galeria_dir = os.path.join(str(settings.MEDIA_ROOT), 'galeria_img')
         os.makedirs(galeria_dir, exist_ok=True)
+        
+        print(f"📤 Subiendo imagen a evento {evento_id}")
+        print(f"📁 Directorio: {galeria_dir}")
+        print(f"✅ Archivo recibido: {imagen.name}, tamaño: {imagen.size}, tipo: {imagen.content_type}")
+        
+        # Verificar permisos de escritura
+        if not os.access(galeria_dir, os.W_OK):
+            print(f"❌ No hay permisos de escritura en {galeria_dir}")
+            return JsonResponse({
+                'success': False,
+                'error': f'No se tienen permisos de escritura en {galeria_dir}'
+            }, status=500)
         
         # Guardar archivo
         fs = FileSystemStorage(location=galeria_dir)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
         file_extension = os.path.splitext(imagen.name)[1]
         filename = f"{timestamp}_{evento_id}{file_extension}"
-        saved_name = fs.save(filename, imagen)
+        print(f"💾 Intentando guardar archivo: {filename}")
+        try:
+            saved_name = fs.save(filename, imagen)
+            print(f"✅ Archivo guardado exitosamente: {saved_name}")
+        except Exception as e:
+            import traceback
+            print(f"❌ Error al guardar archivo: {str(e)}")
+            print(f"📋 Traceback:\n{traceback.format_exc()}")
+            raise
         file_url = f"/media/galeria_img/{saved_name}"
         
         # Crear registro en la BD usando EventosGaleria
@@ -5068,7 +5108,7 @@ def api_agregar_archivo(request, evento_id):
         descripcion = request.POST.get('descripcion', '').strip()
         
         # Crear carpeta si no existe
-        archivos_dir = os.path.join(settings.MEDIA_ROOT, 'archivos_eventos')
+        archivos_dir = os.path.join(str(settings.MEDIA_ROOT), 'archivos_eventos')
         os.makedirs(archivos_dir, exist_ok=True)
         
         # Guardar archivo
@@ -5641,7 +5681,7 @@ def api_crear_cambio(request, evento_id):
                 raise ValueError('No se pudieron crear los cambios de colaboradores')
             
             if archivos_recibidos and archivos_keys_list:
-                evidencias_dir = os.path.join(settings.MEDIA_ROOT, 'evidencias_cambios_eventos')
+                evidencias_dir = os.path.join(str(settings.MEDIA_ROOT), 'evidencias_cambios_eventos')
                 os.makedirs(evidencias_dir, exist_ok=True)
                 
                 fs = FileSystemStorage(location=evidencias_dir)
@@ -10031,14 +10071,31 @@ def api_agregar_imagen_comunidad(request, comunidad_id):
 
     descripcion = (request.POST.get('descripcion') or '').strip()
 
-    galeria_dir = os.path.join(settings.MEDIA_ROOT, 'comunidades_galeria')
+    galeria_dir = os.path.join(str(settings.MEDIA_ROOT), 'comunidades_galeria')
     os.makedirs(galeria_dir, exist_ok=True)
+    
+    print(f"📤 Subiendo imagen a comunidad {comunidad_id}")
+    print(f"📁 Directorio: {galeria_dir}")
+    print(f"✅ Archivo recibido: {imagen.name}, tamaño: {imagen.size}, tipo: {imagen.content_type}")
+    
+    # Verificar permisos de escritura
+    if not os.access(galeria_dir, os.W_OK):
+        print(f"❌ No hay permisos de escritura en {galeria_dir}")
+        return JsonResponse({'success': False, 'error': f'No se tienen permisos de escritura en {galeria_dir}'}, status=500)
 
     fs = FileSystemStorage(location=galeria_dir)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
     extension = os.path.splitext(imagen.name)[1]
     filename = f"{timestamp}_{comunidad_id}{extension}"
-    saved_name = fs.save(filename, imagen)
+    print(f"💾 Intentando guardar archivo: {filename}")
+    try:
+        saved_name = fs.save(filename, imagen)
+        print(f"✅ Archivo guardado exitosamente: {saved_name}")
+    except Exception as e:
+        import traceback
+        print(f"❌ Error al guardar archivo: {str(e)}")
+        print(f"📋 Traceback:\n{traceback.format_exc()}")
+        raise
     file_url = f"/media/comunidades_galeria/{saved_name}"
 
     foto = ComunidadGaleria.objects.create(
@@ -10107,7 +10164,7 @@ def api_eliminar_imagen_comunidad(request, comunidad_id, imagen_id):
         relative_path = ruta
 
     if relative_path:
-        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        file_path = os.path.join(str(settings.MEDIA_ROOT), relative_path.replace('/', os.sep))
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -10217,7 +10274,7 @@ def api_agregar_archivo_comunidad(request, comunidad_id):
         nombre = os.path.splitext(archivo.name)[0]
     archivo_tipo = extension.replace('.', '') if extension else (archivo.content_type or 'archivo')
 
-    archivos_dir = os.path.join(settings.MEDIA_ROOT, 'comunidades_archivos')
+    archivos_dir = os.path.join(str(settings.MEDIA_ROOT), 'comunidades_archivos')
     os.makedirs(archivos_dir, exist_ok=True)
 
     fs = FileSystemStorage(location=archivos_dir)
@@ -10291,7 +10348,7 @@ def api_eliminar_archivo_comunidad(request, comunidad_id, archivo_id):
         relative_path = ruta_url
 
     if relative_path:
-        file_path = os.path.join(settings.MEDIA_ROOT, relative_path.replace('/', os.sep))
+        file_path = os.path.join(str(settings.MEDIA_ROOT), relative_path.replace('/', os.sep))
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
