@@ -102,6 +102,8 @@ urlpatterns = [
     
     # APIs para Inicio
     path('api/ultimos-eventos-inicio/', views.api_ultimos_eventos_inicio, name='api-ultimos-eventos-inicio'),
+    # Service Worker (debe estar antes de las rutas estáticas)
+    path('static/js/service-worker.js', views.serve_service_worker, name='serve-service-worker'),
     # APIs para Calendario
     path('api/calendar-events/', views.api_calendar_events, name='api-calendar-events'),
     path('api/reminders/', views.api_reminders, name='api-reminders'),

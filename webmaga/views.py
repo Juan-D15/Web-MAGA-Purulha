@@ -5386,6 +5386,35 @@ def api_reminder_detail(request, reminder_id):
 
 
 @require_http_methods(["GET"])
+def serve_service_worker(request):
+    """Servir Service Worker con header Service-Worker-Allowed para permitir scope /"""
+    try:
+        # Ruta al archivo del Service Worker
+        sw_path = os.path.join(settings.STATICFILES_DIRS[0], 'js', 'service-worker.js')
+        
+        # Verificar que el archivo exista
+        if not os.path.exists(sw_path):
+            return HttpResponse('Service Worker not found', status=404, content_type='text/plain')
+        
+        # Leer el contenido del archivo
+        with open(sw_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Crear respuesta con el header Service-Worker-Allowed
+        response = HttpResponse(content, content_type='application/javascript')
+        response['Service-Worker-Allowed'] = '/'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        return response
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'Error serving Service Worker: {str(e)}', status=500, content_type='text/plain')
+
+
+@require_http_methods(["GET"])
 @login_required
 def api_events_list(request):
     """Lista simple de eventos (id, name) para el formulario de recordatorios."""
