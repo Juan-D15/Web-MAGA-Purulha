@@ -38,7 +38,30 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     // Mostrar notificación desde el Service Worker
     const { title, body, tag, data } = event.data;
-    showNotification(title, body, tag, data);
+    
+    // En el Service Worker, siempre incluir vibración (se ignorará en desktop)
+    const options = {
+      body: body,
+      icon: '/static/img/logos/logo_maga.png',
+      badge: '/static/img/logos/logo_maga.png',
+      tag: tag || 'reminder',
+      requireInteraction: false,
+      silent: false,
+      vibrate: [200, 100, 200], // Vibración (se ignora en desktop, funciona en Android)
+      data: data || {},
+      timestamp: Date.now()
+    };
+    
+    // Usar event.waitUntil para asegurar que la notificación se muestre
+    event.waitUntil(
+      self.registration.showNotification(title, options)
+        .then(() => {
+          console.log('[Service Worker] ✅ Notificación mostrada desde mensaje:', tag);
+        })
+        .catch(error => {
+          console.error('[Service Worker] ❌ Error al mostrar notificación desde mensaje:', error);
+        })
+    );
   } else if (event.data && event.data.type === 'CHECK_REMINDERS') {
     // Pedir al cliente que verifique recordatorios
     self.clients.matchAll({ includeUncontrolled: true }).then(clients => {
@@ -54,17 +77,16 @@ self.addEventListener('message', (event) => {
 
 // Función para mostrar notificación (mejorada para Android)
 function showNotification(title, body, tag, data) {
+  // En el Service Worker, siempre incluir vibración (se ignorará en desktop)
   const options = {
     body: body,
     icon: '/static/img/logos/logo_maga.png',
     badge: '/static/img/logos/logo_maga.png',
     tag: tag || 'reminder',
     requireInteraction: false,
-    silent: false, // Asegurar que haga sonido en Android
-    vibrate: [200, 100, 200], // Vibración para Android
+    silent: false, // Asegurar que haga sonido
+    vibrate: [200, 100, 200], // Vibración (se ignora en desktop, funciona en Android)
     data: data || {},
-    // Opciones adicionales para Android
-    actions: [],
     timestamp: Date.now()
   };
   
@@ -142,22 +164,25 @@ async function checkRemindersFromServiceWorker() {
         
         const tag = `reminder-${reminderId}${recordar ? '-reenviar' : ''}`;
         
-        // Mostrar notificación usando event.waitUntil para asegurar que se muestre
-        self.registration.showNotification(title, {
+        // Mostrar notificación usando Promise para asegurar que se muestre
+        // Incluir vibración (se ignora en desktop, funciona en Android)
+        const notificationPromise = self.registration.showNotification(title, {
           body: body || 'Tienes un recordatorio',
           icon: '/static/img/logos/logo_maga.png',
           badge: '/static/img/logos/logo_maga.png',
           tag: tag,
           requireInteraction: false,
           silent: false,
-          vibrate: [200, 100, 200], // Vibración para Android
+          vibrate: [200, 100, 200], // Vibración (se ignora en desktop, funciona en Android)
           data: {
             reminderId: reminderId,
             isReenviar: recordar
           },
           timestamp: Date.now()
-        }).then(() => {
-          console.log('[Service Worker] Notificación mostrada:', reminderId);
+        });
+        
+        notificationPromise.then(() => {
+          console.log('[Service Worker] ✅ Notificación mostrada:', reminderId);
           
           // Marcar como enviado si no es reenvío
           if (!recordar && !yaEnviado) {
@@ -172,8 +197,11 @@ async function checkRemindersFromServiceWorker() {
             });
           }
         }).catch(err => {
-          console.error('[Service Worker] Error al mostrar notificación:', err);
+          console.error('[Service Worker] ❌ Error al mostrar notificación:', err);
         });
+        
+        // Asegurar que la promesa se complete antes de continuar
+        return notificationPromise;
       }
     });
     
