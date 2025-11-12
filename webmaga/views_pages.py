@@ -235,10 +235,47 @@ def login_view(request):
             # La configuración SESSION_EXPIRE_AT_BROWSER_CLOSE = False en settings.py
             # asegura que la sesión no se cierre al cerrar el navegador
             request.session.set_expiry(604800)  # Una semana en segundos
+            
+            # Forzar que la sesión se guarde inmediatamente para asegurar que la cookie se establezca
+            request.session.save()
+            
+            # Asegurar que la cookie de sesión tenga una fecha de expiración explícita
+            # Esto es crítico para Android donde las cookies de sesión pueden eliminarse
+            from django.conf import settings
+            from datetime import datetime, timedelta
+            
+            # Obtener la URL de redirección
+            next_url = request.GET.get('next', 'webmaga:index')
+            response = redirect(next_url)
+            
+            # Establecer la cookie de sesión explícitamente con fecha de expiración
+            # Esto asegura que persista en Android incluso al cerrar la app
+            # Las cookies persistentes (con max_age) se mantienen en Android a diferencia de las session cookies
+            session_key = request.session.session_key
+            if session_key:
+                expires = datetime.utcnow() + timedelta(seconds=604800)  # 7 días desde ahora
+                cookie_kwargs = {
+                    'max_age': 604800,  # 7 días en segundos (crítico para Android)
+                    'expires': expires,
+                    'path': getattr(settings, 'SESSION_COOKIE_PATH', '/'),
+                    'httponly': getattr(settings, 'SESSION_COOKIE_HTTPONLY', True),
+                    'samesite': getattr(settings, 'SESSION_COOKIE_SAMESITE', 'Lax')
+                }
+                # Solo agregar domain si está configurado
+                if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and settings.SESSION_COOKIE_DOMAIN:
+                    cookie_kwargs['domain'] = settings.SESSION_COOKIE_DOMAIN
+                # Secure solo en producción (HTTPS)
+                if hasattr(settings, 'SESSION_COOKIE_SECURE'):
+                    cookie_kwargs['secure'] = settings.SESSION_COOKIE_SECURE
+                
+                response.set_cookie(
+                    settings.SESSION_COOKIE_NAME,
+                    session_key,
+                    **cookie_kwargs
+                )
 
             messages.success(request, f'¡Bienvenido, {user.username}!')
-            next_url = request.GET.get('next', 'webmaga:index')
-            return redirect(next_url)
+            return response
     else:
         form = LoginForm()
 

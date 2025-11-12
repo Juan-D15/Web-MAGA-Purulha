@@ -534,6 +534,420 @@
     }
   </script>
   
+  <!-- Sistema de notificaciones global para todas las páginas (excepto index.html que tiene su propio sistema) -->
+  <script>
+    (function() {
+      'use strict';
+      
+      // Solo ejecutar si NO estamos en index.html (para no interferir con el calendario)
+      const isIndexPage = window.location.pathname === '/' || window.location.pathname === '/index/' || window.location.pathname.includes('index');
+      if (isIndexPage) {
+        console.log('[Notificaciones Globales] Página index.html detectada, usando sistema de notificaciones del calendario');
+        return; // No ejecutar el sistema global en index.html
+      }
+      
+      // Función para verificar si el usuario está autenticado (múltiples métodos)
+      async function checkUserAuthenticated() {
+        // Método 1: Verificar elemento djangoContextData
+        const djangoContext = document.getElementById('djangoContextData');
+        if (djangoContext) {
+          const authAttr = djangoContext.getAttribute('data-user-authenticated');
+          if (authAttr === 'true') {
+            console.log('[Notificaciones Globales] Usuario autenticado (método 1: djangoContextData)');
+            return true;
+          }
+        }
+        
+        // Método 2: Verificar haciendo una petición a la API de notificaciones
+        // Si la API responde con session_active: true, el usuario está autenticado
+        try {
+          const testUrl = '/api/reminders/notifications/';
+          const testRes = await fetch(testUrl, {
+            method: 'GET',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            },
+            credentials: 'same-origin',
+            cache: 'no-store'
+          });
+          
+          if (testRes.ok) {
+            const testData = await testRes.json();
+            if (testData.session_active === true) {
+              console.log('[Notificaciones Globales] Usuario autenticado (método 2: API)');
+              return true;
+            }
+          }
+        } catch (error) {
+          console.warn('[Notificaciones Globales] Error al verificar autenticación vía API:', error);
+        }
+        
+        console.log('[Notificaciones Globales] Usuario NO autenticado');
+        return false;
+      }
+      
+      // Variables globales
+      let notificationPermission = 'default';
+      let reminderCheckInterval = null;
+      const sentNotifications = new Set(); // Para evitar duplicados
+      const scheduledNotifications = new Map(); // Para programar notificaciones futuras
+      
+      // Obtener CSRF token
+      function getCSRFToken() {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'csrftoken') {
+            return decodeURIComponent(value);
+          }
+        }
+        return '';
+      }
+      const CSRF_TOKEN = getCSRFToken();
+      
+      // Solicitar permiso de notificaciones
+      async function requestNotificationPermission() {
+        if (!('Notification' in window)) {
+          console.warn('[Notificaciones Globales] Notificaciones no soportadas en este navegador');
+          return false;
+        }
+        
+        if (Notification.permission === 'granted') {
+          notificationPermission = 'granted';
+          return true;
+        }
+        
+        if (Notification.permission === 'denied') {
+          notificationPermission = 'denied';
+          console.warn('[Notificaciones Globales] Permiso de notificaciones denegado');
+          return false;
+        }
+        
+        // Solicitar permiso
+        try {
+          const permission = await Notification.requestPermission();
+          notificationPermission = permission;
+          return permission === 'granted';
+        } catch (error) {
+          console.error('[Notificaciones Globales] Error al solicitar permiso:', error);
+          return false;
+        }
+      }
+      
+      // Mostrar notificación
+      async function showGlobalNotification(reminder, isReenviar = false) {
+        const title = isReenviar ? '🔔 Recordatorio (Recordar)' : '🔔 Recordatorio';
+        
+        // Construir el cuerpo de la notificación
+        let bodyParts = [];
+        if (reminder.descripcion) {
+          bodyParts.push(reminder.descripcion);
+        }
+        const evento = reminder.evento_nombre || reminder.titulo || 'Sin evento';
+        bodyParts.push(`📅 Evento: ${evento}`);
+        if (reminder.fecha && reminder.hora) {
+          bodyParts.push(`🕐 ${reminder.fecha} a las ${reminder.hora}`);
+        }
+        if (reminder.owners_text) {
+          bodyParts.push(`👥 Personal: ${reminder.owners_text}`);
+        }
+        const body = bodyParts.join('\n') || 'Tienes un recordatorio';
+        const tag = `reminder-${reminder.id}${isReenviar ? '-reenviar' : ''}`;
+        
+        // Detectar si es Android
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        
+        // Usar Service Worker si está disponible
+        if ('serviceWorker' in navigator) {
+          try {
+            const registration = await navigator.serviceWorker.ready;
+            if (registration.active) {
+              await registration.showNotification(title, {
+                body: body,
+                icon: '/static/img/logos/logo_maga.png',
+                badge: '/static/img/logos/logo_maga.png',
+                tag: tag,
+                requireInteraction: false,
+                silent: false,
+                vibrate: isAndroid ? [200, 100, 200] : undefined,
+                data: {
+                  reminderId: reminder.id,
+                  isReenviar: isReenviar
+                },
+                timestamp: Date.now()
+              });
+              
+              console.log('[Notificaciones Globales] ✅ Notificación mostrada desde Service Worker');
+              
+              // Marcar como enviado si no es reenvío
+              if (!isReenviar && !reminder.enviado) {
+                marcarNotificacionComoEnviada(reminder.id);
+              }
+              
+              return;
+            }
+          } catch (error) {
+            console.error('[Notificaciones Globales] Error con Service Worker:', error);
+          }
+        }
+        
+        // Fallback: usar new Notification()
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            const notification = new Notification(title, {
+              body: body,
+              icon: '/static/img/logos/logo_maga.png',
+              badge: '/static/img/logos/logo_maga.png',
+              tag: tag
+            });
+            
+            notification.onshow = () => {
+              console.log('[Notificaciones Globales] ✅ Notificación mostrada (fallback)');
+              if (!isReenviar && !reminder.enviado) {
+                marcarNotificacionComoEnviada(reminder.id);
+              }
+            };
+            
+            notification.onclick = () => {
+              window.focus();
+              notification.close();
+            };
+          } catch (error) {
+            console.error('[Notificaciones Globales] Error al crear notificación:', error);
+          }
+        }
+      }
+      
+      // Marcar notificación como enviada
+      async function marcarNotificacionComoEnviada(reminderId) {
+        try {
+          const url = `/api/reminders/${reminderId}/marcar-enviado/`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': CSRF_TOKEN || ''
+            },
+            credentials: 'same-origin'
+          });
+          
+          if (res.ok) {
+            console.log('[Notificaciones Globales] ✅ Notificación marcada como enviada:', reminderId);
+          }
+        } catch (error) {
+          console.error('[Notificaciones Globales] Error al marcar como enviada:', error);
+        }
+      }
+      
+      // Verificar recordatorios pendientes
+      async function checkGlobalReminders() {
+        try {
+          console.log('[Notificaciones Globales] Verificando recordatorios...');
+          const url = '/api/reminders/notifications/';
+          const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            credentials: 'same-origin',
+            cache: 'no-store'
+          });
+          
+          if (!res.ok) {
+            console.warn('[Notificaciones Globales] Error en respuesta:', res.status, res.statusText);
+            if (res.status === 401 || res.status === 403) {
+              console.log('[Notificaciones Globales] Usuario no autenticado, deteniendo verificación');
+              if (reminderCheckInterval) {
+                clearInterval(reminderCheckInterval);
+                reminderCheckInterval = null;
+              }
+            }
+            return;
+          }
+          
+          const data = await res.json();
+          console.log('[Notificaciones Globales] Datos recibidos:', { 
+            session_active: data.session_active, 
+            reminders_count: (data.reminders || []).length 
+          });
+          
+          if (!data.session_active) {
+            console.log('[Notificaciones Globales] Sesión no activa');
+            return;
+          }
+          
+          const reminders = data.reminders || [];
+          if (reminders.length === 0) {
+            console.log('[Notificaciones Globales] No hay recordatorios pendientes');
+            return;
+          }
+          
+          console.log(`[Notificaciones Globales] Procesando ${reminders.length} recordatorio(s)`);
+          const ahora = Date.now();
+          
+          reminders.forEach(reminder => {
+            const reminderId = reminder.id;
+            const tiempoRestante = reminder.tiempo_restante_segundos || 0;
+            const recordar = reminder.recordar || false;
+            const yaEnviado = reminder.enviado || false;
+            
+            // Clave única para evitar duplicados
+            const notificationKey = `${reminderId}-${yaEnviado ? 'reenviar' : 'principal'}`;
+            
+            // Si ya fue enviado recientemente, saltar
+            if (sentNotifications.has(notificationKey)) {
+              return;
+            }
+            
+            console.log('[Notificaciones Globales] Procesando recordatorio:', {
+              reminderId,
+              tiempoRestante,
+              recordar,
+              yaEnviado,
+              notificationKey
+            });
+            
+            // Si el recordatorio ya pasó (dentro de los 15 minutos)
+            if (tiempoRestante <= 0 && tiempoRestante >= -900) {
+              console.log('[Notificaciones Globales] Recordatorio ya pasó, verificando si mostrar notificación');
+              // Si ya fue enviado y NO tiene "recordar", saltar
+              if (yaEnviado && !recordar) {
+                console.log('[Notificaciones Globales] Recordatorio ya enviado y sin "recordar", saltando');
+                return;
+              }
+              
+              // Si ya fue enviado y tiene "recordar", mostrar como reenvío
+              const isReenviar = yaEnviado && recordar;
+              
+              console.log('[Notificaciones Globales] Mostrando notificación inmediatamente:', { reminderId, isReenviar });
+              // Mostrar notificación inmediatamente
+              showGlobalNotification(reminder, isReenviar);
+              
+              // Marcar como enviado para evitar duplicados
+              sentNotifications.add(notificationKey);
+              setTimeout(() => {
+                sentNotifications.delete(notificationKey);
+              }, 5 * 60 * 1000); // 5 minutos
+              
+            } else if (tiempoRestante > 0) {
+              console.log('[Notificaciones Globales] Recordatorio futuro, programando notificación');
+              // Recordatorio futuro: programar notificación para cuando llegue la hora
+              const dueAtTimestamp = reminder.due_at_timestamp || (ahora + tiempoRestante * 1000);
+              const delay = dueAtTimestamp - ahora;
+              
+              // Programar notificación para cuando llegue la hora (sin límite de tiempo)
+              if (delay > 0) {
+                // Cancelar notificación programada anterior si existe
+                const existing = scheduledNotifications.get(reminderId);
+                if (existing && existing.timeoutId) {
+                  clearTimeout(existing.timeoutId);
+                }
+                
+                // Programar nueva notificación
+                const timeoutId = setTimeout(() => {
+                  // Verificar que no haya pasado más de 15 minutos desde la hora programada
+                  const tiempoActual = Date.now();
+                  const tiempoDesdeDueAt = Math.abs((dueAtTimestamp - tiempoActual) / 1000);
+                  const LIMITE_SEGUNDOS = 15 * 60; // 15 minutos
+                  
+                  if (tiempoDesdeDueAt <= LIMITE_SEGUNDOS) {
+                    if (!sentNotifications.has(`${reminderId}-principal`)) {
+                      showGlobalNotification(reminder, false);
+                      sentNotifications.add(`${reminderId}-principal`);
+                      setTimeout(() => {
+                        sentNotifications.delete(`${reminderId}-principal`);
+                      }, 5 * 60 * 1000);
+                    }
+                  }
+                  scheduledNotifications.delete(reminderId);
+                }, delay);
+                
+                scheduledNotifications.set(reminderId, {
+                  timeoutId: timeoutId,
+                  reminder: reminder
+                });
+                
+                console.log('[Notificaciones Globales] Notificación programada:', {
+                  reminderId,
+                  delaySegundos: Math.round(delay / 1000),
+                  tiempoRestanteSegundos: tiempoRestante
+                });
+              }
+            }
+          });
+        } catch (error) {
+          console.error('[Notificaciones Globales] Error al verificar recordatorios:', error);
+        }
+      }
+      
+      // Inicializar sistema de notificaciones globales
+      async function initGlobalNotificationSystem() {
+        console.log('[Notificaciones Globales] Inicializando sistema...');
+        console.log('[Notificaciones Globales] URL actual:', window.location.pathname);
+        
+        // Verificar autenticación antes de continuar
+        const isUserAuthenticated = await checkUserAuthenticated();
+        if (!isUserAuthenticated) {
+          console.log('[Notificaciones Globales] Usuario no autenticado, cancelando inicialización');
+          return;
+        }
+        
+        console.log('[Notificaciones Globales] Usuario autenticado, continuando...');
+        
+        // Solicitar permisos
+        const hasPermission = await requestNotificationPermission();
+        console.log('[Notificaciones Globales] Permiso de notificaciones:', Notification.permission);
+        if (!hasPermission) {
+          console.warn('[Notificaciones Globales] Permiso de notificaciones no concedido');
+          // Continuar de todas formas para verificar recordatorios (el Service Worker puede mostrar notificaciones)
+        }
+        
+        // Verificar recordatorios inmediatamente
+        console.log('[Notificaciones Globales] Verificando recordatorios iniciales...');
+        await checkGlobalReminders();
+        
+        // Verificar cada 30 segundos
+        reminderCheckInterval = setInterval(() => {
+          console.log('[Notificaciones Globales] Verificación periódica...');
+          checkGlobalReminders();
+        }, 30000);
+        
+        // Verificar cuando la página se vuelve visible
+        document.addEventListener('visibilitychange', () => {
+          console.log('[Notificaciones Globales] Cambio de visibilidad:', document.visibilityState);
+          if (document.visibilityState === 'visible') {
+            checkGlobalReminders();
+          }
+        });
+        
+        // Verificar cuando la ventana se enfoca
+        window.addEventListener('focus', () => {
+          console.log('[Notificaciones Globales] Ventana enfocada');
+          checkGlobalReminders();
+        });
+        
+        console.log('[Notificaciones Globales] Sistema inicializado correctamente');
+      }
+      
+      // Inicializar cuando el DOM esté listo (con más tiempo para asegurar que todo esté cargado)
+      function startNotificationSystem() {
+        // Esperar un poco más para asegurar que el DOM esté completamente cargado
+        setTimeout(async () => {
+          await initGlobalNotificationSystem();
+        }, 1500);
+      }
+      
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startNotificationSystem);
+      } else {
+        startNotificationSystem();
+      }
+    })();
+  </script>
+  
   {% block extra_js %}{% endblock %}
 </body>
 </html>
