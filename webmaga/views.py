@@ -2104,6 +2104,22 @@ def api_crear_evento(request):
                         if update_fields:
                             relacion.save(update_fields=update_fields)
 
+            # Actualizar el campo actualizado_en de las comunidades y regiones asociadas
+            # para que aparezcan en "Últimas Regiones/Comunidades"
+            comunidades_ids_a_actualizar = [item.get('comunidad_id') for item in comunidades_a_registrar if item.get('comunidad_id')]
+            if comunidades_ids_a_actualizar:
+                # Actualizar comunidades
+                Comunidad.objects.filter(id__in=comunidades_ids_a_actualizar).update(actualizado_en=timezone.now())
+                
+                # Obtener las regiones de estas comunidades y actualizarlas también
+                regiones_ids = Comunidad.objects.filter(
+                    id__in=comunidades_ids_a_actualizar,
+                    region__isnull=False
+                ).values_list('region_id', flat=True).distinct()
+                
+                if regiones_ids:
+                    Region.objects.filter(id__in=regiones_ids).update(actualizado_en=timezone.now())
+
             tarjetas_creadas = []
             if data.get('tarjetas_datos_nuevas'):
                 try:
@@ -3673,6 +3689,21 @@ def api_actualizar_evento(request, evento_id):
                         actividad=evento,
                         comunidad_id__in=ids_a_eliminar
                     ).delete()
+
+                # Actualizar el campo actualizado_en de las comunidades y regiones asociadas
+                # para que aparezcan en "Últimas Regiones/Comunidades"
+                if comunidades_ids:
+                    # Actualizar comunidades
+                    Comunidad.objects.filter(id__in=comunidades_ids).update(actualizado_en=timezone.now())
+                    
+                    # Obtener las regiones de estas comunidades y actualizarlas también
+                    regiones_ids = Comunidad.objects.filter(
+                        id__in=comunidades_ids,
+                        region__isnull=False
+                    ).values_list('region_id', flat=True).distinct()
+                    
+                    if regiones_ids:
+                        Region.objects.filter(id__in=regiones_ids).update(actualizado_en=timezone.now())
 
             tarjetas_creadas = []
             if data.get('tarjetas_datos_nuevas'):
