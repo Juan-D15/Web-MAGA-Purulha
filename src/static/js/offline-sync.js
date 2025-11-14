@@ -318,8 +318,10 @@
         '/api/regiones/',
       ];
 
-      // Si la URL NO está en las rutas permitidas, hacer bypass
+      // ⚠️ IMPORTANTE: Solo interceptar si la ruta está en allowedPaths
+      // Y si es una operación de modificación (POST, PUT, DELETE, PATCH)
       const isAllowed = allowedPaths.some(path => requestUrl.pathname.includes(path));
+      
       if (!isAllowed) {
         return true; // Bypass - no guardar offline
       }
@@ -340,9 +342,21 @@
 
     const method = (initData.method || 'GET').toUpperCase();
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+    const bypass = shouldBypass(url);
 
-    if (shouldBypass(url) || !isMutation) {
-      if (!navigator.onLine) {
+    // 🔍 Log de debugging (solo para operaciones de mutación)
+    if (isMutation) {
+      console.log('🔍 [OFFLINE-SYNC] Interceptando:', {
+        url,
+        method,
+        bypass,
+        online: navigator.onLine,
+      });
+    }
+
+    if (bypass || !isMutation) {
+      // Solo mostrar banner si NO hay conexión Y es una ruta que intentamos interceptar
+      if (!navigator.onLine && !bypass) {
         showBanner('Sin conexión a Internet');
       }
       return originalFetch(input, init);

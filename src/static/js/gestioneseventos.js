@@ -4778,15 +4778,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 filePreview.appendChild(fileItem);
                 
-                // Verificar que los elementos se crearon correctamente
-                const iconElement = fileItem.querySelector('.evidence-card-icon');
-                const nameElement = fileItem.querySelector('.evidence-card-name');
-                });
-                
+                // Agregar event listener al botón de eliminar
                 const removeBtn = fileItem.querySelector('.btn-remove-evidencia-existente');
-                removeBtn.addEventListener('click', function() {
-                    eliminarEvidenciaExistente(this.getAttribute('data-evidencia-id'));
-                });
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', function() {
+                        eliminarEvidenciaExistente(this.getAttribute('data-evidencia-id'));
+                    });
+                }
             });
             
             totalArchivos += evidenciasExistentes.length;
