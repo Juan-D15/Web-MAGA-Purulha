@@ -36,7 +36,6 @@ async function loadDashboardStats() {
         const data = await response.json();
         renderDashboard(data);
     } catch (error) {
-        console.error('Error cargando dashboard:', error);
         showError('Error al cargar el dashboard. Por favor, recarga la página.');
     }
 }
@@ -389,7 +388,6 @@ function openReport(reportType, options = {}) {
             resetFiltersForm(reportType);
         }
     }).catch(error => {
-        console.error('Error al preparar el formulario del reporte:', error);
         if (options.propagateError) {
             throw error;
         }
@@ -542,7 +540,6 @@ async function loadAllComunidades() {
             allComunidades = await response.json();
         }
     } catch (error) {
-        console.error('Error cargando comunidades:', error);
     }
 }
 
@@ -574,7 +571,6 @@ async function loadTiposActividad(reportType) {
             }
         }
     } catch (error) {
-        console.error('Error cargando tipos de actividad:', error);
     }
 }
 
@@ -589,7 +585,6 @@ async function loadEventos() {
             renderEventosBeneficiariosChecklist();
         }
     } catch (error) {
-        console.error('Error cargando eventos:', error);
     }
 }
 
@@ -751,7 +746,6 @@ async function loadEventosPersonal() {
             allEventos = await response.json();
         }
     } catch (error) {
-        console.error('Error cargando eventos:', error);
     }
 }
 
@@ -765,7 +759,6 @@ async function loadColaboradores() {
             allColaboradores = data.colaboradores || [];
         }
     } catch (error) {
-        console.error('Error cargando colaboradores:', error);
     }
 }
 
@@ -1621,7 +1614,6 @@ async function loadEventosIndividual() {
             renderEventoIndividualChecklist();
         }
     } catch (error) {
-        console.error('Error cargando eventos:', error);
     }
 }
 
@@ -1771,7 +1763,6 @@ async function loadEventosComunidades() {
             renderEventoComunidadesChecklist();
         }
     } catch (error) {
-        console.error('Error cargando eventos para comunidades:', error);
     }
 }
 
@@ -1951,7 +1942,6 @@ async function loadComunidadesDelEvento(eventoId) {
             renderComunidadComunidadesChecklist(searchInput ? searchInput.value : '');
         }
     } catch (error) {
-        console.error('Error cargando comunidades del evento:', error);
         comunidadesDelEvento = [];
     }
 }
@@ -2131,7 +2121,6 @@ async function loadEventosActividadUsuarios() {
             renderEventoActividadUsuariosChecklist();
         }
     } catch (error) {
-        console.error('Error cargando eventos para actividad de usuarios:', error);
     }
 }
 
@@ -2445,7 +2434,6 @@ async function loadComunidadesDelEventoActividadUsuarios(eventoId) {
             renderComunidadActividadUsuariosChecklist(searchInput ? searchInput.value : '');
         }
     } catch (error) {
-        console.error('Error cargando comunidades del evento:', error);
         comunidadesDelEventoActividadUsuarios = [];
     }
 }
@@ -2465,7 +2453,6 @@ async function loadUsuariosActividadUsuarios() {
             }
         }
     } catch (error) {
-        console.error('Error cargando usuarios para actividad de usuarios:', error);
         allUsuariosActividadUsuarios = [];
     }
 }
@@ -2804,7 +2791,6 @@ function applyFiltersForm(reportType) {
                 }
             }
         } catch (error) {
-            console.error('Error obteniendo estados:', error);
             // Usar valores por defecto
             estadosSeleccionados = ['planificado', 'en_progreso', 'completado', 'cancelado'];
         }
@@ -2825,7 +2811,6 @@ function applyFiltersForm(reportType) {
                 }
             }
         } catch (error) {
-            console.error('Error obteniendo tipos de actividad:', error);
             tiposActividadSeleccionados = [];
         }
         
@@ -2839,7 +2824,6 @@ function applyFiltersForm(reportType) {
                 periodo = periodoSelect.value || 'todo_el_tiempo';
             }
         } catch (error) {
-            console.error('Error obteniendo período:', error);
         }
         
         if (periodo === 'todo_el_tiempo') {
@@ -2853,7 +2837,6 @@ function applyFiltersForm(reportType) {
                 fechaInicio = fechaInicioInput ? (fechaInicioInput.value || '') : '';
                 fechaFin = fechaFinInput ? (fechaFinInput.value || '') : '';
             } catch (error) {
-                console.error('Error obteniendo fechas de rango:', error);
             }
         } else if (periodo === 'ultimo_mes') {
             try {
@@ -2862,7 +2845,6 @@ function applyFiltersForm(reportType) {
                 fechaInicio = fecha.toISOString().split('T')[0];
                 fechaFin = new Date().toISOString().split('T')[0];
             } catch (error) {
-                console.error('Error calculando último mes:', error);
             }
         } else if (periodo === 'ultima_semana') {
             try {
@@ -2871,7 +2853,6 @@ function applyFiltersForm(reportType) {
                 fechaInicio = fecha.toISOString().split('T')[0];
                 fechaFin = new Date().toISOString().split('T')[0];
             } catch (error) {
-                console.error('Error calculando última semana:', error);
             }
         }
         
@@ -2883,7 +2864,6 @@ function applyFiltersForm(reportType) {
                 agruparPor = switchAgrupar.checked ? 'comunidad' : 'region';
             }
         } catch (error) {
-            console.error('Error obteniendo switch agrupar:', error);
         }
         
         // Obtener comunidades seleccionadas
@@ -2895,7 +2875,6 @@ function applyFiltersForm(reportType) {
                     : [];
             }
         } catch (error) {
-            console.error('Error obteniendo comunidades:', error);
         }
         
         filters = {
@@ -2924,7 +2903,6 @@ function applyFiltersForm(reportType) {
                 }
             }
         } catch (error) {
-            console.error('Error obteniendo tipos de actividad:', error);
             tiposActividadSeleccionados = [];
         }
         
@@ -3406,7 +3384,6 @@ async function initializeFromQueryParams() {
     try {
         await openReport(reportParam, { propagateError: true });
     } catch (error) {
-        console.error('Error al abrir el reporte desde la URL:', error);
         return;
     }
 
@@ -3501,7 +3478,6 @@ async function loadFilterOptions() {
             }
         });
     } catch (error) {
-        console.error('Error cargando opciones de filtros:', error);
     }
 }
 
@@ -3795,7 +3771,6 @@ async function generateReport(reportType, filters) {
         renderReportResults(data, reportType);
         
     } catch (error) {
-        console.error('Error generando reporte:', error);
         resultsContainer.innerHTML = '<div class="loading-state"><p style="color: var(--danger-color);">Error al generar el reporte. Por favor, intenta nuevamente.</p></div>';
     }
 }
@@ -4765,7 +4740,6 @@ function renderActividadUsuariosReport(data) {
     if (ordenarActivos) {
         ordenarActivos.addEventListener('change', function() {
             // TODO: Implementar ordenamiento
-            console.log('Ordenar por:', this.value);
         });
     }
 }
@@ -5200,7 +5174,6 @@ async function exportReport(reportType, format) {
         });
         
     } catch (error) {
-        console.error('Error exportando reporte:', error);
         showError('Error al exportar el reporte. Por favor, intenta nuevamente.');
         
         // Rehabilitar botones

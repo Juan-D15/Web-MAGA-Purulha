@@ -203,7 +203,6 @@ async function cargarPuestos() {
             actualizarSelectPuestos();
         }
     } catch (error) {
-        console.error('Error al cargar puestos:', error);
     }
 }
 
@@ -236,7 +235,6 @@ async function cargarPuestosParaSelect(selectId) {
             }
         }
     } catch (error) {
-        console.error('Error al cargar puestos para select:', error);
     }
 }
 
@@ -269,7 +267,6 @@ async function cargarColaboradoresParaSelect(selectId = 'colaboradorSelect') {
             }
         }
     } catch (error) {
-        console.error('Error al cargar colaboradores:', error);
     }
 }
 
@@ -981,7 +978,6 @@ async function cargarUsuarios() {
             usersList.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger-color);">Error al cargar usuarios: ${data.error}</div>`;
         }
     } catch (error) {
-        console.error('Error al cargar usuarios:', error);
         usersList.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger-color);">Error al cargar usuarios: ${error.message}</div>`;
     }
 }
@@ -1151,7 +1147,6 @@ async function cargarColaboradorParaAutocompletar(colaboradorId) {
             }
         }
     } catch (error) {
-        console.error('Error al cargar colaborador:', error);
         mostrarMensaje('Error al cargar información del colaborador', 'error');
     }
 }
@@ -1320,7 +1315,6 @@ async function crearUsuario() {
             mostrarMensaje(result.error || 'Error al crear usuario', 'error');
         }
     } catch (error) {
-        console.error('Error al crear usuario:', error);
         mostrarMensaje('Error al crear usuario: ' + error.message, 'error');
     }
 }
@@ -1348,7 +1342,6 @@ async function cargarColaboradores() {
             colaboradoresListEl.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger-color);">Error al cargar colaboradores: ${data.error}</div>`;
         }
     } catch (error) {
-        console.error('Error al cargar colaboradores:', error);
         colaboradoresListEl.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--danger-color);">Error al cargar colaboradores: ${error.message}</div>`;
     }
 }
@@ -1522,7 +1515,6 @@ async function crearColaborador() {
             mostrarMensaje(result.error || 'Error al crear colaborador', 'error');
         }
     } catch (error) {
-        console.error('Error al crear colaborador:', error);
         mostrarMensaje('Error al crear colaborador: ' + error.message, 'error');
     }
 }
@@ -1630,7 +1622,6 @@ async function crearPuesto() {
             mostrarMensaje(result.error || 'Error al crear puesto', 'error');
         }
     } catch (error) {
-        console.error('Error al crear puesto:', error);
         mostrarMensaje('Error al crear puesto: ' + error.message, 'error');
     }
 }
@@ -1809,7 +1800,6 @@ async function editarUsuario(usuarioId) {
         }
         
     } catch (error) {
-        console.error('Error al editar usuario:', error);
         mostrarMensaje('Error al cargar usuario: ' + error.message, 'error');
     }
 }
@@ -1878,7 +1868,6 @@ async function actualizarUsuario(usuarioId) {
             mostrarMensaje(result.error || 'Error al actualizar usuario', 'error');
         }
     } catch (error) {
-        console.error('Error al actualizar usuario:', error);
         mostrarMensaje('Error al actualizar usuario: ' + error.message, 'error');
     }
 }
@@ -2038,7 +2027,6 @@ async function eliminarUsuario(usuarioId = null) {
             restoreDeleteUsuarioButton();
         }
     } catch (error) {
-        console.error('Error al eliminar usuario:', error);
         if (deleteUsuarioErrorMessage) {
             deleteUsuarioErrorMessage.textContent = 'Error al eliminar usuario: ' + error.message;
             deleteUsuarioErrorMessage.style.display = 'block';
@@ -2118,7 +2106,6 @@ async function editarColaborador(colaboradorId) {
         if (editColaboradorActivo) editColaboradorActivo.checked = colaborador.activo;
         
     } catch (error) {
-        console.error('Error al editar colaborador:', error);
         mostrarMensaje('Error al cargar colaborador: ' + error.message, 'error');
     }
 }
@@ -2170,7 +2157,6 @@ async function actualizarColaborador(colaboradorId) {
             mostrarMensaje(result.error || 'Error al actualizar colaborador', 'error');
         }
     } catch (error) {
-        console.error('Error al actualizar colaborador:', error);
         mostrarMensaje('Error al actualizar colaborador: ' + error.message, 'error');
     }
 }
@@ -2333,7 +2319,6 @@ async function eliminarColaborador(colaboradorId = null) {
             restoreDeleteColaboradorButton();
         }
     } catch (error) {
-        console.error('Error al eliminar colaborador:', error);
         if (deleteColaboradorErrorMessage) {
             deleteColaboradorErrorMessage.textContent = 'Error al eliminar colaborador: ' + error.message;
             deleteColaboradorErrorMessage.style.display = 'block';

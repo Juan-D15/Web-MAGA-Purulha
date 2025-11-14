@@ -1,12 +1,8 @@
 /* ======= JAVASCRIPT PARA PROYECTOS.HTML ======= */
 
-
-
 // NOTA: La funcionalidad de dropdowns, búsqueda y drawer está manejada por navigation.js
 
 // Este archivo solo contiene la lógica específica de la página de proyectos
-
-
 
 /* ---------- ANIMACIONES DE ENTRADA ---------- */
 
@@ -17,8 +13,6 @@ const observerOptions = {
   rootMargin: '0px 0px -50px 0px'
 
 };
-
-
 
 const observer = new IntersectionObserver((entries) => {
 
@@ -36,8 +30,6 @@ const observer = new IntersectionObserver((entries) => {
 
 }, observerOptions);
 
-
-
 // Observar elementos para animación
 
 document.querySelectorAll('.project-card, .featured-card, .category-section').forEach(el => {
@@ -52,13 +44,7 @@ document.querySelectorAll('.project-card, .featured-card, .category-section').fo
 
 });
 
-
-
 // ======= DATOS DE PROYECTOS - CARGA DESDE BD =======
-
-console.log('📦 Proyectos.js - Cargando datos desde la base de datos');
-
-
 
 // Los datos se cargarán desde la API
 
@@ -72,19 +58,13 @@ let projectsData = {
 
 };
 
-
-
 // Función para cargar proyectos desde la API
 
 async function cargarProyectosPorTipo(tipo) {
 
   try {
 
-    console.log(`🔄 Cargando proyectos tipo: ${tipo}`);
-
     const response = await fetch(`/api/proyectos/${tipo}/`);
-
-    
 
     if (!response.ok) {
 
@@ -92,17 +72,9 @@ async function cargarProyectosPorTipo(tipo) {
 
     }
 
-    
-
     const data = await response.json();
 
-    
-
     if (data.success) {
-
-      console.log(`✅ Cargados ${data.total} proyectos de tipo ${tipo}`);
-
-      
 
       // Convertir el formato de la API al formato esperado por el frontend
 
@@ -145,23 +117,17 @@ async function cargarProyectosPorTipo(tipo) {
 
     } else {
 
-      console.error(`❌ Error al cargar ${tipo}:`, data.error);
-
       return [];
 
     }
 
   } catch (error) {
 
-    console.error(`❌ Error al cargar proyectos tipo ${tipo}:`, error);
-
     return [];
 
   }
 
 }
-
-
 
 // Función para cargar los últimos proyectos
 
@@ -169,11 +135,7 @@ async function cargarUltimosProyectos() {
 
   try {
 
-    console.log('🔄 Cargando últimos proyectos...');
-
     const response = await fetch('/api/ultimos-proyectos/');
-
-    
 
     if (!response.ok) {
 
@@ -181,25 +143,13 @@ async function cargarUltimosProyectos() {
 
     }
 
-    
-
     const data = await response.json();
 
-    console.log('📥 Respuesta de la API:', data);
-
-    
-
     if (data.success) {
-
-      console.log(`✅ Cargados ${data.total} últimos proyectos`);
-
-      console.log('📊 Proyectos recibidos:', data.proyectos);
 
       return data.proyectos || [];
 
     } else {
-
-      console.error('❌ Error al cargar últimos proyectos:', data.error);
 
       return [];
 
@@ -207,27 +157,17 @@ async function cargarUltimosProyectos() {
 
   } catch (error) {
 
-    console.error('❌ Error al cargar últimos proyectos:', error);
-
-    console.error('Stack trace:', error.stack);
-
     return [];
 
   }
 
 }
 
-
-
 // Función para inicializar la carga de todos los tipos de proyectos
 
 async function inicializarProyectos() {
 
   try {
-
-    console.log('🔄 Inicializando carga de proyectos...');
-
-    
 
     // Cargar todos los tipos de proyectos y los últimos en paralelo
 
@@ -243,8 +183,6 @@ async function inicializarProyectos() {
 
     ]);
 
-    
-
     // Actualizar projectsData con los resultados
 
     projectsData.capacitaciones = capacitaciones;
@@ -253,43 +191,23 @@ async function inicializarProyectos() {
 
     projectsData['proyectos-ayuda'] = proyectosAyuda;
 
-    
-
-    console.log('✅ Todos los proyectos cargados:', projectsData);
-
-    console.log('📊 Últimos proyectos:', ultimosProyectos);
-
-    
-
     // Renderizar proyectos en el HTML
 
     renderizarProyectosEnHTML();
-
-    
 
     // Renderizar últimos proyectos
 
     renderizarUltimosProyectos(ultimosProyectos);
 
-    
-
     // Verificar si hay un hash en la URL para abrir un evento específico
 
     verificarHashYAbrirEvento();
 
-    
-
   } catch (error) {
-
-    console.error('❌ Error al inicializar proyectos:', error);
-
-    console.error('Stack trace:', error.stack);
 
   }
 
 }
-
-
 
 // Función para verificar el hash de la URL y abrir el evento correspondiente
 
@@ -300,10 +218,6 @@ function verificarHashYAbrirEvento() {
   if (hash && hash.startsWith('#evento-')) {
 
     const eventoId = hash.replace('#evento-', '');
-
-    console.log(`🔍 Abriendo detalle del evento desde hash: ${eventoId}`);
-
-    
 
     // Esperar un poco para que los proyectos se rendericen
 
@@ -317,8 +231,6 @@ function verificarHashYAbrirEvento() {
 
 }
 
-
-
 // Llamar a la función de inicialización cuando el DOM esté listo
 
 if (document.readyState === 'loading') {
@@ -330,8 +242,6 @@ if (document.readyState === 'loading') {
   inicializarProyectos();
 
 }
-
-
 
 // Función para formatear fechas
 
@@ -355,35 +265,23 @@ function formatDate(dateString) {
   return formatter.format(date);
 }
 
-
-
 // Función para renderizar proyectos en el HTML
 
 function renderizarProyectosEnHTML() {
-
-  console.log('🎨 Renderizando proyectos en el HTML...');
-
-  
 
   // Renderizar capacitaciones
 
   renderizarCategoria('capacitaciones', projectsData.capacitaciones);
 
-  
-
   // Renderizar entregas
 
   renderizarCategoria('entregas', projectsData.entregas);
-
-  
 
   // Renderizar proyectos de ayuda
 
   renderizarCategoria('proyectos-ayuda', projectsData['proyectos-ayuda']);
 
 }
-
-
 
 // Función para renderizar una categoría específica
 
@@ -393,31 +291,21 @@ function renderizarCategoria(categoriaId, proyectos) {
 
   if (!seccionCategoria) {
 
-    console.warn(`No se encontró la sección ${categoriaId}`);
-
     return;
 
   }
-
-  
 
   const gridContainer = seccionCategoria.querySelector('.projects-grid');
 
   if (!gridContainer) {
 
-    console.warn(`No se encontró el grid en la sección ${categoriaId}`);
-
     return;
 
   }
 
-  
-
   // Limpiar contenido existente
 
   gridContainer.innerHTML = '';
-
-  
 
   // Si no hay proyectos, mostrar mensaje
 
@@ -437,13 +325,9 @@ function renderizarCategoria(categoriaId, proyectos) {
 
   }
 
-  
-
   // Mostrar solo los primeros 3 proyectos
 
   const proyectosMostrar = proyectos.slice(0, 3);
-
-  
 
   proyectosMostrar.forEach(proyecto => {
 
@@ -453,13 +337,7 @@ function renderizarCategoria(categoriaId, proyectos) {
 
   });
 
-  
-
-  console.log(`✅ Renderizados ${proyectosMostrar.length} proyectos en ${categoriaId}`);
-
 }
-
-
 
 // Función para crear una tarjeta de proyecto
 
@@ -468,8 +346,6 @@ function crearTarjetaProyecto(proyecto) {
   const card = document.createElement('div');
 
   card.className = 'project-card';
-
-  
 
   // Extraer mes, día y año de la fecha
 
@@ -483,13 +359,9 @@ function crearTarjetaProyecto(proyecto) {
 
   const anio = fecha.getFullYear();
 
-  
-
   // Determinar la imagen a usar
 
   const imagenUrl = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
-
-  
 
   card.innerHTML = `
 
@@ -521,8 +393,6 @@ function crearTarjetaProyecto(proyecto) {
 
   `;
 
-  
-
   // Agregar evento click al botón
 
   const btn = card.querySelector('.project-btn');
@@ -535,23 +405,13 @@ function crearTarjetaProyecto(proyecto) {
 
   });
 
-  
-
   return card;
 
 }
 
-
-
 // Función para renderizar los últimos proyectos
 
 function renderizarUltimosProyectos(proyectos) {
-
-  console.log('🎨 Renderizando últimos proyectos...');
-
-  console.log('📊 Proyectos recibidos:', proyectos);
-
-  console.log('📊 Cantidad de proyectos:', proyectos ? proyectos.length : 0);
 
   featuredProjectsData = Array.isArray(proyectos)
     ? proyectos.map(normalizeProjectForFeatured).filter(Boolean)
@@ -573,19 +433,16 @@ function renderizarUltimosProyectos(proyectos) {
 
 }
 
-
 function renderFeaturedProjectsGrid() {
   const featuredGrid = document.querySelector('.latest-projects .projects-grid.featured');
 
   if (!featuredGrid) {
-    console.error('❌ No se encontró el grid de últimos proyectos');
     return;
   }
 
   featuredGrid.innerHTML = '';
 
   if (!featuredProjectsData.length) {
-    console.warn('⚠️ No hay proyectos para renderizar');
     featuredGrid.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">
         <p>No hay proyectos recientes aún.</p>
@@ -598,10 +455,8 @@ function renderFeaturedProjectsGrid() {
 
   projectsToRender.forEach((proyecto, index) => {
     try {
-      console.log(`🔄 Renderizando proyecto destacado ${index + 1}:`, proyecto.nombre);
       const card = crearTarjetaProyectoDestacado(proyecto);
       if (!card) {
-        console.error(`❌ No se pudo crear la tarjeta para el proyecto ${index + 1}`);
         return;
       }
 
@@ -616,16 +471,11 @@ function renderFeaturedProjectsGrid() {
       }
 
       featuredGrid.appendChild(card);
-      console.log(`✅ Proyecto destacado ${index + 1} agregado al DOM`);
     } catch (error) {
-      console.error(`❌ Error al renderizar proyecto destacado ${index + 1}:`, error);
-      console.error('Stack trace:', error.stack);
     }
   });
 
-  console.log(`✅ Renderizados ${projectsToRender.length} últimos proyectos`);
 }
-
 
 function normalizeProjectForFeatured(proyecto) {
   if (!proyecto) {
@@ -739,7 +589,6 @@ function normalizeProjectForFeatured(proyecto) {
   };
 }
 
-
 function promoteProjectToFeatured(proyecto) {
   const normalized = normalizeProjectForFeatured(proyecto);
   if (!normalized) {
@@ -756,13 +605,11 @@ function promoteProjectToFeatured(proyecto) {
   renderFeaturedProjectsGrid();
 }
 
-
 async function refreshLatestProjectsFromServer() {
   try {
     const ultimosProyectos = await cargarUltimosProyectos();
     renderizarUltimosProyectos(ultimosProyectos);
   } catch (error) {
-    console.error('❌ Error al refrescar los últimos proyectos:', error);
   }
 }
 // Función para crear una tarjeta de proyecto destacado
@@ -771,19 +618,13 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
   if (!proyecto) {
 
-    console.error('❌ Proyecto no válido:', proyecto);
-
     return null;
 
   }
 
-  
-
   const card = document.createElement('div');
 
   card.className = 'project-card featured-card';
-
-  
 
   // Manejar fecha de forma segura
 
@@ -805,8 +646,6 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
   }
 
-  
-
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   const mes = meses[fecha.getMonth()] || 'Ene';
@@ -815,8 +654,6 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
   const anio = fecha.getFullYear() || new Date().getFullYear();
 
-  
-
   const portadaUrl = proyecto.portada && proyecto.portada.url ? proyecto.portada.url : null;
 
   const imagenUrl = portadaUrl || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
@@ -824,8 +661,6 @@ function crearTarjetaProyectoDestacado(proyecto) {
   const nombreProyecto = proyecto.nombre || proyecto.name || 'Sin nombre';
 
   const ubicacionProyecto = proyecto.ubicacion || 'Sin ubicación';
-
-
 
   card.innerHTML = `
 
@@ -857,8 +692,6 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
   `;
 
-
-
   const btn = card.querySelector('.project-btn');
 
   if (btn && proyecto.id) {
@@ -877,47 +710,43 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
   }
 
-
-
   return card;
 
 }
 
-
-
 // Función para cargar los detalles completos de un proyecto
 
 async function loadProjectDetails(projectId) {
+  // Control de concurrencia: evitar múltiples llamadas simultáneas
+  const now = Date.now();
+  
+  // Si ya está cargando el mismo proyecto, esperar a que termine
+  if (isLoadingProjectDetails && lastLoadedProjectId === projectId) {
+    console.log('⚠️ loadProjectDetails ya está en ejecución para el proyecto', projectId, '- Ignorando llamada duplicada');
+    return;
+  }
+  
+  // Marcar como "cargando"
+  console.log('🔄 loadProjectDetails iniciando para proyecto:', projectId);
+  isLoadingProjectDetails = true;
+  lastLoadedProjectId = projectId;
+  lastLoadTimestamp = now;
 
   try {
-
-    console.log(`🔄 Cargando detalles del proyecto ${projectId}...`);
 
     resetProjectPermissionState();
 
     const response = await fetch(`/api/proyecto/${projectId}/`);
 
-    
-
     if (!response.ok) {
-
+      isLoadingProjectDetails = false;
       throw new Error(`Error HTTP: ${response.status}`);
 
     }
 
-    
-
     const data = await response.json();
 
-    
-
     if (data.success) {
-
-      console.log('✅ Detalles del proyecto cargados:', data.proyecto);
-
-      console.log('📊 Cambios recibidos:', data.proyecto.cambios);
-
-      console.log('📊 Cantidad de cambios:', data.proyecto.cambios ? data.proyecto.cambios.length : 0);
 
       // Guardar el proyecto en variables globales antes de mostrar
 
@@ -945,17 +774,13 @@ async function loadProjectDetails(projectId) {
       let puedeGestionar = null;
       if (typeof proyecto.puede_gestionar === 'boolean') {
         puedeGestionar = proyecto.puede_gestionar;
-        console.log('📋 Usando proyecto.puede_gestionar:', puedeGestionar);
       } else if (proyecto.permisos && typeof proyecto.permisos.puede_gestionar === 'boolean') {
         puedeGestionar = proyecto.permisos.puede_gestionar;
-        console.log('📋 Usando proyecto.permisos.puede_gestionar:', puedeGestionar);
       } else {
         puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
-        console.log('📋 Usando usuarioPuedeGestionarProyecto:', puedeGestionar);
       }
 
       puedeGestionarProyectoActual = Boolean(puedeGestionar);
-      console.log('🔑 puedeGestionarProyectoActual establecido a:', puedeGestionarProyectoActual);
       projectActionButtonSelectors = buildProjectActionButtonSelectors();
 
       mostrarDetalleProyecto(proyecto);
@@ -971,18 +796,17 @@ async function loadProjectDetails(projectId) {
 
     } else {
 
-      console.error('❌ Error al cargar proyecto:', data.error);
-
       alert('Error al cargar el proyecto: ' + data.error);
 
     }
 
   } catch (error) {
 
-    console.error('❌ Error al cargar proyecto:', error);
-
     alert('Error al cargar el proyecto. Por favor, intenta de nuevo.');
 
+  } finally {
+    // Liberar el lock de concurrencia
+    isLoadingProjectDetails = false;
   }
 
   shouldRefreshLatestProjects = false;
@@ -990,15 +814,18 @@ async function loadProjectDetails(projectId) {
 
 }
 
-
-
 // Función para mostrar los detalles del proyecto en la vista de detalle
 
 function mostrarDetalleProyecto(proyecto) {
-
-  console.log('📝 Mostrando datos del proyecto:', proyecto.nombre);
-
+  // Generar un ID único para este renderizado
+  const renderizadoId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
+  // Contador de renderizados (para debugging)
+  if (!window.mostrarDetalleProyectoCount) {
+    window.mostrarDetalleProyectoCount = 0;
+  }
+  window.mostrarDetalleProyectoCount++;
+
   ensureProjectActionHandlers();
   ensureModalCloseHandlers();
 
@@ -1008,8 +835,6 @@ function mostrarDetalleProyecto(proyecto) {
 
   currentProjectId = proyecto.id;
 
-  
-
   // Ocultar todas las vistas y mostrar solo la de detalle
 
   const mainView = document.querySelector('.projects-main');
@@ -1018,17 +843,11 @@ function mostrarDetalleProyecto(proyecto) {
 
   const detailView = document.getElementById('projectDetailView');
 
-  
-
   if (!detailView) {
-
-    console.error('❌ No se encontró la vista de detalle');
 
     return;
 
   }
-
-  
 
   // Ocultar todas las demás vistas
 
@@ -1036,13 +855,9 @@ function mostrarDetalleProyecto(proyecto) {
 
   if (listView) listView.style.display = 'none';
 
-  
-
   // Mostrar vista de detalle
 
   detailView.style.display = 'block';
-
-  
 
   // Actualizar título y ubicación
 
@@ -1058,8 +873,6 @@ function mostrarDetalleProyecto(proyecto) {
 
   const detailDescription = document.getElementById('detailDescription');
 
-  
-
   if (detailTitle) detailTitle.textContent = proyecto.nombre;
 
   if (detailLocation) detailLocation.textContent = proyecto.ubicacion;
@@ -1067,8 +880,6 @@ function mostrarDetalleProyecto(proyecto) {
   if (detailDateText) detailDateText.textContent = proyecto.fecha_display || proyecto.fecha;
 
   if (statusText) statusText.textContent = proyecto.estado_display || proyecto.estado;
-
-  
 
   // Actualizar imagen principal
 
@@ -1104,8 +915,6 @@ function mostrarDetalleProyecto(proyecto) {
 
   }
 
-  
-
   // Actualizar descripción
 
   if (detailDescription) {
@@ -1118,13 +927,9 @@ function mostrarDetalleProyecto(proyecto) {
 
   }
 
-  
-
   // Actualizar personal a cargo
 
   const detailPersonnelInfo = document.getElementById('detailPersonnelInfo');
-
-  
 
   if (detailPersonnelInfo && proyecto.personal) {
 
@@ -1164,8 +969,6 @@ function mostrarDetalleProyecto(proyecto) {
 
   }
 
-  
-
   // Actualizar galería de imágenes
 
   const detailGallery = document.getElementById('detailGallery');
@@ -1179,27 +982,17 @@ function mostrarDetalleProyecto(proyecto) {
     renderProjectGalleryImages(imagenes, puedeGestionar);
   }
 
-  
-
   // Actualizar datos del proyecto (tarjetas_datos)
 
   const detailData = document.getElementById('detailData');
 
   if (detailData && proyecto.tarjetas_datos) {
 
-    console.log('📊 Renderizando tarjetas de datos:', proyecto.tarjetas_datos.length);
-
-    console.log('📊 Tarjetas recibidas:', proyecto.tarjetas_datos);
-
-    
-
     // Eliminar duplicados por ID antes de renderizar
 
     const tarjetasUnicas = [];
 
     const idsVistos = new Set();
-
-    
 
     proyecto.tarjetas_datos.forEach(tarjeta => {
 
@@ -1213,17 +1006,9 @@ function mostrarDetalleProyecto(proyecto) {
 
       } else {
 
-        console.warn('⚠️ Tarjeta duplicada detectada y omitida:', tarjeta.titulo, 'ID:', tarjetaId);
-
       }
 
     });
-
-    
-
-    console.log('📊 Tarjetas únicas después de filtrar:', tarjetasUnicas.length);
-
-    
 
     if (tarjetasUnicas.length === 0) {
 
@@ -1275,8 +1060,6 @@ function mostrarDetalleProyecto(proyecto) {
 
   }
 
-  
-
   // Actualizar comunidades alcanzadas
 
   const detailCommunities = document.getElementById('detailCommunities');
@@ -1305,8 +1088,6 @@ function mostrarDetalleProyecto(proyecto) {
 
   }
 
-  
-
   // Actualizar archivos del proyecto
 
   const detailFiles = document.getElementById('detailFiles');
@@ -1316,8 +1097,6 @@ function mostrarDetalleProyecto(proyecto) {
     // Verificar si el usuario tiene permisos (admin o personal)
 
     const puedeGestionar = puedeGestionarGaleria();
-
-    
 
     if (proyecto.archivos.length === 0) {
 
@@ -1336,8 +1115,6 @@ function mostrarDetalleProyecto(proyecto) {
         const descripcionVisible = archivo.descripcion ? escapeHtml(archivo.descripcion) : '';
         const descripcionEncoded = archivo.descripcion ? encodeURIComponent(archivo.descripcion) : '';
 
-        
-
         // Si puede gestionar, mostrar enlace clickeable, si no, solo texto
 
         const nombreArchivo = puedeGestionar 
@@ -1345,8 +1122,6 @@ function mostrarDetalleProyecto(proyecto) {
           ? `<a href="${archivo.url}" target="_blank" style="color: #007bff; text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${archivo.nombre}</a>`
 
           : `<span style="color: #6c757d; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar archivos">${archivo.nombre}</span>`;
-
-        
 
         return `
 
@@ -1415,8 +1190,6 @@ function mostrarDetalleProyecto(proyecto) {
 
       }).join('');
 
-      
-
       // Agregar event listeners a los botones de editar/eliminar solo si el usuario tiene permisos
 
       if (puedeGestionar) {
@@ -1441,8 +1214,6 @@ function mostrarDetalleProyecto(proyecto) {
 
             const archivoId = this.getAttribute('data-archivo-id');
 
-            
-
             // Obtener el nombre del archivo para el mensaje de confirmación
 
             const fileItem = this.closest('.file-item');
@@ -1450,8 +1221,6 @@ function mostrarDetalleProyecto(proyecto) {
             const fileNameElement = fileItem ? fileItem.querySelector('.file-info h4 a, .file-info h4 span') : null;
 
             const fileName = fileNameElement ? fileNameElement.textContent.trim() : 'este archivo';
-
-            
 
             // Mostrar modal de confirmación
 
@@ -1481,37 +1250,15 @@ function mostrarDetalleProyecto(proyecto) {
 
   }
 
-  
-
   // Cambios realizados
 
-  console.log('🔍 Cambios del proyecto:', proyecto.cambios);
-
-  console.log('🔍 Tipo de cambios:', typeof proyecto.cambios);
-
-  console.log('🔍 Es array?:', Array.isArray(proyecto.cambios));
-
-  console.log('🔍 Cantidad de cambios:', proyecto.cambios ? proyecto.cambios.length : 0);
-
-  
-
   if (proyecto.cambios && proyecto.cambios.length > 0) {
-
-    console.log('✅ Renderizando cambios:', proyecto.cambios.length);
-
-    console.log('🔍 Primer cambio:', proyecto.cambios[0]);
 
     renderCambios(proyecto.cambios);
 
   } else {
 
-    console.log('⚠️ No hay cambios para renderizar');
-
-    console.log('🔍 proyecto.cambios es:', proyecto.cambios);
-
     const detailChanges = document.getElementById('detailChanges');
-
-    console.log('🔍 Contenedor detailChanges encontrado:', detailChanges ? 'Sí' : 'No');
 
     if (detailChanges) {
 
@@ -1521,15 +1268,9 @@ function mostrarDetalleProyecto(proyecto) {
 
   }
 
-  
-
   // Scroll al inicio
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  
-
-  console.log('✅ Vista de detalle actualizada');
 
 }
 // Función para generar elementos de lista
@@ -1586,8 +1327,6 @@ function generateListItems(projects, showType = false) {
 
 }
 
-
-
 // Variable global para almacenar los proyectos originales de la vista actual
 
 let currentListViewProjects = [];
@@ -1597,8 +1336,6 @@ let currentListViewCategory = null;
 let currentListViewTypeFilter = 'all';
 
 let currentProjectSearchTerm = '';
-
-
 
 function applyProjectListFilters() {
 
@@ -1692,8 +1429,6 @@ function applyProjectListFilters() {
     }
   }
 
-
-
   const projectsList = document.getElementById('projectsList');
 
   if (projectsList) {
@@ -1709,8 +1444,6 @@ function applyProjectListFilters() {
   }
 
 }
-
-
 
 // Función para filtrar proyectos por nombre
 
@@ -1753,15 +1486,9 @@ if (typeof window !== 'undefined') {
   window.filterProjectsBySearch = filterProjectsBySearch;
 }
 
-
-
 // Función para mostrar vista de lista
 
 function showListView(category = null) {
-
-  console.log('Intentando mostrar vista de lista, categoría:', category);
-
-  
 
   const mainView = document.querySelector('.projects-main');
 
@@ -1779,51 +1506,25 @@ function showListView(category = null) {
 
   const typeFilter = document.getElementById('projectTypeFilter');
 
-
-
-  console.log('Elementos encontrados:');
-
-  console.log('- Vista principal:', mainView ? 'Sí' : 'No');
-
-  console.log('- Vista de lista:', listView ? 'Sí' : 'No');
-
-  console.log('- Título de lista:', listTitle ? 'Sí' : 'No');
-
-  console.log('- Subtítulo de lista:', listSubtitle ? 'Sí' : 'No');
-
-  console.log('- Lista de proyectos:', projectsList ? 'Sí' : 'No');
-
-
-
   if (!listView) {
-
-    console.error('No se encontró la vista de lista');
 
     return;
 
   }
 
-
-
   // Ocultar vista principal
 
   if (mainView) mainView.style.display = 'none';
 
-  
-
   // Mostrar vista de lista
 
   listView.style.display = 'block';
-
-
 
   let projects = [];
 
   let title = '';
 
   let subtitle = '';
-
-
 
   if (category) {
 
@@ -1865,8 +1566,6 @@ function showListView(category = null) {
 
   }
 
-
-
   // Guardar los proyectos originales y la categoría actual
 
   currentListViewProjects = projects;
@@ -1905,15 +1604,11 @@ function showListView(category = null) {
 
   }
 
-
-
   // Actualizar títulos
 
   listTitle.textContent = title;
 
   listSubtitle.textContent = subtitle;
-
-
 
   // Limpiar el buscador
 
@@ -1929,19 +1624,13 @@ function showListView(category = null) {
 
   }
 
-
-
   applyProjectListFilters();
-
-
 
   // Scroll al inicio
 
   window.scrollTo(0, 0);
 
 }
-
-
 
 // Función para volver a la vista principal
 
@@ -1951,27 +1640,19 @@ function showMainView() {
 
   const listView = document.getElementById('projectsListView');
 
-
-
   // Ocultar vista de lista
 
   listView.style.display = 'none';
 
-  
-
   // Mostrar vista principal
 
   mainView.style.display = 'block';
-
-
 
   // Scroll al inicio
 
   window.scrollTo(0, 0);
 
 }
-
-
 
 // Función para hacer scroll suave a una sección
 
@@ -1989,8 +1670,6 @@ function scrollToSection(sectionId) {
 
     const sectionTop = section.offsetTop - headerHeight - 20; // 20px de margen adicional
 
-    
-
     window.scrollTo({
 
       top: sectionTop,
@@ -1999,13 +1678,9 @@ function scrollToSection(sectionId) {
 
     });
 
-
-
     // Agregar efecto de resaltado temporal
 
     section.classList.add('scroll-highlight');
-
-    
 
     // Remover el efecto después de 3 segundos
 
@@ -2019,8 +1694,6 @@ function scrollToSection(sectionId) {
 
 }
 
-
-
 // Función para manejar el scroll automático desde URL
 
 function handleUrlAnchor() {
@@ -2032,8 +1705,6 @@ function handleUrlAnchor() {
     // Remover el # del hash
 
     const sectionId = hash.substring(1);
-
-    
 
     // Esperar un poco para que la página se cargue completamente
 
@@ -2047,11 +1718,7 @@ function handleUrlAnchor() {
 
 }
 
-
-
 // ======= FUNCIONALIDAD DE VISTA DETALLADA =======
-
-
 
 // Datos de proyectos detallados (simulados)
 
@@ -2349,15 +2016,9 @@ const projectDetails = {
 
 };
 
-
-
 // Función para mostrar la vista detallada
 
 function showProjectDetail(projectId) {
-
-  console.log('🔍 Mostrando detalle del proyecto:', projectId);
-
-  
 
   const mainView = document.querySelector('.projects-main');
 
@@ -2365,17 +2026,11 @@ function showProjectDetail(projectId) {
 
   const detailView = document.getElementById('projectDetailView');
 
-  
-
   if (!detailView) {
-
-    console.error('❌ No se encontró la vista detallada');
 
     return;
 
   }
-
-  
 
   // Ocultar otras vistas
 
@@ -2383,23 +2038,15 @@ function showProjectDetail(projectId) {
 
   if (listView) listView.style.display = 'none';
 
-  
-
   // Mostrar vista detallada (con indicador de carga)
 
   detailView.style.display = 'block';
-
-  
 
   // Scroll al inicio
 
   window.scrollTo(0, 0);
 
-  
-
   // Cargar datos del proyecto desde la API
-
-  console.log('📡 Cargando datos desde la API...');
 
   loadProjectDetails(projectId);
 
@@ -2408,15 +2055,9 @@ function showProjectDetail(projectId) {
 
 function loadProjectDetail(project) {
 
-  console.warn('⚠️ loadProjectDetail() está usando datos hardcodeados. Usar loadProjectDetails() para datos de API.');
-
-  
-
   // Actualizar las variables globales
 
   currentProjectData = project;
-
-  
 
   // Título y ubicación
 
@@ -2426,8 +2067,6 @@ function loadProjectDetail(project) {
 
   document.getElementById('detailDateText').textContent = project.date;
 
-  
-
   // Imagen principal
 
   const mainImage = document.getElementById('detailMainImage');
@@ -2436,13 +2075,9 @@ function loadProjectDetail(project) {
 
   mainImage.alt = `Imagen principal de ${project.title}`;
 
-  
-
   // Estado
 
   document.getElementById('statusText').textContent = project.status;
-
-  
 
   // Personal a cargo
 
@@ -2452,8 +2087,6 @@ function loadProjectDetail(project) {
 
   }
 
-  
-
   // Galería de imágenes
   // NOTA: Deshabilitado porque mostrarDetalleProyecto() ya maneja la galería con renderProjectGalleryImages()
   // Esto evita duplicación de imágenes
@@ -2461,8 +2094,6 @@ function loadProjectDetail(project) {
   // if (project.gallery) {
   //   loadGalleryWithDescriptions(project.gallery);
   // }
-
-  
 
   // Datos del proyecto
 
@@ -2502,8 +2133,6 @@ function loadProjectDetail(project) {
 
   }
 
-  
-
   // Ubicación
 
   const projectCommunities = [
@@ -2534,8 +2163,6 @@ function loadProjectDetail(project) {
 
   }
 
-  
-
   // Descripción
 
   const detailDescription = document.getElementById('detailDescription');
@@ -2546,31 +2173,15 @@ function loadProjectDetail(project) {
 
   }
 
-  
-
   // Cambios realizados - IMPORTANTE: usar project.cambios o project.changes
 
   const cambios = project.cambios || project.changes || [];
 
-  console.log('🔍 loadProjectDetail - Cambios encontrados:', cambios);
-
-  console.log('🔍 loadProjectDetail - Tipo:', typeof cambios);
-
-  console.log('🔍 loadProjectDetail - Es array?:', Array.isArray(cambios));
-
-  console.log('🔍 loadProjectDetail - Cantidad:', cambios.length);
-
-  
-
   if (cambios && cambios.length > 0) {
-
-    console.log('✅ loadProjectDetail - Renderizando cambios:', cambios.length);
 
     renderCambios(cambios);
 
   } else {
-
-    console.log('⚠️ loadProjectDetail - No hay cambios para renderizar');
 
     const detailChanges = document.getElementById('detailChanges');
 
@@ -2582,19 +2193,11 @@ function loadProjectDetail(project) {
 
   }
 
-  
-
   // Scroll al inicio
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  
-
-  console.log('✅ Vista de detalle actualizada (loadProjectDetail)');
-
 }
-
-
 
 // Función para abrir modal de imagen (placeholder)
 
@@ -2606,13 +2209,9 @@ function openImageModal(imageUrl) {
 
 }
 
-
-
 // Función para volver a la vista principal desde la vista detallada
 
 function backFromDetail() {
-
-  console.log('🔙 Volviendo a la vista principal');
 
   resetProjectPermissionState();
   projectActionButtonSelectors = buildProjectActionButtonSelectors();
@@ -2623,21 +2222,15 @@ function backFromDetail() {
 
   const detailView = document.getElementById('projectDetailView');
 
-  
-
   // Ocultar vistas de detalle y lista
 
   if (detailView) detailView.style.display = 'none';
 
   if (listView) listView.style.display = 'none';
 
-  
-
   // Mostrar vista principal
 
   if (mainView) mainView.style.display = 'block';
-
-  
 
   // Scroll al inicio
 
@@ -2645,27 +2238,17 @@ function backFromDetail() {
 
 }
 
-
-
 // Event listener para el botón de volver desde la vista detallada
 
 document.getElementById('btnBackFromDetail').addEventListener('click', backFromDetail);
-
-
 
 // Función para agregar event listeners a los botones "Ver más"
 
 function addViewMoreListeners() {
 
-  console.log('Configurando event listeners para botones Ver más');
-
-  
-
   // Buscar todos los botones "Ver más" en las tarjetas
 
   const viewMoreButtons = document.querySelectorAll('.project-card .project-btn');
-
-  console.log('Botones de tarjetas encontrados:', viewMoreButtons.length);
 
   viewMoreButtons.forEach(button => {
 
@@ -2679,13 +2262,9 @@ function addViewMoreListeners() {
 
   });
 
-
-
   // Buscar todos los botones "Ver más" en la lista
 
   const listViewMoreButtons = document.querySelectorAll('.list-item-btn');
-
-  console.log('Botones de lista encontrados:', listViewMoreButtons.length);
 
   listViewMoreButtons.forEach(button => {
 
@@ -2701,8 +2280,6 @@ function addViewMoreListeners() {
 
 }
 
-
-
 // Función para manejar clicks en botones de tarjetas
 
 function handleProjectCardClick(e) {
@@ -2711,13 +2288,9 @@ function handleProjectCardClick(e) {
 
   const projectId = this.getAttribute('data-project-id') || 'proyecto-1';
 
-  console.log('Navegando a proyecto desde tarjeta:', projectId);
-
   showProjectDetail(projectId);
 
 }
-
-
 
 // Función para manejar clicks en botones de lista
 
@@ -2729,15 +2302,11 @@ function handleListItemClick(e) {
 
   if (projectId) {
 
-    console.log('Navegando a proyecto desde lista:', projectId);
-
     showProjectDetail(projectId);
 
   }
 
 }
-
-
 
 // Variables globales para almacenar datos del proyecto actual
 
@@ -2746,6 +2315,14 @@ let currentProjectData = null;
 let currentProjectId = null;
 
 let pendingAction = null; // Para almacenar la acción pendiente después de verificar credenciales
+
+// Variables de control de concurrencia para loadProjectDetails
+let isLoadingProjectDetails = false;
+let lastLoadedProjectId = null;
+let lastLoadTimestamp = 0;
+
+// Variable de control para evitar múltiples guardados simultáneos
+let isSavingProjectData = false;
 
 let pendingProjectGalleryImages = [];
 let currentProjectGalleryImages = [];
@@ -2771,7 +2348,6 @@ function revokePendingImagePreview(item) {
     try {
       URL.revokeObjectURL(item.objectUrl);
     } catch (error) {
-      console.warn('No se pudo liberar el recurso de previsualización de imagen:', error);
     }
     item.objectUrl = null;
   }
@@ -2820,11 +2396,7 @@ function getGuatemalaDateParts(sourceDate = new Date()) {
 
 let selectedEvidencesFiles = [];
 
-
-
 // Sistema de permisos manejado por permisos.js y el backend
-
-
 
 // ======= DATOS FICTICIOS =======
 
@@ -2851,8 +2423,6 @@ const availableCommunities = [
   { id: 10, name: 'Las Flores', region: 'Región Oeste' }
 
 ];
-
-
 
 // ======= TARJETAS PREDEFINIDAS =======
 
@@ -2887,8 +2457,6 @@ const predefinedCards = [
   { id: 'sustainability', icon: '🌱', label: 'Sostenibilidad', placeholder: 'Ej: 5 años', category: 'Ambiental' }
 
 ];
-
-
 
 const availablePersonnel = [
 
@@ -2934,7 +2502,6 @@ function resetProjectPermissionState() {
   try {
     aplicarVisibilidadBotonesGestion(false);
   } catch (error) {
-    console.warn('No se pudo aplicar visibilidad de botones al resetear permisos:', error);
   }
 }
 
@@ -3172,7 +2739,6 @@ async function obtenerUsuarioActualInfo() {
       return usuarioActualInfoCache;
     })
     .catch(error => {
-      console.error('Error al obtener la información del usuario actual:', error);
       return null;
     })
     .finally(() => {
@@ -3287,21 +2853,12 @@ async function usuarioPuedeGestionarProyecto(proyecto) {
 }
 
 function tienePermisoGestionActual() {
-  console.log('🔐 Verificando permisos de gestión:');
-  console.log('  - window.USER_AUTH:', window.USER_AUTH);
-  console.log('  - isAuthenticated:', window.USER_AUTH?.isAuthenticated);
-  console.log('  - isAdmin:', window.USER_AUTH?.isAdmin);
-  console.log('  - isPersonal:', window.USER_AUTH?.isPersonal);
-  console.log('  - puedeGestionarProyectoActual:', puedeGestionarProyectoActual);
-  console.log('  - USER_AUTH.permisos:', window.USER_AUTH?.permisos);
   
   if (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) {
-    console.log('✅ Permiso concedido: Usuario es admin');
     return true;
   }
   
   const resultado = !!puedeGestionarProyectoActual;
-  console.log(resultado ? '✅ Permiso concedido: puedeGestionarProyectoActual es true' : '❌ Permiso denegado: puedeGestionarProyectoActual es false');
   return resultado;
 }
 
@@ -3384,8 +2941,6 @@ function aplicarVisibilidadBotonesGestion(puedeGestionar) {
   }
 }
 
-
-
 // Función para verificar si el usuario puede gestionar la galería (admin o personal)
 
 function puedeGestionarGaleria() {
@@ -3395,8 +2950,6 @@ function puedeGestionarGaleria() {
   return !!puedeGestionarProyectoActual;
 }
 
-
-
 // Función para obtener el proyecto actual
 
 function getCurrentProject() {
@@ -3405,31 +2958,21 @@ function getCurrentProject() {
 
   if (currentProjectData && currentProjectData.id) {
 
-    console.log('✅ Proyecto actual obtenido desde currentProjectData:', currentProjectData.id);
-
     return currentProjectData;
 
   }
-
-  
 
   // Fallback al proyecto por ID
 
   if (currentProjectId && projectDetails[currentProjectId]) {
 
-    console.log('✅ Proyecto actual obtenido desde projectDetails:', currentProjectId);
-
     return projectDetails[currentProjectId];
 
   }
 
-  
-
   // Si currentProjectData existe pero no tiene id, intentar obtenerlo del URL o de otra forma
 
   if (currentProjectData) {
-
-    console.log('⚠️ currentProjectData existe pero sin id:', currentProjectData);
 
     // Intentar obtener el ID del URL si está disponible
 
@@ -3449,15 +2992,9 @@ function getCurrentProject() {
 
   }
 
-  
-
-  console.error('❌ No se pudo obtener el proyecto actual');
-
   return null;
 
 }
-
-
 
 // Función para establecer el proyecto actual
 
@@ -3473,8 +3010,6 @@ function setCurrentProject(projectId) {
 
 }
 
-
-
 // Función para actualizar los datos del proyecto
 
 function updateProjectData(newData) {
@@ -3487,8 +3022,6 @@ function updateProjectData(newData) {
 
 }
 
-
-
 // Función para agregar comunidad
 
 function addCommunityToProject(communityName) {
@@ -3500,8 +3033,6 @@ function addCommunityToProject(communityName) {
     currentProject.communities = [];
 
   }
-
-  
 
   // Verificar si ya existe
 
@@ -3517,8 +3048,6 @@ function addCommunityToProject(communityName) {
 
     });
 
-    
-
     // Actualizar la vista
 
     loadProjectDetail(currentProject);
@@ -3533,8 +3062,6 @@ function addCommunityToProject(communityName) {
 
 }
 
-
-
 // Función para agregar personal
 
 function addPersonnelToProject(personnelData) {
@@ -3547,8 +3074,6 @@ function addPersonnelToProject(personnelData) {
 
   }
 
-  
-
   // Verificar si ya existe
 
   const exists = currentProject.personnel.some(p => p.id === personnelData.id);
@@ -3556,8 +3081,6 @@ function addPersonnelToProject(personnelData) {
   if (!exists) {
 
     currentProject.personnel.push(personnelData);
-
-    
 
     // Actualizar la vista
 
@@ -3573,8 +3096,6 @@ function addPersonnelToProject(personnelData) {
 
 }
 
-
-
 // Función para agregar imagen
 
 function addImageToProject(imageData) {
@@ -3587,11 +3108,7 @@ function addImageToProject(imageData) {
 
   }
 
-  
-
   currentProject.gallery.push(imageData);
-
-  
 
   // Actualizar la vista
 
@@ -3600,8 +3117,6 @@ function addImageToProject(imageData) {
   showSuccessMessage('Imagen agregada exitosamente');
 
 }
-
-
 
 // Función para agregar cambio
 
@@ -3615,11 +3130,7 @@ function addChangeToProject(changeData) {
 
   }
 
-  
-
   currentProject.changes.push(changeData);
-
-  
 
   // Actualizar la vista
 
@@ -3636,8 +3147,6 @@ function updateProjectDescription(newDescription) {
 
   currentProject.description = newDescription;
 
-  
-
   // Actualizar la vista
 
   loadProjectDetail(currentProject);
@@ -3645,8 +3154,6 @@ function updateProjectDescription(newDescription) {
   showSuccessMessage('Descripción actualizada exitosamente');
 
 }
-
-
 
 // Función para actualizar datos del proyecto
 
@@ -3656,8 +3163,6 @@ function updateProjectData(newData) {
 
   Object.assign(currentProject, newData);
 
-  
-
   // Actualizar la vista
 
   loadProjectDetail(currentProject);
@@ -3666,25 +3171,17 @@ function updateProjectData(newData) {
 
 }
 
-
-
 // Función para mostrar modal
 
 function showModal(modalId) {
-
-  console.log('showModal() llamada con ID:', modalId);
 
   const modal = document.getElementById(modalId);
 
   if (modal) {
 
-    console.log('Modal encontrado, agregando clase active');
-
     modal.classList.add('active');
 
     document.body.style.overflow = 'hidden';
-
-    console.log('Modal mostrado correctamente');
 
     const firstTextarea = modal.querySelector('textarea');
     if (firstTextarea) {
@@ -3693,13 +3190,9 @@ function showModal(modalId) {
 
   } else {
 
-    console.error('Modal no encontrado:', modalId);
-
   }
 
 }
-
-
 
 // Función para ocultar modal
 
@@ -3713,8 +3206,6 @@ function hideModal(modalId) {
 
     document.body.style.overflow = '';
 
-    
-
     // Limpiar formulario de cambios si se cierra el modal de cambios
 
     if (modalId === 'addChangeModal') {
@@ -3727,8 +3218,6 @@ function hideModal(modalId) {
 
 }
 
-
-
 // Función para mostrar modal de credenciales
 
 function showCredentialsModal(callback = null) {
@@ -3739,15 +3228,11 @@ function showCredentialsModal(callback = null) {
 
   const adminPassword = document.getElementById('adminPassword');
 
-  
-
   // Limpiar campos antes de mostrar el modal (solo si existen)
 
   if (adminUsername) adminUsername.value = '';
 
   if (adminPassword) adminPassword.value = '';
-
-  
 
   // Ocultar mensaje de error si existe
 
@@ -3759,8 +3244,6 @@ function showCredentialsModal(callback = null) {
 
   }
 
-  
-
   // Guardar callback si se proporciona
 
   if (callback) {
@@ -3769,45 +3252,25 @@ function showCredentialsModal(callback = null) {
 
   }
 
-  
-
   showModal('adminCredentialsModal');
 
 }
-
-
 
 // Función para verificar credenciales
 
 function verifyCredentials() {
 
-  console.log('verifyCredentials() llamada');
-
   const username = document.getElementById('adminUsername').value;
 
   const password = document.getElementById('adminPassword').value;
 
-  
-
-  console.log('Credenciales ingresadas:', { username, password });
-
-  console.log('Credenciales esperadas:', ADMIN_CREDENTIALS);
-
-  console.log('Acción pendiente:', pendingAction);
-
-  
-
   if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-
-    console.log('Credenciales correctas, ejecutando acción pendiente');
 
     // Limpiar campos antes de cerrar
 
     document.getElementById('adminUsername').value = '';
 
     document.getElementById('adminPassword').value = '';
-
-    
 
     // Ocultar mensaje de error
 
@@ -3819,11 +3282,7 @@ function verifyCredentials() {
 
     }
 
-    
-
     hideModal('adminCredentialsModal');
-
-    
 
     // Ejecutar la acción pendiente
 
@@ -3835,27 +3294,19 @@ function verifyCredentials() {
 
     } else if (pendingAction === 'addPersonnel') {
 
-      console.log('Ejecutando showAddPersonnelModal()');
-
       showAddPersonnelModal();
 
     } else if (pendingAction === 'editData') {
 
-      console.log('Ejecutando showEditDataModal()');
-
       showEditDataModal();
 
     }
-
-    
 
     // Limpiar la acción pendiente
 
     pendingAction = null;
 
   } else {
-
-    console.log('Credenciales incorrectas');
 
     // Mostrar mensaje de error en el modal
 
@@ -3875,8 +3326,6 @@ function verifyCredentials() {
 
 }
 
-
-
 // Función para mostrar mensaje de éxito
 
 function showSuccessMessage(message) {
@@ -3889,13 +3338,9 @@ function showSuccessMessage(message) {
 
   messageElement.textContent = message;
 
-  
-
   // Agregar al body
 
   document.body.appendChild(messageElement);
-
-  
 
   // Remover después de 3 segundos
 
@@ -3906,8 +3351,6 @@ function showSuccessMessage(message) {
   }, 3000);
 
 }
-
-
 
 // Función para mostrar mensaje de error
 
@@ -3921,13 +3364,9 @@ function showErrorMessage(message) {
 
   messageElement.textContent = message;
 
-  
-
   // Agregar al body
 
   document.body.appendChild(messageElement);
-
-  
 
   // Remover después de 3 segundos
 
@@ -4076,7 +3515,6 @@ function redirectToDetailPage({ storageKey, queryParam, targetId, pathname }) {
       window.sessionStorage.setItem(storageKey, payload);
     }
   } catch (storageError) {
-    console.warn(`⚠️ No se pudo guardar ${storageKey} en sessionStorage:`, storageError);
   }
 
   try {
@@ -4086,7 +3524,6 @@ function redirectToDetailPage({ storageKey, queryParam, targetId, pathname }) {
     }
     window.location.href = targetUrl.toString();
   } catch (urlError) {
-    console.warn('⚠️ No se pudo construir la URL con URL API, usando fallback:', urlError);
     const querySuffix = queryParam ? `?${encodeURIComponent(queryParam)}=${encodeURIComponent(targetValue)}` : '';
     window.location.href = `${pathname}${querySuffix}`;
   }
@@ -4106,7 +3543,6 @@ async function navigateToRegion(regionId) {
       return;
     }
   } catch (error) {
-    console.error('Error al navegar a la región:', error);
   }
 
   redirectToDetailPage({
@@ -4131,7 +3567,6 @@ async function navigateToCommunity(communityId) {
       return;
     }
   } catch (error) {
-    console.error('Error al navegar a la comunidad:', error);
   }
 
   redirectToDetailPage({
@@ -4142,8 +3577,6 @@ async function navigateToCommunity(communityId) {
   });
 }
 
-
-
 // Función para cargar personal en la vista detallada
 
 function loadPersonnelInfo(personnel) {
@@ -4152,11 +3585,7 @@ function loadPersonnelInfo(personnel) {
 
   if (!container) return;
 
-
-
   container.innerHTML = '';
-
-  
 
   personnel.forEach(person => {
 
@@ -4194,8 +3623,6 @@ function loadPersonnelInfo(personnel) {
 
 }
 
-
-
 // Función para cargar galería con descripciones
 
 function loadGalleryWithDescriptions(gallery) {
@@ -4204,11 +3631,7 @@ function loadGalleryWithDescriptions(gallery) {
 
   if (!container) return;
 
-
-
   container.innerHTML = '';
-
-  
 
   gallery.forEach((image, index) => {
 
@@ -4241,8 +3664,6 @@ function loadGalleryWithDescriptions(gallery) {
   });
 
 }
-
-
 
 // Normalizar datos de comunidades provenientes de distintas fuentes
 
@@ -4435,49 +3856,19 @@ function loadCommunities(communities) {
 
 function renderCambios(cambios) {
 
-  console.log('🎨 renderCambios llamado');
-
-  console.log('🎨 Tipo de cambios recibidos:', typeof cambios);
-
-  console.log('🎨 Es array?:', Array.isArray(cambios));
-
-  console.log('🎨 Cantidad:', cambios ? cambios.length : 0);
-
-  console.log('🎨 Datos completos:', cambios);
-
-  
-
   const container = document.getElementById('detailChanges');
-
-  console.log('🎨 Contenedor encontrado:', container ? 'Sí' : 'No');
 
   if (!container) {
 
-    console.error('❌ No se encontró el contenedor detailChanges');
-
-    console.error('❌ Intentando buscar contenedor...');
-
     const altContainer = document.querySelector('#detailChanges');
-
-    console.error('❌ Resultado querySelector:', altContainer ? 'Encontrado' : 'No encontrado');
 
     return;
 
   }
 
-
-
   container.innerHTML = '';
 
-  
-
-  console.log('🎨 renderCambios llamado con:', cambios);
-
-  
-
   if (!cambios || cambios.length === 0) {
-
-    console.log('⚠️ No hay cambios para renderizar');
 
     container.innerHTML = '<p style="color: #6c757d;">No hay cambios registrados para este proyecto.</p>';
 
@@ -4485,34 +3876,11 @@ function renderCambios(cambios) {
 
   }
 
-  
-
-  console.log(`✅ Renderizando ${cambios.length} cambios`);
-
-  
-
   // Verificar si el usuario puede gestionar (admin o personal)
 
   const puedeGestionar = puedeGestionarGaleria();
 
-  
-
   cambios.forEach((cambio, index) => {
-
-    console.log(`🎨 Renderizando cambio ${index + 1}:`, cambio);
-
-    console.log(`🎨 ID del cambio:`, cambio.id);
-
-    console.log(`🎨 Descripción:`, cambio.descripcion);
-
-    console.log(`🎨 Fecha display:`, cambio.fecha_display);
-
-    console.log(`🎨 Responsable:`, cambio.responsable);
-    
-    console.log(`🏘️ Comunidades del cambio:`, cambio.comunidades);
-    console.log(`🏘️ Comunidades_nombres del cambio:`, cambio.comunidades_nombres);
-    console.log(`🏘️ Tipo de comunidades:`, typeof cambio.comunidades);
-    console.log(`🏘️ Comunidades vacío?:`, cambio.comunidades === '' || cambio.comunidades === null || cambio.comunidades === undefined);
 
     // Obtener el texto de comunidades
     let comunidadesTexto = '';
@@ -4521,8 +3889,6 @@ function renderCambios(cambios) {
     } else if (cambio.comunidades_nombres && typeof cambio.comunidades_nombres === 'string' && cambio.comunidades_nombres.trim() !== '') {
       comunidadesTexto = cambio.comunidades_nombres.trim();
     }
-    
-    console.log(`🏘️ Texto final de comunidades:`, comunidadesTexto);
 
     const changeItem = document.createElement('div');
 
@@ -4594,8 +3960,6 @@ function renderCambios(cambios) {
 
     container.appendChild(changeItem);
 
-    
-
     // Agregar event listeners directamente a los botones si el usuario tiene permisos
 
     if (puedeGestionar) {
@@ -4603,8 +3967,6 @@ function renderCambios(cambios) {
       const editBtn = changeItem.querySelector('.btn-edit-item');
 
       const deleteBtn = changeItem.querySelector('.btn-delete-item');
-
-      
 
       if (editBtn) {
 
@@ -4620,8 +3982,6 @@ function renderCambios(cambios) {
 
       }
 
-      
-
       if (deleteBtn) {
 
         deleteBtn.addEventListener('click', function(e) {
@@ -4635,8 +3995,6 @@ function renderCambios(cambios) {
         });
 
       }
-
-      
 
       // Event listener para mostrar detalles al hacer clic en el cambio (solo para usuarios autenticados)
 
@@ -4666,15 +4024,7 @@ function renderCambios(cambios) {
 
     }
 
-    
-
-    console.log(`✅ Cambio ${index + 1} agregado al DOM`);
-
   });
-
-  
-
-  console.log('✅ Cambios renderizados correctamente. Total elementos en contenedor:', container.children.length);
 
 }
 // Función para mostrar modal de imagen en tamaño completo
@@ -4687,17 +4037,11 @@ function showImageViewModal(imageUrl, imageDescription = '') {
 
   const imageViewDescription = document.getElementById('imageViewDescription');
 
-  
-
   if (!modal || !fullSizeImage) {
-
-    console.error('Modal de imagen no encontrado');
 
     return;
 
   }
-
-  
 
   // Establecer la imagen y descripción
 
@@ -4707,8 +4051,6 @@ function showImageViewModal(imageUrl, imageDescription = '') {
 
   imageViewDescription.textContent = imageDescription || '';
 
-  
-
   // Mostrar el modal
 
   modal.classList.add('active');
@@ -4716,8 +4058,6 @@ function showImageViewModal(imageUrl, imageDescription = '') {
   document.body.style.overflow = 'hidden';
 
 }
-
-
 
 // Función para cerrar modal de imagen
 
@@ -4734,8 +4074,6 @@ function closeImageViewModal() {
   }
 
 }
-
-
 
 // Función para mostrar modal de agregar imagen
 
@@ -4755,8 +4093,6 @@ function showAddImageModal() {
 
 }
 
-
-
 // Función para limpiar formulario de imagen
 
 function clearImageForm() {
@@ -4770,29 +4106,22 @@ function clearImageForm() {
 }
 
 function renderPendingProjectImages() {
-  console.log('🖼️ renderPendingProjectImages() llamada');
-  console.log('🖼️ Imágenes pendientes:', pendingProjectGalleryImages.length);
   
   const previewContainer = document.getElementById('imagePreview');
-  console.log('🖼️ Preview container:', previewContainer);
   
   if (!previewContainer) {
-    console.warn('⚠️ Preview container NO encontrado');
     return;
   }
 
   previewContainer.innerHTML = '';
 
   if (!pendingProjectGalleryImages.length) {
-    console.log('ℹ️ No hay imágenes pendientes, mostrando estado vacío');
     const emptyState = document.createElement('div');
     emptyState.className = 'image-preview-empty';
     emptyState.textContent = 'No has seleccionado imágenes.';
     previewContainer.appendChild(emptyState);
     return;
   }
-  
-  console.log('✅ Renderizando', pendingProjectGalleryImages.length, 'imagen(es)');
 
   pendingProjectGalleryImages.forEach((item, index) => {
     const wrapper = document.createElement('div');
@@ -4851,7 +4180,6 @@ function renderPendingProjectImages() {
   });
 }
 
-
 function escapeHtml(value) {
   if (value === null || value === undefined) {
     return '';
@@ -4863,7 +4191,6 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-
 
 function renderProjectGalleryImages(images, puedeGestionar) {
   currentProjectGalleryImages = Array.isArray(images) ? images : [];
@@ -4880,7 +4207,6 @@ function renderProjectGalleryImages(images, puedeGestionar) {
 
   renderProjectGalleryPage();
 }
-
 
 function renderProjectGalleryPage() {
   const detailGallery = document.getElementById('detailGallery');
@@ -4978,25 +4304,18 @@ function renderProjectGalleryPage() {
 }
 
 function confirmarEliminacionImagenGaleria(imagenId, imageName = '') {
-  console.log('🗑️ confirmarEliminacionImagenGaleria() llamada');
-  console.log('🗑️ ID de imagen a eliminar:', imagenId);
-  console.log('🗑️ Verificando permisos...');
   
   if (!tienePermisoGestionActual()) {
-    console.log('❌ Sin permisos para eliminar imagen');
     mostrarMensajePermisoDenegado();
     return;
   }
-  
-  console.log('✅ Permisos verificados, mostrando confirmación');
-  
+
   const trimmedName = (imageName || '').trim();
   const message = trimmedName
     ? `¿Estás seguro de que deseas eliminar la imagen "${trimmedName}" de la galería?`
     : '¿Estás seguro de que deseas eliminar esta imagen de la galería?';
 
   showConfirmDeleteModal(message, async () => {
-    console.log('✅ Usuario confirmó eliminación');
     await eliminarImagenGaleria(imagenId);
   });
 }
@@ -5025,18 +4344,13 @@ document.addEventListener('click', (event) => {
   }
 });
 
-
 // Función para manejar selección de imagen
 
 function handleImageSelect(event) {
-  console.log('📸 handleImageSelect() llamada', event);
   const input = event.target;
-  console.log('📸 Input element:', input);
   const files = Array.from(input.files || []);
-  console.log('📸 Archivos seleccionados:', files.length, files);
 
   if (!files.length) {
-    console.warn('⚠️ No se seleccionaron archivos');
     return;
   }
 
@@ -5058,7 +4372,6 @@ function handleImageSelect(event) {
           });
           addedFiles += 1;
         } catch (error) {
-          console.warn('No se pudo generar la previsualización con createObjectURL:', error);
           const reader = new FileReader();
           reader.onload = (e) => {
             pendingProjectGalleryImages.push({
@@ -5069,7 +4382,6 @@ function handleImageSelect(event) {
             renderPendingProjectImages();
           };
           reader.onerror = (readError) => {
-            console.error('Error al leer la imagen seleccionada:', readError);
             showErrorMessage('No se pudo previsualizar una de las imágenes seleccionadas.');
           };
           reader.readAsDataURL(file);
@@ -5085,7 +4397,6 @@ function handleImageSelect(event) {
           renderPendingProjectImages();
         };
         reader.onerror = (readError) => {
-          console.error('Error al leer la imagen seleccionada:', readError);
           showErrorMessage('No se pudo previsualizar una de las imágenes seleccionadas.');
         };
         reader.readAsDataURL(file);
@@ -5096,20 +4407,15 @@ function handleImageSelect(event) {
   });
 
   if (addedFiles > 0) {
-    console.log(`✅ ${addedFiles} imagen(es) agregada(s) a pendientes`);
     renderPendingProjectImages();
   }
 
   if (invalidFiles > 0) {
-    console.warn(`⚠️ ${invalidFiles} archivo(s) inválido(s)`);
     showErrorMessage('Algunos archivos fueron descartados porque no son imágenes válidas.');
   }
 
-  console.log('📸 Total de imágenes pendientes:', pendingProjectGalleryImages.length);
   input.value = '';
 }
-
-
 
 // Función para agregar imagen al proyecto
 
@@ -5119,40 +4425,28 @@ let isUploadingChange = false;
 let isUploadingFile = false;
 
 async function addImageToProject() {
-  console.log('💾 addImageToProject() llamada');
   
   // Prevenir ejecuciones múltiples
   if (isUploadingImage) {
-    console.warn('⚠️ Ya hay una subida de imagen en progreso, ignorando llamada duplicada');
     return;
   }
-  
-  console.log('💾 Imágenes pendientes a guardar:', pendingProjectGalleryImages.length);
 
   if (!tienePermisoGestionActual()) {
-    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
 
     return;
 
   }
-  
-  console.log('✅ Permisos verificados');
 
   if (!pendingProjectGalleryImages.length) {
-    console.warn('⚠️ No hay imágenes pendientes');
     showErrorMessage('Selecciona al menos una imagen antes de continuar.');
 
     return;
 
   }
-  
-  console.log('✅ Hay imágenes para subir, continuando...');
-  
+
   // Marcar como en proceso
   isUploadingImage = true;
-
-  
 
   // Obtener el proyecto actual
 
@@ -5183,8 +4477,6 @@ async function addImageToProject() {
         }
 
       } catch (error) {
-
-        console.error('Error al obtener proyecto:', error);
 
       }
 
@@ -5273,8 +4565,6 @@ async function addImageToProject() {
 
   } catch (error) {
 
-    console.error('❌ Error al agregar imagen:', error);
-
     if (uploadedCount > 0) {
       const uploadedItems = imagesToUpload.slice(0, uploadedCount);
       uploadedItems.forEach(revokePendingImagePreview);
@@ -5311,23 +4601,17 @@ async function addImageToProject() {
 
 }
 
-
-
 // Función para eliminar imagen de la galería
 
 async function eliminarImagenGaleria(imagenId) {
-  console.log('🗑️ eliminarImagenGaleria() llamada');
-  console.log('🗑️ ID de imagen:', imagenId);
   
   let currentProject = getCurrentProject();
-  console.log('🗑️ Proyecto actual:', currentProject);
 
   if (!currentProject || !currentProject.id) {
     const detailTitle = document.getElementById('detailTitle');
 
     if (detailTitle && detailTitle.dataset.projectId) {
       const projectId = detailTitle.dataset.projectId;
-      console.log('📌 Obteniendo ID del proyecto desde dataset:', projectId);
 
       try {
         const response = await fetch(`/api/proyecto/${projectId}/`);
@@ -5339,18 +4623,14 @@ async function eliminarImagenGaleria(imagenId) {
           currentProjectId = currentProject.id;
         }
       } catch (error) {
-        console.error('Error al obtener proyecto:', error);
       }
     }
 
     if (!currentProject || !currentProject.id) {
-      console.error('❌ No se pudo obtener el proyecto actual:', currentProject);
       showErrorMessage('No se pudo obtener la información del evento. Por favor, recarga la página.');
       return;
     }
   }
-
-  console.log('🗑️ Eliminando imagen del proyecto:', currentProject.id);
 
   try {
     const response = await fetch(`/api/evento/${currentProject.id}/galeria/${imagenId}/eliminar/`, {
@@ -5370,7 +4650,6 @@ async function eliminarImagenGaleria(imagenId) {
       showErrorMessage(result.error || 'Error al eliminar la imagen de la galería.');
     }
   } catch (error) {
-    console.error('Error al eliminar imagen:', error);
     showErrorMessage('Error al eliminar la imagen. Por favor, intenta de nuevo.');
   }
 }
@@ -5396,8 +4675,6 @@ function showEditDescriptionModal() {
 
   }
 
-  
-
   // Cargar la descripción actual del proyecto
 
   const descripcionActual = currentProject.descripcion || '';
@@ -5408,8 +4685,6 @@ function showEditDescriptionModal() {
     .replace(/<[^>]*>/g, '')
     .trim();
 
-  
-
   const editDescriptionText = document.getElementById('editDescriptionText');
 
   if (editDescriptionText) {
@@ -5418,33 +4693,22 @@ function showEditDescriptionModal() {
 
   }
 
-  
-
   showModal('editDescriptionModal');
 
 }
 
-
-
 // Función para actualizar descripción del proyecto
 
 async function updateProjectDescription() {
-  console.log('💾 updateProjectDescription() llamada');
 
   if (!tienePermisoGestionActual()) {
-    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
 
     return;
 
   }
-  
-  console.log('✅ Permisos verificados, continuando...');
 
   const newDescription = document.getElementById('editDescriptionText').value.trim();
-  console.log('📝 Descripción a guardar:', newDescription);
-
-  
 
   if (!newDescription) {
 
@@ -5456,7 +4720,6 @@ async function updateProjectDescription() {
 
   // Normalizar saltos de línea a <br> para almacenarlos
   const newDescriptionHtml = newDescription.replace(/\r?\n/g, '<br>');
-  
 
   // Obtener el proyecto actual
 
@@ -5470,8 +4733,6 @@ async function updateProjectDescription() {
 
   }
 
-  
-
   try {
 
     // Preparar datos para enviar a la API
@@ -5479,8 +4740,6 @@ async function updateProjectDescription() {
     const formData = new FormData();
 
     formData.append('descripcion', newDescriptionHtml);
-
-    
 
     // Enviar a la API
 
@@ -5498,11 +4757,7 @@ async function updateProjectDescription() {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
@@ -5521,11 +4776,7 @@ async function updateProjectDescription() {
 
     }
 
-    
-
   } catch (error) {
-
-    console.error('Error al guardar descripción:', error);
 
     alert('Error al guardar la descripción. Por favor, intenta de nuevo.');
 
@@ -5533,15 +4784,11 @@ async function updateProjectDescription() {
 
 }
 
-
-
 // Variables globales para el modal de edición de datos
 
 let selectedCards = [];
 
 let currentEditProject = null;
-
-
 
 // Función para mostrar modal de editar datos
 
@@ -5555,13 +4802,7 @@ function showEditDataModal() {
 
   }
 
-  console.log('showEditDataModal() llamada');
-
   currentEditProject = getCurrentProject();
-
-  console.log('Proyecto actual:', currentEditProject);
-
-  
 
   // Obtener el proyecto actual con fallback
 
@@ -5575,15 +4816,14 @@ function showEditDataModal() {
 
   }
 
-  
-
   // Cargar datos actuales de las tarjetas desde tarjetas_datos (viene de la API)
 
   const tarjetasDatos = proyecto.tarjetas_datos || [];
-
-  console.log('Tarjetas de datos desde API:', tarjetasDatos);
-
   
+  // DEBUG: Mostrar tarjetas originales cargadas desde la BD
+  console.log('📂 CARGANDO MODAL DE EDICIÓN:');
+  console.log('📊 Tarjetas originales desde BD:', tarjetasDatos);
+  console.log('🔢 Total de tarjetas:', tarjetasDatos.length);
 
   // Convertir las tarjetas existentes al formato de tarjetas seleccionadas
 
@@ -5611,19 +4851,9 @@ function showEditDataModal() {
 
   });
 
-  
-
-  console.log('Tarjetas seleccionadas:', selectedCards);
-
-  
-
   // Cargar la interfaz del modal
 
   loadEditDataModal();
-
-  
-
-  console.log('Llamando a showModal con editDataModal');
 
   showModal('editDataModal');
 
@@ -5636,21 +4866,15 @@ function loadEditDataModal() {
 
   loadPredefinedCards();
 
-  
-
   // Cargar tarjetas seleccionadas
 
   loadSelectedCards();
-
-  
 
   // Configurar event listeners
 
   setupEditDataEventListeners();
 
 }
-
-
 
 // Función para cargar tarjetas predefinidas
 
@@ -5660,11 +4884,7 @@ function loadPredefinedCards() {
 
   if (!grid) return;
 
-  
-
   grid.innerHTML = '';
-
-  
 
   predefinedCards.forEach(card => {
 
@@ -5673,8 +4893,6 @@ function loadPredefinedCards() {
     cardElement.className = 'predefined-card';
 
     cardElement.dataset.cardId = card.id;
-
-    
 
     // Verificar si ya está seleccionada usando el ID de la tarjeta predefinida
 
@@ -5692,8 +4910,6 @@ function loadPredefinedCards() {
 
     }
 
-    
-
     cardElement.innerHTML = `
 
       <div class="predefined-card-icon">${card.icon}</div>
@@ -5708,8 +4924,6 @@ function loadPredefinedCards() {
 
     `;
 
-    
-
     cardElement.addEventListener('click', () => togglePredefinedCard(card));
 
     grid.appendChild(cardElement);
@@ -5717,8 +4931,6 @@ function loadPredefinedCards() {
   });
 
 }
-
-
 
 // Función para cargar tarjetas seleccionadas
 
@@ -5728,11 +4940,7 @@ function loadSelectedCards() {
 
   if (!container) return;
 
-  
-
   container.innerHTML = '';
-
-  
 
   if (selectedCards.length === 0) {
 
@@ -5741,8 +4949,6 @@ function loadSelectedCards() {
     return;
 
   }
-
-  
 
   const puedeEditarTarjetas = !!puedeGestionarProyectoActual;
 
@@ -5807,8 +5013,6 @@ function loadSelectedCards() {
     container.appendChild(cardElement);
   });
 
-  
-
   // Agregar event listeners para inputs de icono, título y valor
 
   container.querySelectorAll('.card-icon-input').forEach(input => {
@@ -5827,8 +5031,6 @@ function loadSelectedCards() {
 
   });
 
-  
-
   container.querySelectorAll('.card-label-input').forEach(input => {
 
     input.addEventListener('input', (e) => {
@@ -5844,8 +5046,6 @@ function loadSelectedCards() {
     });
 
   });
-
-  
 
   container.querySelectorAll('.card-value-input').forEach(input => {
 
@@ -5865,8 +5065,6 @@ function loadSelectedCards() {
 
 }
 
-
-
 // Función para alternar selección de tarjeta predefinida
 
 function togglePredefinedCard(card) {
@@ -5881,8 +5079,6 @@ function togglePredefinedCard(card) {
 
   const cardElement = document.querySelector(`[data-card-id="${card.id}"]`);
 
-  
-
   // Verificar si ya está seleccionada usando el ID de la tarjeta predefinida
 
   const existingIndex = selectedCards.findIndex(selected => 
@@ -5890,8 +5086,6 @@ function togglePredefinedCard(card) {
     selected.predefinedCardId === card.id
 
   );
-
-  
 
   if (existingIndex !== -1) {
 
@@ -5915,8 +5109,6 @@ function togglePredefinedCard(card) {
 
     }
 
-    
-
     // Agregar a seleccionadas (con ID temporal para nuevas y el ID de predefinida)
 
     selectedCards.push({
@@ -5939,15 +5131,11 @@ function togglePredefinedCard(card) {
 
   }
 
-  
-
   // Recargar tarjetas seleccionadas
 
   loadSelectedCards();
 
 }
-
-
 
 // Función para configurar event listeners del modal
 
@@ -5967,8 +5155,6 @@ function setupEditDataEventListeners() {
 
   });
 
-  
-
   // Búsqueda de tarjetas
 
   const searchInput = document.getElementById('cardSearch');
@@ -5978,8 +5164,6 @@ function setupEditDataEventListeners() {
     searchInput.addEventListener('input', filterPredefinedCards);
 
   }
-
-  
 
   // Filtro de categorías
 
@@ -5991,8 +5175,6 @@ function setupEditDataEventListeners() {
 
   }
 
-  
-
   // Botón de agregar tarjeta personalizada
 
   const addCustomBtn = document.getElementById('addCustomCardBtn');
@@ -6002,8 +5184,6 @@ function setupEditDataEventListeners() {
     addCustomBtn.addEventListener('click', addCustomCard);
 
   }
-
-  
 
   // Event delegation para botones de eliminar
 
@@ -6019,13 +5199,9 @@ function setupEditDataEventListeners() {
 
   });
 
-  
-
   // Los event listeners para inputs de título y valor se agregan en loadSelectedCards()
 
 }
-
-
 
 // Función para cambiar pestañas
 
@@ -6041,8 +5217,6 @@ function switchTab(tabName) {
 
   document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
-  
-
   // Actualizar contenido de pestañas
 
   document.querySelectorAll('.tab-content').forEach(content => {
@@ -6055,8 +5229,6 @@ function switchTab(tabName) {
 
 }
 
-
-
 // Función para filtrar tarjetas predefinidas
 
 function filterPredefinedCards() {
@@ -6067,21 +5239,15 @@ function filterPredefinedCards() {
 
   const cards = document.querySelectorAll('.predefined-card');
 
-  
-
   cards.forEach(card => {
 
     const label = card.querySelector('.predefined-card-label').textContent.toLowerCase();
 
     const category = card.querySelector('.predefined-card-category').textContent;
 
-    
-
     const matchesSearch = label.includes(searchTerm);
 
     const matchesCategory = !categoryFilter || category === categoryFilter;
-
-    
 
     if (matchesSearch && matchesCategory) {
 
@@ -6096,8 +5262,6 @@ function filterPredefinedCards() {
   });
 
 }
-
-
 
 // Función para agregar tarjeta personalizada
 
@@ -6117,8 +5281,6 @@ function addCustomCard() {
 
   const value = document.getElementById('customValue').value.trim();
 
-  
-
   if (!icon || !label || !value) {
 
     showErrorMessage('Por favor completa todos los campos');
@@ -6126,8 +5288,6 @@ function addCustomCard() {
     return;
 
   }
-
-  
 
   // Verificar si ya existe una tarjeta con el mismo título
 
@@ -6140,8 +5300,6 @@ function addCustomCard() {
     return;
 
   }
-
-  
 
   // Agregar tarjeta personalizada
 
@@ -6159,8 +5317,6 @@ function addCustomCard() {
 
   });
 
-  
-
   // Limpiar formulario
 
   document.getElementById('customIcon').value = '';
@@ -6169,19 +5325,13 @@ function addCustomCard() {
 
   document.getElementById('customValue').value = '';
 
-  
-
   // Recargar tarjetas seleccionadas
 
   loadSelectedCards();
 
-  
-
   showSuccessMessage('Tarjeta personalizada agregada');
 
 }
-
-
 
 // Función para remover tarjeta seleccionada
 
@@ -6213,8 +5363,6 @@ function removeSelectedCard(index) {
 
       loadSelectedCards();
 
-      
-
       // Actualizar estado de tarjetas predefinidas
 
       loadPredefinedCards();
@@ -6224,8 +5372,6 @@ function removeSelectedCard(index) {
   );
 
 }
-
-
 
 // Función para actualizar valor de tarjeta seleccionada (ya no se usa, se maneja con event listeners)
 
@@ -6259,8 +5405,6 @@ function clearDataForm() {
 
 }
 
-
-
 // Función para actualizar datos del proyecto
 
 function updateProjectData() {
@@ -6273,8 +5417,6 @@ function updateProjectData() {
 
   const evaluation = document.getElementById('editEvaluation').value;
 
-  
-
   if (!participants.trim() || !duration.trim() || !objective.trim() || !evaluation.trim()) {
 
     showErrorMessage('Por favor completa todos los campos');
@@ -6282,8 +5424,6 @@ function updateProjectData() {
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -6303,8 +5443,6 @@ function updateProjectData() {
 
     ];
 
-    
-
     // Recargar la vista del proyecto
 
     loadProjectDetail(currentProject);
@@ -6317,8 +5455,6 @@ function updateProjectData() {
 
 }
 
-
-
 // Función para mostrar modal de agregar comunidad
 
 function showAddCommunityModal() {
@@ -6328,8 +5464,6 @@ function showAddCommunityModal() {
   loadCommunitiesList();
 
 }
-
-
 
 // Función para limpiar formulario de comunidad
 
@@ -6341,15 +5475,11 @@ function clearCommunityForm() {
 
 }
 
-
-
 // Función para agregar comunidad al proyecto
 
 function addCommunityToProject() {
 
   const selectedCommunities = getSelectedCommunities();
-
-  
 
   if (selectedCommunities.length === 0) {
 
@@ -6358,8 +5488,6 @@ function addCommunityToProject() {
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -6370,8 +5498,6 @@ function addCommunityToProject() {
       currentProject.communities = [];
 
     }
-
-    
 
     selectedCommunities.forEach(community => {
 
@@ -6387,8 +5513,6 @@ function addCommunityToProject() {
 
     });
 
-    
-
     // Recargar la vista del proyecto
 
     loadProjectDetail(currentProject);
@@ -6400,8 +5524,6 @@ function addCommunityToProject() {
   }
 
 }
-
-
 
 // Función para mostrar modal de agregar personal
 
@@ -6415,13 +5537,9 @@ async function showAddPersonnelModal() {
 
   }
 
-  
-
   showModal('addPersonnelModal');
 
   await loadPersonnelListFromAPI();
-
-  
 
   // Configurar búsqueda de personal
 
@@ -6450,11 +5568,7 @@ async function loadPersonnelListFromAPI() {
 
   if (!personnelList) return;
 
-  
-
   personnelList.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;">Cargando colaboradores...</div>';
-
-  
 
   try {
 
@@ -6466,11 +5580,7 @@ async function loadPersonnelListFromAPI() {
 
     }
 
-    
-
     const colaboradores = await response.json();
-
-    
 
     if (colaboradores.length === 0) {
 
@@ -6479,8 +5589,6 @@ async function loadPersonnelListFromAPI() {
       return;
 
     }
-
-    
 
     // Obtener el proyecto actual para ver qué personal ya está asignado
 
@@ -6491,8 +5599,6 @@ async function loadPersonnelListFromAPI() {
       ? currentProject.personal.map(p => p.id || p.colaborador_id || p.usuario_id).filter(Boolean)
 
       : [];
-
-    
 
     personnelList.innerHTML = colaboradores.map(colaborador => {
 
@@ -6522,8 +5628,6 @@ async function loadPersonnelListFromAPI() {
 
     }).join('');
 
-    
-
     // Agregar event listeners a los checkboxes
 
     personnelList.querySelectorAll('.personnel-checkbox').forEach(checkbox => {
@@ -6550,19 +5654,13 @@ async function loadPersonnelListFromAPI() {
 
     });
 
-    
-
   } catch (error) {
-
-    console.error('Error al cargar colaboradores:', error);
 
     personnelList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">Error al cargar colaboradores. Por favor, intenta de nuevo.</div>';
 
   }
 
 }
-
-
 
 // Función para limpiar formulario de personal
 
@@ -6573,8 +5671,6 @@ function clearPersonnelForm() {
   document.getElementById('personnelRole').value = '';
 
 }
-
-
 
 // Función para agregar personal al proyecto
 
@@ -6588,11 +5684,7 @@ async function addPersonnelToProject() {
 
   }
 
-  
-
   const selectedPersonnel = getSelectedPersonnel();
-
-  
 
   if (selectedPersonnel.length === 0) {
 
@@ -6601,8 +5693,6 @@ async function addPersonnelToProject() {
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -6614,8 +5704,6 @@ async function addPersonnelToProject() {
 
   }
 
-  
-
   try {
 
     // Obtener el personal actual del evento
@@ -6624,13 +5712,9 @@ async function addPersonnelToProject() {
 
     const currentPersonnelIds = currentPersonnel.map(p => p.id || p.colaborador_id || p.usuario_id).filter(Boolean);
 
-    
-
     // Preparar el nuevo personal a agregar (solo los que no están ya asignados)
 
     const newPersonnel = selectedPersonnel.filter(p => !currentPersonnelIds.includes(p.id));
-
-    
 
     if (newPersonnel.length === 0) {
 
@@ -6639,8 +5723,6 @@ async function addPersonnelToProject() {
       return;
 
     }
-
-    
 
     // Preparar el formato para la API
 
@@ -6668,15 +5750,11 @@ async function addPersonnelToProject() {
 
     ];
 
-    
-
     // Crear FormData para enviar a la API
 
     const formData = new FormData();
 
     formData.append('personal_ids', JSON.stringify(personalIds));
-
-    
 
     // Llamar a la API de actualizar evento
 
@@ -6694,11 +5772,7 @@ async function addPersonnelToProject() {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
@@ -6717,19 +5791,13 @@ async function addPersonnelToProject() {
 
     }
 
-    
-
   } catch (error) {
-
-    console.error('Error al agregar personal:', error);
 
     alert('Error al agregar personal. Por favor, intenta de nuevo.');
 
   }
 
 }
-
-
 
 // Función para obtener el token CSRF
 
@@ -6760,8 +5828,6 @@ function getCookie(name) {
   return cookieValue;
 
 }
-
-
 
 // Función para mostrar modal de agregar cambio
 
@@ -6795,14 +5861,11 @@ function showAddChangeModal() {
 
 }
 
-
-
 // Variable para almacenar el ID del cambio que se está editando
 
 let editingCambioId = null;
 let editingCambioGroupId = null;
 let editingCambioIds = [];
-
 
 function resetChangeCurrentTimeControls() {
   const checkbox = document.getElementById('changeUseCurrentTime');
@@ -6828,7 +5891,6 @@ function resetChangeCurrentTimeControls() {
     helper.style.display = 'none';
   }
 }
-
 
 function toggleChangeUseCurrentTime(isChecked) {
   const dateInput = document.getElementById('changeDate');
@@ -6875,7 +5937,6 @@ function toggleChangeUseCurrentTime(isChecked) {
     }
   }
 }
-
 
 // Función para limpiar formulario de cambio
 
@@ -6929,8 +5990,6 @@ function clearChangeForm() {
 
 }
 
-
-
 // Función para confirmar eliminación de cambio
 
 function confirmarEliminarCambio(cambioId, cambio) {
@@ -6941,8 +6000,6 @@ function confirmarEliminarCambio(cambioId, cambio) {
 
     : '¿Estás seguro de que deseas eliminar este cambio?';
 
-  
-
   document.getElementById('confirmMessage').textContent = mensaje;
 
   document.getElementById('confirmDeleteBtn').onclick = () => eliminarCambio(cambioId);
@@ -6950,8 +6007,6 @@ function confirmarEliminarCambio(cambioId, cambio) {
   showModal('confirmDeleteModal');
 
 }
-
-
 
 // Función para eliminar cambio
 
@@ -6967,8 +6022,6 @@ async function eliminarCambio(cambioId) {
 
   }
 
-  
-
   try {
 
     const response = await fetch(`/api/evento/${currentProject.id}/cambio/${cambioId}/eliminar/`, {
@@ -6983,11 +6036,7 @@ async function eliminarCambio(cambioId) {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
@@ -7006,8 +6055,6 @@ async function eliminarCambio(cambioId) {
 
   } catch (error) {
 
-    console.error('Error al eliminar cambio:', error);
-
     showErrorMessage('Error al eliminar el cambio. Por favor, intenta de nuevo.');
 
   }
@@ -7019,13 +6066,10 @@ function editarCambio(cambioId, cambio) {
 
   if (!cambio) {
 
-    console.error('No se encontró el cambio con ID:', cambioId);
-
     return;
 
   }
 
-  
   editingCambioGroupId = cambio.grupo_id || null;
   editingCambioIds = Array.isArray(cambio.ids) && cambio.ids.length ? cambio.ids : [cambioId];
   editingCambioId = editingCambioIds[0] || cambioId;
@@ -7037,8 +6081,6 @@ function editarCambio(cambioId, cambio) {
   document.getElementById('confirmChangeBtn').textContent = 'Guardar';
 
   document.getElementById('changeDescription').value = cambio.descripcion || '';
-
-  
 
   // Cargar fecha y hora del cambio si existe
 
@@ -7058,8 +6100,6 @@ function editarCambio(cambioId, cambio) {
 
     const minutes = String(fechaCambio.getMinutes()).padStart(2, '0');
 
-    
-
     // Formatear fecha para input type="date" (YYYY-MM-DD)
 
     const fechaStr = `${year}-${month}-${day}`;
@@ -7067,8 +6107,6 @@ function editarCambio(cambioId, cambio) {
     // Formatear hora para input type="time" (HH:MM)
 
     const horaStr = `${hours}:${minutes}`;
-
-    
 
     document.getElementById('changeDate').value = fechaStr;
 
@@ -7083,8 +6121,6 @@ function editarCambio(cambioId, cambio) {
     document.getElementById('changeTime').value = '';
 
   }
-
-  
 
   // Cargar colaborador seleccionado si existe
 
@@ -7131,13 +6167,9 @@ function editarCambio(cambioId, cambio) {
     loadChangeCommunitiesList();
   }
 
-  
-
   // Limpiar evidencias nuevas seleccionadas (para agregar nuevas en la edición)
 
   selectedEvidencesFiles = [];
-
-  
 
   // Cargar evidencias existentes del cambio en el preview
 
@@ -7149,13 +6181,9 @@ function editarCambio(cambioId, cambio) {
 
   }
 
-  
-
   showModal('addChangeModal');
 
 }
-
-
 
 // Función para actualizar descripciones de evidencias existentes que hayan cambiado
 
@@ -7169,19 +6197,13 @@ async function updateExistingEvidenceDescriptions() {
 
   }
 
-  
-
   const preview = document.getElementById('changeEvidencesPreview');
 
   if (!preview) return;
 
-  
-
   // Obtener todos los textareas de evidencias existentes
 
   const existingTextareas = preview.querySelectorAll('.evidence-description-input-existing');
-
-  
 
   // Actualizar cada evidencia que haya cambiado
 
@@ -7193,8 +6215,6 @@ async function updateExistingEvidenceDescriptions() {
 
     const descripcionActual = textarea.value.trim();
 
-    
-
     // Solo actualizar si la descripción cambió
 
     if (descripcionActual !== descripcionOriginal) {
@@ -7204,8 +6224,6 @@ async function updateExistingEvidenceDescriptions() {
         const formData = new FormData();
 
         formData.append('descripcion', descripcionActual);
-
-        
 
         const response = await fetch(`/api/evento/${currentProject.id}/cambio/${editingCambioId}/evidencia/${evidenciaId}/actualizar/`, {
 
@@ -7221,27 +6239,19 @@ async function updateExistingEvidenceDescriptions() {
 
         });
 
-        
-
         const result = await response.json();
 
         if (!result.success) {
 
-          console.error(`Error al actualizar descripción de evidencia ${evidenciaId}:`, result.error);
-
         }
 
       } catch (error) {
-
-        console.error(`Error al actualizar descripción de evidencia ${evidenciaId}:`, error);
 
       }
 
     }
 
   });
-
-  
 
   // Esperar a que todas las actualizaciones se completen
 
@@ -7251,24 +6261,19 @@ async function updateExistingEvidenceDescriptions() {
 // Función para agregar cambio al proyecto usando API
 
 async function addChangeToProject() {
-  console.log('💾 addChangeToProject() llamada');
   
   // Prevenir ejecuciones múltiples
   if (isUploadingChange) {
-    console.warn('⚠️ Ya hay una subida de cambio en progreso, ignorando llamada duplicada');
     return;
   }
 
   if (!tienePermisoGestionActual()) {
-    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
 
     return;
 
   }
-  
-  console.log('✅ Permisos verificados');
-  
+
   // Marcar como en proceso
   isUploadingChange = true;
   
@@ -7281,12 +6286,8 @@ async function addChangeToProject() {
   }
 
   const description = document.getElementById('changeDescription').value.trim();
-  console.log('📝 Descripción:', description);
 
   const selectedPersonnel = getSelectedChangePersonnel();
-  console.log('👥 Personal seleccionado:', selectedPersonnel);
-
-  
 
   if (!description) {
     isUploadingChange = false;
@@ -7299,8 +6300,6 @@ async function addChangeToProject() {
     return;
 
   }
-
-  
 
   // Validar que se haya seleccionado al menos un colaborador
   if (selectedPersonnel.length === 0) {
@@ -7327,8 +6326,6 @@ async function addChangeToProject() {
 
   }
 
-  
-
   try {
 
     const formData = new FormData();
@@ -7341,8 +6338,6 @@ async function addChangeToProject() {
     if (editingCambioId && editingCambioIds && editingCambioIds.length) {
       formData.append('cambio_ids', JSON.stringify(editingCambioIds));
     }
-
-    
 
     // Agregar fecha y hora si se especificaron o indicar que se use la actual
 
@@ -7370,24 +6365,16 @@ async function addChangeToProject() {
 
     }
 
-    
-
     // Enviar TODOS los colaboradores seleccionados como una lista JSON
     const colaboradoresIds = selectedPersonnel.map(p => p.id);
-    console.log('📤 Colaboradores seleccionados:', selectedPersonnel);
-    console.log('📤 IDs de colaboradores:', colaboradoresIds);
-    console.log('📤 JSON string:', JSON.stringify(colaboradoresIds));
     
     if (colaboradoresIds.length > 0) {
       formData.append('colaboradores_ids', JSON.stringify(colaboradoresIds));
-      console.log('✅ colaboradores_ids agregado al FormData');
     } else {
-      console.error('❌ No hay IDs de colaboradores para enviar');
     }
 
     // Enviar TODAS las comunidades seleccionadas como una lista JSON
     const selectedCommunities = getSelectedChangeCommunities();
-    console.log('📤 Comunidades seleccionadas (objeto completo):', selectedCommunities);
     
     // Asegurarse de que los IDs sean strings o números válidos
     const comunidadesIds = selectedCommunities
@@ -7395,32 +6382,20 @@ async function addChangeToProject() {
         const id = c.id;
         // Convertir a string si es número, o mantener como string
         const idStr = String(id).trim();
-        console.log(`  - Comunidad: ${c.name}, ID original: ${id} (tipo: ${typeof id}), ID procesado: ${idStr}`);
         return idStr;
       })
       .filter(id => id && id !== 'undefined' && id !== 'null' && id !== '');
-    
-    console.log('📤 IDs de comunidades procesados:', comunidadesIds);
-    console.log('📤 JSON string de comunidades:', JSON.stringify(comunidadesIds));
-    
+
     if (comunidadesIds.length > 0) {
       formData.append('comunidades_ids', JSON.stringify(comunidadesIds));
-      console.log('✅ comunidades_ids agregado al FormData:', JSON.stringify(comunidadesIds));
     } else {
-      console.log('ℹ️ No se seleccionaron comunidades (opcional)');
     }
 
-    
-
     // Agregar archivos de evidencias con sus descripciones individuales
-
-    console.log('Archivos seleccionados:', selectedEvidencesFiles.length);
 
     if (selectedEvidencesFiles.length > 0) {
 
       selectedEvidencesFiles.forEach((fileItem, index) => {
-
-        console.log(`Agregando archivo ${index}:`, fileItem.file.name);
 
         formData.append(`archivo_${index}`, fileItem.file);
 
@@ -7436,54 +6411,34 @@ async function addChangeToProject() {
 
     }
 
-    
-
     const url = editingCambioId 
 
       ? `/api/evento/${currentProject.id}/cambio/${editingCambioId}/actualizar/`
 
       : `/api/evento/${currentProject.id}/cambio/crear/`;
 
-    
-
-    console.log('Enviando cambio a:', url);
-
     // Log de todos los datos del FormData
-    console.log('📋 FormData keys:', Array.from(formData.keys()));
     for (let key of formData.keys()) {
       const value = formData.get(key);
       if (key === 'comunidades_ids') {
-        console.log(`  🔵 ${key}:`, value, '(tipo:', typeof value, ')');
         try {
           const parsed = JSON.parse(value);
-          console.log(`  🔵 ${key} parseado:`, parsed);
         } catch (e) {
-          console.error(`  ❌ Error al parsear ${key}:`, e);
         }
       } else if (key === 'colaboradores_ids') {
-        console.log(`  🔵 ${key}:`, value, '(tipo:', typeof value, ')');
         try {
           const parsed = JSON.parse(value);
-          console.log(`  🔵 ${key} parseado:`, parsed);
         } catch (e) {
-          console.error(`  ❌ Error al parsear ${key}:`, e);
         }
       } else {
-        console.log(`  ${key}:`, value);
       }
     }
     
     // Verificación específica de comunidades
     const comunidadesEnFormData = formData.get('comunidades_ids');
     if (comunidadesEnFormData) {
-      console.log('✅ comunidades_ids está en FormData:', comunidadesEnFormData);
     } else {
-      console.warn('⚠️ comunidades_ids NO está en FormData');
-      console.log('🔍 Comunidades seleccionadas antes de agregar:', selectedCommunities);
-      console.log('🔍 IDs procesados antes de agregar:', comunidadesIds);
     }
-
-    
 
     const response = await fetch(url, {
 
@@ -7499,19 +6454,11 @@ async function addChangeToProject() {
 
     });
 
-    
-
     const result = await response.json();
-
-    console.log('Respuesta del servidor:', result);
-
-    
 
     if (result.success) {
 
       showSuccessMessage(editingCambioId ? 'Cambio actualizado exitosamente' : 'Cambio agregado exitosamente');
-
-      
 
       // Si estamos editando, actualizar las descripciones de evidencias existentes que hayan cambiado
 
@@ -7521,8 +6468,6 @@ async function addChangeToProject() {
 
       }
 
-      
-
       editingCambioId = null;
       editingCambioGroupId = null;
       editingCambioIds = [];
@@ -7530,8 +6475,6 @@ async function addChangeToProject() {
       hideModal('addChangeModal');
 
       clearChangeForm();
-
-      
 
       // Recargar los detalles del proyecto
       shouldRefreshLatestProjects = true;
@@ -7544,8 +6487,6 @@ async function addChangeToProject() {
     }
 
   } catch (error) {
-
-    console.error('Error al guardar cambio:', error);
 
     showErrorMessage('Error al guardar el cambio. Por favor, intenta de nuevo.');
 
@@ -7564,15 +6505,9 @@ async function addChangeToProject() {
 
 }
 
-
-
 // Las funciones clearImageForm, handleImageSelect y addImageToProject ya están definidas arriba
 
 // Las funciones showEditDescriptionModal y updateProjectDescription ya están definidas arriba
-
-
-
-
 
 // Función para limpiar formulario de datos
 
@@ -7588,8 +6523,6 @@ function clearDataForm() {
 
 }
 
-
-
 // Función para actualizar datos del proyecto
 
 function updateProjectData() {
@@ -7602,8 +6535,6 @@ function updateProjectData() {
 
   const evaluation = document.getElementById('editEvaluation').value;
 
-  
-
   if (!participants.trim() || !duration.trim() || !objective.trim() || !evaluation.trim()) {
 
     showErrorMessage('Por favor completa todos los campos');
@@ -7611,8 +6542,6 @@ function updateProjectData() {
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -7632,8 +6561,6 @@ function updateProjectData() {
 
     ];
 
-    
-
     // Recargar la vista del proyecto
 
     loadProjectDetail(currentProject);
@@ -7646,8 +6573,6 @@ function updateProjectData() {
 
 }
 
-
-
 // Función para mostrar modal de agregar comunidad
 
 function showAddCommunityModal() {
@@ -7657,8 +6582,6 @@ function showAddCommunityModal() {
   loadCommunitiesList();
 
 }
-
-
 
 // Función para limpiar formulario de comunidad
 
@@ -7670,15 +6593,11 @@ function clearCommunityForm() {
 
 }
 
-
-
 // Función para agregar comunidad al proyecto
 
 function addCommunityToProject() {
 
   const selectedCommunities = getSelectedCommunities();
-
-  
 
   if (selectedCommunities.length === 0) {
 
@@ -7687,8 +6606,6 @@ function addCommunityToProject() {
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -7699,8 +6616,6 @@ function addCommunityToProject() {
       currentProject.communities = [];
 
     }
-
-    
 
     selectedCommunities.forEach(community => {
 
@@ -7716,8 +6631,6 @@ function addCommunityToProject() {
 
     });
 
-    
-
     // Recargar la vista del proyecto
 
     loadProjectDetail(currentProject);
@@ -7729,8 +6642,6 @@ function addCommunityToProject() {
   }
 
 }
-
-
 
 // Función para mostrar modal de agregar personal
 
@@ -7744,13 +6655,9 @@ async function showAddPersonnelModal() {
 
   }
 
-  
-
   showModal('addPersonnelModal');
 
   await loadPersonnelListFromAPI();
-
-  
 
   // Configurar búsqueda de personal
 
@@ -7772,8 +6679,6 @@ async function showAddPersonnelModal() {
 
 }
 
-
-
 // Función para cargar colaboradores desde la API
 
 async function loadPersonnelListFromAPI() {
@@ -7782,11 +6687,7 @@ async function loadPersonnelListFromAPI() {
 
   if (!personnelList) return;
 
-  
-
   personnelList.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;">Cargando colaboradores...</div>';
-
-  
 
   try {
 
@@ -7798,11 +6699,7 @@ async function loadPersonnelListFromAPI() {
 
     }
 
-    
-
     const colaboradores = await response.json();
-
-    
 
     if (colaboradores.length === 0) {
 
@@ -7811,8 +6708,6 @@ async function loadPersonnelListFromAPI() {
       return;
 
     }
-
-    
 
     // Obtener el proyecto actual para ver qué personal ya está asignado
 
@@ -7823,8 +6718,6 @@ async function loadPersonnelListFromAPI() {
       ? currentProject.personal.map(p => p.id || p.colaborador_id || p.usuario_id).filter(Boolean)
 
       : [];
-
-    
 
     personnelList.innerHTML = colaboradores.map(colaborador => {
 
@@ -7854,8 +6747,6 @@ async function loadPersonnelListFromAPI() {
 
     }).join('');
 
-    
-
     // Agregar event listeners a los checkboxes
 
     personnelList.querySelectorAll('.personnel-checkbox').forEach(checkbox => {
@@ -7882,19 +6773,13 @@ async function loadPersonnelListFromAPI() {
 
     });
 
-    
-
   } catch (error) {
-
-    console.error('Error al cargar colaboradores:', error);
 
     personnelList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">Error al cargar colaboradores. Por favor, intenta de nuevo.</div>';
 
   }
 
 }
-
-
 
 // Función para limpiar formulario de personal
 
@@ -7917,11 +6802,7 @@ async function addPersonnelToProject() {
 
   }
 
-  
-
   const selectedPersonnel = getSelectedPersonnel();
-
-  
 
   if (selectedPersonnel.length === 0) {
 
@@ -7930,8 +6811,6 @@ async function addPersonnelToProject() {
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -7943,8 +6822,6 @@ async function addPersonnelToProject() {
 
   }
 
-  
-
   try {
 
     // Obtener el personal actual del evento
@@ -7953,13 +6830,9 @@ async function addPersonnelToProject() {
 
     const currentPersonnelIds = currentPersonnel.map(p => p.id || p.colaborador_id || p.usuario_id).filter(Boolean);
 
-    
-
     // Preparar el nuevo personal a agregar (solo los que no están ya asignados)
 
     const newPersonnel = selectedPersonnel.filter(p => !currentPersonnelIds.includes(p.id));
-
-    
 
     if (newPersonnel.length === 0) {
 
@@ -7968,8 +6841,6 @@ async function addPersonnelToProject() {
       return;
 
     }
-
-    
 
     // Preparar el formato para la API
 
@@ -7997,15 +6868,11 @@ async function addPersonnelToProject() {
 
     ];
 
-    
-
     // Crear FormData para enviar a la API
 
     const formData = new FormData();
 
     formData.append('personal_ids', JSON.stringify(personalIds));
-
-    
 
     // Llamar a la API de actualizar evento
 
@@ -8023,11 +6890,7 @@ async function addPersonnelToProject() {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
@@ -8046,19 +6909,13 @@ async function addPersonnelToProject() {
 
     }
 
-    
-
   } catch (error) {
-
-    console.error('Error al agregar personal:', error);
 
     alert('Error al agregar personal. Por favor, intenta de nuevo.');
 
   }
 
 }
-
-
 
 // Función para obtener el token CSRF
 
@@ -8093,15 +6950,12 @@ function getCookie(name) {
 
 document.addEventListener('DOMContentLoaded', function() {
 
-  console.log('DOM cargado, configurando event listeners...');
-  
   // Delegación de eventos para botones de modales (backup en caso de que los listeners directos fallen)
   document.body.addEventListener('click', function(e) {
     const target = e.target;
     
     // Verificar si es el botón de confirmar eliminación
     if (target.id === 'confirmDeleteBtn' || target.closest('#confirmDeleteBtn')) {
-      console.log('🖱️ Click capturado por delegación en confirmDeleteBtn');
       e.preventDefault();
       e.stopPropagation();
       executeDeleteAction();
@@ -8110,13 +6964,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el botón de agregar imagen
     if (target.id === 'confirmImageBtn' || target.closest('#confirmImageBtn')) {
-      console.log('🖱️ Click capturado por delegación en confirmImageBtn');
       e.preventDefault();
       e.stopPropagation();
       // Verificar que el botón no esté deshabilitado (ya procesando)
       const btn = target.id === 'confirmImageBtn' ? target : target.closest('#confirmImageBtn');
       if (btn && btn.disabled) {
-        console.warn('⚠️ Botón deshabilitado, ignorando click');
         return;
       }
       addImageToProject();
@@ -8125,7 +6977,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el botón de guardar descripción
     if (target.id === 'confirmDescriptionBtn' || target.closest('#confirmDescriptionBtn')) {
-      console.log('🖱️ Click capturado por delegación en confirmDescriptionBtn');
       e.preventDefault();
       e.stopPropagation();
       updateProjectDescription();
@@ -8134,7 +6985,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el botón de guardar datos
     if (target.id === 'confirmDataBtn' || target.closest('#confirmDataBtn')) {
-      console.log('🖱️ Click capturado por delegación en confirmDataBtn');
       e.preventDefault();
       e.stopPropagation();
       saveProjectData();
@@ -8143,13 +6993,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el botón de agregar cambio
     if (target.id === 'confirmChangeBtn' || target.closest('#confirmChangeBtn')) {
-      console.log('🖱️ Click capturado por delegación en confirmChangeBtn');
       e.preventDefault();
       e.stopPropagation();
       // Verificar que el botón no esté deshabilitado (ya procesando)
       const btn = target.id === 'confirmChangeBtn' ? target : target.closest('#confirmChangeBtn');
       if (btn && btn.disabled) {
-        console.warn('⚠️ Botón deshabilitado, ignorando click');
         return;
       }
       addChangeToProject();
@@ -8158,13 +7006,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el botón de agregar archivo del proyecto
     if (target.id === 'confirmFileBtn' || target.closest('#confirmFileBtn')) {
-      console.log('🖱️ Click capturado por delegación en confirmFileBtn');
       e.preventDefault();
       e.stopPropagation();
       // Verificar que el botón no esté deshabilitado (ya procesando)
       const btn = target.id === 'confirmFileBtn' ? target : target.closest('#confirmFileBtn');
       if (btn && btn.disabled) {
-        console.warn('⚠️ Botón deshabilitado, ignorando click');
         return;
       }
       addFileToProject();
@@ -8173,7 +7019,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el botón de guardar descripción de archivo
     if (target.id === 'confirmFileDescriptionBtn' || target.closest('#confirmFileDescriptionBtn')) {
-      console.log('🖱️ Click capturado por delegación en confirmFileDescriptionBtn');
       e.preventDefault();
       e.stopPropagation();
       updateProjectFileDescription();
@@ -8182,14 +7027,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el botón de editar archivo
     if (target.classList.contains('file-edit-btn') || target.closest('.file-edit-btn')) {
-      console.log('🖱️ Click capturado por delegación en file-edit-btn');
       e.preventDefault();
       e.stopPropagation();
       const btn = target.classList.contains('file-edit-btn') ? target : target.closest('.file-edit-btn');
       const archivoId = btn.getAttribute('data-edit-archivo-id');
       const descripcion = btn.getAttribute('data-archivo-descripcion');
       const decoded = descripcion ? decodeURIComponent(descripcion) : '';
-      console.log('📝 Editar archivo:', { archivoId, descripcion: decoded });
       showEditProjectFileDescriptionModal(archivoId, decoded);
       return;
     }
@@ -8197,7 +7040,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Verificar si es el botón de eliminar archivo (btn-danger con data-archivo-id)
     if ((target.classList.contains('btn-danger') || target.closest('.btn-danger')) && 
         (target.hasAttribute('data-archivo-id') || target.closest('[data-archivo-id]'))) {
-      console.log('🖱️ Click capturado por delegación en btn-danger (eliminar archivo)');
       e.preventDefault();
       e.stopPropagation();
       const btn = target.hasAttribute('data-archivo-id') ? target : target.closest('[data-archivo-id]');
@@ -8207,14 +7049,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const fileItem = btn.closest('.file-item');
       const fileNameElement = fileItem ? fileItem.querySelector('.file-info h4 a, .file-info h4 span') : null;
       const fileName = fileNameElement ? fileNameElement.textContent.trim() : 'este archivo';
-      
-      console.log('🗑️ Eliminar archivo:', { archivoId, fileName });
-      
+
       // Mostrar modal de confirmación
       showConfirmDeleteModal(
         `¿Estás seguro de que deseas eliminar el archivo "${fileName}"? Esta acción no se puede deshacer.`,
         async () => {
-          console.log('✅ Usuario confirmó eliminación del archivo');
           await eliminarArchivoProyecto(archivoId);
         }
       );
@@ -8228,21 +7067,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Verificar si es el input de imágenes
     if (target.id === 'imageFileInput') {
-      console.log('📸 Change capturado por delegación en imageFileInput');
       handleImageSelect(e);
       return;
     }
     
     // Verificar si es el input de evidencias de cambios
     if (target.id === 'changeEvidencesInput') {
-      console.log('📎 Change capturado por delegación en changeEvidencesInput');
       handleChangeEvidencesSelect(e);
       return;
     }
     
     // Verificar si es el input de archivos del proyecto
     if (target.id === 'fileInput') {
-      console.log('📄 Change capturado por delegación en fileInput');
       handleFileSelect(e);
       return;
     }
@@ -8303,8 +7139,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   handleUrlAnchor();
 
-
-
   // Botones "Ver todos" por categoría
 
   document.querySelectorAll('.btn-ver-todos').forEach(button => {
@@ -8313,15 +7147,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const category = this.getAttribute('data-category');
 
-      console.log('Navegando a lista de categoría:', category);
-
       showListView(category);
 
     });
 
   });
-
-
 
   // Botón "Ver todos los eventos"
 
@@ -8331,23 +7161,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     verTodosBtn.addEventListener('click', function() {
 
-      console.log('Navegando a lista de todos los eventos');
-
       showListView();
 
     });
 
   }
 
-
-
   // Configurar event listeners para el buscador
 
   const searchInput = document.getElementById('projectSearchInput');
 
   const searchClearBtn = document.getElementById('searchClearBtn');
-
-  
 
   if (searchInput) {
 
@@ -8356,8 +7180,6 @@ document.addEventListener('DOMContentLoaded', function() {
     searchInput.addEventListener('input', function(e) {
 
       const searchTerm = e.target.value;
-
-      
 
       // Mostrar/ocultar botón de limpiar
 
@@ -8375,8 +7197,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
       }
 
-      
-
       // Filtrar proyectos
 
       filterProjectsBySearch(searchTerm);
@@ -8388,8 +7208,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
     });
-
-    
 
     // Event listener para limpiar búsqueda
 
@@ -8409,8 +7227,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const typeFilter = document.getElementById('projectTypeFilter');
 
   if (typeFilter) {
@@ -8427,8 +7243,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // Botón de regreso
 
   const btnBack = document.getElementById('btnBack');
@@ -8437,15 +7251,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     btnBack.addEventListener('click', function() {
 
-      console.log('Volviendo a vista principal');
-
       showMainView();
 
     });
 
   }
-
-
 
   // Botón "Agregar nuevo"
 
@@ -8454,8 +7264,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mostrar confirmación antes de redirigir
 
   const confirmed = confirm('¿Está seguro que quiere crear un evento nuevo?\n\nAbandonará esta página y será redirigido al formulario de creación de eventos.');
-
-  
 
   if (confirmed) {
 
@@ -8467,8 +7275,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   });
 
-
-
   // Escuchar cambios en el hash de la URL
 
   window.addEventListener('hashchange', function() {
@@ -8477,15 +7283,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   });
 
-
-
   // Agregar event listeners cuando se cargue la página
 
-  console.log('Agregando event listeners para botones Ver más');
-
   addViewMoreListeners();
-
-  
 
   // Event delegation para botones "Ver más"
 
@@ -8495,13 +7295,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (e.target.classList.contains('project-btn')) {
 
-      console.log('Botón Ver más clickeado!');
-
       e.preventDefault();
 
       const projectId = e.target.getAttribute('data-project-id');
-
-      console.log('ID del proyecto:', projectId);
 
       if (projectId) {
 
@@ -8509,15 +7305,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
       } else {
 
-        console.error('No se encontró data-project-id en el botón');
-
       }
 
     }
 
   });
-
-  
 
   // Verificar que los elementos existan
 
@@ -8531,31 +7323,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const verTodosEventosBtn = document.querySelector('.btn-ver-todos-eventos');
 
-    
-
-    console.log('Elementos encontrados:');
-
-    console.log('- Tarjetas de proyecto:', projectCards.length);
-
-    console.log('- Botones de lista:', listItems.length);
-
-    console.log('- Botones Ver todos:', verTodosBtns.length);
-
-    console.log('- Botón Ver todos eventos:', verTodosEventosBtn ? 'Sí' : 'No');
-
   }, 1000);
 
-
-
   // ======= EVENT LISTENERS PARA LOS NUEVOS BOTONES =======
-
-  
 
   // Inicializar datos del proyecto actual
 
   currentProjectData = getCurrentProject();
-
-
 
   // Botón Editar Evento - Solo visible para admin
 
@@ -8572,8 +7346,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     (window.USER_AUTH && window.USER_AUTH.isAuthenticated && window.USER_AUTH.isAdmin) ||
 
                     (typeof usuario_maga !== 'undefined' && usuario_maga && usuario_maga.es_admin);
-
-    
 
     if (!isAdmin) {
 
@@ -8599,8 +7371,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         }
 
-        
-
         // Redirigir a la página de gestión de eventos con el ID del evento para editarlo directamente
 
         const eventoId = currentProject.id;
@@ -8612,8 +7382,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
   }
-
-
 
   // Botón Generar Reporte
 
@@ -8634,7 +7402,6 @@ document.addEventListener('DOMContentLoaded', function() {
       try {
         targetUrl = new URL(baseReportesUrl, window.location.origin);
       } catch (error) {
-        console.warn('URL de reportes inválida, usando ruta por defecto.', error);
         targetUrl = new URL('/reportes/', window.location.origin);
       }
 
@@ -8645,19 +7412,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-
-
   // Botones de agregar elementos
 
   // Los botones de agregar/quitar comunidad han sido removidos según solicitud del usuario
 
-
   ensureProjectActionHandlers();
 
-
   // Event listeners para modales (ya están definidos más abajo)
-
-
 
   // Event listeners para credenciales
 
@@ -8668,8 +7429,6 @@ document.addEventListener('DOMContentLoaded', function() {
     verifyCredentialsBtn.addEventListener('click', verifyCredentials);
 
   }
-
-
 
   const cancelCredentialsBtn = document.getElementById('cancelCredentialsBtn');
 
@@ -8689,8 +7448,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const closeCredentialsModal = document.getElementById('closeCredentialsModal');
 
   if (closeCredentialsModal) {
@@ -8709,22 +7466,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // Event listener para selección de imagen
 
   const imageFileInput = document.getElementById('imageFileInput');
-  console.log('🔍 Buscando input imageFileInput...', imageFileInput);
 
   if (imageFileInput) {
-    console.log('✅ Input imageFileInput encontrado, agregando listener');
     imageFileInput.addEventListener('change', handleImageSelect);
 
   } else {
-    console.warn('⚠️ Input imageFileInput NO encontrado');
   }
-
-
 
   // Event listeners para cerrar modales
 
@@ -8736,8 +7486,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // Event listener para cerrar modal de imagen en tamaño completo
 
   const closeImageViewModalBtn = document.getElementById('closeImageViewModal');
@@ -8747,8 +7495,6 @@ document.addEventListener('DOMContentLoaded', function() {
     closeImageViewModalBtn.addEventListener('click', closeImageViewModal);
 
   }
-
-
 
   // Event listener para cerrar modal de imagen al hacer clic fuera del contenido
 
@@ -8770,8 +7516,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // Event listener para cerrar modal de imagen con tecla ESC
 
   document.addEventListener('keydown', function(e) {
@@ -8790,8 +7534,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   });
 
-
-
   const closeDescriptionModal = document.getElementById('closeDescriptionModal');
 
   if (closeDescriptionModal) {
@@ -8799,8 +7541,6 @@ document.addEventListener('DOMContentLoaded', function() {
     closeDescriptionModal.addEventListener('click', () => hideModal('editDescriptionModal'));
 
   }
-
-
 
   const closeDataModal = document.getElementById('closeDataModal');
 
@@ -8810,8 +7550,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const closeCommunityModal = document.getElementById('closeCommunityModal');
 
   if (closeCommunityModal) {
@@ -8820,8 +7558,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const closePersonnelModal = document.getElementById('closePersonnelModal');
 
   if (closePersonnelModal) {
@@ -8829,8 +7565,6 @@ document.addEventListener('DOMContentLoaded', function() {
     closePersonnelModal.addEventListener('click', () => hideModal('addPersonnelModal'));
 
   }
-
-
 
   const closeChangeModal = document.getElementById('closeChangeModal');
 
@@ -8845,8 +7579,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
   }
-
-
 
   // Event listeners para botones de cancelar
 
@@ -8864,8 +7596,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelDescriptionBtn = document.getElementById('cancelDescriptionBtn');
 
   if (cancelDescriptionBtn) {
@@ -8874,8 +7604,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelDataBtn = document.getElementById('cancelDataBtn');
 
   if (cancelDataBtn) {
@@ -8883,8 +7611,6 @@ document.addEventListener('DOMContentLoaded', function() {
     cancelDataBtn.addEventListener('click', () => hideModal('editDataModal'));
 
   }
-
-
 
   const cancelCommunityBtn = document.getElementById('cancelCommunityBtn');
 
@@ -8901,8 +7627,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelChangeBtn = document.getElementById('cancelChangeBtn');
 
   if (cancelChangeBtn) {
@@ -8917,38 +7641,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // Event listeners para botones de confirmar
   // NOTA: Los listeners para confirmImageBtn, confirmChangeBtn y confirmFileBtn
   // están manejados por delegación de eventos en document.body (línea ~8040)
   // para evitar duplicación de eventos. No agregar listeners directos aquí.
 
-
-
   const confirmDescriptionBtn = document.getElementById('confirmDescriptionBtn');
-  console.log('🔍 Buscando botón confirmDescriptionBtn...', confirmDescriptionBtn);
 
   if (confirmDescriptionBtn) {
-    console.log('✅ Botón confirmDescriptionBtn encontrado, agregando listener');
     
     // Remover listener previo si existe (para evitar duplicados)
     confirmDescriptionBtn.removeEventListener('click', updateProjectDescription);
     
     confirmDescriptionBtn.addEventListener('click', function(e) {
-      console.log('🖱️ Click en botón GUARDAR (confirmDescriptionBtn)', e);
       e.preventDefault();
       e.stopPropagation();
       updateProjectDescription();
     });
 
   } else {
-    console.warn('⚠️ Botón confirmDescriptionBtn NO encontrado en el DOM');
-    console.log('🔍 Elementos del DOM:', document.querySelectorAll('button'));
   }
 
-
-
+  // NOTA: confirmDataBtn ya está manejado por delegación de eventos en document.body
+  // No se necesita listener directo para evitar doble ejecución
+  
+  /* DESHABILITADO - Ya manejado por delegación
   const confirmDataBtn = document.getElementById('confirmDataBtn');
 
   if (confirmDataBtn) {
@@ -8956,8 +7673,7 @@ document.addEventListener('DOMContentLoaded', function() {
     confirmDataBtn.addEventListener('click', saveProjectData);
 
   }
-
-
+  */
 
   const confirmCommunityBtn = document.getElementById('confirmCommunityBtn');
 
@@ -8967,8 +7683,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const confirmPersonnelBtn = document.getElementById('confirmPersonnelBtn');
 
   if (confirmPersonnelBtn) {
@@ -8977,22 +7691,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // confirmChangeBtn está manejado por delegación de eventos en document.body
 
   const confirmFileDescriptionBtn = document.getElementById('confirmFileDescriptionBtn');
-  console.log('🔍 Buscando botón confirmFileDescriptionBtn...', confirmFileDescriptionBtn);
 
   if (confirmFileDescriptionBtn) {
-    console.log('✅ Botón confirmFileDescriptionBtn encontrado, agregando listener');
     confirmFileDescriptionBtn.addEventListener('click', function(e) {
-      console.log('🖱️ Click en botón GUARDAR CAMBIOS (confirmFileDescriptionBtn)');
       updateProjectFileDescription();
     });
 
   } else {
-    console.log('⚠️ Botón confirmFileDescriptionBtn NO encontrado en el DOM');
   }
 
   const changeUseCurrentTimeCheckbox = document.getElementById('changeUseCurrentTime');
@@ -9005,22 +7713,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-  
-
   // Event listener para el input de evidencias en el modal de cambios
 
   const changeEvidencesInput = document.getElementById('changeEvidencesInput');
-  console.log('🔍 Buscando input changeEvidencesInput...', changeEvidencesInput);
 
   if (changeEvidencesInput) {
-    console.log('✅ Input changeEvidencesInput encontrado, agregando listener');
     changeEvidencesInput.addEventListener('change', handleChangeEvidencesSelect);
 
   } else {
-    console.warn('⚠️ Input changeEvidencesInput NO encontrado');
   }
-
-
 
   // Event listeners para modal de archivos
 
@@ -9043,8 +7744,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelFileBtn = document.getElementById('cancelFileBtn');
 
   if (cancelFileBtn) {
@@ -9064,11 +7763,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // confirmFileBtn está manejado por delegación de eventos en document.body
-
-
 
   // Input de archivo
 
@@ -9089,8 +7784,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelCommunitySelectionBtn = document.getElementById('cancelCommunitySelectionBtn');
 
   if (cancelCommunitySelectionBtn) {
@@ -9098,8 +7791,6 @@ document.addEventListener('DOMContentLoaded', function() {
     cancelCommunitySelectionBtn.addEventListener('click', () => hideModal('communitySelectionModal'));
 
   }
-
-
 
   const confirmCommunitySelectionBtn = document.getElementById('confirmCommunitySelectionBtn');
 
@@ -9141,8 +7832,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const closeChangeSelectionModal = document.getElementById('closeChangeSelectionModal');
 
   if (closeChangeSelectionModal) {
@@ -9151,8 +7840,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelChangeSelectionBtn = document.getElementById('cancelChangeSelectionBtn');
 
   if (cancelChangeSelectionBtn) {
@@ -9160,8 +7847,6 @@ document.addEventListener('DOMContentLoaded', function() {
     cancelChangeSelectionBtn.addEventListener('click', () => hideModal('changeSelectionModal'));
 
   }
-
-
 
   const confirmChangeSelectionBtn = document.getElementById('confirmChangeSelectionBtn');
 
@@ -9203,8 +7888,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const closeFileSelectionModal = document.getElementById('closeFileSelectionModal');
 
   if (closeFileSelectionModal) {
@@ -9213,8 +7896,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelFileSelectionBtn = document.getElementById('cancelFileSelectionBtn');
 
   if (cancelFileSelectionBtn) {
@@ -9222,8 +7903,6 @@ document.addEventListener('DOMContentLoaded', function() {
     cancelFileSelectionBtn.addEventListener('click', () => hideModal('fileSelectionModal'));
 
   }
-
-
 
   const confirmFileSelectionBtn = document.getElementById('confirmFileSelectionBtn');
 
@@ -9265,8 +7944,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // Event listeners para modales de evidencias
 
   const closeChangeDetailsModal = document.getElementById('closeChangeDetailsModal');
@@ -9277,8 +7954,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const closeChangeDetailsBtn = document.getElementById('closeChangeDetailsBtn');
 
   if (closeChangeDetailsBtn) {
@@ -9286,8 +7961,6 @@ document.addEventListener('DOMContentLoaded', function() {
     closeChangeDetailsBtn.addEventListener('click', () => hideModal('changeDetailsModal'));
 
   }
-
-
 
   const addEvidenceBtn = document.getElementById('addEvidenceBtn');
 
@@ -9297,8 +7970,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const closeAddEvidenceModal = document.getElementById('closeAddEvidenceModal');
 
   if (closeAddEvidenceModal) {
@@ -9306,8 +7977,6 @@ document.addEventListener('DOMContentLoaded', function() {
     closeAddEvidenceModal.addEventListener('click', () => hideModal('addEvidenceModal'));
 
   }
-
-
 
   const cancelEvidenceBtn = document.getElementById('cancelEvidenceBtn');
 
@@ -9317,8 +7986,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const confirmEvidenceBtn = document.getElementById('confirmEvidenceBtn');
 
   if (confirmEvidenceBtn) {
@@ -9327,8 +7994,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const evidenceInput = document.getElementById('evidenceInput');
 
   if (evidenceInput) {
@@ -9336,8 +8001,6 @@ document.addEventListener('DOMContentLoaded', function() {
     evidenceInput.addEventListener('change', handleEvidenceSelect);
 
   }
-
-
 
   // Event listener para eliminar evidencias
 
@@ -9355,8 +8018,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   });
 
-
-
   // Event listeners para modal de confirmación
 
   const closeConfirmModal = document.getElementById('closeConfirmModal');
@@ -9367,8 +8028,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
 
   if (cancelDeleteBtn) {
@@ -9377,29 +8036,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-  console.log('🔍 Buscando botón confirmDeleteBtn...', confirmDeleteBtn);
 
   if (confirmDeleteBtn) {
-    console.log('✅ Botón confirmDeleteBtn encontrado, agregando listener');
     confirmDeleteBtn.addEventListener('click', function(e) {
-      console.log('🖱️ Click en botón ELIMINAR (confirmDeleteBtn)');
       executeDeleteAction();
     });
 
   } else {
-    console.warn('⚠️ Botón confirmDeleteBtn NO encontrado');
   }
-
-
 
   // Event listeners para botones de eliminación de sección
 
   // El botón removeChangeBtn ha sido removido según solicitud del usuario
-
-
 
   const removeFileBtn = document.getElementById('removeFileBtn');
 
@@ -9427,8 +8076,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   }
 
-
-
   // Event listeners para botones de eliminación usando delegación de eventos
 
   document.addEventListener('click', function(e) {
@@ -9436,8 +8083,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.target.closest('.btn-remove-item')) {
 
       const button = e.target.closest('.btn-remove-item');
-
-      
 
       if (button.hasAttribute('data-personnel-id')) {
 
@@ -9477,8 +8122,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   });
 
-
-
   // Cerrar modales al hacer clic fuera
 
   document.addEventListener('click', function(e) {
@@ -9496,11 +8139,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 
-
-
 // ======= FUNCIONES PARA LISTAS DE SELECCIÓN =======
-
-
 
 // Función para cargar lista de comunidades
 
@@ -9510,11 +8149,7 @@ function loadCommunitiesList() {
 
   if (!communitiesList) return;
 
-  
-
   communitiesList.innerHTML = '';
-
-  
 
   availableCommunities.forEach(community => {
 
@@ -9540,8 +8175,6 @@ function loadCommunitiesList() {
 
   });
 
-  
-
   // Agregar event listener para el buscador
 
   const searchInput = document.getElementById('communitySearch');
@@ -9554,8 +8187,6 @@ function loadCommunitiesList() {
 
 }
 
-
-
 // Función para cargar lista de personal
 
 function loadPersonnelList() {
@@ -9564,11 +8195,7 @@ function loadPersonnelList() {
 
   if (!personnelList) return;
 
-  
-
   personnelList.innerHTML = '';
-
-  
 
   availablePersonnel.forEach(person => {
 
@@ -9596,8 +8223,6 @@ function loadPersonnelList() {
 
 }
 
-
-
 // Función para obtener comunidades seleccionadas
 
 function getSelectedCommunities() {
@@ -9614,8 +8239,6 @@ function getSelectedCommunities() {
 
 }
 
-
-
 // Función para obtener personal seleccionado
 
 function getSelectedPersonnel() {
@@ -9624,15 +8247,11 @@ function getSelectedPersonnel() {
 
   const selected = [];
 
-  
-
   checkboxes.forEach(checkbox => {
 
     const item = checkbox.closest('.personnel-item');
 
     if (!item) return;
-
-    
 
     const id = checkbox.getAttribute('data-personnel-id');
 
@@ -9641,8 +8260,6 @@ function getSelectedPersonnel() {
     const nombreElement = item.querySelector('h4');
 
     const puestoElement = item.querySelector('p');
-
-    
 
     if (id && nombreElement) {
 
@@ -9662,13 +8279,9 @@ function getSelectedPersonnel() {
 
   });
 
-  
-
   return selected;
 
 }
-
-
 
 // Función para filtrar comunidades
 
@@ -9678,15 +8291,11 @@ function filterCommunities() {
 
   const communityItems = document.querySelectorAll('.community-item');
 
-  
-
   communityItems.forEach(item => {
 
     const name = item.querySelector('.community-name').textContent.toLowerCase();
 
     const region = item.querySelector('.community-region').textContent.toLowerCase();
-
-    
 
     if (name.includes(searchTerm) || region.includes(searchTerm)) {
 
@@ -9705,58 +8314,40 @@ function filterCommunities() {
 
 async function loadChangePersonnelList() {
 
-  console.log('🔍 loadChangePersonnelList() llamada');
-  
   const personnelList = document.getElementById('changePersonnelList');
 
   if (!personnelList) {
-    console.error('❌ No se encontró el elemento changePersonnelList');
     return;
   }
 
-  
-
   const currentProject = getCurrentProject();
-  console.log('📦 Proyecto actual:', currentProject);
 
   if (!currentProject || !currentProject.id) {
 
-    console.error('❌ No se pudo obtener el proyecto actual');
     personnelList.innerHTML = '<p style="color: #6c757d;">No se pudo obtener la información del proyecto.</p>';
 
     return;
 
   }
 
-  
-
   // Obtener solo los colaboradores asignados al proyecto actual
 
   const personalAsignado = currentProject.personal || [];
-  console.log('👥 Personal asignado:', personalAsignado);
-
-  
 
   personnelList.innerHTML = '';
 
-  
-
   if (personalAsignado.length === 0) {
 
-    console.warn('⚠️ No hay personal asignado al proyecto');
     personnelList.innerHTML = '<p style="color: #6c757d;">No hay colaboradores asignados a este proyecto.</p>';
 
     return;
 
   }
 
-  
-
   // Renderizar solo colaboradores (no usuarios directos) con checkboxes como en "Personal a Cargo"
   let colaboradoresCount = 0;
   
   personalAsignado.forEach(person => {
-    console.log('👤 Procesando persona:', person.tipo, person.id, person.nombre);
 
     if (person.tipo === 'colaborador' && person.id) {
       colaboradoresCount++;
@@ -9787,8 +8378,6 @@ async function loadChangePersonnelList() {
 
       personnelList.appendChild(personnelItem);
 
-      
-
       // Agregar event listener para cambiar estilo cuando se selecciona
 
       const checkbox = personnelItem.querySelector('.change-personnel-checkbox');
@@ -9815,8 +8404,6 @@ async function loadChangePersonnelList() {
 
   });
 
-  console.log(`✅ Total colaboradores renderizados: ${colaboradoresCount}`);
-
   // Agregar event listener para el buscador
 
   const searchInput = document.getElementById('changePersonnelSearch');
@@ -9831,20 +8418,16 @@ async function loadChangePersonnelList() {
 
 // Función para cargar comunidades del proyecto en el formulario de cambios
 async function loadChangeCommunitiesList() {
-  console.log('🔍 loadChangeCommunitiesList() llamada');
   
   const communitiesList = document.getElementById('changeCommunitiesList');
 
   if (!communitiesList) {
-    console.error('❌ No se encontró el elemento changeCommunitiesList');
     return;
   }
 
   const currentProject = getCurrentProject();
-  console.log('📦 Proyecto actual:', currentProject);
 
   if (!currentProject || !currentProject.id) {
-    console.error('❌ No se pudo obtener el proyecto actual');
     communitiesList.innerHTML = '<p style="color: #6c757d;">No se pudo obtener la información del proyecto.</p>';
     return;
   }
@@ -9854,12 +8437,10 @@ async function loadChangeCommunitiesList() {
   
   // Normalizar las comunidades para asegurar que tengan los campos correctos
   const comunidadesProyecto = normalizeCommunitiesData(rawCommunities);
-  console.log('🏘️ Comunidades del proyecto (normalizadas):', comunidadesProyecto);
 
   communitiesList.innerHTML = '';
 
   if (comunidadesProyecto.length === 0) {
-    console.warn('⚠️ No hay comunidades relacionadas con el proyecto');
     communitiesList.innerHTML = '<p style="color: #6c757d;">No hay comunidades relacionadas con este proyecto.</p>';
     return;
   }
@@ -9888,14 +8469,6 @@ async function loadChangeCommunitiesList() {
     }
     
     if (!comunidadId || comunidadId === '' || comunidadId === 'undefined' || comunidadId === 'null') {
-      console.error('❌ Comunidad sin ID válido, saltando:', {
-        comunidad: comunidad,
-        id: comunidad.id,
-        comunidad_id: comunidad.comunidad_id,
-        community_id: comunidad.community_id,
-        pk: comunidad.pk,
-        uuid: comunidad.uuid
-      });
       return; // Saltar esta comunidad si no tiene ID
     }
     
@@ -9903,8 +8476,6 @@ async function loadChangeCommunitiesList() {
     const comunidadNombre = comunidad.name || comunidad.nombre || 'Sin nombre';
     // Usar el campo 'region' que viene de normalizeCommunitiesData (ya incluye región y sede)
     const regionNombre = comunidad.region || comunidad.region_nombre || 'Sin región';
-
-    console.log(`🏘️ Cargando comunidad en lista: ${comunidadNombre} (ID: ${comunidadId}, tipo: ${typeof comunidadId})`);
 
     communityItem.setAttribute('data-community-id', comunidadId);
 
@@ -9923,9 +8494,7 @@ async function loadChangeCommunitiesList() {
     // Verificar que el checkbox se creó correctamente
     const createdCheckbox = communityItem.querySelector('.change-community-checkbox');
     if (createdCheckbox) {
-      console.log(`✅ Checkbox creado: value="${createdCheckbox.value}", id="${createdCheckbox.id}"`);
     } else {
-      console.error('❌ No se pudo crear el checkbox para:', comunidadNombre);
     }
 
     communitiesList.appendChild(communityItem);
@@ -9974,7 +8543,6 @@ function filterChangeCommunities() {
 // Función para obtener comunidades seleccionadas en modal de cambios
 function getSelectedChangeCommunities() {
   const checkboxes = document.querySelectorAll('#changeCommunitiesList input.change-community-checkbox:checked');
-  console.log('🔍 Comunidades seleccionadas:', checkboxes.length);
 
   const selected = [];
 
@@ -9990,35 +8558,17 @@ function getSelectedChangeCommunities() {
       
       // Validar que el ID no sea vacío, null, undefined, o string "null"/"undefined"
       if (!finalId || finalId === '' || finalId === 'null' || finalId === 'undefined' || finalId === 'NaN') {
-        console.error(`❌ Comunidad ${index + 1} sin ID válido:`, {
-          name: name,
-          checkboxValue: cb.value,
-          checkboxValueType: typeof cb.value,
-          dataAttribute: dataCommunityId,
-          checkboxElement: cb
-        });
         return; // Saltar esta comunidad
       }
-      
-      console.log(`✅ Comunidad seleccionada ${index + 1}:`, { 
-        id: finalId, 
-        idType: typeof finalId,
-        name: name,
-        checkboxValue: communityId,
-        dataAttribute: dataCommunityId,
-        checkboxElement: cb
-      });
 
       selected.push({
         id: finalId,
         name: name
       });
     } else {
-      console.error(`❌ No se pudo encontrar el elemento padre para checkbox ${index + 1}:`, cb);
     }
   });
 
-  console.log('📋 Total comunidades seleccionadas:', selected);
   return selected;
 }
 
@@ -10027,7 +8577,6 @@ function getSelectedChangeCommunities() {
 function getSelectedChangePersonnel() {
 
   const checkboxes = document.querySelectorAll('#changePersonnelList input.change-personnel-checkbox:checked');
-  console.log('🔍 Checkboxes seleccionados:', checkboxes.length);
 
   const selected = [];
 
@@ -10039,8 +8588,6 @@ function getSelectedChangePersonnel() {
 
       const personId = cb.value;
       const name = personItem.querySelector('h4')?.textContent.trim() || '';
-      
-      console.log('✅ Colaborador seleccionado:', { id: personId, name: name });
 
       selected.push({
 
@@ -10054,7 +8601,6 @@ function getSelectedChangePersonnel() {
 
   });
 
-  console.log('📋 Total seleccionados:', selected);
   return selected;
 
 }
@@ -10066,8 +8612,6 @@ function filterChangePersonnel() {
 
   const personnelItems = document.querySelectorAll('#changePersonnelList .personnel-item');
 
-  
-
   personnelItems.forEach(item => {
 
     const name = item.querySelector('h4')?.textContent.toLowerCase() || '';
@@ -10075,8 +8619,6 @@ function filterChangePersonnel() {
     const roleP = item.querySelector('p')?.textContent.toLowerCase() || '';
 
     const roleP2 = item.querySelectorAll('p')[1]?.textContent.toLowerCase() || '';
-
-    
 
     if (name.includes(searchTerm) || roleP.includes(searchTerm) || roleP2.includes(searchTerm)) {
 
@@ -10092,8 +8634,6 @@ function filterChangePersonnel() {
 
 }
 
-
-
 // También manejar el caso cuando la página se carga directamente con hash
 
 window.addEventListener('load', function() {
@@ -10101,8 +8641,6 @@ window.addEventListener('load', function() {
   handleUrlAnchor();
 
 });
-
-
 
 // Re-agregar event listeners cuando se muestre la vista principal
 
@@ -10116,39 +8654,39 @@ showMainView = function() {
 
 };
 
-
-
 // ======= FUNCIÓN PARA GUARDAR DATOS DEL PROYECTO =======
 
 async function saveProjectData() {
-
-  console.log('saveProjectData() llamada');
-
-  console.log('selectedCards:', selectedCards);
-
-  if (!tienePermisoGestionActual()) {
-
-    mostrarMensajePermisoDenegado();
-
+  // Control de concurrencia: evitar múltiples guardados simultáneos
+  if (isSavingProjectData) {
+    console.log('⚠️ saveProjectData ya está en ejecución - Ignorando llamada duplicada');
     return;
-
   }
-
   
+  console.log('💾 saveProjectData iniciando...');
+  isSavingProjectData = true;
 
-  // Obtener el proyecto actual
+  try {
 
-  let proyecto = getCurrentProject();
+    if (!tienePermisoGestionActual()) {
+
+      mostrarMensajePermisoDenegado();
+      isSavingProjectData = false;
+      return;
+
+    }
+
+    // Obtener el proyecto actual
+
+    let proyecto = getCurrentProject();
 
   if (!proyecto || !proyecto.id) {
 
     showErrorMessage('Error: No se pudo obtener la información del evento.');
-
+    isSavingProjectData = false;
     return;
 
   }
-
-  
 
   // Validar que todas las tarjetas tengan título y valor
 
@@ -10157,22 +8695,16 @@ async function saveProjectData() {
   if (invalidCards.length > 0) {
 
     showErrorMessage('Por favor completa el título y valor de todas las tarjetas');
-
+    isSavingProjectData = false;
     return;
 
   }
-
-  
 
   try {
 
     // Obtener tarjetas originales del proyecto
 
     const tarjetasOriginales = (proyecto.tarjetas_datos || []).map(t => t.id);
-
-    console.log('📋 Tarjetas originales del proyecto:', tarjetasOriginales);
-
-    
 
     // Crear un mapa de tarjetas por título para detectar duplicados
 
@@ -10184,8 +8716,6 @@ async function saveProjectData() {
 
     });
 
-    
-
     // Separar tarjetas nuevas, actualizadas y eliminadas
 
     const tarjetasNuevas = [];
@@ -10194,17 +8724,11 @@ async function saveProjectData() {
 
     const tarjetasTitulosNuevas = new Set(); // Para evitar duplicados en nuevas
 
-    
-
     selectedCards.forEach(card => {
 
       const cardId = card.id || '';
 
       const cardLabelNormalized = card.label.trim().toLowerCase();
-
-      console.log('🔍 Procesando tarjeta:', { id: cardId, label: card.label, isCustom: card.isCustom });
-
-      
 
       // Si el ID es undefined, null, vacío o empieza con 'card_', es una tarjeta nueva
 
@@ -10213,8 +8737,6 @@ async function saveProjectData() {
         // Verificar si ya existe una tarjeta con el mismo título en la BD
 
         if (tarjetasPorTitulo[cardLabelNormalized]) {
-
-          console.log('⚠️ Tarjeta con título existente encontrada, actualizando en lugar de crear nueva:', card.label);
 
           // Actualizar la tarjeta existente en lugar de crear una nueva
 
@@ -10234,8 +8756,6 @@ async function saveProjectData() {
 
           // Solo agregar si no está duplicada en las nuevas
 
-          console.log('✅ Tarjeta nueva detectada:', card.label);
-
           tarjetasNuevas.push({
 
             titulo: card.label.trim(),
@@ -10250,15 +8770,11 @@ async function saveProjectData() {
 
         } else {
 
-          console.log('⚠️ Tarjeta duplicada detectada (mismo título en nuevas):', card.label);
-
         }
 
       } else if (tarjetasOriginales.includes(cardId)) {
 
         // Si el ID existe en las tarjetas originales, es una actualización
-
-        console.log('✅ Tarjeta actualizada detectada:', card.label, 'ID:', cardId);
 
         tarjetasActualizadas.push({
 
@@ -10278,8 +8794,6 @@ async function saveProjectData() {
 
         if (tarjetasPorTitulo[cardLabelNormalized]) {
 
-          console.log('⚠️ Tarjeta con ID desconocido pero título existente, actualizando:', card.label);
-
           tarjetasActualizadas.push({
 
             id: tarjetasPorTitulo[cardLabelNormalized],
@@ -10293,8 +8807,6 @@ async function saveProjectData() {
           });
 
         } else if (!tarjetasTitulosNuevas.has(cardLabelNormalized)) {
-
-          console.log('⚠️ Tarjeta con ID desconocido, tratando como nueva:', card.label);
 
           tarjetasNuevas.push({
 
@@ -10314,8 +8826,6 @@ async function saveProjectData() {
 
     });
 
-    
-
     // Las tarjetas eliminadas son las que están en originales pero no en las actuales
 
     const tarjetasActualesIds = selectedCards
@@ -10326,21 +8836,18 @@ async function saveProjectData() {
 
     const tarjetasEliminadas = tarjetasOriginales.filter(id => !tarjetasActualesIds.includes(id));
 
-    
-
-    console.log('Tarjetas nuevas:', tarjetasNuevas);
-
-    console.log('Tarjetas actualizadas:', tarjetasActualizadas);
-
-    console.log('Tarjetas eliminadas:', tarjetasEliminadas);
-
-    
+    // DEBUG: Mostrar lo que se va a enviar
+    console.log('🔍 DATOS A ENVIAR AL BACKEND:');
+    console.log('📊 Tarjetas Nuevas:', tarjetasNuevas);
+    console.log('✏️ Tarjetas Actualizadas:', tarjetasActualizadas);
+    console.log('🗑️ Tarjetas Eliminadas:', tarjetasEliminadas);
+    console.log('📋 Tarjetas Originales (IDs):', tarjetasOriginales);
+    console.log('📝 Tarjetas por Título:', tarjetasPorTitulo);
+    console.log('🎯 selectedCards:', selectedCards);
 
     // Preparar datos para enviar a la API
 
     const formData = new FormData();
-
-    
 
     if (tarjetasNuevas.length > 0) {
 
@@ -10360,19 +8867,15 @@ async function saveProjectData() {
 
     }
 
-    
-
     // Si no hay cambios, solo cerrar el modal
 
     if (tarjetasNuevas.length === 0 && tarjetasActualizadas.length === 0 && tarjetasEliminadas.length === 0) {
 
       hideModal('editDataModal');
-
+      isSavingProjectData = false;
       return;
 
     }
-
-    
 
     // Enviar a la API
 
@@ -10390,33 +8893,21 @@ async function saveProjectData() {
 
     });
 
-    
-
-    console.log('📥 Respuesta recibida:', response.status, response.statusText);
-
-    
-
     // Verificar si la respuesta es JSON válido
 
     const contentType = response.headers.get('content-type');
 
     let result;
 
-    
-
     if (!contentType || !contentType.includes('application/json')) {
 
       const text = await response.text();
 
-      console.error('❌ Respuesta no es JSON:', text.substring(0, 500));
-
       showErrorMessage('Error del servidor. Por favor, intenta de nuevo.');
-
+      isSavingProjectData = false;
       return;
 
     }
-
-    
 
     // Parsear JSON
 
@@ -10424,46 +8915,36 @@ async function saveProjectData() {
 
       result = await response.json();
 
-      console.log('📦 Resultado:', result);
-
     } catch (jsonError) {
 
-      console.error('❌ Error al parsear JSON:', jsonError);
-
       showErrorMessage('Error al procesar la respuesta del servidor. Por favor, intenta de nuevo.');
-
+      isSavingProjectData = false;
       return;
 
     }
-
-    
 
     if (!response.ok) {
 
-      console.error('❌ Error en la respuesta:', result);
-
       showErrorMessage(result.error || `Error ${response.status}: ${response.statusText}`);
-
+      isSavingProjectData = false;
       return;
 
     }
 
-    
-
     if (result.success) {
-
-      console.log('✅ Datos del proyecto actualizados exitosamente');
+      
+      // DEBUG: Mostrar respuesta del backend
+      console.log('✅ RESPUESTA DEL BACKEND:', result);
 
       // Recargar los detalles del proyecto para mostrar los cambios
 
       shouldRefreshLatestProjects = true;
+      console.log('🔄 Recargando detalles del proyecto...');
       await loadProjectDetails(proyecto.id);
 
       hideModal('editDataModal');
 
       showSuccessMessage('Datos del proyecto actualizados exitosamente.');
-
-      
 
       // Limpiar variables
 
@@ -10473,33 +8954,34 @@ async function saveProjectData() {
 
     } else {
 
-      console.error('❌ Error en resultado:', result.error);
-
       showErrorMessage(result.error || 'Error al actualizar los datos del proyecto.');
 
     }
 
-    
-
   } catch (error) {
-
-    console.error('❌ Error al guardar datos del proyecto:', error);
 
     showErrorMessage('Error al guardar los datos. Por favor, intenta de nuevo.');
 
+  } finally {
+    // Siempre liberar el lock al finalizar
+    isSavingProjectData = false;
+    console.log('✅ saveProjectData finalizado - Lock liberado');
+  }
+
+  } catch (outerError) {
+    // Capturar errores del bloque externo
+    console.error('Error inesperado en saveProjectData:', outerError);
+    showErrorMessage('Error inesperado. Por favor, intenta de nuevo.');
+    isSavingProjectData = false;
   }
 
 }
-
-
 
 // ======= FUNCIONES PARA MANEJO DE ARCHIVOS =======
 
 // Variable para almacenar archivos seleccionados
 
 let selectedProjectFiles = [];
-
-
 
 function showAddFileModal() {
 
@@ -10517,200 +8999,154 @@ function showAddFileModal() {
 
 }
 
-
-
 function clearFileForm() {
+  const fileInput = document.getElementById('fileInput');
+  if (fileInput) {
+    fileInput.value = '';
+  }
 
-  document.getElementById('fileInput').value = '';
-
-  document.getElementById('fileDescription').value = '';
+  // Ya no hay textarea general de descripción, solo por archivo
+  // const fileDescription = document.getElementById('fileDescription');
+  // if (fileDescription) {
+  //   fileDescription.value = '';
+  // }
 
   selectedProjectFiles = [];
 
   const filePreview = document.getElementById('filePreview');
-
   if (filePreview) {
-
     filePreview.innerHTML = '';
-
   }
-
+  
 }
-
-
 
 function handleFileSelect(event) {
-  console.log('📄 handleFileSelect() llamada', event);
 
-  const file = event.target.files[0];
-  console.log('📄 Archivo seleccionado:', file);
+  const files = event.target.files;
 
-  if (!file) {
-    console.log('❌ No se seleccionó ningún archivo');
+  if (!files || files.length === 0) {
     return;
   }
 
-  
+  // Agregar todos los archivos seleccionados al array
+  Array.from(files).forEach(file => {
+    const fileObj = {
+      file: file,
+      id: Date.now() + Math.random(),
+      description: '' // Descripción vacía por defecto
+    };
+    selectedProjectFiles.push(fileObj);
+  });
 
-  // Agregar el archivo al array de archivos seleccionados
-  const fileObj = {
-    file: file,
-    id: Date.now() + Math.random() // ID único para cada archivo
-  };
-
-  selectedProjectFiles.push(fileObj);
-  console.log('✅ Archivo agregado a selectedProjectFiles:', fileObj);
-  console.log('📄 Total de archivos en selectedProjectFiles:', selectedProjectFiles.length);
-
-  
-
-  // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
-
+  // Limpiar el input para permitir seleccionar más archivos
   event.target.value = '';
 
-  
-
   // Renderizar el preview de archivos
-
   renderFilePreview();
-
 }
 
-
-
 function renderFilePreview() {
-  console.log('📄 renderFilePreview() llamada');
-  console.log('📄 Archivos en selectedProjectFiles:', selectedProjectFiles.length);
 
   const preview = document.getElementById('filePreview');
-  console.log('📄 Preview container:', preview);
 
   if (!preview) {
-    console.log('❌ No se encontró el contenedor filePreview');
     return;
   }
-
-  
 
   preview.innerHTML = '';
 
-  
-
   if (selectedProjectFiles.length === 0) {
-    console.log('ℹ️ No hay archivos para mostrar');
     return;
 
   }
 
-  
-  console.log('✅ Renderizando', selectedProjectFiles.length, 'archivo(s)');
-
   selectedProjectFiles.forEach((fileItem) => {
+    // Contenedor principal del archivo
+    const fileCard = document.createElement('div');
+    fileCard.className = 'file-preview-card';
+    fileCard.style.cssText = 'background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin-bottom: 12px; width: 100%;';
+    fileCard.setAttribute('data-file-id', fileItem.id);
 
-    const fileDiv = document.createElement('div');
+    // Fila superior: icono, nombre, tamaño y botón eliminar
+    const fileHeader = document.createElement('div');
+    fileHeader.style.cssText = 'display: flex; align-items: center; gap: 12px; margin-bottom: 8px;';
 
-    fileDiv.className = 'file-preview-item';
-
-    fileDiv.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px;';
-
-    fileDiv.setAttribute('data-file-id', fileItem.id);
-
-  
-
-  const fileIcon = document.createElement('div');
-
-  fileIcon.className = 'file-preview-icon';
-
-    fileIcon.style.cssText = 'width: 48px; height: 48px; background: rgba(0, 123, 255, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; color: #fff;';
-
+    // Icono del archivo
+    const fileIcon = document.createElement('div');
+    fileIcon.className = 'file-preview-icon';
+    fileIcon.style.cssText = 'width: 48px; height: 48px; flex-shrink: 0; background: rgba(0, 123, 255, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; color: #fff;';
     fileIcon.textContent = getFileExtension(fileItem.file.name).toUpperCase();
 
-    
-
+    // Información del archivo (nombre y tamaño)
     const fileInfo = document.createElement('div');
+    fileInfo.style.cssText = 'flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;';
 
-    fileInfo.style.cssText = 'flex: 1; display: flex; flex-direction: column; gap: 4px;';
-
-  
-
-  const fileName = document.createElement('div');
-
-  fileName.className = 'file-preview-name';
-
-    fileName.style.cssText = 'color: #fff; font-weight: 500; font-size: 0.9rem;';
-
+    const fileName = document.createElement('div');
+    fileName.className = 'file-preview-name';
+    fileName.style.cssText = 'color: #fff; font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
     fileName.textContent = fileItem.file.name;
 
-  
-
-  const fileSize = document.createElement('div');
-
-  fileSize.className = 'file-preview-size';
-
+    const fileSize = document.createElement('div');
+    fileSize.className = 'file-preview-size';
     fileSize.style.cssText = 'color: #6c757d; font-size: 0.85rem;';
-
     fileSize.textContent = formatFileSize(fileItem.file.size);
 
-    
-
     fileInfo.appendChild(fileName);
-
     fileInfo.appendChild(fileSize);
 
-    
-
+    // Botón eliminar
     const removeBtn = document.createElement('button');
-
     removeBtn.type = 'button';
-
     removeBtn.className = 'remove-file-btn';
-
     removeBtn.setAttribute('data-file-id', fileItem.id);
-
-    removeBtn.style.cssText = 'background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; transition: background 0.2s;';
-
+    removeBtn.style.cssText = 'background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; transition: background 0.2s;';
     removeBtn.title = 'Eliminar archivo';
-
     removeBtn.onmouseover = function() { this.style.background = '#dc3545'; };
-
     removeBtn.onmouseout = function() { this.style.background = 'rgba(220, 53, 69, 0.9)'; };
-
     removeBtn.innerHTML = `
-
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
-
         <line x1="18" y1="6" x2="6" y2="18"></line>
-
         <line x1="6" y1="6" x2="18" y2="18"></line>
-
       </svg>
-
     `;
 
-    
-
     // Event listener para eliminar archivo
-
     removeBtn.addEventListener('click', function(e) {
-
       e.stopPropagation();
-
       const fileId = this.getAttribute('data-file-id');
-
       removeProjectFile(fileId);
-
     });
 
-    
+    fileHeader.appendChild(fileIcon);
+    fileHeader.appendChild(fileInfo);
+    fileHeader.appendChild(removeBtn);
 
-    fileDiv.appendChild(fileIcon);
+    // Campo de descripción individual
+    const descriptionContainer = document.createElement('div');
+    descriptionContainer.style.cssText = 'margin-top: 8px;';
 
-    fileDiv.appendChild(fileInfo);
+    const descriptionTextarea = document.createElement('textarea');
+    descriptionTextarea.className = 'form-textarea file-description-input';
+    descriptionTextarea.setAttribute('data-file-id', fileItem.id);
+    descriptionTextarea.placeholder = 'Descripción del archivo (opcional)...';
+    descriptionTextarea.rows = 1;
+    descriptionTextarea.value = fileItem.description || '';
+    descriptionTextarea.style.cssText = 'width: 100%; background: rgba(30, 41, 59, 0.85); color: rgba(255, 255, 255, 0.95); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 6px; padding: 6px 8px; font-size: 0.85rem; resize: vertical; min-height: 32px;';
 
-    fileDiv.appendChild(removeBtn);
+    // Actualizar descripción al escribir
+    descriptionTextarea.addEventListener('input', function(e) {
+      const fileId = this.getAttribute('data-file-id');
+      const fileObj = selectedProjectFiles.find(f => f.id == fileId);
+      if (fileObj) {
+        fileObj.description = this.value;
+      }
+    });
 
-    preview.appendChild(fileDiv);
+    descriptionContainer.appendChild(descriptionTextarea);
 
+    fileCard.appendChild(fileHeader);
+    fileCard.appendChild(descriptionContainer);
+    preview.appendChild(fileCard);
   });
 
 }
@@ -10722,15 +9158,11 @@ function removeProjectFile(fileId) {
 
 }
 
-
-
 function getFileExtension(filename) {
 
   return filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2);
 
 }
-
-
 
 function formatFileSize(bytes) {
 
@@ -10746,43 +9178,31 @@ function formatFileSize(bytes) {
 
 }
 
-
-
 async function addFileToProject() {
-  console.log('📄 addFileToProject() llamada');
   
   // Prevenir ejecuciones múltiples
   if (isUploadingFile) {
-    console.warn('⚠️ Ya hay una subida de archivo en progreso, ignorando llamada duplicada');
     return;
   }
 
   if (!tienePermisoGestionActual()) {
-    console.log('❌ Sin permisos para gestionar');
     mostrarMensajePermisoDenegado();
-
     return;
-
   }
-  
-  console.log('✅ Permisos verificados');
-  
+
   // Marcar como en proceso
   isUploadingFile = true;
   
   // Deshabilitar botón inmediatamente
   const confirmButton = document.getElementById('confirmFileBtn');
   const originalLabel = confirmButton ? confirmButton.textContent : null;
+  
   if (confirmButton) {
     confirmButton.disabled = true;
     confirmButton.textContent = 'Guardando...';
   }
 
-  const fileDescription = document.getElementById('fileDescription').value.trim();
-  console.log('📝 Descripción del archivo:', fileDescription);
-
-  
-  console.log('📄 Total de archivos en selectedProjectFiles:', selectedProjectFiles.length);
+  // Ya no hay textarea general de descripción, cada archivo tiene la suya
 
   if (selectedProjectFiles.length === 0) {
     isUploadingFile = false;
@@ -10791,15 +9211,10 @@ async function addFileToProject() {
       confirmButton.textContent = originalLabel || 'Agregar';
     }
     showErrorMessage('Por favor selecciona al menos un archivo');
-
     return;
-
   }
 
-  
-
   // Obtener el proyecto actual
-
   let proyecto = getCurrentProject();
 
   if (!proyecto || !proyecto.id) {
@@ -10809,100 +9224,78 @@ async function addFileToProject() {
       confirmButton.textContent = originalLabel || 'Agregar';
     }
     alert('Error: No se pudo obtener la información del evento.');
-
     return;
-
   }
 
-  
-
   try {
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
 
-    // Si hay múltiples archivos, enviarlos uno por uno
+    // Enviar cada archivo con su descripción individual
+    for (let i = 0; i < selectedProjectFiles.length; i++) {
+      const fileItem = selectedProjectFiles[i];
+      const file = fileItem.file;
+      const description = fileItem.description || '';
 
-    // (El backend actualmente solo acepta un archivo a la vez)
+      try {
+        // Crear FormData para enviar el archivo
+        const formData = new FormData();
+        formData.append('archivo', file);
+        if (description) {
+          formData.append('descripcion', description);
+        }
 
-    if (selectedProjectFiles.length > 1) {
+        // Llamar a la API
+        const url = `/api/evento/${proyecto.id}/archivo/agregar/`;
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: formData
+        });
 
-      showErrorMessage('Por favor selecciona solo un archivo a la vez');
+        const result = await response.json();
 
-      return;
-
+        if (result.success) {
+          successCount++;
+        } else {
+          errorCount++;
+          errors.push(`${file.name}: ${result.error || 'Error desconocido'}`);
+        }
+      } catch (error) {
+        errorCount++;
+        errors.push(`${file.name}: ${error.message}`);
+      }
     }
 
-    
+    // Mostrar resultados
 
-    const fileItem = selectedProjectFiles[0];
-
-    const file = fileItem.file;
-
-    
-
-    // Crear FormData para enviar el archivo
-
-    const formData = new FormData();
-
-    formData.append('archivo', file);
-
-    if (fileDescription) {
-
-      formData.append('descripcion', fileDescription);
-
-    }
-
-    
-
-    // Llamar a la API
-
-    const response = await fetch(`/api/evento/${proyecto.id}/archivo/agregar/`, {
-
-      method: 'POST',
-
-      headers: {
-
-        'X-CSRFToken': getCookie('csrftoken')
-
-      },
-
-      body: formData
-
-    });
-
-    
-
-    const result = await response.json();
-
-    
-
-    if (result.success) {
-
-      // Recargar los detalles del proyecto para mostrar el nuevo archivo
-
+    if (successCount > 0) {
+      // Recargar los detalles del proyecto
       shouldRefreshLatestProjects = true;
       await loadProjectDetails(proyecto.id);
 
       hideModal('addFileModal');
-
+      
       clearFileForm();
 
-      alert('Archivo agregado exitosamente al proyecto.');
-
+      if (errorCount === 0) {
+        showSuccessMessage(`${successCount} archivo(s) agregado(s) exitosamente.`);
+      } else {
+        showSuccessMessage(`${successCount} archivo(s) agregado(s). ${errorCount} archivo(s) fallaron.`);
+      }
     } else {
-
-      alert(result.error || 'Error al agregar archivo.');
-
+      // Todos fallaron
+      showErrorMessage(`Error al agregar archivos: ${errors.join(', ')}`);
     }
 
-    
-
   } catch (error) {
-
-    console.error('Error al agregar archivo:', error);
-
-    alert('Error al agregar archivo. Por favor, intenta de nuevo.');
-
+    showErrorMessage('Error al agregar archivo. Por favor, intenta de nuevo.');
   } finally {
-    
     // Liberar el flag
     isUploadingFile = false;
     
@@ -10913,30 +9306,23 @@ async function addFileToProject() {
     }
     
   }
-
 }
 // Función para eliminar archivo del proyecto
 
 async function eliminarArchivoProyecto(archivoId) {
-  console.log('🗑️ eliminarArchivoProyecto() llamada', { archivoId });
 
   // Obtener el proyecto actual
 
   let proyecto = getCurrentProject();
-  console.log('📂 Proyecto actual:', proyecto);
 
   if (!proyecto || !proyecto.id) {
-    console.log('❌ No se pudo obtener la información del proyecto');
     showErrorMessage('Error: No se pudo obtener la información del evento.');
 
     return;
 
   }
 
-  
-
   try {
-    console.log('🌐 Enviando solicitud DELETE a:', `/api/evento/${proyecto.id}/archivo/${archivoId}/eliminar/`);
 
     // Llamar a la API para eliminar
 
@@ -10952,15 +9338,9 @@ async function eliminarArchivoProyecto(archivoId) {
 
     });
 
-    
-
     const result = await response.json();
-    console.log('📥 Respuesta del servidor:', result);
-
-    
 
     if (result.success) {
-      console.log('✅ Archivo eliminado exitosamente');
 
       // Recargar los detalles del proyecto para actualizar la lista
 
@@ -10975,11 +9355,7 @@ async function eliminarArchivoProyecto(archivoId) {
 
     }
 
-    
-
   } catch (error) {
-
-    console.error('Error al eliminar archivo:', error);
 
     showErrorMessage('Error al eliminar archivo. Por favor, intenta de nuevo.');
 
@@ -10987,69 +9363,60 @@ async function eliminarArchivoProyecto(archivoId) {
 
 }
 
-
 function showEditProjectFileDescriptionModal(fileId, description) {
-  console.log('📝 showEditProjectFileDescriptionModal() llamada', { fileId, description });
   
-  if (!puedeGestionarGaleria()) {
-    console.log('❌ Sin permisos para editar archivos');
+  if (!tienePermisoGestionActual()) {
     showErrorMessage('No tienes permisos para editar archivos.');
     return;
   }
-  
-  console.log('✅ Permisos verificados');
 
   const textarea = document.getElementById('editFileDescriptionInput');
-  console.log('📝 Textarea encontrado:', textarea);
   
   if (!textarea) {
-    console.log('❌ No se encontró el textarea editFileDescriptionInput');
     return;
   }
+
+  // Asegurar que el textarea no esté deshabilitado
+  textarea.disabled = false;
+  textarea.readOnly = false;
 
   currentProjectFileEdit = {
     id: fileId,
     originalDescription: description || '',
   };
-  console.log('📝 currentProjectFileEdit actualizado:', currentProjectFileEdit);
 
   textarea.value = description || '';
+  
   showModal('editFileDescriptionModal');
-  textarea.focus();
+  
+  // Enfocar el textarea después de un pequeño delay para asegurar que el modal está visible
+  setTimeout(() => {
+    textarea.focus();
+  }, 100);
+  
 }
 
-
 async function updateProjectFileDescription() {
-  console.log('💾 updateProjectFileDescription() llamada');
   
-  if (!puedeGestionarGaleria()) {
-    console.log('❌ Sin permisos para editar archivos');
+  if (!tienePermisoGestionActual()) {
     showErrorMessage('No tienes permisos para editar archivos.');
     return;
   }
-  
-  console.log('✅ Permisos verificados');
 
   const proyectoId = currentProjectId || (currentProjectData && currentProjectData.id);
-  console.log('📝 Proyecto ID:', proyectoId);
-  console.log('📝 currentProjectFileEdit:', currentProjectFileEdit);
   
   if (!proyectoId || !currentProjectFileEdit || !currentProjectFileEdit.id) {
-    console.log('❌ No se pudo identificar el archivo a editar');
     showErrorMessage('No se pudo identificar el archivo a editar.');
     return;
   }
 
   const textarea = document.getElementById('editFileDescriptionInput');
-  console.log('📝 Textarea:', textarea);
   
   if (!textarea) {
-    console.log('❌ No se encontró el textarea');
     return;
   }
 
   const newDescription = textarea.value.trim();
-  console.log('📝 Nueva descripción:', newDescription);
   
   const confirmButton = document.getElementById('confirmFileDescriptionBtn');
   const originalLabel = confirmButton ? confirmButton.textContent : null;
@@ -11081,7 +9448,6 @@ async function updateProjectFileDescription() {
     showSuccessMessage('Descripción del archivo actualizada exitosamente.');
     currentProjectFileEdit = null;
   } catch (error) {
-    console.error('Error al actualizar descripción del archivo:', error);
     showErrorMessage(error.message || 'Error al actualizar la descripción del archivo.');
   } finally {
     if (confirmButton) {
@@ -11090,7 +9456,6 @@ async function updateProjectFileDescription() {
     }
   }
 }
-
 
 // Función obsoleta - mantener para compatibilidad pero no usar
 
@@ -11102,8 +9467,6 @@ function addFileToProjectOld() {
 
   const fileDescription = document.getElementById('fileDescription').value.trim();
 
-  
-
   if (!fileInput.files[0]) {
 
     showErrorMessage('Por favor selecciona un archivo');
@@ -11111,8 +9474,6 @@ function addFileToProjectOld() {
     return;
 
   }
-
-  
 
   if (!fileName) {
 
@@ -11122,13 +9483,9 @@ function addFileToProjectOld() {
 
   }
 
-  
-
   const file = fileInput.files[0];
 
   const currentProject = getCurrentProject();
-
-  
 
   if (currentProject) {
 
@@ -11137,8 +9494,6 @@ function addFileToProjectOld() {
       currentProject.files = [];
 
     }
-
-    
 
     const newFile = {
 
@@ -11162,11 +9517,7 @@ function addFileToProjectOld() {
 
     };
 
-    
-
     currentProject.files.push(newFile);
-
-    
 
     // Recargar la vista del proyecto
 
@@ -11182,23 +9533,17 @@ function addFileToProjectOld() {
 
 }
 
-
-
 function generateFileId() {
 
   return 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
 }
 
-
-
 function loadProjectFiles(files) {
 
   const filesContainer = document.getElementById('detailFiles');
 
   if (!filesContainer) return;
-
-  
 
   if (!files || files.length === 0) {
 
@@ -11208,11 +9553,7 @@ function loadProjectFiles(files) {
 
   }
 
-  
-
   filesContainer.innerHTML = '';
-
-  
 
   const puedeGestionarGlobal = puedeGestionarGaleria();
 
@@ -11222,33 +9563,23 @@ function loadProjectFiles(files) {
 
     fileItem.className = 'file-item';
 
-    
-
     const fileIcon = document.createElement('div');
 
     fileIcon.className = 'file-icon';
 
     fileIcon.textContent = file.extension.toUpperCase();
 
-    
-
     const fileInfo = document.createElement('div');
 
     fileInfo.className = 'file-info';
-
-    
 
     const fileName = document.createElement('h4');
 
     fileName.textContent = file.name;
 
-    
-
     const fileDescription = document.createElement('p');
 
     fileDescription.textContent = file.description || 'Sin descripción';
-
-    
 
     const fileDate = document.createElement('div');
 
@@ -11256,15 +9587,11 @@ function loadProjectFiles(files) {
 
     fileDate.textContent = new Date(file.uploadDate).toLocaleDateString('es-GT');
 
-    
-
     fileInfo.appendChild(fileName);
 
     fileInfo.appendChild(fileDescription);
 
     fileInfo.appendChild(fileDate);
-
-    
 
     const fileActions = document.createElement('div');
     fileActions.className = 'file-actions';
@@ -11336,15 +9663,11 @@ function loadProjectFiles(files) {
       fileItem.appendChild(fileActions);
     }
 
-    
-
     filesContainer.appendChild(fileItem);
 
   });
 
 }
-
-
 
 // ======= FUNCIONES DE ELIMINACIÓN =======
 
@@ -11360,15 +9683,11 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
   }
 
-  
-
   if (!confirm('¿Estás seguro de que deseas eliminar este miembro del personal del evento?')) {
 
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -11380,15 +9699,11 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
   }
 
-  
-
   try {
 
     // Obtener el personal actual del evento
 
     const currentPersonnel = currentProject.personal || [];
-
-    
 
     // Filtrar el personal a eliminar
 
@@ -11399,8 +9714,6 @@ async function removePersonnelFromProject(personnelId, personnelType) {
       return pId !== personnelId;
 
     });
-
-    
 
     // Preparar el formato para la API
 
@@ -11414,15 +9727,11 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
     }));
 
-    
-
     // Crear FormData para enviar a la API
 
     const formData = new FormData();
 
     formData.append('personal_ids', JSON.stringify(personalIds));
-
-    
 
     // Llamar a la API de actualizar evento
 
@@ -11440,11 +9749,7 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
@@ -11461,19 +9766,13 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
     }
 
-    
-
   } catch (error) {
-
-    console.error('Error al eliminar personal:', error);
 
     alert('Error al eliminar personal. Por favor, intenta de nuevo.');
 
   }
 
 }
-
-
 
 function removeImageFromProject(imageIndex) {
 
@@ -11501,8 +9800,6 @@ function removeImageFromProject(imageIndex) {
 
 }
 
-
-
 function removeCommunityFromProject(communityIndex) {
 
   showConfirmDeleteModal(
@@ -11528,8 +9825,6 @@ function removeCommunityFromProject(communityIndex) {
   );
 
 }
-
-
 
 function removeChangeFromProject(changeIndex) {
 
@@ -11597,16 +9892,11 @@ function showConfirmDeleteModal(message, callback) {
 
 }
 
-
-
 // Función para ejecutar la acción de eliminación
 
 function executeDeleteAction() {
-  console.log('🗑️ executeDeleteAction() llamada');
-  console.log('🗑️ pendingDeleteAction:', pendingDeleteAction);
 
   if (!tienePermisoGestionActual()) {
-    console.log('❌ Sin permisos en executeDeleteAction');
     mostrarMensajePermisoDenegado();
 
     pendingDeleteAction = null;
@@ -11616,15 +9906,10 @@ function executeDeleteAction() {
     return;
 
   }
-  
-  console.log('✅ Permisos verificados en executeDeleteAction');
 
   if (!pendingDeleteAction) {
-    console.warn('⚠️ No hay acción pendiente de eliminación');
     return;
   }
-  
-  console.log('✅ Ejecutando acción de eliminación...');
 
   try {
     const result = pendingDeleteAction();
@@ -11639,13 +9924,10 @@ function executeDeleteAction() {
       pendingDeleteAction = null;
     }
   } catch (error) {
-    console.error('Error al ejecutar la acción de eliminación:', error);
     hideModal('confirmDeleteModal');
     pendingDeleteAction = null;
   }
 }
-
-
 
 // Función para filtrar lista de personal
 
@@ -11655,13 +9937,9 @@ function filterPersonnelList() {
 
   if (!searchInput) return;
 
-  
-
   const searchTerm = searchInput.value.toLowerCase();
 
   const personnelItems = document.querySelectorAll('.personnel-item');
-
-  
 
   personnelItems.forEach(item => {
 
@@ -11681,11 +9959,7 @@ function filterPersonnelList() {
 
 }
 
-
-
 // ======= FUNCIONES PARA MODALES DE SELECCIÓN =======
-
-
 
 // Función para mostrar modal de selección de comunidades
 
@@ -11695,11 +9969,7 @@ function showCommunitySelectionModal(communities) {
 
   const list = document.getElementById('communitySelectionList');
 
-  
-
   list.innerHTML = '';
-
-  
 
   communities.forEach((community, index) => {
 
@@ -11725,8 +9995,6 @@ function showCommunitySelectionModal(communities) {
 
   });
 
-  
-
   showModal('communitySelectionModal');
 
   setupSelectionHandlers('communitySelectionList');
@@ -11740,11 +10008,7 @@ function showChangeSelectionModal(changes) {
 
   const list = document.getElementById('changeSelectionList');
 
-  
-
   list.innerHTML = '';
-
-  
 
   changes.forEach((change, index) => {
 
@@ -11772,15 +10036,11 @@ function showChangeSelectionModal(changes) {
 
   });
 
-  
-
   showModal('changeSelectionModal');
 
   setupSelectionHandlers('changeSelectionList');
 
 }
-
-
 
 // Función para mostrar modal de selección de archivos
 
@@ -11790,11 +10050,7 @@ function showFileSelectionModal(files) {
 
   const list = document.getElementById('fileSelectionList');
 
-  
-
   list.innerHTML = '';
-
-  
 
   files.forEach((file, index) => {
 
@@ -11822,15 +10078,11 @@ function showFileSelectionModal(files) {
 
   });
 
-  
-
   showModal('fileSelectionModal');
 
   setupSelectionHandlers('fileSelectionList');
 
 }
-
-
 
 // Función auxiliar para obtener índices seleccionados
 
@@ -11841,8 +10093,6 @@ function getSelectedIndices(listId) {
   return Array.from(checkboxes).map(checkbox => parseInt(checkbox.dataset.index));
 
 }
-
-
 
 // Función para configurar selección de elementos
 
@@ -11872,15 +10122,9 @@ function setupSelectionHandlers(listId) {
 
 }
 
-
-
 // ======= FUNCIONES PARA EVIDENCIAS DE CAMBIOS =======
 
-
-
 let currentChangeIndex = null;
-
-
 
 // Función para mostrar modal de detalles de cambio (solo vista, excepto para agregar evidencias)
 
@@ -11888,29 +10132,21 @@ function showChangeDetailsModal(cambio) {
 
   if (!cambio) return;
 
-  
-
   // Verificar permisos antes de mostrar el modal
 
   const puedeGestionar = puedeGestionarGaleria();
 
   if (!puedeGestionar) {
 
-    console.log('⚠️ Usuario no autenticado intentó abrir modal de detalles del cambio');
-
     return; // Bloquear acceso al modal para usuarios no autenticados
 
   }
-
-  
 
   // Llenar información del cambio
 
   const fechaDisplay = cambio.fecha_display || cambio.fecha_cambio || 'Sin fecha';
 
   document.getElementById('changeDetailsDate').textContent = fechaDisplay;
-
-  
 
   // Mostrar descripción del cambio como texto de solo lectura (no editable)
 
@@ -11929,8 +10165,6 @@ function showChangeDetailsModal(cambio) {
     descripcionElement.appendChild(descripcionText);
 
   }
-
-  
 
   document.getElementById('changeDetailsPersonnel').textContent = cambio.responsables_display || cambio.responsable || 'Sin responsable';
 
@@ -11960,19 +10194,13 @@ function showChangeDetailsModal(cambio) {
     }
   }
 
-  
-
   // Cargar evidencias (pasar permisos)
 
   loadEvidences(cambio.evidencias || [], puedeGestionar);
 
-  
-
   // Guardar el ID del cambio actual para agregar evidencias
 
   currentCambioId = cambio.id;
-
-  
 
   // Mostrar/ocultar botón de agregar evidencia según permisos
 
@@ -11984,13 +10212,9 @@ function showChangeDetailsModal(cambio) {
 
   }
 
-  
-
   showModal('changeDetailsModal');
 
 }
-
-
 
 // Función para actualizar descripción del cambio
 
@@ -12006,15 +10230,11 @@ async function actualizarDescripcionCambio(cambioId, descripcion) {
 
   }
 
-  
-
   try {
 
     const formData = new FormData();
 
     formData.append('descripcion', descripcion);
-
-    
 
     const response = await fetch(`/api/evento/${currentProject.id}/cambio/${cambioId}/actualizar/`, {
 
@@ -12030,24 +10250,16 @@ async function actualizarDescripcionCambio(cambioId, descripcion) {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
       showSuccessMessage('Descripción del cambio actualizada exitosamente');
 
-      
-
       // Recargar los detalles del proyecto
 
       shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
-
-      
 
       // Reabrir el modal de detalles del cambio con los datos actualizados
 
@@ -12067,21 +10279,15 @@ async function actualizarDescripcionCambio(cambioId, descripcion) {
 
   } catch (error) {
 
-    console.error('Error al actualizar descripción del cambio:', error);
-
     showErrorMessage('Error al actualizar descripción. Por favor, intenta de nuevo.');
 
   }
 
 }
 
-
-
 // Variable para almacenar el ID del cambio actual en el modal de detalles
 
 let currentCambioId = null;
-
-
 
 // Función para editar descripción de evidencia
 
@@ -12091,21 +10297,15 @@ function editarDescripcionEvidencia(evidenciaId, evidence) {
 
   const nuevaDescripcion = prompt('Ingresa la descripción para esta evidencia:', descripcionActual);
 
-  
-
   if (nuevaDescripcion === null) {
 
     return; // Usuario canceló
 
   }
 
-  
-
   actualizarDescripcionEvidencia(evidenciaId, nuevaDescripcion.trim());
 
 }
-
-
 
 // Función para actualizar descripción de evidencia usando API
 
@@ -12121,15 +10321,11 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 
   }
 
-  
-
   try {
 
     const formData = new FormData();
 
     formData.append('descripcion', descripcion);
-
-    
 
     const response = await fetch(`/api/evento/${currentProject.id}/cambio/${currentCambioId}/evidencia/${evidenciaId}/actualizar/`, {
 
@@ -12145,24 +10341,16 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
       showSuccessMessage('Descripción actualizada exitosamente');
 
-      
-
       // Recargar los detalles del proyecto
 
       shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
-
-      
 
       // Reabrir el modal de detalles del cambio con datos actualizados
 
@@ -12192,15 +10380,11 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 
   } catch (error) {
 
-    console.error('Error al actualizar descripción:', error);
-
     showErrorMessage('Error al actualizar descripción. Por favor, intenta de nuevo.');
 
   }
 
 }
-
-
 
 // Función para cargar evidencias
 
@@ -12210,17 +10394,11 @@ function loadEvidences(evidences, puedeGestionar = false) {
 
   if (!grid) return;
 
-  
-
   // Aplicar estilos mejorados al grid para evitar que se vea amontonado
 
   grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; padding: 20px 0;';
 
-  
-
   grid.innerHTML = '';
-
-  
 
   if (!evidences || evidences.length === 0) {
 
@@ -12248,8 +10426,6 @@ function loadEvidences(evidences, puedeGestionar = false) {
 
   }
 
-
-
   evidences.forEach((evidence) => {
 
     const evidenceItem = document.createElement('div');
@@ -12274,13 +10450,9 @@ function loadEvidences(evidences, puedeGestionar = false) {
 
     };
 
-    
-
     const isImage = evidence.tipo && evidence.tipo.startsWith('image/');
 
     const nombreArchivo = evidence.nombre || evidence.archivo_nombre || 'Sin nombre';
-
-    
 
     // Si puede gestionar, mostrar enlace clickeable, si no, solo texto
 
@@ -12289,8 +10461,6 @@ function loadEvidences(evidences, puedeGestionar = false) {
       ? `<a href="${evidence.url}" target="_blank" style="color: #007bff; text-decoration: none; font-weight: 500; font-size: 0.9rem; flex: 1; min-width: 0; word-break: break-word;" title="${nombreArchivo}" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${nombreArchivo}</a>`
 
       : `<span style="color: #6c757d; font-weight: 500; font-size: 0.9rem; flex: 1; min-width: 0; word-break: break-word; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar evidencias">${nombreArchivo}</span>`;
-
-    
 
     // Botón de eliminar solo si tiene permisos
 
@@ -12309,8 +10479,6 @@ function loadEvidences(evidences, puedeGestionar = false) {
         </button>`
 
       : '';
-
-    
 
     evidenceItem.innerHTML = `
 
@@ -12350,13 +10518,9 @@ function loadEvidences(evidences, puedeGestionar = false) {
 
     `;
 
-    
-
     grid.appendChild(evidenceItem);
 
   });
-
-  
 
   // Agregar event listeners para eliminar evidencias
 
@@ -12389,8 +10553,6 @@ function showAddEvidenceModal() {
 
   }
 
-  
-
   const cambio = currentProject.cambios?.find(c => c.id === currentCambioId);
 
   if (cambio && cambio.evidencias && cambio.evidencias.length >= 10) {
@@ -12401,15 +10563,11 @@ function showAddEvidenceModal() {
 
   }
 
-  
-
   showModal('addEvidenceModal');
 
   clearEvidenceForm();
 
 }
-
-
 
 // Función para limpiar formulario de evidencia
 
@@ -12434,8 +10592,6 @@ function handleEvidenceSelect() {
 
   const preview = document.getElementById('evidencePreview');
 
-  
-
   if (fileInput.files && fileInput.files[0]) {
 
     const file = fileInput.files[0];
@@ -12443,8 +10599,6 @@ function handleEvidenceSelect() {
     selectedEvidenceFile = file;
 
     const isImage = file.type.startsWith('image/');
-
-    
 
     preview.innerHTML = `
 
@@ -12475,8 +10629,6 @@ function handleEvidenceSelect() {
       </div>
 
     `;
-
-    
 
     // Agregar event listener para eliminar archivo
 
@@ -12515,13 +10667,9 @@ async function addEvidenceToChange() {
 
   const description = document.getElementById('evidenceDescription').value.trim();
 
-  
-
   // Usar el archivo seleccionado (de selectedEvidenceFile o del input)
 
   const file = selectedEvidenceFile || (fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null);
-
-  
 
   if (!file) {
 
@@ -12530,8 +10678,6 @@ async function addEvidenceToChange() {
     return;
 
   }
-
-  
 
   const currentProject = getCurrentProject();
 
@@ -12542,8 +10688,6 @@ async function addEvidenceToChange() {
     return;
 
   }
-
-  
 
   try {
 
@@ -12556,8 +10700,6 @@ async function addEvidenceToChange() {
       formData.append('descripcion', description);
 
     }
-
-    
 
     const response = await fetch(`/api/evento/${currentProject.id}/cambio/${currentCambioId}/evidencia/agregar/`, {
 
@@ -12573,11 +10715,7 @@ async function addEvidenceToChange() {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
@@ -12587,14 +10725,10 @@ async function addEvidenceToChange() {
 
       clearEvidenceForm();
 
-      
-
       // Recargar los detalles del proyecto para actualizar las evidencias
 
       shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
-
-      
 
       // Reabrir el modal de detalles del cambio
 
@@ -12614,15 +10748,11 @@ async function addEvidenceToChange() {
 
   } catch (error) {
 
-    console.error('Error al agregar evidencia:', error);
-
     showErrorMessage('Error al agregar evidencia. Por favor, intenta de nuevo.');
 
   }
 
 }
-
-
 
 // Función para eliminar evidencia de un cambio usando API
 
@@ -12638,15 +10768,11 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
   }
 
-  
-
   if (!confirm('¿Estás seguro de que deseas eliminar esta evidencia?')) {
 
     return;
 
   }
-
-  
 
   try {
 
@@ -12662,24 +10788,16 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
     });
 
-    
-
     const result = await response.json();
-
-    
 
     if (result.success) {
 
       showSuccessMessage('Evidencia eliminada exitosamente');
 
-      
-
       // Recargar los detalles del proyecto
 
       shouldRefreshLatestProjects = true;
       await loadProjectDetails(currentProject.id);
-
-      
 
       // Reabrir el modal de detalles del cambio
 
@@ -12699,38 +10817,27 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
   } catch (error) {
 
-    console.error('Error al eliminar evidencia:', error);
-
     showErrorMessage('Error al eliminar evidencia. Por favor, intenta de nuevo.');
 
   }
 
 }
 
-
-
 // Función para manejar selección de archivos de evidencias en el modal de cambios
 
 function handleChangeEvidencesSelect(event) {
-  console.log('📎 handleChangeEvidencesSelect() llamada', event);
 
   const files = event.target.files;
-  console.log('📎 Archivos seleccionados:', files ? files.length : 0, files);
 
   const preview = document.getElementById('changeEvidencesPreview');
-  console.log('📎 Preview container:', preview);
 
   if (!preview) {
-    console.warn('⚠️ Preview container NO encontrado');
     return;
   }
-
-  
 
   // Agregar nuevos archivos al array
 
   if (files && files.length > 0) {
-    console.log('✅ Agregando', files.length, 'archivo(s) a selectedEvidencesFiles');
 
     Array.from(files).forEach(file => {
 
@@ -12745,26 +10852,18 @@ function handleChangeEvidencesSelect(event) {
       });
 
     });
-    
-    console.log('📎 Total de archivos en selectedEvidencesFiles:', selectedEvidencesFiles.length);
 
   }
-
-  
 
   // Renderizar todos los archivos seleccionados
 
   renderEvidencesPreview();
-
-  
 
   // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
 
   event.target.value = '';
 
 }
-
-
 
 // Función para renderizar evidencias existentes en el modal de edición
 
@@ -12774,8 +10873,6 @@ function renderExistingEvidences(evidencias) {
 
   if (!preview) return;
 
-  
-
   // Limpiar solo si no hay evidencias nuevas
 
   if (selectedEvidencesFiles.length === 0) {
@@ -12783,8 +10880,6 @@ function renderExistingEvidences(evidencias) {
     preview.innerHTML = '';
 
   }
-
-  
 
   if (!evidencias || evidencias.length === 0) {
 
@@ -12798,8 +10893,6 @@ function renderExistingEvidences(evidencias) {
 
   }
 
-  
-
   evidencias.forEach((evidencia) => {
 
     const fileDiv = document.createElement('div');
@@ -12810,13 +10903,9 @@ function renderExistingEvidences(evidencias) {
 
     fileDiv.setAttribute('data-evidence-existing', 'true');
 
-    
-
     const isImage = evidencia.tipo && evidencia.tipo.startsWith('image/');
 
     const nombreArchivo = evidencia.nombre || evidencia.archivo_nombre || 'Sin nombre';
-
-    
 
     // Guardar descripción original para comparar cambios
 
@@ -12825,8 +10914,6 @@ function renderExistingEvidences(evidencias) {
     // Escapar comillas para el atributo HTML data-original-desc
 
     const descripcionOriginalEscaped = descripcionOriginal.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-    
 
     fileDiv.innerHTML = `
 
@@ -12870,8 +10957,6 @@ function renderExistingEvidences(evidencias) {
 
     `;
 
-    
-
     // Insertar antes de las evidencias nuevas si existen
 
     if (selectedEvidencesFiles.length > 0) {
@@ -12898,15 +10983,11 @@ function renderExistingEvidences(evidencias) {
 
 }
 
-
-
 function renderEvidencesPreview() {
 
   const preview = document.getElementById('changeEvidencesPreview');
 
   if (!preview) return;
-
-  
 
   // Guardar evidencias existentes antes de limpiar las nuevas
 
@@ -12914,15 +10995,11 @@ function renderEvidencesPreview() {
 
   const existingEvidencesHTML = existingEvidences.map(el => el.outerHTML).join('');
 
-  
-
   // Eliminar solo las evidencias nuevas (las que no tienen el atributo data-evidence-existing)
 
   const newEvidences = Array.from(preview.querySelectorAll('[data-file-id]:not([data-evidence-existing])'));
 
   newEvidences.forEach(el => el.remove());
-
-  
 
   if (selectedEvidencesFiles.length === 0) {
 
@@ -12948,13 +11025,9 @@ function renderEvidencesPreview() {
 
   }
 
-  
-
   // Reconstruir: primero las existentes, luego las nuevas
 
   preview.innerHTML = existingEvidencesHTML;
-
-  
 
   selectedEvidencesFiles.forEach((fileItem, index) => {
 
@@ -12996,8 +11069,6 @@ function renderEvidencesPreview() {
 
     preview.appendChild(fileDiv);
 
-    
-
     // Agregar event listener para actualizar descripción cuando se escriba
 
     const textarea = fileDiv.querySelector('.evidence-description-input');
@@ -13022,8 +11093,6 @@ function renderEvidencesPreview() {
 
   });
 
-  
-
   // Agregar event listeners a los botones de eliminar
 
   preview.querySelectorAll('.remove-evidence-btn').forEach(btn => {
@@ -13041,8 +11110,6 @@ function renderEvidencesPreview() {
   });
 
 }
-
-
 
 function removeEvidenceFile(fileId) {
 

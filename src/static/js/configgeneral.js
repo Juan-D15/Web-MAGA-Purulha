@@ -65,7 +65,6 @@ async function requestNotificationPermission() {
                     tag: 'notification-enabled'
                 });
             } catch (error) {
-                console.log('No se pudo mostrar la notificación de prueba:', error);
             }
         } else if (permission === 'denied') {
             showMessage('Las notificaciones fueron denegadas. Puedes habilitarlas más tarde en la configuración de tu navegador.', 'error');
@@ -75,7 +74,6 @@ async function requestNotificationPermission() {
             updateNotificationButton('default');
         }
     } catch (error) {
-        console.error('Error al solicitar permiso de notificaciones:', error);
         showMessage('Error al solicitar permiso de notificaciones', 'error');
     }
 }
@@ -247,11 +245,6 @@ async function handleAsistenciaSubmit() {
         const data = await response.json();
         
         // Log para depuración
-        console.log('Respuesta del servidor:', {
-            status: response.status,
-            ok: response.ok,
-            data: data
-        });
         
         if (response.ok && data.success) {
             showMessage(data.message || '¡Mensaje enviado exitosamente! Nos pondremos en contacto contigo pronto.', 'success');
@@ -269,15 +262,9 @@ async function handleAsistenciaSubmit() {
         } else {
             // Mostrar error detallado
             const errorMessage = data.error || data.detail || 'Error al enviar el mensaje. Por favor, intenta nuevamente.';
-            console.error('Error del servidor:', {
-                error: data.error,
-                detail: data.detail,
-                status: response.status
-            });
             showMessage(errorMessage, 'error');
         }
     } catch (error) {
-        console.error('Error al enviar el formulario:', error);
         showMessage('Error de conexión. Por favor, verifica tu conexión a internet e intenta nuevamente.', 'error');
     } finally {
         // Restaurar botón

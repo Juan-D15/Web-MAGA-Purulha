@@ -186,7 +186,6 @@ function showRecoveryMessage(message, type = 'info') {
   const textEl = document.getElementById('recoveryMessageText');
  
   if (!container || !textEl) {
-    console.warn('Contenedor de mensajes de recuperación no disponible. Mensaje:', message);
     return;
   }
  
@@ -240,7 +239,6 @@ function clearRecoveryMessage() {
 function showLoginInlineMessage(message, type = 'info') {
   const container = document.getElementById('loginOfflineMessage');
   if (!container) {
-    console.warn('Contenedor de mensajes de login no disponible. Mensaje:', message);
     return;
   }
   container.classList.remove(...LOGIN_ALERT_VARIANTS);
@@ -395,7 +393,6 @@ async function validateCredentials(username, password) {
     };
     
   } catch (error) {
-    console.error('Error al validar credenciales:', error);
     return null;
   }
 }
@@ -544,7 +541,6 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.href = result.redirectUrl || '/';
           }, 600);
         } catch (error) {
-          console.error('Error en flujo de login offline:', error);
           showLoginInlineMessage(error.message || 'No fue posible iniciar sesión.', 'error');
           if (submitButton) {
             submitButton.disabled = false;
@@ -560,7 +556,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (rememberCheckbox?.checked && window.OfflineAuth && typeof window.OfflineAuth.storeCredential === 'function') {
           // Guardar en segundo plano sin bloquear el envío
           window.OfflineAuth.storeCredential(usernameValue, passwordValue).catch(err => {
-            console.warn('No se pudo guardar credencial para modo offline:', err);
           });
         } else if (window.OfflineAuth && typeof window.OfflineAuth.removeCredential === 'function') {
           // Remover credencial si no está marcado "recordar"
@@ -568,7 +563,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       } catch (err) {
         // Si hay un error con OfflineAuth, no bloquear el envío del formulario
-        console.warn('Error al manejar credenciales offline:', err);
       }
 
       // Mostrar estado de carga pero permitir que el formulario se envíe normalmente

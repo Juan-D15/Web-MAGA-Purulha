@@ -169,10 +169,6 @@ function limpiarErrorCampo(input) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Inicializando Gestión de Eventos... VERSIÓN 45');
-    console.log('📋 Layout horizontal de beneficiarios activado');
-    console.log('📊 Tarjetas de datos con valor/descripción visible');
-    console.log('✅ Validaciones de formularios activadas');
     
     // Variable para guardar la función de cargar evento (se asignará después de definirla)
     let cargarEventoDesdeHash = null;
@@ -365,7 +361,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Esto debe ejecutarse inmediatamente después de que las funciones estén definidas
     function checkHashAndShowView() {
         let hash = window.location.hash;
-        console.log('🔍 Hash detectado:', hash);
         
         // Extraer parámetros del hash PRIMERO (ej: #createEventView&evento=123)
         let eventoId = null;
@@ -374,27 +369,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const partes = hash.split('&evento=');
             hashBasico = partes[0]; // Solo el hash sin parámetros
             eventoId = partes[1]; // ID del evento
-            console.log('📌 Evento detectado en hash:', eventoId);
         }
         
         // Si hay un eventoId, NO mostrar ninguna vista todavía - cargar directamente
         if (eventoId) {
-            console.log('📌 Evento ID detectado, cargando directamente para editar sin mostrar vistas intermedias:', eventoId);
             const cargarFuncion = cargarEventoDesdeHash || cargarEventoParaEditar;
             if (typeof cargarFuncion === 'function') {
-                console.log('🔄 Ejecutando cargarEventoParaEditar directamente con ID:', eventoId);
                 cargarFuncion(eventoId);
                 return; // Importante: salir aquí para no mostrar otras vistas
             } else {
-                console.error('❌ cargarEventoParaEditar no está disponible aún');
                 // Reintentar después de un tiempo más largo
                 setTimeout(() => {
                     const cargarFuncionRetry = cargarEventoDesdeHash || cargarEventoParaEditar;
                     if (typeof cargarFuncionRetry === 'function') {
-                        console.log('🔄 Reintentando cargarEventoParaEditar con ID:', eventoId);
                         cargarFuncionRetry(eventoId);
                     } else {
-                        console.error('❌ Error: cargarEventoParaEditar aún no está disponible');
                     }
                 }, 1500);
                 return; // Salir aquí también para no mostrar otras vistas
@@ -406,7 +395,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const savedAction = sessionStorage.getItem('gestionesAction');
             if (savedAction) {
                 hashBasico = '#' + savedAction;
-                console.log('📦 Acción guardada encontrada:', savedAction);
                 sessionStorage.removeItem('gestionesAction'); // Limpiar después de usar
                 // Actualizar la URL sin recargar la página
                 window.history.replaceState(null, '', window.location.pathname + hashBasico);
@@ -415,10 +403,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Mostrar la vista correspondiente según el hash (solo si no había eventoId)
         if (hashBasico === '#createEventView') {
-            console.log('📍 Mostrando vista de crear evento desde hash');
             showCreateEventView(false);
         } else if (hashBasico === '#manageEventView') {
-            console.log('📍 Mostrando vista de gestionar eventos desde hash');
             showManageEventView();
         } else if (hashBasico === '#createReport') {
             // Redirigir a la página de reportes
@@ -426,10 +412,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = window.DJANGO_URLS.reportes;
                 return;
             }
-            console.log('Vista de reporte solicitada');
         } else {
             // Si no hay hash, mostrar la vista principal
-            console.log('📍 Mostrando vista principal (sin hash)');
             showMainView();
         }
     }
@@ -450,7 +434,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (mainView) mainView.style.display = 'none';
         if (createEventView) createEventView.style.display = 'none';
         if (manageEventView) manageEventView.style.display = 'none';
-        console.log('🚫 Manteniendo todas las vistas ocultas hasta que se cargue el evento...');
     }
     
     if (backFromCreateBtn) {
@@ -478,7 +461,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (responseComunidades.ok) {
                 const dataComunidades = await responseComunidades.json();
                 comunidadesList = dataComunidades;
-                console.log('✅ Comunidades cargadas:', comunidadesList.length);
                 renderBeneficiaryCommunityOptions(benefRegionSelect ? benefRegionSelect.value : '', benefCommunitySelect ? benefCommunitySelect.value : '');
                 renderBeneficiaryFiltersCommunityOptions(beneficiariesFilterRegionSelect ? beneficiariesFilterRegionSelect.value : '');
             }
@@ -507,7 +489,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     const nombreB = (b.nombre || '').toString();
                     return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base', numeric: true });
                 });
-                console.log('✅ Regiones cargadas:', regionesList.length);
                 renderBeneficiaryRegionOptions(benefRegionSelect ? benefRegionSelect.value : '');
                 renderBeneficiaryCommunityOptions(benefRegionSelect ? benefRegionSelect.value : '', benefCommunitySelect ? benefCommunitySelect.value : '');
                 renderBeneficiaryFiltersRegionOptions(beneficiariesFilterRegionSelect ? beneficiariesFilterRegionSelect.value : '');
@@ -519,14 +500,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (responsePersonal.ok) {
                 const dataPersonal = await responsePersonal.json();
                 personalList = dataPersonal;
-                console.log('Ô£à Personal cargado:', personalList.length);
                 renderPersonalList();
             }
             
             // Ya no cargamos beneficiarios de la API (se crean en el formulario)
             
         } catch (error) {
-            console.error('ÔØî Error cargando datos:', error);
         }
     }
     
@@ -542,9 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!personnelListContainer) return;
         
         personnelListContainer.innerHTML = '';
-        
-        console.log('­ƒöä Renderizando personal. IDs preseleccionados:', selectedPersonnelList);
-        
+
         const terminoBusqueda = normalizarTexto(personalSearchTerm);
         const personalFiltrado = personalList.filter(persona => {
             if (!terminoBusqueda) return true;
@@ -564,7 +541,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 ? `No se encontró personal que coincida con "${personalSearchTerm.trim()}".`
                 : 'No hay personal disponible.';
             personnelListContainer.appendChild(emptyMessage);
-            console.log('ℹ️ Sin resultados para el filtro de personal:', personalSearchTerm);
             return;
         }
         
@@ -591,7 +567,6 @@ document.addEventListener('DOMContentLoaded', function() {
             checkbox.checked = isSelected;
             
             if (isSelected) {
-                console.log(`Ô£ô Personal marcado: ${persona.username} (${persona.id})`);
             }
             
             checkbox.addEventListener('change', function() {
@@ -610,7 +585,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             tipo: persona.tipo || 'colaborador'
                         });
                         const displayName = persona.nombre || persona.username;
-                        console.log(`✅ Personal agregado: ${displayName}`);
                     }
                 } else {
                     // Filtrar el personal removido
@@ -619,7 +593,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         return pId !== personaIdStr;
                     });
                     const displayName = persona.nombre || persona.username;
-                    console.log(`❌ Personal removido: ${displayName}`);
                 }
                 updateSelectedPersonnelDisplay();
             });
@@ -645,7 +618,6 @@ document.addEventListener('DOMContentLoaded', function() {
             personnelListContainer.appendChild(item);
         });
         
-        console.log(`Ô£à ${personalFiltrado.length} personal renderizados, ${selectedPersonnelList.length} seleccionados`);
     }
     
     function updateSelectedPersonnelDisplay() {
@@ -1157,14 +1129,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Asegurar que los datos estén cargados antes de abrir el modal
         if (regionesList.length === 0 || comunidadesList.length === 0) {
-            console.log('📥 Cargando regiones y comunidades...');
             try {
                 // Cargar comunidades
                 const responseComunidades = await fetch('/api/comunidades/');
                 if (responseComunidades.ok) {
                     const dataComunidades = await responseComunidades.json();
                     comunidadesList = dataComunidades;
-                    console.log('✅ Comunidades cargadas:', comunidadesList.length);
                 }
                 
                 // Cargar regiones
@@ -1181,10 +1151,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (hasCodeB) return 1;
                         return (a.nombre || '').localeCompare(b.nombre || '', 'es');
                     });
-                    console.log('✅ Regiones cargadas:', regionesList.length);
                 }
             } catch (error) {
-                console.error('❌ Error cargando datos:', error);
                 mostrarMensaje('error', 'Error al cargar las regiones y comunidades. Por favor, recarga la página.');
                 return;
             }
@@ -1499,7 +1467,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (addBeneficiaryBtn && !addBeneficiaryBtn.dataset.listenerAdded) {
         addBeneficiaryBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            console.log('­ƒöÿ Abriendo modal de beneficiarios...');
             beneficiarioEnEdicion = null; // Resetear edición
             addBeneficiaryModal.style.display = 'flex';
             setTimeout(() => {
@@ -1516,7 +1483,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     return buscarBeneficiarios(initialQuery);
                 })
                 .catch(error => {
-                    console.error('❌ Error inicializando filtros de beneficiarios:', error);
                 });
             
             // Cambiar título del modal
@@ -1579,7 +1545,6 @@ document.addEventListener('DOMContentLoaded', function() {
         benefTipoSelect.addEventListener('change', function() {
             hideAllBeneficiaryFields();
             const tipo = this.value;
-            console.log('­ƒöä Tipo seleccionado:', tipo);
             
             // Mostrar/ocultar sección de importación Excel (solo para individual)
             const excelImportSection = document.getElementById('excel_import_section');
@@ -1825,7 +1790,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 mostrarMensaje('error', data.error || 'Error al importar el archivo Excel');
             }
         } catch (error) {
-            console.error('Error al importar Excel:', error);
             if (excelImportStatus) {
                 excelImportStatus.innerHTML = `
                     <div style="padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
@@ -1924,7 +1888,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     mostrarMensaje('error', data.error || 'Error al guardar los beneficiarios');
                 }
             } catch (error) {
-                console.error('Error al guardar beneficiarios:', error);
                 mostrarMensaje('error', 'Error al guardar los beneficiarios. Por favor, intente nuevamente.');
             } finally {
                 ingresarBeneficiariosProyectoBtn.disabled = false;
@@ -2160,7 +2123,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             inicializarFiltrosBeneficiariosExistentes()
                 .then(() => buscarBeneficiarios(''))
-                .catch(error => console.error('❌ Error preparando filtros de beneficiarios existentes:', error));
+                .catch(error => (() => {})());
             if (saveBeneficiaryBtn) {
                 saveBeneficiaryBtn.style.display = 'none';
             }
@@ -2334,7 +2297,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } catch (error) {
-            console.error('❌ Error buscando beneficiarios existentes:', error);
             benefSearchResults.innerHTML = '<div style="padding:12px; border:1px dashed rgba(255,255,255,0.2); border-radius:8px; color:#f87171; text-align:center;">Error al buscar beneficiarios. Intenta de nuevo.</div>';
             if (benefSearchStatus) {
                 benefSearchStatus.style.display = 'block';
@@ -2879,16 +2841,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         beneficiariosModificados[existenteModIndex] = payloadModificado;
                     }
                     
-                    console.log('Ô£Å´©Å Beneficiario existente actualizado:', beneficiariosExistentes[beneficiarioEnEdicion.index]);
                 } else {
                     // Actualizar beneficiario nuevo (aún no en DB)
                     beneficiariosNuevos[beneficiarioEnEdicion.index] = beneficiario;
-                    console.log('Ô£Å´©Å Beneficiario nuevo actualizado:', beneficiario);
                 }
             } else {
                 // Agregar nuevo beneficiario
                 beneficiariosNuevos.push(beneficiario);
-                console.log('Ô×ò Beneficiario agregado:', beneficiario);
             }
             
             // Actualizar vista (usar función apropiada según el modo)
@@ -3010,7 +2969,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Renderizar beneficiarios existentes (en modo edición)
     // VERSIÓN 42: Layout horizontal con todos los datos detallados
     function renderBeneficiariosExistentes() {
-        console.log('📋 renderBeneficiariosExistentes() - Versión 42 - Layout horizontal');
         const container = document.getElementById('beneficiariesContainer');
         const beneficiariesSection = document.getElementById('beneficiariesSection');
         const beneficiaryCount = document.getElementById('beneficiaryCount');
@@ -3144,7 +3102,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Mostrar todos los beneficiarios filtrados (el scroll limitará la visualización)
         filteredList.forEach(item => {
-            console.log('🎨 Renderizando beneficiario con layout responsive:', item);
             const card = document.createElement('div');
             card.className = 'beneficiary-card';
             if (item.id && item.origen === 'existente') {
@@ -3545,7 +3502,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function editarBeneficiarioExistente(index) {
         const benef = beneficiariosExistentes[index];
-        console.log('Ô£Å´©Å Editando beneficiario existente:', benef);
         
         // Marcar que estamos editando un beneficiario existente
         beneficiarioEnEdicion = { 
@@ -3573,9 +3529,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Obtener IDs de región y comunidad del beneficiario
         const regionIdExistente = benef.region_id || (benef.detalles && benef.detalles.region_id) || (benef.region && benef.region.id) || (benef.comunidad && benef.comunidad.region && benef.comunidad.region.id) || '';
         const comunidadIdExistente = benef.comunidad_id || (benef.detalles && benef.detalles.comunidad_id) || (benef.comunidad && benef.comunidad.id) || '';
-        
-        console.log('📍 IDs de ubicación:', { regionIdExistente, comunidadIdExistente, benef });
-        
+
         // Renderizar opciones de región primero
         renderBeneficiaryRegionOptions(regionIdExistente || '');
         
@@ -3587,18 +3541,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Asegurar que los valores estén establecidos después de renderizar
             if (benefRegionSelect && regionIdExistente) {
                 benefRegionSelect.value = String(regionIdExistente);
-                console.log('✅ Región establecida:', benefRegionSelect.value);
             }
             if (benefCommunitySelect && comunidadIdExistente) {
                 benefCommunitySelect.value = String(comunidadIdExistente);
-                console.log('✅ Comunidad establecida:', benefCommunitySelect.value);
             }
         }, 50);
         
         // Cargar datos según el tipo
-        console.log('Ô£ôï Cargando datos de beneficiario:', benef);
-        console.log('Ô£ôï Tipo:', benef.tipo);
-        console.log('Ô£ôï Detalles:', benef.detalles);
         const tipoLowerExistente = (benef.tipo || '').toLowerCase();
         
         if (tipoLowerExistente === 'individual') {
@@ -3618,7 +3567,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 actualizarEdadDesdeFecha();
             }, 100);
             
-            console.log('Ô£à Campos individuales cargados');
         } else if (tipoLowerExistente === 'familia') {
             const campos = document.getElementById('campos_familia');
             campos.style.display = 'block';
@@ -3629,7 +3577,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('benef_fam_telefono').value = benef.detalles?.telefono || '';
             document.getElementById('benef_fam_miembros').value = benef.detalles?.numero_miembros || '';
             
-            console.log('Ô£à Campos familia cargados');
         } else if (tipoLowerExistente === 'institución' || tipoLowerExistente === 'institucion') {
             const campos = document.getElementById('campos_institucion');
             campos.style.display = 'block';
@@ -3642,7 +3589,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('benef_inst_email').value = benef.detalles?.email || '';
             document.getElementById('benef_inst_num_beneficiarios').value = benef.detalles?.numero_beneficiarios_directos || '';
             
-            console.log('Ô£à Campos institución cargados');
         } else if (tipoLowerExistente === 'otro') {
             const campos = document.getElementById('campos_otro');
             campos.style.display = 'block';
@@ -3653,13 +3599,11 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('benef_otro_telefono').value = benef.detalles?.telefono || '';
             document.getElementById('benef_otro_descripcion').value = benef.detalles?.descripcion || '';
         } else {
-            console.warn('ÔÜá´©Å Tipo de beneficiario no reconocido:', benef.tipo);
         }
     }
     
     function editarBeneficiarioNuevo(index) {
         const benef = beneficiariosNuevos[index];
-        console.log('Ô£Å´©Å Editando beneficiario nuevo:', benef);
         
         beneficiarioEnEdicion = { index: index, data: benef };
         
@@ -3682,9 +3626,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Obtener IDs de región y comunidad del beneficiario nuevo
         const regionIdNuevo = benef.region_id || (benef.detalles && benef.detalles.region_id) || (benef.region && benef.region.id) || (benef.comunidad && benef.comunidad.region && benef.comunidad.region.id) || '';
         const comunidadIdNuevo = benef.comunidad_id || (benef.detalles && benef.detalles.comunidad_id) || (benef.comunidad && benef.comunidad.id) || '';
-        
-        console.log('📍 IDs de ubicación (nuevo):', { regionIdNuevo, comunidadIdNuevo, benef });
-        
+
         // Renderizar opciones de región primero
         renderBeneficiaryRegionOptions(regionIdNuevo || '');
         
@@ -3696,11 +3638,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Asegurar que los valores estén establecidos después de renderizar
             if (benefRegionSelect && regionIdNuevo) {
                 benefRegionSelect.value = String(regionIdNuevo);
-                console.log('✅ Región establecida (nuevo):', benefRegionSelect.value);
             }
             if (benefCommunitySelect && comunidadIdNuevo) {
                 benefCommunitySelect.value = String(comunidadIdNuevo);
-                console.log('✅ Comunidad establecida (nuevo):', benefCommunitySelect.value);
             }
         }, 50);
         
@@ -3744,7 +3684,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('benef_otro_telefono').value = benef.telefono || '';
             document.getElementById('benef_otro_descripcion').value = benef.descripcion || '';
         } else {
-            console.warn('ÔÜá´©Å Tipo de beneficiario no reconocido:', benef.tipo);
         }
     }
     
@@ -3755,17 +3694,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const benef = beneficiariosExistentes[index];
                 beneficiariosExistentes.splice(index, 1);
                 if (benef.esNuevoAsignado) {
-                    console.log('➖ Beneficiario seleccionado eliminado antes de guardar:', benefId);
                 } else {
                     if (benefId) {
                         if (!beneficiariosEliminados.includes(benefId)) {
                             beneficiariosEliminados.push(benefId);
-                            console.log('🗑️ Beneficiario marcado para eliminar:', benefId);
                         } else {
-                            console.log('ℹ️ Beneficiario ya estaba marcado para eliminar, se evita duplicado:', benefId);
                         }
                     } else {
-                        console.warn('⚠️ Intento de marcar para eliminar un beneficiario sin ID válido.');
                     }
                 }
                 renderBeneficiariosExistentes();
@@ -3795,9 +3730,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const exists = accumulatedFiles.some(f => f.name === file.name && f.size === file.size);
                     if (!exists) {
                         accumulatedFiles.push(file);
-                        console.log(`Ô×ò Archivo agregado: ${file.name}`);
                     } else {
-                        console.log(`ÔÜá´©Å Archivo duplicado (ignorado): ${file.name}`);
                     }
                 });
                 
@@ -3845,9 +3778,7 @@ document.addEventListener('DOMContentLoaded', function() {
         filePreview.classList.add('evidence-card-list');
         
         const totalFiles = accumulatedFiles.length;
-        
-        console.log(`📁 Total de archivos acumulados: ${totalFiles}`);
-        
+
         if (totalFiles > 0) {
             // Mostrar la sección de archivos
             if (filesSection) {
@@ -3924,7 +3855,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function removeFile(index) {
         const removedFile = accumulatedFiles[index];
         accumulatedFiles.splice(index, 1);
-        console.log(`Ô×û Archivo eliminado: ${removedFile.name}`);
         
         // Si estamos en modo edición, usar función especial
         if (eventoEnEdicion) {
@@ -3941,13 +3871,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Detectar si estamos en modo edición
             if (eventoEnEdicion) {
-                console.log('­ƒöä Modo edición - Actualizando evento...');
                 await actualizarEvento(eventoEnEdicion.id);
                 return;
             }
             
             // Modo creación normal
-            console.log('📝 Modo creación - Enviando formulario...');
             
             if (selectedCommunitiesList.length === 0) {
                 mostrarMensaje('info', 'Selecciona al menos una comunidad para el evento.');
@@ -3964,16 +3892,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Agregar TODOS los archivos acumulados manualmente
             if (accumulatedFiles.length > 0) {
                 const totalFiles = accumulatedFiles.length;
-                console.log(`\n­ƒôÄ Agregando ${totalFiles} archivo${totalFiles > 1 ? 's' : ''} acumulado${totalFiles > 1 ? 's' : ''} al formulario:`);
                 
                 accumulatedFiles.forEach((file, index) => {
                     formData.append('evidences', file);
-                    console.log(`   ${index + 1}. ${file.name} (${(file.size / 1024).toFixed(2)} KB, ${file.type})`);
                 });
                 
-                console.log(`Ô£à Total de archivos agregados a FormData: ${totalFiles}\n`);
             } else {
-                console.log('ÔÜá´©Å No hay archivos seleccionados\n');
             }
             
             // Agregar datos adicionales
@@ -4010,7 +3934,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     icono: item.icono || null
                 }));
                 formData.append('tarjetas_datos_nuevas', JSON.stringify(payloadNuevas));
-                console.log('📊 Enviando tarjetas de datos nuevas al crear evento:', payloadNuevas);
             }
             
             if (coverImageFile) {
@@ -4031,12 +3954,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 
                 const data = await response.json();
-                
-                console.log('­ƒôÑ Respuesta del servidor:', data);
-                
+
                 if (response.ok && data.success) {
-                    console.log('Ô£à Evento creado exitosamente');
-                    console.log(`   ­ƒôè Total de archivos guardados: ${data.total_archivos || 0}`);
                     
                     // Guardar ID del evento creado
                     const eventoIdCreado = data.id || data.evento_id;
@@ -4058,12 +3977,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 
                                 const dataBenef = await responseBenef.json();
                                 if (dataBenef.success) {
-                                    console.log('✅ Beneficiarios de Excel guardados automáticamente');
                                     beneficiariosPendientesExcel = [];
                                     actualizarContadorPendientes();
                                 }
                             } catch (error) {
-                                console.error('Error al guardar beneficiarios pendientes:', error);
                             }
                         }
                     }
@@ -4100,12 +4017,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }, 2000);
                     
                 } else {
-                    console.error('ÔØî Error al crear evento:', data.error);
                     mostrarMensaje('error', data.error || 'Error al crear el evento');
                 }
                 
             } catch (error) {
-                console.error('ÔØî Error en la solicitud:', error);
                 mostrarMensaje('error', 'Error de conexión. Por favor, intenta de nuevo.');
             }
         });
@@ -4169,7 +4084,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     async function cargarEventos() {
         try {
-            console.log('­ƒôÑ Cargando eventos...');
             const response = await fetch('/api/eventos/');
             
             if (!response.ok) {
@@ -4182,15 +4096,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const eventosCargados = Array.isArray(data.eventos) ? data.eventos : [];
                 eventosData = [...eventosCargados];
                 eventosDataOriginal = [...eventosCargados]; // Guardar copia original
-                console.log(`Ô£à ${data.total} eventos cargados`);
                 renderEventos();
             } else {
-                console.error('ÔØî Error:', data.error);
                 mostrarMensaje('error', 'Error al cargar eventos');
             }
             
         } catch (error) {
-            console.error('ÔØî Error al cargar eventos:', error);
             mostrarMensaje('error', 'Error al cargar eventos');
         }
     }
@@ -4388,7 +4299,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     async function eliminarEvento(eventoId) {
         try {
-            console.log('­ƒùæ´©Å Eliminando evento:', eventoId);
             
             const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
             
@@ -4402,7 +4312,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (response.ok && data.success) {
-                console.log('Ô£à Evento eliminado exitosamente');
                 mostrarMensaje('success', 'Evento eliminado exitosamente');
                 
                 if (lastEditedEventId && String(eventoId) === String(lastEditedEventId)) {
@@ -4414,12 +4323,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 cargarEventos();
                 cargarCambiosRecientes();
             } else {
-                console.error('ÔØî Error:', data.error);
                 mostrarMensaje('error', data.error || 'Error al eliminar el evento');
             }
             
         } catch (error) {
-            console.error('ÔØî Error al eliminar evento:', error);
             mostrarMensaje('error', 'Error al eliminar el evento');
         }
     }
@@ -4427,7 +4334,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== EDICIÓN DE EVENTOS =====
     async function cargarEventoParaEditar(eventoId) {
         try {
-            console.log('📖 Cargando evento para editar:', eventoId);
             
             const response = await fetch(`/api/evento/${eventoId}/`);
             
@@ -4438,7 +4344,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.success) {
-                console.log('✅ Evento cargado exitosamente:', data.evento.nombre);
                 eventoEnEdicion = data.evento;
                 lastEditedEventId = String(data.evento.id || eventoId);
                 sessionStorage.setItem('lastEditedEventId', lastEditedEventId);
@@ -4446,12 +4351,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 prellenarFormularioConEvento(data.evento);
                 mostrarMensaje('info', 'Editando evento: ' + data.evento.nombre);
             } else {
-                console.error('❌ Error:', data.error);
                 mostrarMensaje('error', 'Error al cargar evento');
             }
             
         } catch (error) {
-            console.error('❌ Error al cargar evento:', error);
             mostrarMensaje('error', 'Error al cargar evento');
         }
     }
@@ -4461,12 +4364,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // AHORA ejecutar checkHashAndShowView después de que cargarEventoParaEditar esté definida
     setTimeout(() => {
-        console.log('🔄 Verificando hash después de que cargarEventoParaEditar esté definida...');
         checkHashAndShowView();
     }, 100);
     
     function prellenarFormularioConEvento(evento) {
-        console.log('­ƒôï Prellenando formulario con:', evento);
         
         // Cambiar título del formulario
         const formTitle = document.querySelector('.view-title');
@@ -4506,16 +4407,13 @@ document.addEventListener('DOMContentLoaded', function() {
             rol: p.rol || 'Colaborador',
             tipo: p.tipo || 'colaborador'
         }));
-        console.log('✅ Personal pre-seleccionado:', selectedPersonnelList);
         
         // Re-renderizar personal con checkboxes marcados
         // Asegurar que el personal esté cargado antes de renderizar
         if (personalList.length > 0) {
-            console.log('🔄 Re-renderizando personal con selecciones...');
             renderPersonalList();
         } else {
             // Si aún no se ha cargado el personal, cargar datos primero
-            console.log('📥 Cargando datos de personal...');
             setTimeout(async () => {
                 await cargarDatos();
                 // Esperar un poco más para asegurar que personalList esté poblado
@@ -4671,7 +4569,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return e.es_evidencia === true;
         });
         evidenciasEliminadas = [];
-        console.log('📎 Evidencias cargadas:', evidenciasExistentes);
         renderEvidenciasExistentes();
         
         // Limpiar archivo seleccionado
@@ -4681,7 +4578,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         accumulatedFiles = [];
         
-        console.log('Ô£à Formulario prellenado exitosamente');
     }
     
     // Función para obtener el icono según el tipo de archivo
@@ -4842,7 +4738,6 @@ document.addEventListener('DOMContentLoaded', function() {
             filePreview.appendChild(headerDiv);
             
             evidenciasExistentes.forEach((evidencia, index) => {
-                console.log(`📎 Evidencia ${index + 1}:`, evidencia);
                 
                 const fileItem = document.createElement('div');
                 fileItem.className = 'evidence-card';
@@ -4866,14 +4761,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     fechaLabel
                 );
                 const subtitle = getEvidenceSubtitle({ tipo: tipoArchivo, extension });
-                
-                console.log(`📎 Procesando evidencia ${index + 1}:`, {
-                    nombreArchivo,
-                    tipoArchivo,
-                    urlArchivo,
-                    evidenciaCompleta: evidencia
-                });
-                
+
                 fileItem.innerHTML = `
                     <div class="evidence-card-info">
                         <div class="evidence-card-details">
@@ -4893,10 +4781,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Verificar que los elementos se crearon correctamente
                 const iconElement = fileItem.querySelector('.evidence-card-icon');
                 const nameElement = fileItem.querySelector('.evidence-card-name');
-                console.log(`📎 Elementos creados:`, {
-                    iconElement: iconElement ? iconElement.textContent : 'NO ENCONTRADO',
-                    nameElement: nameElement ? nameElement.textContent : 'NO ENCONTRADO',
-                    fileItemHTML: fileItem.outerHTML.substring(0, 200)
                 });
                 
                 const removeBtn = fileItem.querySelector('.btn-remove-evidencia-existente');
@@ -4982,14 +4866,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 evidenciasExistentes.splice(index, 1);
                 evidenciasEliminadas.push(evidenciaId);
                 renderEvidenciasExistentes();
-                console.log('­ƒùæ´©Å Evidencia marcada para eliminar:', evidenciaId);
             }
         }
     }
     
     async function actualizarEvento(eventoId) {
         try {
-            console.log('🔄 Actualizando evento:', eventoId);
             
             if (selectedCommunitiesList.length === 0) {
                 mostrarMensaje('info', 'Selecciona al menos una comunidad para el evento.');
@@ -5104,7 +4986,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = await response.json();
             
             if (response.ok && data.success) {
-                console.log('Ô£à Evento actualizado:', data);
                 lastEditedEventId = String(eventoId);
                 sessionStorage.setItem('lastEditedEventId', lastEditedEventId);
                 mostrarMensaje('success', data.message || 'Evento actualizado exitosamente');
@@ -5150,23 +5031,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 1500);
                 
             } else {
-                console.error('ÔØî Error:', data.error);
                 mostrarMensaje('error', data.error || 'Error al actualizar el evento');
             }
             
         } catch (error) {
-            console.error('ÔØî Error al actualizar evento:', error);
             mostrarMensaje('error', 'Error al actualizar el evento');
         }
     }
     
     // Cancelar edición al volver
-    console.log('Ô£à Gestión de Eventos inicializada correctamente');
     
     // ===== CARGAR CAMBIOS RECIENTES =====
     async function cargarCambiosRecientes() {
         try {
-            console.log('­ƒôØ Cargando cambios recientes...');
             
             const response = await fetch('/api/cambios-recientes/');
             if (!response.ok) {
@@ -5176,15 +5053,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.success) {
-                console.log('Ô£à Cambios recientes cargados:', data.cambios.length);
                 renderCambiosRecientes(data.cambios);
             } else {
-                console.error('ÔØî Error en respuesta:', data.error);
                 mostrarErrorCambios('No se pudieron cargar los cambios recientes');
             }
             
         } catch (error) {
-            console.error('ÔØî Error al cargar cambios recientes:', error);
             mostrarErrorCambios('Error de conexión al cargar cambios');
         }
     }
@@ -5213,7 +5087,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function mostrarDetallesCambio(cambio) {
         const modal = document.getElementById('changeDetailsModal');
         if (!modal) {
-            console.error('Modal de detalles no encontrado');
             return;
         }
         
@@ -5472,7 +5345,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Si las credenciales son válidas, proceder con la eliminación
-            console.log('Ô£à Credenciales verificadas, procediendo a eliminar...');
             
             // Guardar el ID antes de cerrar el modal (ya que cerrarModalEliminar lo pone en null)
             const eventoId = eventoIdParaEliminar;
@@ -5480,7 +5352,6 @@ document.addEventListener('DOMContentLoaded', function() {
             await eliminarEvento(eventoId);
             
         } catch (error) {
-            console.error('ÔØî Error al verificar credenciales:', error);
             if (deleteErrorMessage) {
                 deleteErrorMessage.textContent = 'Error de conexión. Por favor, intenta de nuevo.';
                 deleteErrorMessage.style.display = 'block';
@@ -6246,7 +6117,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-
     if (addQuickDataBtn) {
         addQuickDataBtn.addEventListener('click', () => {
             openQuickDataModal();
@@ -6459,13 +6329,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (benefRegionSelect.value !== String(selectedRegionId)) {
                 setTimeout(() => {
                     benefRegionSelect.value = String(selectedRegionId);
-                    console.log('✅ Región establecida después de timeout:', benefRegionSelect.value);
                     // Disparar evento change para actualizar comunidades si es necesario
                     const changeEvent = new Event('change', { bubbles: true });
                     benefRegionSelect.dispatchEvent(changeEvent);
                 }, 10);
             } else {
-                console.log('✅ Región establecida correctamente:', benefRegionSelect.value);
             }
         }
     }
@@ -6504,10 +6372,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (benefCommunitySelect.value !== String(selectedCommunityId)) {
                 setTimeout(() => {
                     benefCommunitySelect.value = String(selectedCommunityId);
-                    console.log('✅ Comunidad establecida después de timeout:', benefCommunitySelect.value);
                 }, 10);
             } else {
-                console.log('✅ Comunidad establecida correctamente:', benefCommunitySelect.value);
             }
         }
     }
@@ -6561,7 +6427,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 actualizarComunidadesFiltro(regionActual, comunidadActual);
             }
         } catch (error) {
-            console.error('❌ Error al cargar regiones/comunidades:', error);
         }
     }
 
@@ -6876,7 +6741,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-
     function ejecutarBusquedaBeneficiariosExistentes() {
         const query = benefSearchInput ? benefSearchInput.value.trim() : '';
         buscarBeneficiarios(query);
@@ -6901,7 +6765,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return beneficiariosCatalogo;
             })
             .catch(error => {
-                console.error('❌ Error cargando beneficiarios:', error);
                 beneficiariosCatalogo = [];
                 return beneficiariosCatalogo;
             })
@@ -6919,7 +6782,6 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function mostrarDetallesBeneficiario(beneficiarioId) {
         if (!beneficiarioId) {
-            console.error('ID de beneficiario no proporcionado');
             return;
         }
 
@@ -6927,7 +6789,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const contentContainer = document.getElementById('beneficiaryDetailsContent');
 
         if (!modal || !contentContainer) {
-            console.error('Modal de detalles del beneficiario no encontrado');
             return;
         }
 
@@ -6962,7 +6823,6 @@ document.addEventListener('DOMContentLoaded', function() {
             renderBeneficiaryDetailsTable(beneficiario);
 
         } catch (error) {
-            console.error('Error al obtener detalles del beneficiario:', error);
             contentContainer.innerHTML = `
                 <div style="text-align: center; padding: 40px; color: #dc3545;">
                     <div style="margin-bottom: 16px;">
@@ -7209,7 +7069,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Escuchar cambios en el hash para navegación del navegador (atrás/adelante)
     window.addEventListener('hashchange', function() {
         const newHash = window.location.hash;
-        console.log('🔄 Hash cambiado:', newHash);
         
         // Extraer parámetros del hash (ej: #createEventView&evento=123)
         let eventoId = null;
@@ -7218,20 +7077,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const partes = newHash.split('&evento=');
             hashBasico = partes[0]; // Solo el hash sin parámetros
             eventoId = partes[1]; // ID del evento
-            console.log('📌 Evento detectado en hash:', eventoId);
         }
         
         if (hashBasico === '#createEventView') {
             // Si hay un eventoId en el hash, cargar el evento directamente sin mostrar vistas intermedias
             if (eventoId) {
-                console.log('📌 Evento ID detectado en hashchange, cargando directamente para editar:', eventoId);
                 // NO mostrar ninguna vista todavía - solo cargar el evento directamente
                 const cargarFuncion = cargarEventoDesdeHash || cargarEventoParaEditar;
                 if (typeof cargarFuncion === 'function') {
-                    console.log('🔄 Ejecutando cargarEventoParaEditar directamente con ID:', eventoId);
                     cargarFuncion(eventoId);
                 } else {
-                    console.error('❌ cargarEventoParaEditar no está disponible aún');
                     setTimeout(() => {
                         const cargarFuncionRetry = cargarEventoDesdeHash || cargarEventoParaEditar;
                         if (typeof cargarFuncionRetry === 'function') {
@@ -7498,7 +7353,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } catch (error) {
-            console.error('Error al importar Excel:', error);
             if (excelImportStatusGeneral) {
                 excelImportStatusGeneral.innerHTML = `
                     <div style="padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
@@ -7567,7 +7421,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     mostrarMensaje('error', data.error || 'Error al guardar los beneficiarios');
                 }
             } catch (error) {
-                console.error('Error al guardar beneficiarios:', error);
                 mostrarMensaje('error', 'Error al guardar los beneficiarios. Por favor, intente nuevamente.');
             } finally {
                 ingresarBeneficiariosBDGeneralBtn.disabled = false;

@@ -30,7 +30,6 @@
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
-      console.warn('No se pudo cargar la cola offline:', error);
       return [];
     }
   }
@@ -39,7 +38,6 @@
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
     } catch (error) {
-      console.warn('No se pudo guardar la cola offline:', error);
     }
   }
 
@@ -118,7 +116,6 @@
     }
 
     if (body instanceof Blob) {
-      console.warn('No se puede serializar un Blob para modo offline.');
       return null;
     }
 

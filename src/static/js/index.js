@@ -11,8 +11,8 @@ const DEBUG_LOGS = (() => {
         return false;
     }
 })();
-const debugLog = (...args) => { if (DEBUG_LOGS) console.log(...args); };
-const debugWarn = (...args) => { if (DEBUG_LOGS) console.warn(...args); };
+const debugLog = (...args) => { if (DEBUG_LOGS) (() => {})(); };
+const debugWarn = (...args) => { if (DEBUG_LOGS) (() => {})(); };
 
 // Función para cargar los últimos eventos desde la API
 async function cargarUltimosEventos() {
@@ -32,7 +32,6 @@ async function cargarUltimosEventos() {
             mostrarMensajeSinEventos();
         }
     } catch (error) {
-        console.error('❌ Error al cargar eventos:', error);
         mostrarMensajeSinEventos();
     }
 }
@@ -43,7 +42,6 @@ function renderizarEventos(eventos) {
     const indicatorsContainer = document.querySelector('.events__indicators');
     
     if (!carousel || !indicatorsContainer) {
-        console.error('❌ No se encontró el contenedor del carrusel o indicadores');
         return;
     }
     

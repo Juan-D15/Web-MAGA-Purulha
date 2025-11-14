@@ -1,7 +1,6 @@
 /* ======= FUNCIONALIDAD PARA COMUNIDADES ======= */
 
 // ======= DATOS DE COMUNIDADES - CARGA DESDE BD =======
-console.log('📦 Comunidades.js - Usando datos desde la base de datos');
 
 // Configuración e in-memory cache
 const DEFAULT_COMMUNITY_IMAGE_LARGE = 'https://images.unsplash.com/photo-1523978591478-c753949ff840?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
@@ -28,7 +27,6 @@ function consumePendingNavigationTarget({ storageKey, queryParam }) {
         }
       }
     } catch (error) {
-      console.warn('⚠️ No se pudo leer el parámetro de navegación de la URL:', error);
     }
   }
 
@@ -42,7 +40,6 @@ function consumePendingNavigationTarget({ storageKey, queryParam }) {
         }
       }
     } catch (error) {
-      console.warn(`⚠️ No se pudo obtener ${storageKey} desde sessionStorage:`, error);
     } finally {
       try {
         window.sessionStorage.removeItem(storageKey);
@@ -253,7 +250,6 @@ async function fetchCommunitiesList(force = false) {
     }));
     filteredCommunities = [...allCommunitiesData];
   } catch (error) {
-    console.error('Error al cargar comunidades:', error);
     showErrorMessage('No se pudieron cargar las comunidades. Inténtalo nuevamente.');
   } finally {
     isCommunitiesLoading = false;
@@ -279,7 +275,6 @@ async function fetchCommunityDetail(communityId, { force = false } = {}) {
     }
     return normalized;
   } catch (error) {
-    console.error('Error al obtener la comunidad:', error);
     throw error;
   } finally {
     isDetailLoading = false;
@@ -305,7 +300,6 @@ async function refreshCurrentCommunity(successMessage) {
       }
     }
   } catch (error) {
-    console.error('Error al actualizar la comunidad:', error);
     showErrorMessage(error.message || 'No se pudo actualizar la información de la comunidad.');
   }
 }
@@ -524,7 +518,6 @@ async function showCommunityDetail(communityId) {
   const detailView = document.getElementById('communityDetailView');
   
   if (!detailView) {
-    console.error('No se encontró la vista detallada');
     return;
   }
   
@@ -550,7 +543,6 @@ async function showCommunityDetail(communityId) {
       throw new Error('Comunidad no encontrada');
     }
   } catch (error) {
-    console.error('Error al mostrar comunidad:', error);
     showErrorMessage('No se pudo cargar la información de la comunidad.');
     setDetailLoading(false);
     // Solo regresar a la vista principal si es un error crítico
@@ -1111,7 +1103,6 @@ async function updateCommunityData() {
     hideModal('editDataModal');
     showSuccessMessage(result.message || 'Datos actualizados correctamente.');
   } catch (error) {
-    console.error('Error al actualizar datos de la comunidad:', error);
     showErrorMessage(error.message || 'No se pudieron actualizar los datos.');
   }
 }
@@ -1178,7 +1169,6 @@ function updateCommunityDescription() {
       showSuccessMessage(result.message || 'Descripción actualizada exitosamente.');
     })
     .catch((error) => {
-      console.error('Error al actualizar la descripción:', error);
       showErrorMessage(error.message || 'No se pudo actualizar la descripción.');
     });
 }
@@ -1401,7 +1391,6 @@ async function addImageToCommunity() {
 
     await refreshCurrentCommunity(successMessage);
   } catch (error) {
-    console.error('Error al agregar imagen:', error);
     pendingGalleryImages = imagesToUpload.slice(uploadedCount);
     renderPendingImages();
 
@@ -1465,7 +1454,6 @@ function addFileToCommunity() {
       return refreshCurrentCommunity(result.message || 'Archivo agregado exitosamente');
     })
     .catch((error) => {
-      console.error('Error al agregar archivo:', error);
       showErrorMessage(error.message || 'No se pudo agregar el archivo');
     });
 }
@@ -1535,7 +1523,6 @@ async function updateFileDescription() {
     currentFileEdit = null;
     await refreshCurrentCommunity(result.message || 'Descripción actualizada correctamente.');
   } catch (error) {
-    console.error('Error al actualizar la descripción del archivo:', error);
     showErrorMessage(error.message || 'No se pudo actualizar la descripción del archivo.');
   } finally {
     if (confirmButton) {
@@ -1997,7 +1984,6 @@ function removeImageFromCommunity(imageIndex) {
           await refreshCurrentCommunity(result.message || 'Imagen eliminada exitosamente');
         })
         .catch((error) => {
-          console.error('Error al eliminar imagen:', error);
           showErrorMessage(error.message || 'No se pudo eliminar la imagen');
         });
     }
@@ -2026,7 +2012,6 @@ function removeFileFromCommunity(fileId) {
           return refreshCurrentCommunity(result.message || 'Archivo eliminado correctamente');
         })
         .catch((error) => {
-          console.error('Error al eliminar archivo:', error);
           showErrorMessage(error.message || 'No se pudo eliminar el archivo');
         });
     }
@@ -2082,7 +2067,6 @@ function loadGalleryWithDeleteButtons(photos) {
     if (img) {
       // Manejar errores de carga de imagen sin interrumpir el flujo
       img.addEventListener('error', function() {
-        console.warn(`No se pudo cargar la imagen: ${photoUrl}`);
         // Usar una imagen por defecto o ocultar la imagen
         this.style.display = 'none';
         // Opcional: mostrar un placeholder

@@ -10,7 +10,7 @@
       return false;
     }
   })();
-  const debugLog = (...args) => { if (DEBUG_LOGS) console.log(...args); };
+  const debugLog = (...args) => { if (DEBUG_LOGS) (() => {})(); };
 
   // ========== INICIALIZACIÓN ==========
   document.addEventListener('DOMContentLoaded', function() {
@@ -933,7 +933,6 @@
         updateProfilePhotoInNav(data.foto_url);
       }
     } catch (error) {
-      console.error('Error cargando foto de perfil:', error);
       // En caso de error, mantener la inicial
     }
   }

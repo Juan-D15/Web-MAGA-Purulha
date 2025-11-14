@@ -42,7 +42,6 @@
       const parsed = JSON.parse(raw);
       return typeof parsed === 'object' && parsed ? parsed : null;
     } catch (error) {
-      console.warn('OfflineAuth: no se pudo leer el almacén', error);
       return null;
     }
   }
@@ -51,7 +50,6 @@
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     } catch (error) {
-      console.warn('OfflineAuth: no se pudo guardar el almacén', error);
     }
   }
 
@@ -171,7 +169,6 @@
     try {
       window.localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
     } catch (error) {
-      console.warn('OfflineAuth: no se pudo guardar la sesión activa', error);
     }
   }
 
@@ -198,7 +195,6 @@
       }
       return parsed;
     } catch (error) {
-      console.warn('OfflineAuth: no se pudo leer la sesión activa', error);
       return null;
     }
   }
@@ -210,7 +206,6 @@
     try {
       window.localStorage.setItem(LAST_PATH_KEY, path);
     } catch (error) {
-      console.warn('OfflineAuth: no se pudo almacenar la ruta visitada', error);
     }
   }
 
@@ -279,7 +274,6 @@
           item.credential.serverExpiresAt = data.expires_at || null;
           modified = true;
         } catch (error) {
-          console.warn('OfflineAuth: no se pudo registrar la sesión offline', error);
           item.credential.lastRegistrationError = error.message;
           item.credential.pendingRegistration = true;
           modified = true;
@@ -513,7 +507,6 @@
     try {
       recordVisitedPath(window.location.pathname + window.location.search);
     } catch (error) {
-      console.warn('OfflineAuth: no se pudo registrar la ruta reciente', error);
     }
   });
 

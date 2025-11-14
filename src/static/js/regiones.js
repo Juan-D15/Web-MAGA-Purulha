@@ -19,7 +19,6 @@ function openImageViewer(url, description) {
   showModal('imageViewerModal');
 }
 // ======= DATOS DE REGIONES - CARGA DESDE BD =======
-console.log('📦 Regiones.js - Cargando datos desde la base de datos');
 
 // ======= VARIABLES GLOBALES =======
 let regionsData = {}; // Se llenará dinámicamente desde la API
@@ -63,7 +62,6 @@ function consumePendingNavigationTarget({ storageKey, queryParam }) {
         }
       }
     } catch (error) {
-      console.warn('⚠️ No se pudo leer el parámetro de navegación de la URL:', error);
     }
   }
 
@@ -77,7 +75,6 @@ function consumePendingNavigationTarget({ storageKey, queryParam }) {
         }
       }
     } catch (error) {
-      console.warn(`⚠️ No se pudo obtener ${storageKey} desde sessionStorage:`, error);
     } finally {
       try {
         window.sessionStorage.removeItem(storageKey);
@@ -125,7 +122,6 @@ async function showRegionsList() {
   
   // Si no hay regiones cargadas, cargarlas desde la API
   if (!allRegions || allRegions.length === 0) {
-    console.log('🔄 No hay regiones cargadas, cargando desde API...');
     await loadRegionsFromAPI();
   }
   
@@ -212,7 +208,6 @@ async function showRegionDetail(regionId) {
   loadRegionDetail(currentRegionData);
   window.scrollTo(0, 0);
   } catch (error) {
-    console.error('❌ Error al cargar detalle de región:', error);
     
     // Remover el overlay de carga en caso de error
     const loadingOverlay = detailContent?.querySelector('.loading-overlay');
@@ -224,7 +219,6 @@ async function showRegionDetail(regionId) {
     backToMain();
   }
 }
-
 
 if (typeof window !== 'undefined') {
   window.showRegionDetail = showRegionDetail;
@@ -304,7 +298,6 @@ async function updateRegionFileDescription() {
     currentRegionFileEdit = null;
     showSuccessMessage(result.message || 'Descripción actualizada correctamente.');
   } catch (error) {
-    console.error('Error al actualizar la descripción del archivo:', error);
     showErrorMessage(error.message || 'No se pudo actualizar la descripción del archivo.');
   } finally {
     if (confirmButton) {
@@ -348,20 +341,16 @@ function backToList() {
 // Estas funciones se usan para actualizar dinámicamente las regiones si es necesario
 // Las regiones iniciales se cargan desde Django templates
 async function loadRegionsFromAPI() {
-  console.log('🔄 Iniciando carga de regiones desde API (actualización dinámica)...');
   try {
     const response = await fetch(`/api/regiones/?_=${Date.now()}`);
-    console.log('📡 Respuesta recibida:', response.status, response.statusText);
     
     if (!response.ok) {
       throw new Error(`Error HTTP: ${response.status} - ${response.statusText}`);
     }
     
     const regiones = await response.json();
-    console.log('✅ Regiones recibidas:', regiones.length, regiones);
     
     if (!regiones || regiones.length === 0) {
-      console.warn('⚠️ No se encontraron regiones en la base de datos');
       return;
     }
     
@@ -374,68 +363,55 @@ async function loadRegionsFromAPI() {
         code: region.codigo,
         comunidad_sede: region.comunidad_sede || '',
         imagen_url: region.imagen_url,
-        num_comunidades: region.num_comunidades || 0
+        num_comunidades: region.num_comunidades || 0,
+        lastUpdate: region.actualizado_en || region.creado_en || null
       };
     });
     
     // Guardar todas las regiones en allRegions (mantener formato de API)
     allRegions = regiones;
-    console.log('📊 Total de regiones procesadas:', allRegions.length);
-    console.log('📋 Primeras 3 regiones:', allRegions.slice(0, 3));
     
     // Actualizar la lista y el grid según corresponda
     const listView = document.getElementById('regionsListView');
     if (listView && listView.style.display !== 'none') {
-      console.log('🔄 Actualizando lista de regiones...');
       loadRegionsList();
     }
 
     loadRegionsGrid();
     
-    console.log('✅ Regiones cargadas exitosamente:', Object.keys(regionsData).length);
   } catch (error) {
-    console.error('❌ Error al cargar regiones:', error);
-    console.error('Detalles del error:', error.message, error.stack);
     // No mostrar error si las regiones ya están cargadas desde el template
   }
 }
 
 async function loadFeaturedRegions() {
-  console.log('🔄 Cargando últimas regiones...');
   try {
     const response = await fetch(`/api/regiones/recientes/?limite=3&_=${Date.now()}`);
-    console.log('📡 Respuesta últimas regiones:', response.status);
     
     if (!response.ok) {
       throw new Error(`Error HTTP: ${response.status}`);
     }
     
     const regiones = await response.json();
-    console.log('✅ Últimas regiones recibidas:', regiones.length, regiones);
     
     const container = document.getElementById('featuredRegionsContainer');
     if (!container) {
-      console.error('❌ No se encontró el contenedor featuredRegionsContainer');
       return;
     }
     
     container.innerHTML = '';
     
     if (regiones.length === 0) {
-      console.warn('⚠️ No hay regiones recientes');
       container.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones recientes disponibles</p>';
       return;
     }
     
     regiones.forEach((region, index) => {
-      console.log(`📦 Creando tarjeta ${index + 1} para región:`, region.nombre);
       const card = createRegionCard(region, true); // true = featured card
       container.appendChild(card);
     });
     
-    console.log('✅ Últimas regiones cargadas:', regiones.length);
   } catch (error) {
-    console.error('❌ Error al cargar últimas regiones:', error);
     const container = document.getElementById('featuredRegionsContainer');
     if (container) {
       container.innerHTML = '<p style="color: var(--text-danger); padding: 20px; text-align: center;">Error al cargar últimas regiones</p>';
@@ -444,17 +420,14 @@ async function loadFeaturedRegions() {
 }
 
 function loadRegionsGrid() {
-  console.log('🔄 Cargando grid de regiones...');
   const grid = document.getElementById('regionsGrid');
   if (!grid) {
-    console.error('❌ No se encontró el contenedor regionsGrid');
     return;
   }
   
   grid.innerHTML = '';
   
   if (!allRegions || allRegions.length === 0) {
-    console.warn('⚠️ No hay regiones para mostrar en el grid');
     grid.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones disponibles</p>';
     return;
   }
@@ -465,29 +438,23 @@ function loadRegionsGrid() {
     const id = el.getAttribute('data-region-id');
     if (id) featuredIds.add(id);
   });
-  
-  console.log('📋 Regiones destacadas (excluidas del grid):', Array.from(featuredIds));
-  
+
   // Cargar todas las demás regiones
   let regionesAgregadas = 0;
   allRegions.forEach((region, index) => {
     if (!featuredIds.has(region.id)) {
-      console.log(`📦 Creando tarjeta ${index + 1} para región:`, region.nombre);
       const card = createRegionCard(region, false); // false = normal card
       grid.appendChild(card);
       regionesAgregadas++;
     }
   });
-  
-  console.log(`✅ Grid de regiones cargado: ${regionesAgregadas} regiones agregadas`);
-  
+
   if (regionesAgregadas === 0) {
     grid.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">Todas las regiones están en la sección de últimas regiones</p>';
   }
 }
 
 function createRegionCard(region, isFeatured = false) {
-  console.log('🎨 Creando tarjeta para región:', region.nombre, 'Featured:', isFeatured);
   
   const card = document.createElement('div');
   card.className = `region-card ${isFeatured ? 'featured-card' : ''}`;
@@ -497,14 +464,7 @@ function createRegionCard(region, isFeatured = false) {
   const codigoPequeño = region.nombre || region.codigo || 'Sin nombre';
   
   const imagenUrl = region.imagen_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-  
-  console.log('📝 Datos de la tarjeta:', {
-    tituloGrande,
-    codigoPequeño,
-    imagenUrl,
-    regionId: region.id
-  });
-  
+
   card.innerHTML = `
     <div class="region-card__image">
       <img src="${imagenUrl}" 
@@ -527,32 +487,31 @@ function createRegionCard(region, isFeatured = false) {
 function loadRegionsList() {
   const regionsList = document.getElementById('regionsList');
   if (!regionsList) {
-    console.warn('⚠️ No se encontró el contenedor regionsList');
     return;
   }
-  
-  console.log('🔄 Cargando lista de regiones, total:', allRegions.length);
-  
+
   regionsList.innerHTML = '';
   
   if (!allRegions || allRegions.length === 0) {
-    console.warn('⚠️ No hay regiones para mostrar en la lista');
     regionsList.innerHTML = '<p style="color: var(--text-muted); padding: 20px; text-align: center;">No hay regiones disponibles</p>';
     return;
   }
   
   allRegions.forEach((region, index) => {
-    console.log(`📦 Creando item ${index + 1} para región:`, region.nombre);
     const regionItem = createRegionListItem(region);
     regionsList.appendChild(regionItem);
   });
   
-  console.log(`✅ Lista de regiones cargada: ${allRegions.length} regiones`);
 }
 
 function createRegionListItem(region) {
   const regionItem = document.createElement('div');
   regionItem.className = 'region-list-item';
+  
+  // Agregar el atributo data-last-update para el ordenamiento
+  if (region.actualizado_en || region.creado_en) {
+    regionItem.dataset.lastUpdate = region.actualizado_en || region.creado_en;
+  }
   
   const imagenUrl = region.imagen_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80';
   const numComunidades = region.num_comunidades || 0;
@@ -600,7 +559,6 @@ function loadRegionDetail(region) {
   // Restaurar el contenido del detalle (por si estaba en estado de carga)
   const detailContent = document.querySelector('.detail-content');
   if (!detailContent) {
-    console.error('❌ No se encontró el elemento detail-content');
     return;
   }
   
@@ -692,7 +650,6 @@ function loadLocation(location) {
 function loadRegionMap(regionId) {
   const regionMapImage = document.getElementById('regionMapImage');
   if (!regionMapImage) {
-    console.warn('⚠️ No se encontró el elemento regionMapImage');
     return;
   }
 
@@ -707,7 +664,6 @@ function loadRegionMap(regionId) {
 
   const loadMapImage = (regionNumber, regionName = '') => {
     if (!regionNumber) {
-      console.warn('⚠️ No se pudo obtener el número de la región para cargar el mapa');
       regionMapImage.src = fallbackImage;
       regionMapImage.alt = 'Mapa no disponible';
       regionMapImage.style.display = 'block';
@@ -715,19 +671,16 @@ function loadRegionMap(regionId) {
     }
 
     const pngPath = `/static/img/regiones%20mapa/region${regionNumber}.png`;
-    console.log('🗺️ Cargando mapa PNG:', pngPath, '(región:', regionName || regionNumber, ')');
 
     regionMapImage.style.display = 'block';
     regionMapImage.src = pngPath;
     regionMapImage.alt = `Mapa de la región ${regionName || regionNumber}`;
 
     regionMapImage.onload = () => {
-      console.log('✅ Mapa PNG cargado exitosamente:', pngPath);
       regionMapImage.style.display = 'block';
     };
 
     regionMapImage.onerror = () => {
-      console.warn(`⚠️ No se pudo cargar el mapa PNG para la región ${regionNumber} (ruta: ${pngPath}). Usando imagen de respaldo.`);
       regionMapImage.src = fallbackImage;
       regionMapImage.alt = 'Mapa no disponible';
       regionMapImage.style.display = 'block';
@@ -747,7 +700,6 @@ function loadRegionMap(regionId) {
     return;
   }
 
-  console.warn('⚠️ No se encontró información suficiente para mostrar el mapa de la región', regionId);
   regionMapImage.src = fallbackImage;
   regionMapImage.alt = 'Mapa no disponible';
   regionMapImage.style.display = 'block';
@@ -977,7 +929,6 @@ async function performDeleteRegionFile(fileId, fileName) {
     renderRegionFiles(currentRegionData?.files || []);
     showSuccessMessage(result.message || `Archivo "${fileName}" eliminado correctamente.`);
   } catch (error) {
-    console.error('Error al eliminar archivo de región:', error);
     showErrorMessage(error.message || 'Ocurrió un error al eliminar el archivo.');
   }
 }
@@ -1079,7 +1030,6 @@ async function addFileToRegion() {
     hideModal('addFileModal');
     showSuccessMessage(result.message || 'Archivo agregado exitosamente.');
   } catch (error) {
-    console.error('Error al agregar archivo a la región:', error);
     showErrorMessage(error.message || 'Ocurrió un error al guardar el archivo.');
   } finally {
     if (confirmButton) {
@@ -1158,7 +1108,6 @@ function sortRegions(sortBy) {
   const regionItems = Array.from(regionsList.querySelectorAll('.region-list-item'));
   
   if (regionItems.length === 0) {
-    console.warn('⚠️ No hay elementos de región para ordenar');
     return;
   }
   
@@ -1172,9 +1121,24 @@ function sortRegions(sortBy) {
       case 'name-desc':
         return nameB.localeCompare(nameA, 'es', { sensitivity: 'base' });
       case 'recent':
-        // Ordenar por fecha de actualización (si está disponible)
-        // Por ahora, mantener el orden original
-        return 0;
+        // Ordenar por fecha de actualización (más reciente primero)
+        const dateA = a.dataset.lastUpdate ? new Date(a.dataset.lastUpdate) : new Date(0);
+        const dateB = b.dataset.lastUpdate ? new Date(b.dataset.lastUpdate) : new Date(0);
+        
+        // Si ambas fechas son inválidas, mantener el orden original
+        if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) {
+          return 0;
+        }
+        // Si solo A es inválida, ponerla al final
+        if (isNaN(dateA.getTime())) {
+          return 1;
+        }
+        // Si solo B es inválida, ponerla al final
+        if (isNaN(dateB.getTime())) {
+          return -1;
+        }
+        // Ordenar de más reciente a más antiguo
+        return dateB.getTime() - dateA.getTime();
       case 'communities':
         const communitiesA = parseInt(a.querySelector('.region-list-item__communities')?.textContent || '0');
         const communitiesB = parseInt(b.querySelector('.region-list-item__communities')?.textContent || '0');
@@ -1190,7 +1154,6 @@ function sortRegions(sortBy) {
     regionsList.appendChild(item);
   });
   
-  console.log(`✅ Regiones ordenadas por: ${sortBy}`);
 }
 
 // ======= FUNCIONES DE MODALES =======
@@ -1398,7 +1361,6 @@ async function addImageToRegion() {
     await loadFeaturedRegions();
     await loadRegionsFromAPI();
   } catch (error) {
-    console.error('❌ Error al agregar imagen:', error);
     pendingRegionGalleryImages = imagesToUpload.slice(uploadedCount);
     renderPendingRegionImages();
 
@@ -1479,7 +1441,6 @@ async function updateRegionDescription() {
     try {
       result = await response.json();
     } catch (jsonError) {
-      console.warn('⚠️ No se pudo parsear la respuesta de actualización de descripción', jsonError);
     }
 
     if (!response.ok || !result.success) {
@@ -1503,7 +1464,6 @@ async function updateRegionDescription() {
     await loadRegionsFromAPI();
     await loadFeaturedRegions();
   } catch (error) {
-    console.error('❌ Error al actualizar la descripción:', error);
     showErrorMessage('Error al actualizar la descripción. Por favor, intenta de nuevo.');
   }
 }
@@ -1572,7 +1532,6 @@ function showErrorMessage(message) {
 
 // ======= INICIALIZACIÓN =======
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('🚀 DOM cargado, iniciando carga de regiones...');
   const featuredPromise = Promise.resolve(loadFeaturedRegions());
   
   // Event listeners para navegación
@@ -1597,7 +1556,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const btn = e.target.classList.contains('region-card__btn') ? e.target : e.target.closest('.region-card__btn');
       const regionId = btn.getAttribute('data-region-id');
       if (regionId) {
-        console.log('🔍 Click en región:', regionId);
         showRegionDetail(regionId);
       }
     }
@@ -1606,7 +1564,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const btn = e.target.classList.contains('region-list-item__btn') ? e.target : e.target.closest('.region-list-item__btn');
       const regionId = btn.getAttribute('data-region-id');
       if (regionId) {
-        console.log('🔍 Click en región de lista:', regionId);
         showRegionDetail(regionId);
       }
     }
@@ -1790,7 +1747,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Cargar regiones desde la API al iniciar (para tener datos disponibles en JS)
-  console.log('🔄 Ejecutando loadRegionsFromAPI()...');
   const regionsPromise = Promise.resolve(loadRegionsFromAPI());
 
   Promise.allSettled([featuredPromise, regionsPromise]).then(() => {
@@ -1823,7 +1779,6 @@ async function executeDeleteAction() {
   try {
     await pendingDeleteAction();
   } catch (error) {
-    console.error('Error al ejecutar acción de eliminación:', error);
   } finally {
     hideModal('confirmDeleteModal');
     pendingDeleteAction = null;
@@ -1864,7 +1819,6 @@ function removeImageFromRegion(imageIndex) {
           showSuccessMessage(result.message || 'Imagen eliminada correctamente');
         })
         .catch((error) => {
-          console.error('Error al eliminar imagen de la región:', error);
           showErrorMessage(error.message || 'No se pudo eliminar la imagen');
         });
     }

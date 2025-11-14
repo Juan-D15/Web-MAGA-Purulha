@@ -44,7 +44,6 @@ async function loadUserData() {
         // Cargar foto de perfil
         loadProfilePhoto();
     } catch (error) {
-        console.error('Error cargando datos del usuario:', error);
         showError('Error al cargar los datos del usuario');
     }
 }
@@ -118,7 +117,6 @@ async function loadColaboradorDataFromUsuario() {
             displayColaboradorData(result.colaborador);
         }
     } catch (error) {
-        console.error('Error cargando datos del colaborador:', error);
     }
 }
 
@@ -163,7 +161,6 @@ async function loadProfilePhoto() {
             displayInitialAvatar();
         }
     } catch (error) {
-        console.error('Error cargando foto de perfil:', error);
         displayInitialAvatar();
     }
 }
@@ -215,7 +212,6 @@ async function loadUserStatistics() {
         // Mostrar estadísticas
         displayStatistics(data);
     } catch (error) {
-        console.error('Error cargando estadísticas:', error);
         showError('Error al cargar las estadísticas');
     }
 }
@@ -332,7 +328,6 @@ function setupEventListeners() {
                     credentials: 'include'
                 });
             } catch (error) {
-                console.error('Error al cerrar sesión antes de cambiar la contraseña:', error);
             } finally {
                 window.location.href = targetUrl;
             }
@@ -492,7 +487,6 @@ async function guardarCambiosUsuario() {
         }
         
     } catch (error) {
-        console.error('Error guardando cambios:', error);
         showError(error.message || 'Error al guardar los cambios');
     } finally {
         // Restaurar botón
@@ -567,7 +561,6 @@ async function handleFotoChange(event) {
             }
         }
     } catch (error) {
-        console.error('Error subiendo foto:', error);
         showError(error.message || 'Error al subir la foto');
     } finally {
         // Restaurar botón

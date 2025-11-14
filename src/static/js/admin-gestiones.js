@@ -10,7 +10,7 @@
       return false;
     }
   })();
-  const debugLog = (...args) => { if (DEBUG_LOGS) console.log(...args); };
+  const debugLog = (...args) => { if (DEBUG_LOGS) (() => {})(); };
 
   // ========== VERIFICAR ACCESO DE ADMINISTRADOR ==========
   function checkAdminAccess() {
@@ -36,7 +36,6 @@
         // Verificar si es administrador
         return user.username === 'admin' && user.isAdmin === true;
       } catch (e) {
-        console.error('Error parsing userInfo:', e);
         return false;
       }
     }
@@ -128,7 +127,6 @@
         const errorDiv = document.getElementById('adminLoginError');
         
         if (!usernameInput || !passwordInput || !errorDiv) {
-          console.error('Required elements not found');
           return;
         }
         
