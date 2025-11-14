@@ -1,13 +1,39 @@
-// Service Worker para notificaciones de recordatorios
-const CACHE_NAME = 'webmaga-reminders-v1';
+// Service Worker para notificaciones de recordatorios y modo offline
+const CACHE_NAME = 'webmaga-offline-v3';
 const CHECK_INTERVAL = 30000; // Verificar cada 30 segundos (más frecuente para Android)
 let checkIntervalId = null;
 let lastCheckTime = 0;
 let sentNotifications = new Set(); // Para evitar notificaciones duplicadas
 
+// Recursos a cachear para modo offline
+const CACHE_URLS = [
+  '/',
+  '/static/css/styles.css',
+  '/static/css/proyectos.css',
+  '/static/css/gestioneseventos.css',
+  '/static/css/comunidades.css',
+  '/static/css/regiones.css',
+  '/static/js/proyectos.js',
+  '/static/js/gestioneseventos.js',
+  '/static/js/offline-auth.js',
+  '/static/js/offline-sync.js',
+  '/static/js/navigation.js',
+  '/static/js/login.js',
+  '/static/img/logos/logo_maga.png',
+];
+
 // Instalación del Service Worker
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Instalando...');
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[Service Worker] Cacheando recursos para modo offline...');
+      return cache.addAll(CACHE_URLS).catch((error) => {
+        console.warn('[Service Worker] Error al cachear algunos recursos:', error);
+        // No fallar si algunos recursos no se pueden cachear
+      });
+    })
+  );
   self.skipWaiting();
 });
 
@@ -343,6 +369,72 @@ self.addEventListener('message', (event) => {
       checkIntervalId = null;
     }
   }
+});
+
+// =====================================================
+// ESTRATEGIA DE CACHÉ PARA MODO OFFLINE
+// =====================================================
+
+self.addEventListener('fetch', (event) => {
+  // Solo cachear GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // No cachear requests a la API (excepto algunas específicas)
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/') && !url.pathname.includes('/api/usuario/')) {
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      // Si está en caché, devolverlo
+      if (response) {
+        // Actualizar en segundo plano (stale-while-revalidate)
+        fetch(event.request).then((freshResponse) => {
+          if (freshResponse && freshResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, freshResponse);
+            });
+          }
+        }).catch(() => {
+          // Ignorar errores de red en segundo plano
+        });
+        return response;
+      }
+
+      // Si no está en caché, hacer fetch
+      return fetch(event.request).then((response) => {
+        // Solo cachear respuestas exitosas
+        if (!response || response.status !== 200 || response.type === 'error') {
+          return response;
+        }
+
+        // Cachear recursos estáticos (CSS, JS, imágenes)
+        if (url.pathname.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+
+        return response;
+      }).catch((error) => {
+        // Si falla el fetch y no está en caché, devolver página offline (si existe)
+        console.log('[Service Worker] Fetch failed:', error);
+        return caches.match('/').then((fallback) => {
+          return fallback || new Response('Sin conexión', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({
+              'Content-Type': 'text/plain'
+            })
+          });
+        });
+      });
+    })
+  );
 });
 
 

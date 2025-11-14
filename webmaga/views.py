@@ -10,7 +10,7 @@ from django.conf import settings
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 from datetime import datetime
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login as auth_login
 import os
 import json
 from datetime import datetime, timedelta
@@ -12092,3 +12092,136 @@ DEFAULT_COMUNIDAD_IMAGE_LARGE = (
     'https://images.unsplash.com/photo-1523978591478-c753949ff840'
     '?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
 )
+
+
+# =====================================================
+# API: LOGIN PARA MODO OFFLINE
+# =====================================================
+
+@require_http_methods(["POST"])
+def api_login(request):
+    """
+    Endpoint API para login que devuelve JSON con información del usuario.
+    Permite guardar credenciales para uso offline.
+    """
+    try:
+        data = json.loads(request.body)
+        username_or_email = data.get('username', '').strip()
+        password = data.get('password', '')
+        remember_me = data.get('remember_me', False)
+        device_id = data.get('device_id', '')
+        
+        if not username_or_email or not password:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario y contraseña son requeridos'
+            }, status=400)
+        
+        # Intentar autenticar
+        user = authenticate(request, username=username_or_email, password=password)
+        
+        # Si falla con username, intentar con email
+        if not user:
+            try:
+                usuario_maga = Usuario.objects.get(email=username_or_email)
+                user = authenticate(request, username=usuario_maga.username, password=password)
+            except Usuario.DoesNotExist:
+                pass
+        
+        if not user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario o contraseña incorrectos'
+            }, status=401)
+        
+        if not user.is_active:
+            return JsonResponse({
+                'success': False,
+                'error': 'Esta cuenta está desactivada'
+            }, status=403)
+        
+        # Iniciar sesión
+        auth_login(request, user)
+        request.session.set_expiry(604800)  # 7 días
+        request.session.save()
+        
+        # Obtener información del usuario
+        try:
+            usuario_maga = Usuario.objects.select_related('puesto').get(username=user.username)
+        except Usuario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no encontrado en el sistema'
+            }, status=404)
+        
+        # Preparar datos del usuario
+        user_data = {
+            'id': str(usuario_maga.id),
+            'username': usuario_maga.username,
+            'nombre': usuario_maga.nombre or '',
+            'email': usuario_maga.email,
+            'rol': usuario_maga.rol,
+            'isAdmin': usuario_maga.rol == 'admin',
+            'isPersonal': usuario_maga.rol == 'personal',
+            'puesto': usuario_maga.puesto.nombre if usuario_maga.puesto else None,
+            'permisos': {
+                'es_admin': usuario_maga.rol == 'admin',
+                'es_personal': usuario_maga.rol == 'personal',
+                'puede_gestionar_eventos': usuario_maga.rol in ['admin', 'personal'],
+                'puede_generar_reportes': True,
+            }
+        }
+        
+        # Si el usuario quiere recordar credenciales, generar hash para offline
+        offline_data = None
+        if remember_me:
+            import secrets
+            # Generar salt y hash para almacenamiento offline
+            salt = secrets.token_hex(16)
+            password_with_salt = f"{password}{salt}"
+            credential_hash = hashlib.sha256(password_with_salt.encode()).hexdigest()
+            
+            # Guardar en la base de datos
+            if not device_id:
+                device_id = request.META.get('HTTP_USER_AGENT', '')[:100]
+            
+            SesionOffline.objects.update_or_create(
+                usuario=usuario_maga,
+                dispositivo_id=device_id,
+                defaults={
+                    'token_hash': credential_hash,
+                    'permisos_offline': user_data['permisos'],
+                    'datos_cache': user_data,
+                    'sesion_activa': True,
+                    'expira_en': timezone.now() + timedelta(days=30),
+                    'navegador': request.META.get('HTTP_USER_AGENT', '')[:100],
+                    'sistema_operativo': request.META.get('HTTP_SEC_CH_UA_PLATFORM', '')[:100],
+                    'ip_address': request.META.get('REMOTE_ADDR', '')[:50],
+                }
+            )
+            
+            offline_data = {
+                'salt': salt,
+                'hash': credential_hash,
+                'expiresAt': (timezone.now() + timedelta(days=30)).isoformat(),
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Inicio de sesión exitoso',
+            'user': user_data,
+            'offline': offline_data,
+            'redirectUrl': '/'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Datos inválidos'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error en api_login: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Error interno del servidor'
+        }, status=500)

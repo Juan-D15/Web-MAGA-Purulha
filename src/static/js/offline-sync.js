@@ -169,10 +169,13 @@
     flushing = true;
     showBanner('Sincronizando cambios pendientes…');
 
+    console.log('🔄 [SYNC] Iniciando sincronización de', queue.length, 'solicitudes pendientes');
+
     const deviceId = getDeviceId();
 
     while (queue.length && navigator.onLine) {
       const item = queue[0];
+      console.log('📤 [SYNC] Enviando:', item.method, item.url);
       const headers = new Headers(item.headers || {});
       headers.set('X-Offline-Request-Id', item.id);
       headers.set('X-Offline-Device-Id', deviceId);
@@ -216,6 +219,7 @@
       } else {
         const completed = queue.shift();
         persistQueue();
+        console.log('✅ [SYNC] Enviado exitosamente:', completed.method, completed.url);
         document.dispatchEvent(new CustomEvent('OfflineSync:sent', { detail: completed }));
       }
     }
@@ -223,9 +227,11 @@
     flushing = false;
 
     if (!queue.length && navigator.onLine) {
+      console.log('✅ [SYNC] Sincronización completada - Cola vacía');
       hideBanner();
       document.dispatchEvent(new CustomEvent('OfflineSync:idle'));
     } else if (queue.length) {
+      console.log('⚠️ [SYNC] Sincronización pausada -', queue.length, 'solicitudes pendientes');
       showBanner('Sin conexión a Internet');
     }
   }
@@ -288,7 +294,37 @@
   function shouldBypass(url) {
     try {
       const requestUrl = new URL(url, window.location.origin);
-      return requestUrl.origin !== window.location.origin;
+      
+      // Bypass si es origen diferente
+      if (requestUrl.origin !== window.location.origin) {
+        return true;
+      }
+
+      // ✅ SOLO INTERCEPTAR ESTAS RUTAS ESPECÍFICAS:
+      // Proyectos, Comunidades y Regiones
+      const allowedPaths = [
+        // === PROYECTOS ===
+        '/api/proyecto/',
+        '/api/evento/',
+        '/api/proyectos/',
+        '/api/ultimos-proyectos/',
+        
+        // === COMUNIDADES ===
+        '/api/comunidad/',
+        '/api/comunidades/',
+        
+        // === REGIONES ===
+        '/api/region/',
+        '/api/regiones/',
+      ];
+
+      // Si la URL NO está en las rutas permitidas, hacer bypass
+      const isAllowed = allowedPaths.some(path => requestUrl.pathname.includes(path));
+      if (!isAllowed) {
+        return true; // Bypass - no guardar offline
+      }
+
+      return false; // No bypass - guardar offline si no hay conexión
     } catch (_) {
       return false;
     }
@@ -313,7 +349,7 @@
     }
 
     if (!navigator.onLine) {
-      enqueue({
+      const requestData = {
         id: uuid(),
         url,
         method,
@@ -321,6 +357,16 @@
         body: initData.body,
         credentials: initData.credentials,
         createdAt: new Date().toISOString(),
+      };
+      
+      enqueue(requestData);
+
+      // 📝 Log para debugging
+      console.log('📴 [OFFLINE] Solicitud guardada:', {
+        url: url,
+        method: method,
+        timestamp: new Date().toLocaleString('es-GT'),
+        queueSize: queue.length,
       });
 
       return new Response(
@@ -444,5 +490,44 @@
       flushQueue();
     }
   });
+
+  // =====================================================
+  // DETECTAR CAMBIOS EN CONEXIÓN Y SINCRONIZAR
+  // =====================================================
+
+  // Detectar cuando se recupera la conexión
+  window.addEventListener('online', async () => {
+    console.log('✅ Conexión restaurada - Iniciando sincronización...');
+    hideBanner();
+    
+    if (window.OfflineSync && typeof window.OfflineSync.syncPendingChanges === 'function') {
+      try {
+        await window.OfflineSync.syncPendingChanges();
+        console.log('✅ Sincronización completada');
+      } catch (error) {
+        console.error('❌ Error en sincronización:', error);
+      }
+    }
+
+    // Sincronizar cola de cambios
+    if (queue.length > 0) {
+      flushQueue();
+    }
+  });
+
+  // Detectar cuando se pierde la conexión
+  window.addEventListener('offline', () => {
+    console.log('⚠️ Conexión perdida - Modo offline activado');
+    showBanner('Sin conexión a Internet. Los cambios se guardarán localmente.');
+    
+    // Mostrar notificación al usuario (si tiene permisos)
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Modo Offline', {
+        body: 'Los cambios se guardarán localmente y se sincronizarán cuando recuperes la conexión.',
+        icon: '/static/img/logos/logo_maga.png',
+      });
+    }
+  });
+
 })(window, document);
 

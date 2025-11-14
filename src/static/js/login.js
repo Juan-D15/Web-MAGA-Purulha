@@ -489,14 +489,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Formulario de login: interceptar solo para modo offline o para guardar credenciales
+  // Formulario de login: usar AJAX para login online y offline
   const loginForm = document.getElementById('loginForm');
   if (loginForm) {
     loginForm.addEventListener('submit', async function(e) {
-      // Si ya se está enviando automáticamente, permitir el envío normal
-      if (this.dataset.autoSubmitting === 'true') {
-        return;
-      }
+      e.preventDefault(); // SIEMPRE prevenir envío tradicional
 
       const usernameInput = document.getElementById('usernameOrEmail');
       const passwordInput = document.getElementById('password');
@@ -508,73 +505,98 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Validación básica del lado del cliente
       if (!usernameValue || !passwordValue) {
-        e.preventDefault();
         clearLoginInlineMessage();
         showLoginInlineMessage('Ingresa tu usuario y contraseña para continuar.', 'error');
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.textContent = 'Acceder';
-        }
         return;
       }
 
-      // Si estamos en modo offline, manejar el login offline
-      if (!navigator.onLine) {
-        e.preventDefault();
-        clearLoginInlineMessage();
-        
-        if (submitButton) {
-          submitButton.disabled = true;
-          submitButton.textContent = 'Verificando...';
-        }
+      // Deshabilitar botón
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Verificando...';
+      }
 
-        try {
+      try {
+        // Si estamos OFFLINE, intentar login offline
+        if (!navigator.onLine) {
+          clearLoginInlineMessage();
+          
           if (!window.OfflineAuth || typeof window.OfflineAuth.tryOfflineLogin !== 'function') {
             throw new Error('Este dispositivo no cuenta con credenciales offline guardadas.');
           }
+          
           const result = await window.OfflineAuth.tryOfflineLogin(usernameValue, passwordValue);
           if (!result.success) {
             throw new Error(result.error || 'No fue posible iniciar sesión en modo offline.');
           }
+          
           showLoginInlineMessage('Sesión iniciada en modo offline. Redirigiendo…', 'success');
           setTimeout(() => {
             window.location.href = result.redirectUrl || '/';
           }, 600);
-        } catch (error) {
-          showLoginInlineMessage(error.message || 'No fue posible iniciar sesión.', 'error');
-          if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.textContent = 'Acceder';
+          return;
+        }
+
+        // Si estamos ONLINE, hacer login por API
+        clearLoginInlineMessage();
+        
+        const response = await fetch('/api/auth/login/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken() || '',
+          },
+          body: JSON.stringify({
+            username: usernameValue,
+            password: passwordValue,
+            remember_me: rememberCheckbox?.checked || false,
+            device_id: window.OfflineAuth ? window.OfflineAuth.getDeviceId() : null,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Error al iniciar sesión');
+        }
+
+        // ✅ GUARDAR CREDENCIALES OFFLINE (si el usuario lo solicitó)
+        if (rememberCheckbox?.checked && data.offline && window.OfflineAuth) {
+          try {
+            await window.OfflineAuth.storeCredential(usernameValue, passwordValue, {
+              durationHours: 720, // 30 días
+              userInfo: data.user,
+              serverHash: data.offline.hash,
+              serverSalt: data.offline.salt,
+            });
+          } catch (offlineError) {
+            console.warn('No se pudieron guardar las credenciales offline:', offlineError);
           }
         }
-        return;
-      }
 
-      // Si estamos en línea, permitir que el formulario se envíe normalmente
-      // Solo guardar credenciales si está marcado "recordar usuario" (sin bloquear el envío)
-      try {
-        if (rememberCheckbox?.checked && window.OfflineAuth && typeof window.OfflineAuth.storeCredential === 'function') {
-          // Guardar en segundo plano sin bloquear el envío
-          window.OfflineAuth.storeCredential(usernameValue, passwordValue).catch(err => {
-          });
-        } else if (window.OfflineAuth && typeof window.OfflineAuth.removeCredential === 'function') {
-          // Remover credencial si no está marcado "recordar"
-          window.OfflineAuth.removeCredential(usernameValue);
+        // Mostrar mensaje de éxito y redirigir
+        showLoginInlineMessage('Inicio de sesión exitoso. Redirigiendo…', 'success');
+        setTimeout(() => {
+          window.location.href = data.redirectUrl || '/';
+        }, 600);
+
+      } catch (error) {
+        showLoginInlineMessage(error.message || 'No fue posible iniciar sesión.', 'error');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Acceder';
         }
-      } catch (err) {
-        // Si hay un error con OfflineAuth, no bloquear el envío del formulario
       }
-
-      // Mostrar estado de carga pero permitir que el formulario se envíe normalmente
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = 'Validando...';
-      }
-
-      // El formulario se enviará normalmente al servidor para validación
-      // Django validará las credenciales y mostrará errores si es necesario
-      // Si hay errores, Django renderizará el template nuevamente con form.non_field_errors
     });
+  }
+
+  // Función auxiliar para obtener CSRF token
+  function getCsrfToken() {
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('csrftoken='));
+    return cookieValue ? cookieValue.split('=')[1] : null;
   }
   
   // Formulario de recuperación
