@@ -576,8 +576,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Mostrar mensaje de éxito y redirigir
         showLoginInlineMessage('Inicio de sesión exitoso. Redirigiendo…', 'success');
+        
+        // Forzar recarga completa de la página para actualizar el navbar
         setTimeout(() => {
-          window.location.href = data.redirectUrl || '/';
+          const redirectUrl = data.redirectUrl || '/';
+          
+          // Agregar timestamp para forzar recarga completa y evitar caché
+          const separator = redirectUrl.includes('?') ? '&' : '?';
+          const urlWithTimestamp = `${redirectUrl}${separator}_t=${Date.now()}`;
+          
+          // Usar replace para forzar recarga completa
+          window.location.replace(urlWithTimestamp);
         }, 600);
 
       } catch (error) {
