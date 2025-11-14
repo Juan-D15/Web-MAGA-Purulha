@@ -2298,6 +2298,10 @@ html {
   backdrop-filter: blur(12px);
 }
 
+.modal * {
+  pointer-events: auto;
+}
+
 .modal.active {
   opacity: 1;
   visibility: visible;
@@ -2892,6 +2896,37 @@ html {
   border-color: var(--text-secondary);
 }
 
+/* Fix para clicks en botones - evitar que el texto capture el evento */
+.btn-primary *,
+.btn-secondary *,
+.btn-edit-item *,
+.btn-back *,
+.btn-agregar-nuevo *,
+.btn-ver-todos *,
+.btn-ver-todos-eventos *,
+.btn-danger *,
+button * {
+  pointer-events: none;
+}
+
+/* Permitir interacción con inputs y textareas */
+input,
+textarea,
+select,
+.form-input,
+.form-textarea,
+#editFileDescriptionInput {
+  pointer-events: auto !important;
+  cursor: text !important;
+  user-select: text !important;
+}
+
+/* Asegurar que los modales y su contenido permitan interacción */
+.modal.active,
+.modal.active *:not(button):not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.modal-close) {
+  pointer-events: auto !important;
+}
+
 /* Mensajes de error */
 .error-message {
   color: #dc3545;
@@ -3317,18 +3352,22 @@ html {
 }
 
 .file-preview {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-top: 1rem;
+  width: 100%;
 }
 
 .file-preview-item {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 1rem;
-  text-align: center;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
   transition: all 0.3s ease;
 }
 
@@ -3338,31 +3377,44 @@ html {
 }
 
 .file-preview-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  background: rgba(0, 123, 255, 0.2);
   color: white;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 0.5rem;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.75rem;
+}
+
+.file-preview-item > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .file-preview-name {
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   color: var(--text-100);
   font-weight: 500;
   margin: 0;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .file-preview-size {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  margin-top: 0.25rem;
+  margin: 0;
+  white-space: nowrap;
 }
 
 /* ======= ESTILOS PARA BOTONES DE ELIMINACIÓN ======= */

@@ -654,6 +654,14 @@
   border-color: var(--primary-color);
 }
 
+/* Fix para clicks en botones - evitar que el texto/iconos capturen el evento */
+.btn-primary *,
+.btn-secondary *,
+.card-button *,
+button * {
+  pointer-events: none;
+}
+
 /* Botones de Exportación */
 .export-buttons {
   display: flex;

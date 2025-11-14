@@ -1422,6 +1422,13 @@
   border-color: #5a6578;
 }
 
+/* Fix para clicks en botones - evitar que el texto/iconos capturen el evento */
+.btn-primary *,
+.btn-secondary *,
+button * {
+  pointer-events: none;
+}
+
 .confirm-message {
   text-align: center;
   margin-bottom: 2rem;

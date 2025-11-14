@@ -922,6 +922,14 @@ html {
   box-shadow: 0 8px 20px rgba(18,183,106,.35);
 }
 
+/* Fix para clicks en botones - evitar que el texto/iconos capturen el evento */
+.btn-view-region *,
+.btn-primary *,
+.btn-secondary *,
+button * {
+  pointer-events: none;
+}
+
 @media (max-width: 1024px) {
   .region-info { min-height: 600px; height: 600px; }
 }

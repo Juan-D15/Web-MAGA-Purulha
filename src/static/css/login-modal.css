@@ -434,6 +434,13 @@
   transform: translateY(-2px);
 }
 
+/* Fix para clicks en botones - evitar que el texto/iconos capturen el evento */
+.btn-primary *,
+.btn-secondary *,
+button * {
+  pointer-events: none;
+}
+
 /* Mensajes de error */
 .error-message {
   color: #dc3545;

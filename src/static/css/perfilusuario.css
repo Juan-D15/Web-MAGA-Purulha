@@ -133,6 +133,14 @@
   box-shadow: var(--shadow-medium);
 }
 
+/* Fix para clicks en botones - evitar que el texto/iconos capturen el evento */
+.btn-cambiar-foto *,
+.btn-primary *,
+.btn-secondary *,
+button * {
+  pointer-events: none;
+}
+
 .btn-cambiar-foto svg {
   width: 16px;
   height: 16px;
