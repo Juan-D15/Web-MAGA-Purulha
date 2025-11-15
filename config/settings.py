@@ -105,6 +105,23 @@ DATABASES = {
     }
 }
 
+# =====================================================
+# CONFIGURACIÓN DE CACHÉ (para mejorar rendimiento)
+# =====================================================
+# Usando caché en memoria local (no requiere Redis ni Memcached)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'webmaga-cache',
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,  # Máximo de entradas en caché
+        }
+    }
+}
+
+# Tiempo de caché por defecto (5 minutos)
+CACHE_MIDDLEWARE_SECONDS = 300
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -172,6 +189,50 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Archivos subidos por usuarios
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# =====================================================
+# CONFIGURACIÓN DE COMPRESIÓN DE IMÁGENES
+# =====================================================
+COMPRESS_IMAGES = True 
+
+# Configuraciones por tipo de imagen
+IMAGE_COMPRESSION_SETTINGS = {
+    'profile': {
+        'max_width': 1200,      
+        'max_height': 1200,
+        'quality': 80,          
+        'format_output': 'JPEG',
+        'min_size_kb': 300      
+    },
+    'gallery': {
+        'max_width': 1920,      
+        'max_height': 1080,
+        'quality': 85,
+        'format_output': 'JPEG',
+        'min_size_kb': 400
+    },
+    'evidence': {
+        'max_width': 1920,      
+        'max_height': 1080,
+        'quality': 80,          
+        'format_output': 'JPEG',
+        'min_size_kb': 500
+    },
+    'thumbnail': {
+        'max_width': 400,
+        'max_height': 400,
+        'quality': 85,
+        'format_output': 'JPEG',
+        'min_size_kb': 100
+    },
+    'default': {
+        'max_width': 1920,
+        'max_height': 1080,
+        'quality': 80,
+        'format_output': 'JPEG',
+        'min_size_kb': 300
+    }
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
