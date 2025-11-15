@@ -6126,12 +6126,14 @@ def api_obtener_detalle_proyecto(request, evento_id):
             has_cambios_colaboradores_region = False
 
         # Construir prefetch_related dinámicamente según las columnas disponibles
+        # OPTIMIZACIÓN: NO cargar beneficiarios aquí - solo se necesita el conteo para la tarjeta de datos
+        # Los beneficiarios solo se cargan cuando se edita un evento, no para ver detalles
+        # NOTA: No usar slice en Prefetch - causa errores. Limitaremos en el loop.
         prefetch_fields = [
             'personal__usuario__puesto',
             'personal__colaborador__puesto',
-            'beneficiarios__beneficiario__individual',
-            'beneficiarios__beneficiario__familia',
-            'beneficiarios__beneficiario__institucion',
+            # Beneficiarios removidos - solo calcular conteo sin cargar objetos
+            # Evidencias, archivos y galería se limitarán en el loop (ver MAX_EVIDENCIAS_VISTA)
             'evidencias',
             'archivos',
             'galeria_imagenes',
@@ -6193,34 +6195,19 @@ def api_obtener_detalle_proyecto(request, evento_id):
                     'tiene_colaborador': True
                 })
         
-        # Beneficiarios
-        beneficiarios_data = []
-        for ab in evento.beneficiarios.all():
-            benef = ab.beneficiario
-            nombre_display, _, detalles, tipo_envio = obtener_detalle_beneficiario(benef)
-            if benef.tipo and hasattr(benef.tipo, 'get_nombre_display'):
-                tipo_display = benef.tipo.get_nombre_display()
-            else:
-                tipo_display = tipo_envio.title() if tipo_envio else ''
-            beneficiarios_data.append({
-                'id': str(benef.id),
-                'tipo': tipo_envio,
-                'nombre': nombre_display,
-                'descripcion': '',  # Sin campo de descripción en el modelo
-                'tipo_display': tipo_display,
-                'comunidad_id': detalles.get('comunidad_id'),
-                'comunidad_nombre': detalles.get('comunidad_nombre'),
-                'region_id': detalles.get('region_id'),
-                'region_nombre': detalles.get('region_nombre'),
-                'region_sede': detalles.get('region_sede'),
-                'detalles': detalles
-            })
+        # OPTIMIZACIÓN: NO cargar todos los beneficiarios - solo calcular el conteo
+        # Los beneficiarios solo se muestran en la tarjeta de datos (que usa el conteo)
+        # Cargar 900+ beneficiarios consume mucho tiempo y CPU innecesariamente
+        beneficiarios_count = evento.beneficiarios.count()
+        beneficiarios_data = []  # Array vacío - no se usa en la vista de detalles
         
-        # Galería de imágenes (desde eventos_galeria)
+        # OPTIMIZACIÓN: Limitar evidencias de galería a las primeras 50 para vista de detalles
+        # Las evidencias adicionales se cargan bajo demanda si es necesario
+        MAX_EVIDENCIAS_VISTA = 50
         evidencias_data = []
         galeria_urls = set()
         galeria_nombres = set()
-        for imagen in evento.galeria_imagenes.all():
+        for imagen in evento.galeria_imagenes.all()[:MAX_EVIDENCIAS_VISTA]:
             if imagen.url_almacenamiento:
                 galeria_urls.add(imagen.url_almacenamiento)
             if imagen.archivo_nombre:
@@ -6236,10 +6223,12 @@ def api_obtener_detalle_proyecto(request, evento_id):
                 'es_evidencia': False
             })
         
-        # Archivos del proyecto (todas las evidencias + archivos de actividad_archivos)
+        # OPTIMIZACIÓN: Limitar evidencias propias y archivos a los primeros 50
+        # Archivos del proyecto (evidencias + archivos de actividad_archivos)
+        # Evidencias: ordenar por fecha antigua primero (orden original)
         archivos_data = []
         evidencias_propias = []
-        for evidencia in evento.evidencias.all():
+        for evidencia in evento.evidencias.all().order_by('creado_en')[:MAX_EVIDENCIAS_VISTA]:
             url = evidencia.url_almacenamiento or ''
             url_lower = url.lower()
             esta_en_galeria = url in galeria_urls or evidencia.archivo_nombre in galeria_nombres
@@ -6270,8 +6259,9 @@ def api_obtener_detalle_proyecto(request, evento_id):
                     'es_galeria': esta_en_galeria,
                     'creado_en': evidencia.creado_en.isoformat() if evidencia.creado_en else None
                 })
-        # Archivos de actividad_archivos
-        for archivo in evento.archivos.all():
+        # OPTIMIZACIÓN: Limitar archivos de actividad_archivos a los primeros 50
+        # Ordenar por fecha reciente primero (los nuevos aparecen arriba)
+        for archivo in evento.archivos.all().order_by('-creado_en')[:MAX_EVIDENCIAS_VISTA]:
             archivos_data.append({
                 'id': str(archivo.id),
                 'nombre': archivo.nombre_archivo,
@@ -6327,9 +6317,13 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'estado_display': evento.get_estado_display() if hasattr(evento, 'get_estado_display') else evento.estado,
             'responsable': (evento.responsable.nombre if evento.responsable.nombre else evento.responsable.username) if evento.responsable else 'Sin responsable',
             'personal': personal_data,
-            'beneficiarios': beneficiarios_data,
-            'evidencias': evidencias_data,
-            'archivos': archivos_data,
+            'beneficiarios': beneficiarios_data,  # Array vacío - optimizado (no se usa en vista de detalles)
+            'beneficiarios_count': beneficiarios_count,  # Solo el conteo para la tarjeta de datos
+            'evidencias': evidencias_data,  # Limitadas a 50 para optimización
+            'archivos': archivos_data,  # Limitados a 50 para optimización
+            'evidencias_count': evento.evidencias.count(),  # Conteo total de evidencias
+            'archivos_count': evento.archivos.count(),  # Conteo total de archivos
+            'galeria_count': evento.galeria_imagenes.count(),  # Conteo total de galería
             'portada': obtener_portada_evento(evento),
             'tarjetas_datos': obtener_tarjetas_datos(evento),
             'comunidades': obtener_comunidades_evento(evento),

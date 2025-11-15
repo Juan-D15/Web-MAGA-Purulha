@@ -1103,8 +1103,33 @@ function mostrarDetalleProyecto(proyecto) {
       detailFiles.innerHTML = '<p style="color: #6c757d;">No hay archivos adjuntos para este proyecto.</p>';
 
     } else {
+      // ORDENAR ARCHIVOS: 
+      // 1. Evidencias primero (ordenadas por fecha antigua primero - orden original)
+      // 2. Archivos del proyecto después (ordenados por fecha reciente primero - nuevos arriba)
+      const archivosOrdenados = [...proyecto.archivos].sort((a, b) => {
+        // Separar evidencias de archivos del proyecto
+        const aEsEvidencia = a.es_evidencia === true;
+        const bEsEvidencia = b.es_evidencia === true;
+        
+        // Si ambos son evidencias o ambos son archivos del proyecto, ordenar por fecha
+        if (aEsEvidencia === bEsEvidencia) {
+          const fechaA = a.creado_en ? new Date(a.creado_en) : new Date(0);
+          const fechaB = b.creado_en ? new Date(b.creado_en) : new Date(0);
+          
+          if (aEsEvidencia) {
+            // Evidencias: ordenar por fecha antigua primero (ascendente)
+            return fechaA - fechaB;
+          } else {
+            // Archivos del proyecto: ordenar por fecha reciente primero (descendente)
+            return fechaB - fechaA;
+          }
+        }
+        
+        // Evidencias siempre primero (antes de archivos del proyecto)
+        return aEsEvidencia ? -1 : 1;
+      });
 
-      detailFiles.innerHTML = proyecto.archivos.map(archivo => {
+      detailFiles.innerHTML = archivosOrdenados.map(archivo => {
 
         const extension = archivo.es_imagen ? 'IMG' : (archivo.nombre.split('.').pop()?.toUpperCase() || 'FILE');
 
