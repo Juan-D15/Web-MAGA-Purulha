@@ -152,6 +152,96 @@ def api_ratelimit_login_smart(rate_per_user='10/3m', rate_per_ip='20/3m'):
     return decorator
 
 
+def api_ratelimit_password_reset(rate_per_user='5/5m'):
+    """
+    Rate limiting específico para recuperación de contraseña:
+    - 5 intentos por usuario (email) cada 5 minutos
+    
+    Aplica tanto para:
+    - Solicitud de códigos de verificación
+    - Verificación de códigos ingresados
+    
+    Limita por email del usuario para prevenir spam de códigos.
+    Si no hay email, aplica rate limiting por IP como fallback.
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped_view(request, *args, **kwargs):
+            import json
+            
+            # Extraer email del request body o POST
+            email = None
+            try:
+                if request.body:
+                    try:
+                        data = json.loads(request.body.decode('utf-8'))
+                    except (json.JSONDecodeError, AttributeError, UnicodeDecodeError):
+                        data = json.loads(request.body) if isinstance(request.body, str) else {}
+                else:
+                    data = request.POST.dict() if hasattr(request, 'POST') else {}
+                
+                email = (data.get('email') or '').strip().lower()
+            except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
+                pass
+            
+            # Aplicar rate limiting por email si está presente, sino por IP
+            try:
+                if email:
+                    # Rate limiting por email (más específico)
+                    def get_email_key(r):
+                        return f'password_reset_user:{email}'
+                    
+                    @ratelimit(
+                        key=get_email_key,
+                        rate=rate_per_user,
+                        method='POST',
+                        block=True
+                    )
+                    def check_rate_limit_by_email(r):
+                        return r
+                    
+                    limited_request = check_rate_limit_by_email(request)
+                    
+                    if getattr(limited_request, 'limited', False):
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Has excedido el límite de intentos (5 intentos cada 5 minutos). Por favor, espera 5 minutos antes de intentar nuevamente.',
+                            'rate_limited': True,
+                            'retry_after': 300  # 5 minutos en segundos
+                        }, status=429)
+                else:
+                    # Rate limiting por IP como fallback si no hay email
+                    @ratelimit(
+                        key='ip',
+                        rate=rate_per_user,
+                        method='POST',
+                        block=True
+                    )
+                    def check_rate_limit_by_ip(r):
+                        return r
+                    
+                    limited_request = check_rate_limit_by_ip(request)
+                    
+                    if getattr(limited_request, 'limited', False):
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Has excedido el límite de intentos (5 intentos cada 5 minutos). Por favor, espera 5 minutos antes de intentar nuevamente.',
+                            'rate_limited': True,
+                            'retry_after': 300  # 5 minutos en segundos
+                        }, status=429)
+            except Exception as e:
+                # Si hay error crítico en rate limiting, registrar pero permitir la petición
+                # (mejor permitir una petición extra que bloquear completamente el servicio)
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f'Error en rate limiting de password reset: {str(e)}')
+            
+            return view_func(request, *args, **kwargs)
+        
+        return wrapped_view
+    return decorator
+
+
 # Manejador global de excepciones de rate limit
 def handle_ratelimit_exception(request, exception):
     """
