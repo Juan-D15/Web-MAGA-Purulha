@@ -361,20 +361,29 @@ def obtener_cambios_evento(evento):
     if has_region:
         select_related_fields.append('region')
 
-    cambios = (
+    # OPTIMIZACIÓN: Limitar cambios a los 50 más recientes para vista de detalles
+    # Los cambios adicionales se cargan bajo demanda si es necesario
+    MAX_CAMBIOS_VISTA = 50
+    cambios_queryset = (
         EventoCambioColaborador.objects.filter(actividad=evento)
         .select_related(*select_related_fields)
         .prefetch_related('evidencias')
         .order_by('-fecha_cambio', '-creado_en')
     )
-    print(f'🔍 Total de cambios encontrados: {cambios.count()}')
+    cambios_total = cambios_queryset.count()
+    # Obtener solo los primeros 50 cambios (después del slice ya no es QuerySet)
+    cambios = list(cambios_queryset[:MAX_CAMBIOS_VISTA])
+    print(f'🔍 Total de cambios encontrados: {cambios_total} (mostrando {len(cambios)})')
     # Verificar si hay cambios con comunidades (solo si la columna existe)
+    # Usar el queryset original antes del slice para filtrar
     if has_comunidad:
         try:
-            cambios_con_comunidad = cambios.exclude(comunidad__isnull=True)
-            print(f'🔍 Cambios con comunidad: {cambios_con_comunidad.count()}')
-            for cambio_temp in cambios_con_comunidad[:5]:  # Solo los primeros 5 para no saturar logs
-                print(f'  - Cambio {cambio_temp.id}: comunidad_id={cambio_temp.comunidad_id}, comunidad={cambio_temp.comunidad}')
+            cambios_con_comunidad_queryset = cambios_queryset.exclude(comunidad__isnull=True)
+            cambios_con_comunidad_total = cambios_con_comunidad_queryset.count()
+            print(f'🔍 Cambios con comunidad: {cambios_con_comunidad_total}')
+            for cambio_temp in cambios[:5]:  # Solo los primeros 5 para no saturar logs
+                if getattr(cambio_temp, 'comunidad_id', None):
+                    print(f'  - Cambio {cambio_temp.id}: comunidad_id={cambio_temp.comunidad_id}, comunidad={getattr(cambio_temp, "comunidad", None)}')
         except Exception as e:
             print(f'⚠️ Error al filtrar por comunidad: {e}')
 
@@ -491,8 +500,10 @@ def obtener_cambios_evento(evento):
         print(f'✅ Cambio agrupado agregado: {grupo["id"]} (grupo {grupo["grupo_id"]}) con {len(grupo["colaboradores_ids"])} colaborador(es) y {len(comunidades_lista)} comunidad(es) - String final: "{grupo["comunidades"]}"')
 
     cambios_data.sort(key=lambda item: item['fecha_cambio'] or '', reverse=True)
-    print(f'📦 Total de cambios agrupados retornados: {len(cambios_data)}')
-    return cambios_data
+    print(f'📦 Total de cambios agrupados retornados: {len(cambios_data)} (de {cambios_total} totales)')
+    # Retornar solo los primeros 50 grupos de cambios (más recientes)
+    # Ya están ordenados por fecha_cambio descendente
+    return cambios_data[:MAX_CAMBIOS_VISTA]
 
 
 def obtener_portada_evento(evento):

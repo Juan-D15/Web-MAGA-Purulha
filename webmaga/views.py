@@ -48,6 +48,7 @@ from .ratelimit_decorators import (
     api_ratelimit_strict,
     api_ratelimit_bulk,
     api_ratelimit_login_smart,
+    api_ratelimit_password_reset,
 )
 from .views_utils import (
     aplicar_modificaciones_beneficiarios,
@@ -225,6 +226,7 @@ def parse_fecha_agregacion(valor):
 
 
 @require_http_methods(["POST"])
+@api_ratelimit_password_reset(rate_per_user='5/5m')  # 5 intentos por usuario cada 5 minutos
 def api_enviar_codigo_recuperacion(request):
     """Genera y envía un código de recuperación de contraseña por correo."""
     data = _parse_request_data(request)
@@ -321,6 +323,7 @@ def api_enviar_codigo_recuperacion(request):
 
 
 @require_http_methods(["POST"])
+@api_ratelimit_password_reset(rate_per_user='5/5m')  # 5 intentos por usuario cada 5 minutos
 def api_verificar_codigo_recuperacion(request):
     """Valida el código ingresado por el usuario."""
     data = _parse_request_data(request)
@@ -6203,11 +6206,12 @@ def api_obtener_detalle_proyecto(request, evento_id):
         
         # OPTIMIZACIÓN: Limitar evidencias de galería a las primeras 50 para vista de detalles
         # Las evidencias adicionales se cargan bajo demanda si es necesario
+        # Ordenar por fecha reciente primero (las imágenes nuevas aparecen arriba)
         MAX_EVIDENCIAS_VISTA = 50
         evidencias_data = []
         galeria_urls = set()
         galeria_nombres = set()
-        for imagen in evento.galeria_imagenes.all()[:MAX_EVIDENCIAS_VISTA]:
+        for imagen in evento.galeria_imagenes.all().order_by('-creado_en')[:MAX_EVIDENCIAS_VISTA]:
             if imagen.url_almacenamiento:
                 galeria_urls.add(imagen.url_almacenamiento)
             if imagen.archivo_nombre:
@@ -6327,7 +6331,8 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'portada': obtener_portada_evento(evento),
             'tarjetas_datos': obtener_tarjetas_datos(evento),
             'comunidades': obtener_comunidades_evento(evento),
-            'cambios': obtener_cambios_evento(evento),
+            'cambios': obtener_cambios_evento(evento),  # Limitados a 50 para optimización
+            'cambios_count': evento.cambios_colaboradores.count(),  # Conteo total de cambios de colaboradores
             'puede_gestionar': puede_gestionar,
             'permisos': {
                 'puede_gestionar': puede_gestionar,
