@@ -31,6 +31,12 @@ const CAN_EDIT_REGIONS = USER_AUTH.isAuthenticated && (USER_AUTH.isAdmin || USER
 let pendingRegionGalleryImages = [];
 let currentRegionFileEdit = null;
 
+// Variables para navegación de galería (igual que en proyectos.js)
+let currentRegionGalleryImages = [];
+let currentRegionGalleryPage = 0;
+let currentRegionGalleryCanManage = false;
+const REGION_GALLERY_PAGE_SIZE = 4;
+
 function escapeHtml(str) {
   if (!str) return '';
   return str
@@ -611,25 +617,287 @@ function loadRegionDetail(region) {
   renderRegionFiles(region.files || []);
 }
 
-function loadGallery(photos) {
-  const gallery = document.getElementById('detailGallery');
-  if (!gallery) return;
+// Función para inicializar la galería de región (similar a renderProjectGalleryImages)
+function renderRegionGalleryImages(photos, puedeGestionar) {
+  // Ordenar fotos por fecha más reciente primero (si tienen fecha)
+  const sortedPhotos = Array.isArray(photos) ? [...photos].sort((a, b) => {
+    const dateA = a.fecha || a.creado_en || a.date || '';
+    const dateB = b.fecha || b.creado_en || b.date || '';
+    if (dateA && dateB) {
+      return new Date(dateB) - new Date(dateA);
+    }
+    return 0;
+  }) : [];
+
+  currentRegionGalleryImages = sortedPhotos;
+  currentRegionGalleryCanManage = !!puedeGestionar;
+  currentRegionGalleryPage = 0;
+  renderRegionGalleryPage();
+}
+
+// Función para renderizar la página actual de la galería (3 imágenes)
+function renderRegionGalleryPage() {
+  const detailGallery = document.getElementById('detailGallery');
   
-  gallery.innerHTML = '';
-  
-  if (!photos || photos.length === 0) {
-    gallery.innerHTML = '<p class="no-gallery-items">No hay imágenes disponibles</p>';
+  if (!detailGallery) {
     return;
   }
-  
-  photos.forEach(photo => {
-    const galleryItem = document.createElement('div');
-    galleryItem.className = 'gallery-item';
-    galleryItem.innerHTML = `
-      <img src="${photo.url}" alt="${photo.description}" loading="lazy" data-photo-url="${photo.url}">
+
+  detailGallery.classList.toggle('gallery-can-manage', currentRegionGalleryCanManage);
+
+  if (!currentRegionGalleryImages.length) {
+    detailGallery.innerHTML = '<p class="gallery-empty-state">No hay imágenes disponibles.</p>';
+    return;
+  }
+
+  const totalPages = Math.ceil(currentRegionGalleryImages.length / REGION_GALLERY_PAGE_SIZE);
+  if (totalPages === 0) {
+    currentRegionGalleryPage = 0;
+  } else if (currentRegionGalleryPage >= totalPages) {
+    currentRegionGalleryPage = totalPages - 1;
+  } else if (currentRegionGalleryPage < 0) {
+    currentRegionGalleryPage = 0;
+  }
+
+  const startIndex = currentRegionGalleryPage * REGION_GALLERY_PAGE_SIZE;
+  const visibleImages = currentRegionGalleryImages.slice(startIndex, startIndex + REGION_GALLERY_PAGE_SIZE);
+
+  const itemsHtml = visibleImages.map((photo) => {
+    const descriptionText = escapeHtml(photo.description || photo.descripcion || 'Imagen de la región');
+    const descriptionHtml = descriptionText
+      ? `<div class="gallery-item-description">${descriptionText}</div>`
+      : '';
+    const photoUrl = photo.url || '';
+    const encodedName = encodeURIComponent(photo.nombre || photo.name || photo.archivo_nombre || '');
+    const imageUrlAttr = escapeHtml(photoUrl);
+    const removeButton = currentRegionGalleryCanManage
+      ? `<button class="btn-remove-item" data-imagen-id="${photo.id}" data-image-name="${encodedName}" title="Eliminar imagen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+         </button>`
+      : '';
+
+    const imageDescriptionAttr = escapeHtml(photo.description || photo.descripcion || '');
+    const imageAltAttr = escapeHtml(photo.nombre || photo.name || photo.archivo_nombre || 'Imagen de la región');
+
+    return `
+      <div class="gallery-item" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}">
+        ${removeButton}
+        <img src="${imageUrlAttr}" alt="${imageAltAttr}" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+        ${descriptionHtml}
+      </div>
     `;
-    gallery.appendChild(galleryItem);
+  }).join('');
+
+  const navHtml = totalPages > 1
+    ? `<div class="project-gallery-nav">
+        <button class="project-gallery-nav-btn" data-gallery-direction="prev" ${currentRegionGalleryPage === 0 ? 'disabled' : ''} aria-label="Ver imágenes anteriores">▲</button>
+        <button class="project-gallery-nav-btn" data-gallery-direction="next" ${currentRegionGalleryPage >= totalPages - 1 ? 'disabled' : ''} aria-label="Ver imágenes siguientes">▼</button>
+      </div>`
+    : '';
+
+  detailGallery.innerHTML = `
+    <div class="project-gallery-wrapper">
+      <div class="gallery-items-wrapper">
+        ${itemsHtml}
+      </div>
+      ${navHtml}
+    </div>
+  `;
+
+  // Event listeners para abrir imagen en modal
+  detailGallery.querySelectorAll('.gallery-item').forEach((item) => {
+    item.addEventListener('click', function (e) {
+      if (e.target.closest('.btn-remove-item')) {
+        return;
+      }
+      const imageUrl = this.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('src');
+      const imageDescription = this.getAttribute('data-image-description') || this.querySelector('img')?.getAttribute('data-image-description') || '';
+      if (imageUrl) {
+        openImageViewer(imageUrl, imageDescription);
+      }
+    });
   });
+
+  // Event listeners para eliminar imagen
+  if (currentRegionGalleryCanManage) {
+    detailGallery.querySelectorAll('[data-imagen-id]').forEach((btn) => {
+      btn.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        const imagenId = this.getAttribute('data-imagen-id');
+        const imageName = decodeURIComponent(this.getAttribute('data-image-name') || '');
+        confirmarEliminacionImagenRegion(imagenId, imageName);
+      });
+    });
+  }
+}
+
+// Función para confirmar eliminación de imagen
+function confirmarEliminacionImagenRegion(imagenId, imageName = '') {
+  if (!CAN_EDIT_REGIONS) {
+    return;
+  }
+
+  const trimmedName = (imageName || '').trim();
+  const message = trimmedName
+    ? `¿Estás seguro de que deseas eliminar la imagen "${trimmedName}" de la galería?`
+    : '¿Estás seguro de que deseas eliminar esta imagen de la galería?';
+
+  showConfirmDeleteModal(message, async () => {
+    await eliminarImagenRegion(imagenId);
+  });
+}
+
+// Función para eliminar imagen de la galería por ID
+async function eliminarImagenRegion(imagenId) {
+  if (!imagenId) {
+    showErrorMessage('No se pudo identificar la imagen a eliminar.');
+    return;
+  }
+
+  // Obtener el regionId de currentRegionId o currentRegionData
+  let regionId = currentRegionId;
+  if (!regionId && currentRegionData) {
+    regionId = currentRegionData.id;
+  }
+
+  if (!regionId) {
+    showErrorMessage('No se pudo identificar la región actual.');
+    return;
+  }
+
+  try {
+    const url = `/api/region/${regionId}/galeria/${imagenId}/eliminar/`;
+    console.log('Eliminando imagen:', url); // Debug
+    
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken') || '',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+      throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || 'No se pudo eliminar la imagen');
+    }
+
+    hideModal('confirmDeleteModal');
+    // Recargar la galería después de eliminar
+    await refreshCurrentRegion(result.message || 'Imagen eliminada exitosamente');
+  } catch (error) {
+    console.error('Error al eliminar imagen:', error);
+    showErrorMessage(error.message || 'No se pudo eliminar la imagen');
+  }
+}
+
+// Función para refrescar la región actual
+async function refreshCurrentRegion(successMessage = '') {
+  if (!currentRegionData || !currentRegionData.id) {
+    // Si no hay currentRegionData, intentar usar currentRegionId
+    const regionId = currentRegionId;
+    if (!regionId) {
+      console.error('No se puede refrescar: no hay región actual');
+      return;
+    }
+    // Cargar la región desde cero
+    await showRegionDetail(regionId);
+    if (successMessage) {
+      showSuccessMessage(successMessage);
+    }
+    return;
+  }
+
+  const regionId = currentRegionId || currentRegionData.id;
+
+  try {
+    const response = await fetch(`/api/region/${regionId}/`);
+    if (!response.ok) {
+      throw new Error('Error al cargar los detalles de la región');
+    }
+
+    const regionData = await response.json();
+    
+    // Convertir formato de API a formato esperado por loadRegionDetail
+    const formattedRegionData = {
+      id: regionData.id,
+      name: regionData.nombre,
+      code: regionData.codigo,
+      codigo: regionData.codigo,
+      comunidad_sede: regionData.comunidad_sede || '',
+      location: regionData.location,
+      photos: regionData.photos || [],
+      data: regionData.data || [],
+      rawDescription: regionData.descripcion || '',
+      description: regionData.descripcion ? formatDescription(regionData.descripcion) : '',
+      projects: regionData.projects || [],
+      communities: regionData.communities || [],
+      files: regionData.files || []
+    };
+    
+    // Actualizar currentRegionData
+    currentRegionData = formattedRegionData;
+    
+    // Recargar el detalle con los nuevos datos
+    loadRegionDetail(currentRegionData);
+    
+    if (successMessage) {
+      showSuccessMessage(successMessage);
+    }
+  } catch (error) {
+    console.error('Error al refrescar región:', error);
+    showErrorMessage(error.message || 'Error al actualizar la información de la región');
+  }
+}
+
+// Event listener global para navegación de galería de región
+document.addEventListener('click', (event) => {
+  // Verificar si el click es en un botón de navegación de galería de región
+  const navBtn = event.target.closest('.project-gallery-nav-btn');
+  if (!navBtn) {
+    return;
+  }
+
+  // Solo procesar si estamos en la vista de detalle de región
+  const detailGallery = document.getElementById('detailGallery');
+  if (!detailGallery || !detailGallery.closest('.region-detail-view')) {
+    return;
+  }
+
+  if (!currentRegionGalleryImages.length) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const direction = navBtn.getAttribute('data-gallery-direction');
+  const totalPages = Math.ceil(currentRegionGalleryImages.length / REGION_GALLERY_PAGE_SIZE);
+
+  if (direction === 'prev' && currentRegionGalleryPage > 0) {
+    currentRegionGalleryPage -= 1;
+    renderRegionGalleryPage();
+  } else if (direction === 'next' && currentRegionGalleryPage < totalPages - 1) {
+    currentRegionGalleryPage += 1;
+    renderRegionGalleryPage();
+  }
+});
+
+// Función para cargar galería (mantener por compatibilidad, ahora usa renderRegionGalleryImages)
+function loadGallery(photos) {
+  renderRegionGalleryImages(photos, CAN_EDIT_REGIONS);
+}
+
+// Función para cargar galería con botones de eliminación (mantener por compatibilidad)
+function loadGalleryWithDeleteButtons(photos) {
+  renderRegionGalleryImages(photos, CAN_EDIT_REGIONS);
 }
 
 function loadLocation(location) {
@@ -1829,45 +2097,6 @@ function removeImageFromRegion(imageIndex) {
 function getCurrentRegion() {
   // Retornar la región actualmente mostrada
   return currentRegionData;
-}
-
-// Función para cargar galería con botones de eliminación
-function loadGalleryWithDeleteButtons(photos) {
-  const container = document.getElementById('detailGallery');
-  if (!container) return;
-
-  container.innerHTML = '';
-
-  if (!photos || photos.length === 0) {
-    container.innerHTML = '<p class="no-gallery-items">No hay imágenes disponibles</p>';
-    return;
-  }
-  
-  photos.forEach((photo, index) => {
-    const imageItem = document.createElement('div');
-    imageItem.className = 'gallery-item';
-    const photoUrl = photo.url || '';
-    const encodedUrl = encodeURI(photoUrl);
-    const description = photo.description || 'Imagen de la región';
-    const controls = CAN_EDIT_REGIONS ? `
-      <button class="btn-remove-item" data-image-index="${index}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    ` : '';
-    imageItem.innerHTML = `
-      <img src="${encodedUrl}" alt="${escapeHtml(description)}" data-photo-index="${index}">
-      <div class="image-description">${escapeHtml(description)}</div>
-      ${controls}
-    `;
-    const img = imageItem.querySelector('img');
-    if (img) {
-      img.addEventListener('click', () => openImageViewer(photoUrl, description));
-    }
-    container.appendChild(imageItem);
-  });
 }
 
 // Función para cargar archivos (sin botones X)

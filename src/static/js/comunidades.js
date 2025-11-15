@@ -85,6 +85,12 @@ let pendingGalleryImages = [];
 let currentFileEdit = null;
 let FEATURED_COMMUNITIES_LIMIT = null;
 
+// Variables para navegación de galería (igual que en proyectos.js)
+let currentCommunityGalleryImages = [];
+let currentCommunityGalleryPage = 0;
+let currentCommunityGalleryCanManage = false;
+const COMMUNITY_GALLERY_PAGE_SIZE = 4;
+
 function escapeHtml(string = '') {
   return string
     .replace(/&/g, '&amp;')
@@ -2037,49 +2043,202 @@ function showSuccessMessage(message) {
   }, 3000);
 }
 
-// Función para cargar galería con botones de eliminación
-function loadGalleryWithDeleteButtons(photos) {
-  const container = document.getElementById('detailGallery');
-  if (!container) return;
-
-  container.innerHTML = '';
-  
-  photos.forEach((photo, index) => {
-    const imageItem = document.createElement('div');
-    imageItem.className = 'gallery-item';
-    const photoUrl = photo.url || '';
-    const encodedUrl = encodeURI(photoUrl);
-    const description = photo.description || 'Imagen de la comunidad';
-    const controls = CAN_EDIT_COMMUNITIES ? `
-      <button class="btn-remove-item" data-image-index="${index}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    ` : '';
-    imageItem.innerHTML = `
-      <img src="${encodedUrl}" alt="${escapeHtml(description)}" data-photo-index="${index}" loading="lazy">
-      <div class="image-description">${escapeHtml(description)}</div>
-      ${controls}
-    `;
-    const img = imageItem.querySelector('img');
-    if (img) {
-      // Manejar errores de carga de imagen sin interrumpir el flujo
-      img.addEventListener('error', function() {
-        // Usar una imagen por defecto o ocultar la imagen
-        this.style.display = 'none';
-        // Opcional: mostrar un placeholder
-        const placeholder = document.createElement('div');
-        placeholder.className = 'image-placeholder';
-        placeholder.textContent = 'Imagen no disponible';
-        placeholder.style.cssText = 'display: flex; align-items: center; justify-content: center; min-height: 200px; background: #f0f0f0; color: #666;';
-        this.parentNode.insertBefore(placeholder, this);
-      });
-      img.addEventListener('click', () => openImageModal(photoUrl, description));
+// Función para inicializar la galería de comunidad (similar a renderProjectGalleryImages)
+function renderCommunityGalleryImages(photos, puedeGestionar) {
+  // Ordenar fotos por fecha más reciente primero (si tienen fecha)
+  const sortedPhotos = Array.isArray(photos) ? [...photos].sort((a, b) => {
+    const dateA = a.fecha || a.creado_en || a.date || '';
+    const dateB = b.fecha || b.creado_en || b.date || '';
+    if (dateA && dateB) {
+      return new Date(dateB) - new Date(dateA);
     }
-    container.appendChild(imageItem);
+    return 0;
+  }) : [];
+
+  currentCommunityGalleryImages = sortedPhotos;
+  currentCommunityGalleryCanManage = !!puedeGestionar;
+  currentCommunityGalleryPage = 0;
+  renderCommunityGalleryPage();
+}
+
+// Función para renderizar la página actual de la galería (3 imágenes)
+function renderCommunityGalleryPage() {
+  const detailGallery = document.getElementById('detailGallery');
+  
+  if (!detailGallery) {
+    return;
+  }
+
+  detailGallery.classList.toggle('gallery-can-manage', currentCommunityGalleryCanManage);
+
+  if (!currentCommunityGalleryImages.length) {
+    detailGallery.innerHTML = '<p class="gallery-empty-state">No hay imágenes disponibles.</p>';
+    return;
+  }
+
+  const totalPages = Math.ceil(currentCommunityGalleryImages.length / COMMUNITY_GALLERY_PAGE_SIZE);
+  if (totalPages === 0) {
+    currentCommunityGalleryPage = 0;
+  } else if (currentCommunityGalleryPage >= totalPages) {
+    currentCommunityGalleryPage = totalPages - 1;
+  } else if (currentCommunityGalleryPage < 0) {
+    currentCommunityGalleryPage = 0;
+  }
+
+  const startIndex = currentCommunityGalleryPage * COMMUNITY_GALLERY_PAGE_SIZE;
+  const visibleImages = currentCommunityGalleryImages.slice(startIndex, startIndex + COMMUNITY_GALLERY_PAGE_SIZE);
+
+  const itemsHtml = visibleImages.map((photo) => {
+    const descriptionText = escapeHtml(photo.description || photo.descripcion || 'Imagen de la comunidad');
+    const descriptionHtml = descriptionText
+      ? `<div class="gallery-item-description">${descriptionText}</div>`
+      : '';
+    const photoUrl = photo.url || '';
+    const encodedName = encodeURIComponent(photo.nombre || photo.name || photo.archivo_nombre || '');
+    const imageUrlAttr = escapeHtml(photoUrl);
+    const removeButton = currentCommunityGalleryCanManage
+      ? `<button class="btn-remove-item" data-imagen-id="${photo.id}" data-image-name="${encodedName}" title="Eliminar imagen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+         </button>`
+      : '';
+
+    const imageDescriptionAttr = escapeHtml(photo.description || photo.descripcion || '');
+    const imageAltAttr = escapeHtml(photo.nombre || photo.name || photo.archivo_nombre || 'Imagen de la comunidad');
+
+    return `
+      <div class="gallery-item" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}">
+        ${removeButton}
+        <img src="${imageUrlAttr}" alt="${imageAltAttr}" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1523978591478-c753949ff840?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+        ${descriptionHtml}
+      </div>
+    `;
+  }).join('');
+
+  const navHtml = totalPages > 1
+    ? `<div class="project-gallery-nav">
+        <button class="project-gallery-nav-btn" data-gallery-direction="prev" ${currentCommunityGalleryPage === 0 ? 'disabled' : ''} aria-label="Ver imágenes anteriores">▲</button>
+        <button class="project-gallery-nav-btn" data-gallery-direction="next" ${currentCommunityGalleryPage >= totalPages - 1 ? 'disabled' : ''} aria-label="Ver imágenes siguientes">▼</button>
+      </div>`
+    : '';
+
+  detailGallery.innerHTML = `
+    <div class="project-gallery-wrapper">
+      <div class="gallery-items-wrapper">
+        ${itemsHtml}
+      </div>
+      ${navHtml}
+    </div>
+  `;
+
+  // Event listeners para abrir imagen en modal
+  detailGallery.querySelectorAll('.gallery-item').forEach((item) => {
+    item.addEventListener('click', function (e) {
+      if (e.target.closest('.btn-remove-item')) {
+        return;
+      }
+      const imageUrl = this.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('src');
+      const imageDescription = this.getAttribute('data-image-description') || this.querySelector('img')?.getAttribute('data-image-description') || '';
+      if (imageUrl) {
+        openImageModal(imageUrl, imageDescription);
+      }
+    });
   });
+
+  // Event listeners para eliminar imagen
+  if (currentCommunityGalleryCanManage) {
+    detailGallery.querySelectorAll('[data-imagen-id]').forEach((btn) => {
+      btn.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        const imagenId = this.getAttribute('data-imagen-id');
+        const imageName = decodeURIComponent(this.getAttribute('data-image-name') || '');
+        confirmarEliminacionImagenComunidad(imagenId, imageName);
+      });
+    });
+  }
+}
+
+// Función para confirmar eliminación de imagen
+function confirmarEliminacionImagenComunidad(imagenId, imageName = '') {
+  if (!CAN_EDIT_COMMUNITIES) {
+    return;
+  }
+
+  const trimmedName = (imageName || '').trim();
+  const message = trimmedName
+    ? `¿Estás seguro de que deseas eliminar la imagen "${trimmedName}" de la galería?`
+    : '¿Estás seguro de que deseas eliminar esta imagen de la galería?';
+
+  showConfirmDeleteModal(message, async () => {
+    await eliminarImagenComunidad(imagenId);
+  });
+}
+
+// Función para eliminar imagen de la galería por ID
+async function eliminarImagenComunidad(imagenId) {
+  if (!currentCommunityData || !imagenId) {
+    showErrorMessage('No se pudo identificar la imagen a eliminar.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/comunidad/${currentCommunityData.id}/galeria/${imagenId}/eliminar/`, {
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken') || '',
+      },
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'No se pudo eliminar la imagen');
+    }
+
+    hideModal('confirmDeleteModal');
+    // Recargar la galería después de eliminar
+    await refreshCurrentCommunity(result.message || 'Imagen eliminada exitosamente');
+  } catch (error) {
+    showErrorMessage(error.message || 'No se pudo eliminar la imagen');
+  }
+}
+
+// Event listener global para navegación de galería de comunidad
+document.addEventListener('click', (event) => {
+  // Verificar si el click es en un botón de navegación de galería de comunidad
+  const navBtn = event.target.closest('.project-gallery-nav-btn');
+  if (!navBtn) {
+    return;
+  }
+
+  // Solo procesar si estamos en la vista de detalle de comunidad
+  const detailGallery = document.getElementById('detailGallery');
+  if (!detailGallery || !detailGallery.closest('.community-detail-view')) {
+    return;
+  }
+
+  if (!currentCommunityGalleryImages.length) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const direction = navBtn.getAttribute('data-gallery-direction');
+  const totalPages = Math.ceil(currentCommunityGalleryImages.length / COMMUNITY_GALLERY_PAGE_SIZE);
+
+  if (direction === 'prev' && currentCommunityGalleryPage > 0) {
+    currentCommunityGalleryPage -= 1;
+    renderCommunityGalleryPage();
+  } else if (direction === 'next' && currentCommunityGalleryPage < totalPages - 1) {
+    currentCommunityGalleryPage += 1;
+    renderCommunityGalleryPage();
+  }
+});
+
+// Función para cargar galería con botones de eliminación (mantener por compatibilidad, ahora usa renderCommunityGalleryImages)
+function loadGalleryWithDeleteButtons(photos) {
+  renderCommunityGalleryImages(photos, CAN_EDIT_COMMUNITIES);
 }
 
 // Función para cargar archivos (sin botones X)

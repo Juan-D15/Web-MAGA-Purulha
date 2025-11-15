@@ -1141,34 +1141,33 @@ function mostrarDetalleProyecto(proyecto) {
         const descripcionEncoded = archivo.descripcion ? encodeURIComponent(archivo.descripcion) : '';
 
         // Si puede gestionar, mostrar enlace clickeable, si no, solo texto
-
+        // Escapar HTML del nombre del archivo para seguridad
+        const nombreArchivoEscapado = escapeHtml(archivo.nombre);
         const nombreArchivo = puedeGestionar 
-
-          ? `<a href="${archivo.url}" target="_blank" style="color: #007bff; text-decoration: none; cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${archivo.nombre}</a>`
-
-          : `<span style="color: #6c757d; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar archivos">${archivo.nombre}</span>`;
+          ? `<a href="${archivo.url}" target="_blank" rel="noopener noreferrer" title="${nombreArchivoEscapado}">${nombreArchivoEscapado}</a>`
+          : `<span style="color: #6c757d; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar archivos">${nombreArchivoEscapado}</span>`;
 
         return `
 
-          <div class="file-item" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 15px; border-left: 3px solid ${archivo.es_evidencia ? '#6c757d' : '#007bff'};">
+          <div class="file-item" style="border-left: 3px solid ${archivo.es_evidencia ? '#6c757d' : '#007bff'};">
 
-            <div class="file-icon" style="width: 48px; height: 48px; background: rgba(255,255,255,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; color: #fff;">
+            <div class="file-icon">
 
               ${extension}
 
             </div>
 
-            <div class="file-info" style="flex: 1;">
+            <div class="file-info">
 
-              <h4 style="margin: 0 0 4px 0; color: #ffffff; font-size: 0.95rem; font-weight: 600;">
+              <h4>
 
                 ${nombreArchivo}
 
               </h4>
 
-              ${archivo.descripcion ? `<p style="margin: 0 0 4px 0; color: #b8c5d1; font-size: 0.85rem;">${descripcionVisible}</p>` : ''}
+              ${archivo.descripcion ? `<p>${descripcionVisible}</p>` : ''}
 
-              <div style="display: flex; gap: 12px; align-items: center; font-size: 0.8rem; color: #6c757d;">
+              <div>
 
                 ${tamanioTexto ? `<span>${tamanioTexto}</span>` : ''}
 
@@ -2353,7 +2352,7 @@ let pendingProjectGalleryImages = [];
 let currentProjectGalleryImages = [];
 let currentProjectGalleryPage = 0;
 let currentProjectGalleryCanManage = false;
-const PROJECT_GALLERY_PAGE_SIZE = 3;
+const PROJECT_GALLERY_PAGE_SIZE = 4;
 const FEATURED_PROJECTS_LIMIT = 3;
 let featuredProjectsData = [];
 let shouldRefreshLatestProjects = false;
