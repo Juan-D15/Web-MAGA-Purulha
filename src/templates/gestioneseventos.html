@@ -171,9 +171,18 @@
                 <div id="communitiesSection" style="margin-top: 16px; display: none;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                     <h4 style="margin: 0; font-size: 0.95rem; color: #ffffff; font-weight: 600;">Comunidades seleccionadas</h4>
-                    <div id="communityCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div id="communityCount" style="font-size: 0.9rem; color: #007bff; font-weight: 600;"></div>
+                      <button type="button" id="toggleCommunitiesListBtn" class="beneficiaries-toggle-btn" title="Ocultar/Mostrar lista">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <div id="communitiesContainer"></div>
+                  <div id="communitiesContainerWrapper" class="beneficiaries-container-wrapper">
+                    <div id="communitiesContainer"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1338,5 +1347,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/gestioneseventos.js' %}?v=19"></script>
+  <script src="{% static 'js/gestioneseventos.js' %}?v=23"></script>
 {% endblock %}

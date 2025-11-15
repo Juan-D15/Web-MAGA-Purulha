@@ -2202,7 +2202,23 @@ document.addEventListener('DOMContentLoaded', function() {
         benefSearchResults.innerHTML = '';
 
         try {
-            const catalogo = await obtenerBeneficiariosCatalogo();
+            // Si hay query de búsqueda, hacer nueva llamada al API con parámetro q
+            // para buscar en TODA la base de datos, no solo en los 50 cargados
+            let catalogo;
+            const queryLower = (query || '').trim().toLowerCase();
+            
+            if (queryLower) {
+                // Con búsqueda: llamar al API con parámetro q para buscar en TODA la BD
+                const response = await fetch(`/api/beneficiarios/?q=${encodeURIComponent(query.trim())}`);
+                if (!response.ok) {
+                    throw new Error('Error al buscar beneficiarios');
+                }
+                catalogo = await response.json();
+                catalogo = Array.isArray(catalogo) ? catalogo : [];
+            } else {
+                // Sin búsqueda: usar catálogo inicial (50 beneficiarios)
+                catalogo = await obtenerBeneficiariosCatalogo();
+            }
 
             const seleccionadosIds = new Set([
                 ...beneficiariosExistentes.map(b => b.id),
@@ -2212,7 +2228,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const regionFiltro = benefSearchRegionSelect ? benefSearchRegionSelect.value : '';
             const comunidadFiltro = benefSearchCommunitySelect ? benefSearchCommunitySelect.value : '';
             const tipoFiltro = benefSearchTipoSelect ? (benefSearchTipoSelect.value || '').toLowerCase() : '';
-            const queryLower = (query || '').trim().toLowerCase();
+            // queryLower ya está declarado arriba, no redeclarar
+            const busquedaEnServidor = queryLower.length > 0; // Si hay búsqueda, ya se hizo en el servidor
 
             const filtrados = catalogo.filter(b => {
                 if (!b || !b.id) {
@@ -2240,6 +2257,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     return false;
                 }
 
+                // Si la búsqueda ya se hizo en el servidor, no volver a filtrar por texto localmente
+                // El servidor ya retornó todos los resultados que coinciden con la búsqueda
+                if (busquedaEnServidor) {
+                    return true;
+                }
+
+                // Solo filtrar localmente si no hay búsqueda en servidor (sin query)
                 if (!queryLower) {
                     return true;
                 }
@@ -3100,8 +3124,22 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // Mostrar todos los beneficiarios filtrados (el scroll limitará la visualización)
-        filteredList.forEach(item => {
+        // OPTIMIZACIÓN: Paginación para eventos con muchos beneficiarios (1000+)
+        // Renderizar solo los primeros beneficiarios inicialmente para mejorar rendimiento
+        const BENEFICIARIOS_POR_PAGINA = 100; // Renderizar 100 a la vez
+        let beneficiariosRenderizados = 0;
+        let mostrarTodos = false; // Flag para mostrar todos si hay pocos
+        
+        // Si hay menos de 200 beneficiarios, mostrar todos de una vez
+        if (filteredList.length <= 200) {
+            mostrarTodos = true;
+        }
+        
+        // Renderizar beneficiarios con paginación
+        const beneficiariosARenderizar = mostrarTodos ? filteredList : filteredList.slice(0, BENEFICIARIOS_POR_PAGINA);
+        beneficiariosRenderizados = beneficiariosARenderizar.length;
+        
+        beneficiariosARenderizar.forEach(item => {
             const card = document.createElement('div');
             card.className = 'beneficiary-card';
             if (item.id && item.origen === 'existente') {
@@ -3339,6 +3377,267 @@ document.addEventListener('DOMContentLoaded', function() {
             container.appendChild(card);
         });
         
+        // Agregar botón "Cargar más" si hay más beneficiarios por mostrar
+        if (!mostrarTodos && beneficiariosRenderizados < filteredList.length) {
+            // Eliminar botón anterior si existe
+            const existingLoadMoreBtn = container.querySelector('.btn-load-more-beneficiarios');
+            if (existingLoadMoreBtn) {
+                existingLoadMoreBtn.remove();
+            }
+            
+            const loadMoreBtn = document.createElement('button');
+            loadMoreBtn.className = 'btn-load-more-beneficiarios';
+            loadMoreBtn.style.cssText = `
+                width: 100%;
+                padding: 12px;
+                margin-top: 16px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.3s ease;
+            `;
+            const restantes = filteredList.length - beneficiariosRenderizados;
+            loadMoreBtn.textContent = `Cargar ${Math.min(restantes, BENEFICIARIOS_POR_PAGINA)} beneficiarios más (${restantes} restantes)`;
+            
+            loadMoreBtn.addEventListener('mouseenter', () => {
+                loadMoreBtn.style.transform = 'translateY(-2px)';
+                loadMoreBtn.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+            });
+            loadMoreBtn.addEventListener('mouseleave', () => {
+                loadMoreBtn.style.transform = 'translateY(0)';
+                loadMoreBtn.style.boxShadow = 'none';
+            });
+            
+            loadMoreBtn.addEventListener('click', () => {
+                const siguientePagina = filteredList.slice(beneficiariosRenderizados, beneficiariosRenderizados + BENEFICIARIOS_POR_PAGINA);
+                const siguienteIndice = beneficiariosRenderizados;
+                
+                siguientePagina.forEach((item, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'beneficiary-card';
+                    if (item.id && item.origen === 'existente') {
+                        card.style.cursor = 'pointer';
+                    }
+
+                    const badge = item.origen === 'nuevo'
+                        ? '<span class="card-badge" style="background: rgba(76,175,80,0.18); color: #4CAF50;">Nuevo</span>'
+                        : (item.modificado ? '<span class="card-badge" style="background: rgba(255,193,7,0.18); color: #FFC107;">Editado</span>' : (item.esNuevoAsignado ? '<span class="card-badge" style="background: rgba(13,110,253,0.15); color: #0d6efd;">Asociado</span>' : '<span class="card-badge" style="background: rgba(148,163,184,0.18); color: #cbd5f5;">Registrado</span>'));
+
+                    const tipoLowerCard = (item.tipo || '').toLowerCase();
+                    let tipoIcon = '👤';
+                    if (tipoLowerCard === 'familia') tipoIcon = '👨‍👩‍👧‍👦';
+                    else if (tipoLowerCard === 'institución' || tipoLowerCard === 'institucion') tipoIcon = '🏢';
+                    else if (tipoLowerCard === 'otro') tipoIcon = '📋';
+
+                    const displayName = item.display_name || item.nombre || (item.detalles && item.detalles.display_name) || 'Beneficiario';
+                    const tipoTexto = item.tipo_display || item.tipo || 'Sin tipo';
+                    const locationText = item.comunidad_nombre ? `${item.comunidad_nombre}${item.region_nombre ? ' — ' + item.region_nombre : ''}` : 'Sin comunidad asignada';
+                    
+                    const detalles = item.detalles || {};
+                    let datosDetallados = '';
+                    
+                    if (tipoLowerCard === 'individual') {
+                        const nombre = detalles.nombre || item.nombre || '';
+                        const apellido = detalles.apellido || item.apellido || '';
+                        const dpi = detalles.dpi || item.dpi || 'N/A';
+                        const telefono = detalles.telefono || item.telefono || 'N/A';
+                        const genero = detalles.genero || item.genero || 'N/A';
+                        const fechaNac = detalles.fecha_nacimiento || item.fecha_nacimiento || null;
+                        
+                        let edadDisplay = 'N/A';
+                        if (fechaNac && fechaNac !== 'N/A') {
+                            const edad = calcularEdadDesdeFecha(fechaNac);
+                            if (edad !== null && edad >= 0) {
+                                edadDisplay = `${edad} años`;
+                            }
+                        }
+                        
+                        datosDetallados = `
+                            <div class="card-field-row">
+                                <div class="card-field">
+                                    <span class="card-field-label">Nombre</span>
+                                    <span class="card-field-value">${nombre} ${apellido}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">DPI</span>
+                                    <span class="card-field-value-secondary">${dpi}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Teléfono</span>
+                                    <span class="card-field-value-secondary">${telefono}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Género</span>
+                                    <span class="card-field-value-secondary" style="text-transform: capitalize;">${genero}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Edad</span>
+                                    <span class="card-field-value-secondary">${edadDisplay}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Ubicación</span>
+                                    <span class="card-field-value-secondary">${locationText}</span>
+                                </div>
+                            </div>
+                        `;
+                    } else if (tipoLowerCard === 'familia') {
+                        const nombreFamilia = detalles.nombre_familia || item.nombre_familia || 'N/A';
+                        const jefeFamilia = detalles.jefe_familia || item.jefe_familia || 'N/A';
+                        const dpiJefe = detalles.dpi_jefe_familia || item.dpi_jefe_familia || 'N/A';
+                        const telefono = detalles.telefono || item.telefono || 'N/A';
+                        const numMiembros = detalles.numero_miembros || item.numero_miembros || 'N/A';
+                        
+                        datosDetallados = `
+                            <div class="card-field-row">
+                                <div class="card-field">
+                                    <span class="card-field-label">Nombre Familia</span>
+                                    <span class="card-field-value">${nombreFamilia}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Jefe de Familia</span>
+                                    <span class="card-field-value">${jefeFamilia}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">DPI Jefe</span>
+                                    <span class="card-field-value-secondary">${dpiJefe}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Teléfono</span>
+                                    <span class="card-field-value-secondary">${telefono}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Miembros</span>
+                                    <span class="card-field-value-secondary">${numMiembros}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Ubicación</span>
+                                    <span class="card-field-value-secondary">${locationText}</span>
+                                </div>
+                            </div>
+                        `;
+                    } else if (tipoLowerCard === 'institución' || tipoLowerCard === 'institucion') {
+                        const nombreInstitucion = detalles.nombre_institucion || item.nombre_institucion || 'N/A';
+                        const representante = detalles.representante_legal || item.representante_legal || 'N/A';
+                        const dpiRepresentante = detalles.dpi_representante || item.dpi_representante || 'N/A';
+                        const telefono = detalles.telefono || item.telefono || 'N/A';
+                        const email = detalles.email || item.email || 'N/A';
+                        const numBeneficiarios = detalles.numero_beneficiarios_directos || item.numero_beneficiarios_directos || 'N/A';
+                        
+                        datosDetallados = `
+                            <div class="card-field-row">
+                                <div class="card-field">
+                                    <span class="card-field-label">Institución</span>
+                                    <span class="card-field-value">${nombreInstitucion}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Representante</span>
+                                    <span class="card-field-value">${representante}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">DPI Representante</span>
+                                    <span class="card-field-value-secondary">${dpiRepresentante}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Teléfono</span>
+                                    <span class="card-field-value-secondary">${telefono}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Email</span>
+                                    <span class="card-field-value-secondary">${email}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Beneficiarios Directos</span>
+                                    <span class="card-field-value-secondary">${numBeneficiarios}</span>
+                                </div>
+                                <div class="card-field">
+                                    <span class="card-field-label">Ubicación</span>
+                                    <span class="card-field-value-secondary">${locationText}</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <div class="card-header-left">
+                                <span class="card-icon">${tipoIcon}</span>
+                                <div class="card-info">
+                                    <h4 class="card-title">${displayName}</h4>
+                                    <p class="card-subtitle">${tipoTexto} • ${locationText}</p>
+                                </div>
+                            </div>
+                            <div class="card-header-right">
+                                ${badge}
+                                <div class="card-actions">
+                                    <button class="btn-benef-edit" data-origen="${item.origen}" data-index="${siguienteIndice + idx}" title="Editar">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="btn-benef-remove" data-origen="${item.origen}" data-index="${siguienteIndice + idx}" title="Eliminar">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        ${datosDetallados}
+                    `;
+                    
+                    if (item.id && item.origen === 'existente') {
+                        card.addEventListener('click', (e) => {
+                            if (e.target.closest('.btn-benef-edit') || e.target.closest('.btn-benef-remove')) {
+                                return;
+                            }
+                            mostrarDetallesBeneficiario(item.id);
+                        });
+                    }
+                    
+                    container.insertBefore(card, loadMoreBtn);
+                });
+                
+                beneficiariosRenderizados += siguientePagina.length;
+                
+                // Actualizar o eliminar botón
+                if (beneficiariosRenderizados >= filteredList.length) {
+                    loadMoreBtn.remove();
+                } else {
+                    const restantes = filteredList.length - beneficiariosRenderizados;
+                    loadMoreBtn.textContent = `Cargar ${Math.min(restantes, BENEFICIARIOS_POR_PAGINA)} beneficiarios más (${restantes} restantes)`;
+                }
+                
+                // Agregar event listeners a los nuevos botones
+                container.querySelectorAll('.btn-benef-edit').forEach(btn => {
+                    const origen = btn.getAttribute('data-origen');
+                    const index = parseInt(btn.getAttribute('data-index'), 10);
+                    if (origen === 'existente') {
+                        btn.addEventListener('click', () => editarBeneficiarioExistente(index));
+                    } else {
+                        btn.addEventListener('click', () => editarBeneficiarioNuevo(index));
+                    }
+                });
+                
+                container.querySelectorAll('.btn-benef-remove').forEach(btn => {
+                    const origen = btn.getAttribute('data-origen');
+                    const index = parseInt(btn.getAttribute('data-index'), 10);
+                    if (origen === 'existente') {
+                        btn.addEventListener('click', () => eliminarBeneficiarioExistente(index));
+                    } else {
+                        btn.addEventListener('click', () => eliminarBeneficiarioNuevo(index));
+                    }
+                });
+            });
+            
+            container.appendChild(loadMoreBtn);
+        }
+        
         // El scroll está siempre activo por defecto en CSS, no necesitamos lógica condicional
 
         container.querySelectorAll('.btn-benef-edit').forEach(btn => {
@@ -3393,7 +3692,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const toggleBtn = document.getElementById('toggleBeneficiariesListBtn');
         
         if (wrapper && toggleBtn) {
-            const isHidden = wrapper.style.display === 'none';
+            // Usar getComputedStyle para obtener el estado actual real
+            const computedStyle = window.getComputedStyle(wrapper);
+            const isHidden = computedStyle.display === 'none' || wrapper.style.display === 'none';
             wrapper.style.display = isHidden ? 'block' : 'none';
             
             // Rotar el ícono
@@ -3411,7 +3712,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const toggleBtn = document.getElementById('toggleProjectDataListBtn');
         
         if (wrapper && toggleBtn) {
-            const isHidden = wrapper.style.display === 'none';
+            // Usar getComputedStyle para obtener el estado actual real
+            const computedStyle = window.getComputedStyle(wrapper);
+            const isHidden = computedStyle.display === 'none' || wrapper.style.display === 'none';
+            wrapper.style.display = isHidden ? 'block' : 'none';
+            
+            // Rotar el ícono
+            const icon = toggleBtn.querySelector('svg');
+            if (icon) {
+                icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+                icon.style.transition = 'transform 0.3s ease';
+            }
+        }
+    }
+    
+    // Función para toggle de mostrar/ocultar lista de comunidades
+    function toggleCommunitiesList() {
+        const wrapper = document.getElementById('communitiesContainerWrapper');
+        const toggleBtn = document.getElementById('toggleCommunitiesListBtn');
+        
+        if (wrapper && toggleBtn) {
+            // Usar getComputedStyle para obtener el estado actual real
+            const computedStyle = window.getComputedStyle(wrapper);
+            const isHidden = computedStyle.display === 'none' || wrapper.style.display === 'none';
             wrapper.style.display = isHidden ? 'block' : 'none';
             
             // Rotar el ícono
@@ -3429,7 +3752,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const toggleBtn = document.getElementById('toggleEvidencesListBtn');
         
         if (wrapper && toggleBtn) {
-            const isHidden = wrapper.style.display === 'none';
+            // Usar getComputedStyle para obtener el estado actual real
+            const computedStyle = window.getComputedStyle(wrapper);
+            const isHidden = computedStyle.display === 'none' || wrapper.style.display === 'none';
             wrapper.style.display = isHidden ? 'block' : 'none';
             
             // Rotar el ícono
@@ -3475,28 +3800,40 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // Toggle de beneficiarios
-        if (e.target && e.target.id === 'toggleBeneficiariesListBtn') {
+        // Toggle de beneficiarios (usar closest para detectar clics en el botón o sus hijos)
+        const toggleBenefBtn = e.target.closest('#toggleBeneficiariesListBtn');
+        if (toggleBenefBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             toggleBeneficiariesList();
-        }
-        if (e.target.closest && e.target.closest('#toggleBeneficiariesListBtn')) {
-            toggleBeneficiariesList();
+            return;
         }
         
         // Toggle de datos del proyecto
-        if (e.target && e.target.id === 'toggleProjectDataListBtn') {
+        const toggleProjectBtn = e.target.closest('#toggleProjectDataListBtn');
+        if (toggleProjectBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             toggleProjectDataList();
+            return;
         }
-        if (e.target.closest && e.target.closest('#toggleProjectDataListBtn')) {
-            toggleProjectDataList();
+        
+        // Toggle de comunidades
+        const toggleCommunitiesBtn = e.target.closest('#toggleCommunitiesListBtn');
+        if (toggleCommunitiesBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleCommunitiesList();
+            return;
         }
         
         // Toggle de evidencias
-        if (e.target && e.target.id === 'toggleEvidencesListBtn') {
+        const toggleEvidencesBtn = e.target.closest('#toggleEvidencesListBtn');
+        if (toggleEvidencesBtn) {
+            e.preventDefault();
+            e.stopPropagation();
             toggleEvidencesList();
-        }
-        if (e.target.closest && e.target.closest('#toggleEvidencesListBtn')) {
-            toggleEvidencesList();
+            return;
         }
     });
     
@@ -7431,5 +7768,80 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // =====================================================
+    // LAZY LOADING DE IMÁGENES (Optimización de rendimiento)
+    // =====================================================
+    
+    /**
+     * Implementa lazy loading para imágenes usando Intersection Observer
+     * Carga las imágenes solo cuando están a punto de ser visibles en el viewport
+     */
+    function initLazyLoading() {
+        // Verificar si el navegador soporta IntersectionObserver
+        if (!('IntersectionObserver' in window)) {
+            // Fallback: cargar todas las imágenes inmediatamente
+            document.querySelectorAll('img[data-src]').forEach(img => {
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
+            });
+            return;
+        }
+        
+        // Configurar el observer
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    
+                    // Cargar la imagen
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                        
+                        // Opcional: agregar clase para animación de fade-in
+                        img.classList.add('lazy-loaded');
+                    }
+                    
+                    // Dejar de observar esta imagen
+                    observer.unobserve(img);
+                }
+            });
+        }, {
+            // Cargar imágenes 200px antes de que sean visibles
+            rootMargin: '200px 0px',
+            threshold: 0.01
+        });
+        
+        // Observar todas las imágenes con data-src
+        document.querySelectorAll('img[data-src]').forEach(img => {
+            imageObserver.observe(img);
+        });
+    }
+    
+    /**
+     * Convierte imágenes existentes a lazy loading
+     * Útil para contenido dinámico cargado después del DOM
+     */
+    function convertToLazyLoad(container) {
+        if (!container) return;
+        
+        const images = container.querySelectorAll('img:not([data-src])');
+        images.forEach(img => {
+            if (img.src && !img.dataset.src) {
+                img.dataset.src = img.src;
+                img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"%3E%3Crect fill="%23f0f0f0" width="400" height="300"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle"%3ECargando...%3C/text%3E%3C/svg%3E';
+            }
+        });
+        
+        initLazyLoading();
+    }
+    
+    // Inicializar lazy loading al cargar la página
+    initLazyLoading();
+    
+    // Exportar funciones para uso en otras partes del código
+    window.initLazyLoading = initLazyLoading;
+    window.convertToLazyLoad = convertToLazyLoad;
     
 });

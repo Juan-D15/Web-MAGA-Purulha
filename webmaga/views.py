@@ -40,6 +40,15 @@ from .decorators import (
     permiso_admin_o_personal_api,
     usuario_puede_gestionar_evento,
 )
+from .ratelimit_decorators import (
+    api_ratelimit_read,
+    api_ratelimit_write,
+    api_ratelimit_auth,
+    api_ratelimit_upload,
+    api_ratelimit_strict,
+    api_ratelimit_bulk,
+    api_ratelimit_login_smart,
+)
 from .views_utils import (
     aplicar_modificaciones_beneficiarios,
     eliminar_portada_evento,
@@ -937,7 +946,14 @@ def api_foto_perfil(request):
                     'error': 'Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP)'
                 }, status=400)
             
-            # Validar tamaño (5MB máximo)
+            # COMPRIMIR IMAGEN automáticamente si está habilitado
+            if getattr(settings, 'COMPRESS_IMAGES', True):
+                from .image_compression import compress_if_needed, get_compression_settings
+                compression_settings = get_compression_settings('profile')
+                foto = compress_if_needed(foto, **compression_settings)
+                print(f"✅ Imagen procesada (comprimida si era necesario): {foto.size} bytes")
+            
+            # Validar tamaño (5MB máximo) - después de comprimir
             max_size = 5 * 1024 * 1024  # 5MB
             if foto.size > max_size:
                 return JsonResponse({
@@ -1155,21 +1171,31 @@ def api_regiones(request):
     return response
 
 
+@api_ratelimit_read(rate='30/m')  # 30 peticiones por minuto
 def api_regiones_recientes(request):
-    """API: Obtener las últimas regiones actualizadas (para sección 'Últimas Regiones')"""
+    """API: Obtener las últimas regiones actualizadas (OPTIMIZADO con Prefetch)
+    Rate limit: 30 peticiones por minuto"""
     limite = int(request.GET.get('limite', 2))
     
+    # Optimización: Usar Prefetch para evitar N+1 queries
+    # IMPORTANTE: No usar slice [:1] dentro de Prefetch, causa error con filtros
     regiones_query = Region.objects.annotate(
         num_comunidades=Count('comunidades', filter=Q(comunidades__activo=True))
+    ).prefetch_related(
+        Prefetch(
+            'galeria',
+            queryset=RegionGaleria.objects.order_by('-creado_en')
+        )
     ).order_by('-actualizado_en', '-creado_en')[:limite]
     
     regiones = []
     for region in regiones_query:
         primera_imagen = None
         try:
-            galeria = RegionGaleria.objects.filter(region=region).order_by('-creado_en').first()
-            if galeria:
-                primera_imagen = galeria.url_almacenamiento
+            # Tomar solo la primera imagen del prefetch
+            galeria_list = list(region.galeria.all())
+            if galeria_list:
+                primera_imagen = galeria_list[0].url_almacenamiento
         except:
             pass
         
@@ -1186,9 +1212,8 @@ def api_regiones_recientes(request):
         })
     
     response = JsonResponse(regiones, safe=False)
-    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response['Pragma'] = 'no-cache'
-    response['Expires'] = '0'
+    # Permitir caché de 5 minutos para regiones recientes
+    response['Cache-Control'] = 'public, max-age=300'
     return response
 def api_region_detalle(request, region_id):
     """API: Obtener detalle completo de una región"""
@@ -1607,6 +1632,12 @@ def api_agregar_imagen_region(request, region_id):
                 'error': 'El archivo debe ser una imagen (JPG, PNG, GIF, etc.)'
             }, status=400)
         
+        # COMPRIMIR IMAGEN automáticamente
+        if getattr(settings, 'COMPRESS_IMAGES', True):
+            from .image_compression import compress_if_needed, get_compression_settings
+            compression_settings = get_compression_settings('gallery')
+            imagen = compress_if_needed(imagen, **compression_settings)
+        
         # Obtener descripción (opcional)
         descripcion = request.POST.get('descripcion', '').strip()
         
@@ -1948,10 +1979,12 @@ def api_actividades(request):
 # =====================================================
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
+@api_ratelimit_bulk(rate='15/m')  # 15 creaciones por minuto
 def api_crear_evento(request):
     """
     API: Crear un nuevo evento/actividad
     Maneja el formulario con archivos, personal y beneficiarios
+    Rate limit: 15 peticiones por minuto (puede incluir 50+ evidencias y 100+ comunidades por petición)
     """
     usuario_maga = get_usuario_maga(request.user)
     
@@ -2316,6 +2349,13 @@ def api_crear_evento(request):
                 fs = FileSystemStorage(location=evidencias_dir)
                 
                 for index, file in enumerate(evidencias_guardadas):
+                    # COMPRIMIR IMAGEN automáticamente si es una imagen
+                    es_imagen = file.content_type.startswith('image/') if hasattr(file, 'content_type') else False
+                    if es_imagen and getattr(settings, 'COMPRESS_IMAGES', True):
+                        from .image_compression import compress_if_needed, get_compression_settings
+                        compression_settings = get_compression_settings('evidence')
+                        file = compress_if_needed(file, **compression_settings)
+                    
                     # Generar nombre único con microsegundos para evitar duplicados
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
                     # Obtener extensión del archivo
@@ -2325,9 +2365,6 @@ def api_crear_evento(request):
                     # Guardar archivo físicamente
                     saved_name = fs.save(filename, file)
                     file_url = f"/media/evidencias/{saved_name}"
-                    
-                    # Determinar si es imagen
-                    es_imagen = file.content_type.startswith('image/') if hasattr(file, 'content_type') else False
                     
                     # Crear registro de evidencia en la BD
                     evidencia = Evidencia.objects.create(
@@ -2437,7 +2474,10 @@ def api_listar_personal(request):
     return JsonResponse(personal_list, safe=False)
 @permiso_gestionar_eventos
 def api_listar_beneficiarios(request):
-    """API: Listar beneficiarios disponibles"""
+    """API: Listar beneficiarios disponibles
+    - Sin búsqueda: Retorna los primeros 50 (para carga inicial rápida)
+    - Con búsqueda: SIN LÍMITE - busca en TODA la base de datos
+    """
     search = (request.GET.get('q') or '').strip()
 
     beneficiarios = Beneficiario.objects.filter(activo=True).select_related(
@@ -2445,6 +2485,7 @@ def api_listar_beneficiarios(request):
     ).prefetch_related('individual', 'familia', 'institucion')
 
     if search:
+        # Con búsqueda: Buscar en TODA la base de datos sin límites
         beneficiarios = beneficiarios.filter(
             Q(individual__nombre__icontains=search) |
             Q(individual__apellido__icontains=search) |
@@ -2456,9 +2497,11 @@ def api_listar_beneficiarios(request):
             Q(institucion__representante_legal__icontains=search) |
             Q(institucion__tipo_institucion__icontains=search) |
             Q(comunidad__nombre__icontains=search)
-        )
-
-    beneficiarios = beneficiarios.order_by('tipo__nombre', 'comunidad__nombre', 'id')[:50]
+        ).order_by('tipo__nombre', 'comunidad__nombre', 'id')
+        # NO aplicar límite cuando hay búsqueda - retornar TODOS los resultados
+    else:
+        # Sin búsqueda: Solo 50 para carga inicial rápida
+        beneficiarios = beneficiarios.order_by('tipo__nombre', 'comunidad__nombre', 'id')[:50]
 
     beneficiarios_list = []
     for ben in beneficiarios:
@@ -2537,8 +2580,10 @@ def api_obtener_beneficiario(request, beneficiario_id):
 
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
+@api_ratelimit_upload(rate='10/m')  # 10 importaciones por minuto
 def api_importar_beneficiarios_excel(request):
-    """API: Importar beneficiarios individuales desde archivo Excel"""
+    """API: Importar beneficiarios individuales desde archivo Excel
+    Rate limit: 10 peticiones por minuto (solo valida, no guarda en BD)"""
     try:
         if 'excel_file' not in request.FILES:
             return JsonResponse({
@@ -2845,8 +2890,10 @@ def api_importar_beneficiarios_excel(request):
 
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
+@api_ratelimit_bulk(rate='30/m')  # 30 guardados masivos por minuto
 def api_guardar_beneficiarios_general(request):
-    """API: Guardar beneficiarios pendientes de Excel sin vincularlos a ningún evento"""
+    """API: Guardar beneficiarios pendientes de Excel sin vincularlos a ningún evento
+    Rate limit: 30 peticiones por minuto (operación masiva - puede procesar 1000+ beneficiarios)"""
     try:
         usuario_maga = get_usuario_maga(request.user)
         if not usuario_maga:
@@ -2996,8 +3043,10 @@ def api_guardar_beneficiarios_general(request):
 
 @permiso_gestionar_eventos
 @require_http_methods(["POST"])
+@api_ratelimit_bulk(rate='30/m')  # 30 guardados masivos por minuto
 def api_guardar_beneficiarios_pendientes(request):
-    """API: Guardar beneficiarios pendientes de Excel y vincularlos al evento"""
+    """API: Guardar beneficiarios pendientes de Excel y vincularlos al evento
+    Rate limit: 30 peticiones por minuto (operación masiva - puede procesar 1000+ beneficiarios)"""
     try:
         usuario_maga = get_usuario_maga(request.user)
         if not usuario_maga:
@@ -3324,22 +3373,47 @@ def api_listar_eventos(request):
             'success': False,
             'error': f'Error al listar eventos: {str(e)}'
         }, status=500)
+@api_ratelimit_read(rate='30/m')  # 30 peticiones por minuto
 def api_obtener_evento(request, evento_id):
-    """Obtiene los detalles completos de un evento"""
+    """Obtiene los detalles completos de un evento (OPTIMIZADO con paginación)
+    Rate limit: 30 peticiones por minuto"""
     try:
+        # Parámetros de paginación
+        evidencias_limite = int(request.GET.get('evidencias_limite', 50))
+        evidencias_offset = int(request.GET.get('evidencias_offset', 0))
+        # Aumentar límite de beneficiarios a 2000 para soportar importaciones masivas
+        beneficiarios_limite = int(request.GET.get('beneficiarios_limite', 2000))
+        beneficiarios_offset = int(request.GET.get('beneficiarios_offset', 0))
+        
+        # Optimización: Usar Prefetch para cargar relaciones de forma eficiente
+        # IMPORTANTE: No usar slice dentro de Prefetch, causa error con filtros
         evento = Actividad.objects.select_related(
             'tipo', 'comunidad', 'responsable', 'colaborador', 'portada'
         ).prefetch_related(
             'personal__usuario__puesto',
             'personal__colaborador__puesto',
             'personal__colaborador__usuario',
-            'beneficiarios__beneficiario__individual',
-            'beneficiarios__beneficiario__familia',
-            'beneficiarios__beneficiario__institucion',
-            'evidencias',
+            Prefetch(
+                'beneficiarios',
+                queryset=ActividadBeneficiario.objects.select_related(
+                    'beneficiario__tipo',
+                    'beneficiario__comunidad__region',
+                    'beneficiario__individual',
+                    'beneficiario__familia',
+                    'beneficiario__institucion'
+                ).order_by('id')
+            ),
+            Prefetch(
+                'evidencias',
+                queryset=Evidencia.objects.filter(
+                    url_almacenamiento__icontains='/media/evidencias/'
+                ).order_by('-creado_en')
+            ),
             'comunidades_relacionadas__comunidad__region',
             'comunidades_relacionadas__region'
         ).get(id=evento_id, eliminado_en__isnull=True)
+        
+        # Los totales se calcularán después de cargar los datos con Prefetch
         
         # Personal asignado
         personal_data = []
@@ -3369,9 +3443,12 @@ def api_obtener_evento(request, evento_id):
                     'tipo': 'usuario'
                 })
         
-        # Beneficiarios con detalles completos
+        # Beneficiarios con detalles completos (aplicar paginación manual)
         beneficiarios_data = []
-        for ab in evento.beneficiarios.all():
+        beneficiarios_list = list(evento.beneficiarios.all())
+        beneficiarios_paginados = beneficiarios_list[beneficiarios_offset:beneficiarios_offset + beneficiarios_limite]
+        
+        for ab in beneficiarios_paginados:
             benef = ab.beneficiario
             nombre_display, _, detalles, tipo_envio = obtener_detalle_beneficiario(benef)
             if benef.tipo and hasattr(benef.tipo, 'get_nombre_display'):
@@ -3391,18 +3468,17 @@ def api_obtener_evento(request, evento_id):
                 'detalles': detalles
             })
         
-        # Evidencias (excluir imágenes de galería que ahora están en eventos_galeria)
+        # Evidencias (aplicar paginación manual)
         evidencias_data = []
-        for evidencia in evento.evidencias.all():
-            url = evidencia.url_almacenamiento or ''
-            url_lower = url.lower()
-            if '/media/evidencias/' not in url_lower:
-                continue
+        evidencias_list = list(evento.evidencias.all())
+        evidencias_paginadas = evidencias_list[evidencias_offset:evidencias_offset + evidencias_limite]
+        
+        for evidencia in evidencias_paginadas:
             evidencias_data.append({
                 'id': str(evidencia.id),
                 'nombre': evidencia.archivo_nombre,
                 'archivo_nombre': evidencia.archivo_nombre,
-                'url': url,
+                'url': evidencia.url_almacenamiento or '',
                 'tipo': evidencia.archivo_tipo,
                 'es_imagen': evidencia.es_imagen,
                 'descripcion': evidencia.descripcion or '',
@@ -3414,6 +3490,10 @@ def api_obtener_evento(request, evento_id):
         comunidades_data = obtener_comunidades_evento(evento)
         comunidad_principal_id = comunidades_data[0]['comunidad_id'] if comunidades_data else (str(evento.comunidad.id) if evento.comunidad else None)
         portada_data = obtener_portada_evento(evento)
+        
+        # Calcular totales desde las listas ya cargadas
+        total_beneficiarios = len(beneficiarios_list)
+        total_evidencias = len(evidencias_list)
         
         evento_data = {
             'id': str(evento.id),
@@ -3428,7 +3508,21 @@ def api_obtener_evento(request, evento_id):
             'evidencias': evidencias_data,
             'comunidades': comunidades_data,
             'portada': portada_data,
-            'tarjetas_datos': obtener_tarjetas_datos(evento)
+            'tarjetas_datos': obtener_tarjetas_datos(evento),
+            'paginacion': {
+                'beneficiarios': {
+                    'total': total_beneficiarios,
+                    'limite': beneficiarios_limite,
+                    'offset': beneficiarios_offset,
+                    'tiene_mas': (beneficiarios_offset + beneficiarios_limite) < total_beneficiarios
+                },
+                'evidencias': {
+                    'total': total_evidencias,
+                    'limite': evidencias_limite,
+                    'offset': evidencias_offset,
+                    'tiene_mas': (evidencias_offset + evidencias_limite) < total_evidencias
+                }
+            }
         }
         
         return JsonResponse({
@@ -3448,8 +3542,10 @@ def api_obtener_evento(request, evento_id):
         }, status=500)
 @permiso_gestionar_eventos_api
 @require_http_methods(["POST"])
+@api_ratelimit_bulk(rate='20/m')  # 20 actualizaciones por minuto
 def api_actualizar_evento(request, evento_id):
-    """Actualiza un evento existente"""
+    """Actualiza un evento existente
+    Rate limit: 20 peticiones por minuto (puede incluir 50+ evidencias y 100+ comunidades por petición)"""
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
         usuario_maga = get_usuario_maga(request.user)
@@ -3928,6 +4024,13 @@ def api_actualizar_evento(request, evento_id):
                 fs = FileSystemStorage(location=evidencias_dir)
                 
                 for idx, archivo in enumerate(archivos):
+                    # COMPRIMIR IMAGEN automáticamente si es una imagen
+                    es_imagen = archivo.content_type.startswith('image/')
+                    if es_imagen and getattr(settings, 'COMPRESS_IMAGES', True):
+                        from .image_compression import compress_if_needed, get_compression_settings
+                        compression_settings = get_compression_settings('evidence')
+                        archivo = compress_if_needed(archivo, **compression_settings)
+                    
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
                     nombre_unico = f"{timestamp}_{idx}.{archivo.name.split('.')[-1]}"
                     nombre_guardado = fs.save(nombre_unico, archivo)
@@ -3938,7 +4041,7 @@ def api_actualizar_evento(request, evento_id):
                         archivo_nombre=archivo.name,
                         archivo_tipo=archivo.content_type,
                         url_almacenamiento=url_archivo,
-                        es_imagen=archivo.content_type.startswith('image/')
+                        es_imagen=es_imagen
                     )
                 
                 cambios_realizados.append(f"Agregado {len(archivos)} evidencias")
@@ -6287,6 +6390,12 @@ def api_agregar_imagen_galeria(request, evento_id):
                 'error': 'El archivo debe ser una imagen (JPG, PNG, GIF, etc.)'
             }, status=400)
         
+        # COMPRIMIR IMAGEN automáticamente
+        if getattr(settings, 'COMPRESS_IMAGES', True):
+            from .image_compression import compress_if_needed, get_compression_settings
+            compression_settings = get_compression_settings('gallery')
+            imagen = compress_if_needed(imagen, **compression_settings)
+        
         # Obtener descripción (opcional)
         descripcion = request.POST.get('descripcion', '').strip()
         
@@ -7021,6 +7130,14 @@ def api_crear_cambio(request, evento_id):
                     try:
                         archivo = request.FILES[key]
                         print(f'📎 Procesando archivo {key}: {archivo.name} ({archivo.size} bytes, tipo: {archivo.content_type})')
+                        
+                        # COMPRIMIR IMAGEN automáticamente si es una imagen
+                        es_imagen = archivo.content_type.startswith('image/') if hasattr(archivo, 'content_type') else False
+                        if es_imagen and getattr(settings, 'COMPRESS_IMAGES', True):
+                            from .image_compression import compress_if_needed, get_compression_settings
+                            compression_settings = get_compression_settings('evidence')
+                            archivo = compress_if_needed(archivo, **compression_settings)
+                            print(f'✅ Imagen comprimida: {archivo.size} bytes')
                         
                         # Obtener descripción de la evidencia
                         # Primero intentar con el índice
@@ -11728,6 +11845,12 @@ def api_agregar_imagen_comunidad(request, comunidad_id):
     if not imagen.content_type or not imagen.content_type.startswith('image/'):
         return JsonResponse({'success': False, 'error': 'El archivo debe ser una imagen válida'}, status=400)
 
+    # COMPRIMIR IMAGEN automáticamente
+    if getattr(settings, 'COMPRESS_IMAGES', True):
+        from .image_compression import compress_if_needed, get_compression_settings
+        compression_settings = get_compression_settings('gallery')
+        imagen = compress_if_needed(imagen, **compression_settings)
+
     descripcion = (request.POST.get('descripcion') or '').strip()
 
     galeria_dir = os.path.join(str(settings.MEDIA_ROOT), 'comunidades_galeria')
@@ -12095,14 +12218,19 @@ DEFAULT_COMUNIDAD_IMAGE_LARGE = (
 
 
 # =====================================================
-# API: LOGIN PARA MODO OFFLINE
+# API: LOGIN (usado para modo online y generación de credenciales offline)
 # =====================================================
 
 @require_http_methods(["POST"])
+@api_ratelimit_login_smart(rate_per_user='10/3m', rate_per_ip='20/3m')
 def api_login(request):
     """
     Endpoint API para login que devuelve JSON con información del usuario.
-    Permite guardar credenciales para uso offline.
+    Se usa tanto para login online como para generar credenciales offline.
+    
+    Rate limit inteligente:
+    - 20 intentos por IP cada 3 minutos (permite múltiples usuarios en la misma red)
+    - 10 intentos por usuario cada 3 minutos (protege contra fuerza bruta en cuentas específicas)
     """
     try:
         data = json.loads(request.body)
