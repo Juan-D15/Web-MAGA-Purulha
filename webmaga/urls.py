@@ -27,6 +27,7 @@ urlpatterns = [
     path('perfil/', views.perfilusuario, name='perfilusuario'),
     path('config-general/', views.configgeneral, name='configgeneral'),
     path('preguntas-frecuentes/', views.preguntas_frecuentes, name='preguntas-frecuentes'),
+    path('manual-usuario/descargar/', views.descargar_manual_usuario, name='descargar-manual-usuario'),
     
     # APIs JSON (para AJAX)
     path('api/usuario/', views.api_usuario_actual, name='api-usuario'),

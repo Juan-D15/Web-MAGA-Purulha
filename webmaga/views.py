@@ -82,6 +82,7 @@ logger = logging.getLogger(__name__)
 
 from .views_pages import (
     configgeneral,
+    descargar_manual_usuario,
     preguntas_frecuentes,
     index,
     comunidades,

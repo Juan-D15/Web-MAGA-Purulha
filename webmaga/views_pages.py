@@ -328,6 +328,33 @@ def configgeneral(request):
     return render(request, 'configgeneral.html', context)
 
 
+def descargar_manual_usuario(request):
+    """Vista para descargar el manual de usuario - Solo para admin y personal"""
+    from django.http import FileResponse, Http404
+    from django.conf import settings
+    import os
+    
+    # Verificar permisos
+    usuario_maga = get_usuario_maga(request.user) if request.user.is_authenticated else None
+    if not usuario_maga or usuario_maga.rol not in ['admin', 'personal']:
+        raise Http404("No tienes permisos para acceder a este recurso")
+    
+    # Ruta al archivo
+    manual_path = os.path.join(settings.BASE_DIR, 'src', 'archivos_sistema', 'Manual de usuario WebMaga-Purulhá.pdf')
+    
+    # Verificar que el archivo exista
+    if not os.path.exists(manual_path):
+        raise Http404("El manual de usuario no está disponible")
+    
+    # Servir el archivo
+    return FileResponse(
+        open(manual_path, 'rb'),
+        content_type='application/pdf',
+        filename='Manual de usuario WebMaga-Purulhá.pdf',
+        as_attachment=True
+    )
+
+
 def preguntas_frecuentes(request):
     """Vista de preguntas frecuentes - ACCESIBLE PARA TODOS"""
     context = {}
@@ -337,6 +364,7 @@ def preguntas_frecuentes(request):
 __all__ = [
     'index',
     'comunidades',
+    'descargar_manual_usuario',
     'regiones',
     'proyectos',
     'gestioneseventos',
