@@ -11589,7 +11589,8 @@ def api_actualizar_comunidad_datos(request, comunidad_id):
     telefono_cocode = (payload.get('telefono_cocode') or '').strip()
 
     cocode = re.sub(r'\s+', ' ', cocode)
-    telefono_cocode = re.sub(r'\s+', '', telefono_cocode)
+    # Normalizar teléfono: eliminar espacios y guiones, luego formatear con guión
+    telefono_cocode = re.sub(r'[\s-]+', '', telefono_cocode)
     coordenadas = re.sub(r'\s+', ' ', coordenadas)
     coordenadas = re.sub(r'\s*,\s*', ', ', coordenadas)
 
@@ -11632,6 +11633,7 @@ def api_actualizar_comunidad_datos(request, comunidad_id):
             status=400,
         )
 
+    # Validar que tenga exactamente 8 dígitos
     if not re.fullmatch(r"\d{8}", telefono_cocode):
         return JsonResponse(
             {
@@ -11640,6 +11642,9 @@ def api_actualizar_comunidad_datos(request, comunidad_id):
             },
             status=400,
         )
+
+    # Formatear teléfono con guión (1234-5678)
+    telefono_cocode = f"{telefono_cocode[:4]}-{telefono_cocode[4:]}"
 
     if coordenadas and not coords_regex.fullmatch(coordenadas):
         return JsonResponse(
@@ -11665,18 +11670,19 @@ def api_actualizar_comunidad_datos(request, comunidad_id):
                 status=400,
             )
 
-    if coordenadas and (latitud is None or longitud is None):
+    # Inicializar latitud y longitud con los valores actuales de la comunidad
+    latitud = comunidad.latitud
+    longitud = comunidad.longitud
+
+    if coordenadas:
         partes = [p.strip() for p in coordenadas.split(',') if p.strip()]
         if len(partes) == 2:
             try:
                 latitud = float(partes[0])
                 longitud = float(partes[1])
             except ValueError:
-                latitud = comunidad.latitud
-                longitud = comunidad.longitud
-        else:
-            latitud = comunidad.latitud
-            longitud = comunidad.longitud
+                # Si hay error al convertir, mantener los valores actuales
+                pass
 
     if latitud in ('', None):
         latitud = None

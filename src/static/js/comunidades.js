@@ -958,7 +958,21 @@ function showEditDataModal() {
     cocodeInput.value = currentCommunityData.cocode || '';
   }
   if (cocodePhoneInput) {
-    cocodePhoneInput.value = currentCommunityData.cocodePhone || '';
+    // Formatear teléfono con guión si existe
+    const phone = currentCommunityData.cocodePhone || '';
+    if (phone) {
+      // Si ya tiene guión, mantenerlo; si no, agregarlo
+      const phoneDigits = phone.replace(/[\s-]+/g, '');
+      if (phoneDigits.length === 8) {
+        cocodePhoneInput.value = phoneDigits.length === 8 && phone.includes('-') 
+          ? phone 
+          : `${phoneDigits.slice(0, 4)}-${phoneDigits.slice(4)}`;
+      } else {
+        cocodePhoneInput.value = phone;
+      }
+    } else {
+      cocodePhoneInput.value = '';
+    }
   }
 
   showModal('editDataModal');
@@ -1004,7 +1018,8 @@ async function updateCommunityData() {
   const rawCocodePhone = cocodePhoneInput ? cocodePhoneInput.value.trim() : '';
 
   const normalizedCocode = rawCocodeValue.replace(/\s+/g, ' ').trim();
-  const phoneDigits = rawCocodePhone.replace(/\s+/g, '');
+  // Normalizar teléfono: eliminar espacios y guiones para validación
+  const phoneDigits = rawCocodePhone.replace(/[\s-]+/g, '');
   let formattedCoordinates = coordinatesValue;
   if (coordinatesValue) {
     const parts = coordinatesValue.split(',');
@@ -1044,8 +1059,9 @@ async function updateCommunityData() {
         errors.push('El teléfono del COCODE es obligatorio.');
         return;
       }
+      // Validar que tenga exactamente 8 dígitos (sin guiones ni espacios)
       if (!/^\d{8}$/.test(phoneDigits)) {
-        errors.push('El teléfono COCODE debe tener exactamente 8 dígitos numéricos.');
+        errors.push('El teléfono COCODE debe tener exactamente 8 dígitos numéricos (formato: 1234-5678).');
       }
     },
     () => {
@@ -1837,12 +1853,79 @@ function setupEditDataFormConstraints() {
 
   const phoneInput = document.getElementById('editCocodePhone');
   if (phoneInput) {
-    phoneInput.addEventListener('input', () => {
+    phoneInput.addEventListener('input', (e) => {
+      // Guardar la posición del cursor y el valor anterior
+      const cursorPosition = phoneInput.selectionStart;
+      const oldValue = phoneInput.value;
+      
+      // Extraer SOLO los dígitos, sin límite temporal
       let digits = phoneInput.value.replace(/\D+/g, '');
+      
+      // Limitar a máximo 8 dígitos
       if (digits.length > 8) {
         digits = digits.slice(0, 8);
       }
-      phoneInput.value = digits;
+      
+      // Formatear con guión: 1234-5678
+      let formattedValue = '';
+      if (digits.length === 0) {
+        formattedValue = '';
+      } else if (digits.length <= 4) {
+        formattedValue = digits;
+      } else {
+        // Formatear: primeros 4 dígitos + guión + resto de dígitos (hasta 4 más)
+        const firstPart = digits.slice(0, 4);
+        const secondPart = digits.slice(4, 8); // Asegurar que tome hasta 4 dígitos más
+        formattedValue = `${firstPart}-${secondPart}`;
+      }
+      
+      // Actualizar el valor
+      phoneInput.value = formattedValue;
+      
+      // Calcular nueva posición del cursor basándose en los dígitos
+      const digitsBeforeCursor = oldValue.slice(0, cursorPosition).replace(/\D+/g, '').length;
+      const newDigitsCount = digits.length;
+      
+      let newCursorPosition;
+      if (newDigitsCount === 0) {
+        newCursorPosition = 0;
+      } else if (newDigitsCount <= 4) {
+        // No hay guión aún
+        newCursorPosition = Math.min(digitsBeforeCursor, newDigitsCount);
+      } else {
+        // Hay guión, calcular posición
+        if (digitsBeforeCursor <= 4) {
+          newCursorPosition = digitsBeforeCursor;
+        } else {
+          // El cursor está después del guión
+          // digitsBeforeCursor puede ser 5, 6, 7 u 8
+          newCursorPosition = Math.min(digitsBeforeCursor + 1, formattedValue.length);
+        }
+      }
+      
+      // Asegurar que la posición esté dentro de los límites
+      newCursorPosition = Math.max(0, Math.min(newCursorPosition, formattedValue.length));
+      
+      // Restaurar posición del cursor después de que el DOM se actualice
+      requestAnimationFrame(() => {
+        phoneInput.setSelectionRange(newCursorPosition, newCursorPosition);
+      });
+    });
+    
+    // Manejar keydown para prevenir entrada de más de 8 dígitos
+    phoneInput.addEventListener('keydown', (e) => {
+      // Permitir todas las teclas de control
+      if (e.key.length > 1 || e.ctrlKey || e.metaKey) {
+        return; // Permitir backspace, delete, arrows, ctrl+c, etc.
+      }
+      
+      // Si es un dígito y ya hay 8 dígitos, prevenir
+      if (/\d/.test(e.key)) {
+        const currentDigits = phoneInput.value.replace(/\D+/g, '');
+        if (currentDigits.length >= 8) {
+          e.preventDefault();
+        }
+      }
     });
   }
 
