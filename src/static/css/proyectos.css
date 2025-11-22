@@ -2961,9 +2961,31 @@ select,
 }
 
 /* Asegurar que los modales y su contenido permitan interacción */
-.modal.active,
-.modal.active *:not(button):not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.modal-close) {
+.modal.active {
   pointer-events: auto !important;
+}
+
+.modal.active * {
+  pointer-events: auto !important;
+}
+
+/* Protección especial para botones del modal de confirmación */
+#confirmDeleteModal.active button,
+#confirmDeleteModal.active .btn-danger,
+#confirmDeleteModal.active .btn-secondary,
+#confirmDeleteModal.active .modal-close {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+}
+
+#confirmDeleteModal.active #confirmDeleteBtn,
+#confirmDeleteModal.active #cancelDeleteBtn,
+#confirmDeleteModal.active #closeConfirmModal {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+  user-select: auto !important;
 }
 
 /* Mensajes de error */

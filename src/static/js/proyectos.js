@@ -796,13 +796,13 @@ async function loadProjectDetails(projectId) {
 
     } else {
 
-      alert('Error al cargar el proyecto: ' + data.error);
+      showErrorMessage('Error al cargar el proyecto: ' + data.error);
 
     }
 
   } catch (error) {
 
-    alert('Error al cargar el proyecto. Por favor, intenta de nuevo.');
+    showErrorMessage('Error al cargar el proyecto. Por favor, intenta de nuevo.');
 
   } finally {
     // Liberar el lock de concurrencia
@@ -2419,6 +2419,8 @@ function getGuatemalaDateParts(sourceDate = new Date()) {
 // Variable para almacenar archivos de evidencias seleccionados en el modal de cambios
 
 let selectedEvidencesFiles = [];
+// Variable para rastrear evidencias marcadas para eliminación en el modal de edición
+let evidenciasAEliminar = [];
 
 // Sistema de permisos manejado por permisos.js y el backend
 
@@ -2887,17 +2889,25 @@ function tienePermisoGestionActual() {
 }
 
 function mostrarMensajePermisoDenegado() {
-  if (typeof showErrorMessage === 'function') {
-    showErrorMessage(MENSAJE_PERMISOS_INSUFICIENTES);
-  } else {
-    alert(MENSAJE_PERMISOS_INSUFICIENTES);
-  }
+  showErrorMessage(MENSAJE_PERMISOS_INSUFICIENTES);
 }
 
 function aplicarVisibilidadBotonesGestion(puedeGestionar) {
+  // PROTECCIÓN: Si el modal de confirmación está abierto, NO afectar sus botones
+  const confirmModal = document.getElementById('confirmDeleteModal');
+  const isConfirmModalOpen = confirmModal && confirmModal.classList.contains('active');
+  
   const toggleElementoGestion = (element) => {
     if (!element) {
       return;
+    }
+    
+    // PROTECCIÓN: NO afectar botones del modal de confirmación cuando está abierto
+    if (isConfirmModalOpen) {
+      const modalContent = confirmModal?.querySelector('.modal-content');
+      if (modalContent && modalContent.contains(element)) {
+        return; // Saltar este elemento si está dentro del modal de confirmación
+      }
     }
 
     if (!element.dataset.originalDisplayValue) {
@@ -2939,17 +2949,33 @@ function aplicarVisibilidadBotonesGestion(puedeGestionar) {
   const manageDisableOnlySelectors = [
     '#confirmCommunitySelectionBtn',
     '#confirmChangeSelectionBtn',
-    '#confirmFileSelectionBtn',
-    '#confirmDeleteBtn'
+    '#confirmFileSelectionBtn'
+    // NO incluir '#confirmDeleteBtn' aquí porque el modal de confirmación debe funcionar
+    // siempre que esté abierto (las verificaciones de permisos se hacen antes de mostrar el modal)
   ];
 
   manageDisableOnlySelectors.forEach(selector => {
     document.querySelectorAll(selector).forEach(element => {
+      // PROTECCIÓN: NO afectar botones del modal de confirmación cuando está abierto
+      if (isConfirmModalOpen) {
+        const modalContent = confirmModal?.querySelector('.modal-content');
+        if (modalContent && modalContent.contains(element)) {
+          return; // Saltar este elemento si está dentro del modal de confirmación
+        }
+      }
       element.disabled = !puedeGestionar;
     });
   });
 
   document.querySelectorAll('.remove-card-btn').forEach(btn => {
+    // PROTECCIÓN: NO afectar botones del modal de confirmación cuando está abierto
+    if (isConfirmModalOpen) {
+      const modalContent = confirmModal?.querySelector('.modal-content');
+      if (modalContent && modalContent.contains(btn)) {
+        return; // Saltar este botón si está dentro del modal de confirmación
+      }
+    }
+    
     if (puedeGestionar) {
       btn.disabled = false;
       btn.classList.remove('disabled');
@@ -2962,6 +2988,14 @@ function aplicarVisibilidadBotonesGestion(puedeGestionar) {
   const selectedCardsContainer = document.getElementById('selectedCardsContainer');
   if (selectedCardsContainer && typeof loadSelectedCards === 'function') {
     loadSelectedCards();
+  }
+  
+  // PROTECCIÓN FINAL: Si el modal de confirmación está abierto, asegurar que sus botones estén habilitados
+  if (isConfirmModalOpen) {
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    if (confirmDeleteBtn) confirmDeleteBtn.disabled = false;
+    if (cancelDeleteBtn) cancelDeleteBtn.disabled = false;
   }
 }
 
@@ -3206,6 +3240,22 @@ function showModal(modalId) {
     modal.classList.add('active');
 
     document.body.style.overflow = 'hidden';
+    
+    // PROTECCIÓN ESPECIAL para el modal de confirmación: asegurar que los botones estén habilitados
+    if (modalId === 'confirmDeleteModal') {
+      const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+      const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+      if (confirmDeleteBtn) {
+        confirmDeleteBtn.disabled = false;
+        confirmDeleteBtn.style.pointerEvents = 'auto';
+        confirmDeleteBtn.style.opacity = '1';
+      }
+      if (cancelDeleteBtn) {
+        cancelDeleteBtn.disabled = false;
+        cancelDeleteBtn.style.pointerEvents = 'auto';
+        cancelDeleteBtn.style.opacity = '1';
+      }
+    }
 
     const firstTextarea = modal.querySelector('textarea');
     if (firstTextarea) {
@@ -3229,6 +3279,17 @@ function hideModal(modalId) {
     modal.classList.remove('active');
 
     document.body.style.overflow = '';
+
+    // Si es el modal de confirmación, limpiar el estado
+    if (modalId === 'confirmDeleteModal') {
+      isConfirmModalOpen = false;
+      pendingConfirmAction = null;
+      // Detener el intervalo de protección
+      if (confirmModalProtectionInterval) {
+        clearInterval(confirmModalProtectionInterval);
+        confirmModalProtectionInterval = null;
+      }
+    }
 
     // Limpiar formulario de cambios si se cierra el modal de cambios
 
@@ -3350,56 +3411,263 @@ function verifyCredentials() {
 
 }
 
-// Función para mostrar mensaje de éxito
-
+// Función para mostrar mensaje de éxito (mejorada con notificaciones personalizadas)
 function showSuccessMessage(message) {
-
-  // Crear elemento de mensaje
-
+  // Crear elemento de mensaje con clase success-notification (igual que en comunidades.js)
   const messageElement = document.createElement('div');
-
-  messageElement.className = 'success-message';
-
+  messageElement.className = 'success-notification';
   messageElement.textContent = message;
-
+  
   // Agregar al body
-
   document.body.appendChild(messageElement);
-
+  
   // Remover después de 3 segundos
-
   setTimeout(() => {
-
-    document.body.removeChild(messageElement);
-
+    if (messageElement.parentNode) {
+      messageElement.remove();
+    }
   }, 3000);
-
 }
 
-// Función para mostrar mensaje de error
-
+// Función para mostrar mensaje de error (mejorada con notificaciones personalizadas)
 function showErrorMessage(message) {
-
-  // Crear elemento de mensaje
-
+  // Crear elemento de mensaje con clase error-notification (igual que en comunidades.js)
   const messageElement = document.createElement('div');
-
-  messageElement.className = 'error-message';
-
+  messageElement.className = 'error-notification';
   messageElement.textContent = message;
-
+  
   // Agregar al body
-
   document.body.appendChild(messageElement);
-
+  
   // Remover después de 3 segundos
-
   setTimeout(() => {
-
-    document.body.removeChild(messageElement);
-
+    if (messageElement.parentNode) {
+      messageElement.remove();
+    }
   }, 3000);
+}
 
+// Función para mostrar modal de confirmación personalizado (reemplaza confirm())
+let pendingConfirmAction = null;
+// Variable global para rastrear si el modal de confirmación está abierto
+let isConfirmModalOpen = false;
+// Interval para asegurar que los botones siempre estén habilitados cuando el modal está abierto
+let confirmModalProtectionInterval = null;
+
+function showConfirmModal(message, onConfirm, onCancel = null) {
+  const confirmModal = document.getElementById('confirmDeleteModal');
+  const confirmMessage = document.getElementById('confirmMessage');
+  
+  if (!confirmModal || !confirmMessage) {
+    // Si no existe el modal, usar confirm nativo como fallback
+    if (confirm(message)) {
+      onConfirm();
+    } else if (onCancel) {
+      onCancel();
+    }
+    return;
+  }
+  
+  confirmMessage.textContent = message;
+  pendingConfirmAction = { onConfirm, onCancel };
+  isConfirmModalOpen = true;
+  
+  // Función para asegurar que los botones estén siempre habilitados
+  const ensureButtonsEnabled = () => {
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const closeConfirmModal = document.getElementById('closeConfirmModal');
+    
+    if (!isConfirmModalOpen) {
+      // Si el modal está cerrado, detener la protección
+      if (confirmModalProtectionInterval) {
+        clearInterval(confirmModalProtectionInterval);
+        confirmModalProtectionInterval = null;
+      }
+      return;
+    }
+    
+    // Forzar habilitación de botones
+    if (confirmDeleteBtn) {
+      confirmDeleteBtn.disabled = false;
+      confirmDeleteBtn.style.pointerEvents = 'auto';
+      confirmDeleteBtn.style.opacity = '1';
+      confirmDeleteBtn.style.cursor = 'pointer';
+      confirmDeleteBtn.style.userSelect = 'auto';
+      confirmDeleteBtn.removeAttribute('aria-disabled');
+      confirmDeleteBtn.classList.remove('disabled', 'is-hidden-by-permissions');
+      // Prevenir que se deshabilite
+      Object.defineProperty(confirmDeleteBtn, 'disabled', {
+        get: () => false,
+        set: () => {}, // Ignorar intentos de deshabilitar
+        configurable: true
+      });
+    }
+    
+    if (cancelDeleteBtn) {
+      cancelDeleteBtn.disabled = false;
+      cancelDeleteBtn.style.pointerEvents = 'auto';
+      cancelDeleteBtn.style.opacity = '1';
+      cancelDeleteBtn.style.cursor = 'pointer';
+      cancelDeleteBtn.style.userSelect = 'auto';
+      cancelDeleteBtn.removeAttribute('aria-disabled');
+      cancelDeleteBtn.classList.remove('disabled', 'is-hidden-by-permissions');
+      // Prevenir que se deshabilite
+      Object.defineProperty(cancelDeleteBtn, 'disabled', {
+        get: () => false,
+        set: () => {}, // Ignorar intentos de deshabilitar
+        configurable: true
+      });
+    }
+    
+    if (closeConfirmModal) {
+      closeConfirmModal.disabled = false;
+      closeConfirmModal.style.pointerEvents = 'auto';
+      closeConfirmModal.style.opacity = '1';
+      closeConfirmModal.style.cursor = 'pointer';
+    }
+    
+    // Asegurar que el modal y su contenido tengan pointer-events habilitado
+    if (confirmModal) {
+      confirmModal.style.pointerEvents = 'auto';
+      confirmModal.classList.add('active');
+    }
+    
+    const modalContent = confirmModal?.querySelector('.modal-content');
+    if (modalContent) {
+      modalContent.style.pointerEvents = 'auto';
+    }
+    
+    const modalFooter = confirmModal?.querySelector('.modal-footer');
+    if (modalFooter) {
+      modalFooter.style.pointerEvents = 'auto';
+    }
+  };
+  
+  // Ejecutar inmediatamente
+  ensureButtonsEnabled();
+  
+  // Crear intervalo de protección que se ejecuta cada 100ms mientras el modal está abierto
+  if (confirmModalProtectionInterval) {
+    clearInterval(confirmModalProtectionInterval);
+  }
+  confirmModalProtectionInterval = setInterval(ensureButtonsEnabled, 100);
+  
+  showModal('confirmDeleteModal');
+  
+  // Verificación final después de mostrar el modal con múltiples intentos
+  [50, 150, 300].forEach(delay => {
+    setTimeout(ensureButtonsEnabled, delay);
+  });
+}
+
+// Función para ejecutar acción de confirmación
+async function executeConfirmAction(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  if (pendingConfirmAction && pendingConfirmAction.onConfirm) {
+    const action = pendingConfirmAction.onConfirm;
+    pendingConfirmAction = null;
+    
+    // Marcar que el modal ya no está abierto para la protección
+    isConfirmModalOpen = false;
+    
+    // Detener el intervalo de protección
+    if (confirmModalProtectionInterval) {
+      clearInterval(confirmModalProtectionInterval);
+      confirmModalProtectionInterval = null;
+    }
+    
+    // Ejecutar la acción y esperar a que termine (puede ser async)
+    try {
+      const result = action();
+      // Si es una promesa, esperar a que termine
+      if (result && typeof result.then === 'function') {
+        await result;
+      }
+      // Cerrar el modal después de que la acción se complete exitosamente
+      hideModal('confirmDeleteModal');
+    } catch (error) {
+      console.error('Error al ejecutar acción de confirmación:', error);
+      showErrorMessage(error.message || 'Error al ejecutar la acción. Por favor, intenta de nuevo.');
+      // Re-abrir el modal en caso de error para que el usuario pueda intentar de nuevo o cancelar
+      isConfirmModalOpen = true;
+      // Re-iniciar la protección
+      const ensureButtonsEnabled = () => {
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+        if (confirmDeleteBtn) confirmDeleteBtn.disabled = false;
+        if (cancelDeleteBtn) cancelDeleteBtn.disabled = false;
+      };
+      confirmModalProtectionInterval = setInterval(ensureButtonsEnabled, 100);
+      ensureButtonsEnabled();
+      // NO cerrar el modal en caso de error para que el usuario pueda intentar de nuevo o cancelar
+    }
+  } else {
+    // Si no hay acción pendiente, solo cerrar el modal
+    isConfirmModalOpen = false;
+    if (confirmModalProtectionInterval) {
+      clearInterval(confirmModalProtectionInterval);
+      confirmModalProtectionInterval = null;
+    }
+    hideModal('confirmDeleteModal');
+  }
+}
+
+// Función para cancelar acción de confirmación
+function cancelConfirmAction(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  if (pendingConfirmAction && pendingConfirmAction.onCancel) {
+    pendingConfirmAction.onCancel();
+  }
+  pendingConfirmAction = null;
+  isConfirmModalOpen = false;
+  
+  // Detener el intervalo de protección
+  if (confirmModalProtectionInterval) {
+    clearInterval(confirmModalProtectionInterval);
+    confirmModalProtectionInterval = null;
+  }
+  
+  hideModal('confirmDeleteModal');
+}
+
+// Función para actualizar el proyecto actual en tiempo real (similar a refreshCurrentCommunity)
+async function refreshCurrentProject(successMessage = null) {
+  if (!currentProjectData || !currentProjectData.id) {
+    return;
+  }
+  
+  try {
+    // Recargar los datos del proyecto desde el servidor
+    const updated = await loadProjectDetails(currentProjectData.id);
+    
+    if (updated) {
+      // Actualizar la vista actual sin recargar toda la página
+      // mostrarDetalleProyecto ya se llama dentro de loadProjectDetails
+      // Solo necesitamos actualizar los elementos si estamos en la vista de detalle
+      
+      const detailView = document.getElementById('projectDetailView');
+      if (detailView && detailView.style.display !== 'block') {
+        // Si no estamos en la vista de detalle, no necesitamos hacer nada más
+        return;
+      }
+      
+      // Si hay un mensaje de éxito, mostrarlo
+      if (successMessage) {
+        showSuccessMessage(successMessage);
+      }
+    }
+  } catch (error) {
+    showErrorMessage(error.message || 'No se pudo actualizar la información del proyecto.');
+  }
 }
 
 function openCommunityInlinePanel({ hostCard, community, regionId, description }) {
@@ -4508,7 +4776,7 @@ async function addImageToProject() {
 
     if (!currentProject || !currentProject.id) {
 
-      alert('Error: No se pudo obtener la información del evento. Por favor, recarga la página.');
+      showErrorMessage('Error: No se pudo obtener la información del evento. Por favor, recarga la página.');
 
       return;
 
@@ -4582,10 +4850,8 @@ async function addImageToProject() {
 
     hideModal('addImageModal');
 
-    shouldRefreshLatestProjects = true;
-    await loadProjectDetails(currentProject.id);
-
-    showSuccessMessage(uploadedCount === 1 ? 'Imagen agregada exitosamente' : 'Imágenes agregadas exitosamente');
+    // Actualizar la vista en tiempo real
+    await refreshCurrentProject(uploadedCount === 1 ? 'Imagen agregada exitosamente' : 'Imágenes agregadas exitosamente');
 
   } catch (error) {
 
@@ -4667,9 +4933,8 @@ async function eliminarImagenGaleria(imagenId) {
     const result = await response.json();
 
     if (result.success) {
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
-      showSuccessMessage('Imagen eliminada exitosamente de la galería.');
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Imagen eliminada exitosamente de la galería.');
     } else {
       showErrorMessage(result.error || 'Error al eliminar la imagen de la galería.');
     }
@@ -4693,14 +4958,13 @@ function showEditDescriptionModal() {
 
   if (!currentProject || !currentProject.id) {
 
-    alert('Error: No se pudo obtener la información del evento.');
+    showErrorMessage('Error: No se pudo obtener la información del evento.');
 
     return;
 
   }
 
   // Cargar la descripción actual del proyecto
-
   const descripcionActual = currentProject.descripcion || '';
 
   const descripcionTexto = descripcionActual
@@ -4792,17 +5056,18 @@ async function updateProjectDescription() {
 
       hideModal('editDescriptionModal');
 
-      alert('Descripción actualizada exitosamente.');
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Descripción actualizada exitosamente.');
 
     } else {
 
-      alert(result.error || 'Error al actualizar la descripción.');
+      showErrorMessage(result.error || 'Error al actualizar la descripción.');
 
     }
 
   } catch (error) {
 
-    alert('Error al guardar la descripción. Por favor, intenta de nuevo.');
+    showErrorMessage('Error al guardar la descripción. Por favor, intenta de nuevo.');
 
   }
 
@@ -4834,7 +5099,7 @@ function showEditDataModal() {
 
   if (!proyecto || !proyecto.id) {
 
-    alert('Error: No se pudo obtener la información del evento.');
+    showErrorMessage('Error: No se pudo obtener la información del evento.');
 
     return;
 
@@ -5712,7 +5977,7 @@ async function addPersonnelToProject() {
 
   if (selectedPersonnel.length === 0) {
 
-    alert('Por favor selecciona al menos un colaborador');
+    showErrorMessage('Por favor selecciona al menos un colaborador');
 
     return;
 
@@ -5722,7 +5987,7 @@ async function addPersonnelToProject() {
 
   if (!currentProject || !currentProject.id) {
 
-    alert('Error: No se pudo obtener la información del evento.');
+    showErrorMessage('Error: No se pudo obtener la información del evento.');
 
     return;
 
@@ -5742,7 +6007,7 @@ async function addPersonnelToProject() {
 
     if (newPersonnel.length === 0) {
 
-      alert('Los colaboradores seleccionados ya están asignados al evento.');
+      showErrorMessage('Los colaboradores seleccionados ya están asignados al evento.');
 
       return;
 
@@ -5803,21 +6068,20 @@ async function addPersonnelToProject() {
       // Recargar los detalles del evento
 
       shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
-
-      alert(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
-
       hideModal('addPersonnelModal');
+
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
 
     } else {
 
-      alert(result.error || 'Error al agregar personal al evento.');
+      showErrorMessage(result.error || 'Error al agregar personal al evento.');
 
     }
 
   } catch (error) {
 
-    alert('Error al agregar personal. Por favor, intenta de nuevo.');
+    showErrorMessage('Error al agregar personal. Por favor, intenta de nuevo.');
 
   }
 
@@ -6007,6 +6271,9 @@ function clearChangeForm() {
   editingCambioId = null;
   editingCambioGroupId = null;
   editingCambioIds = [];
+  
+  // Limpiar lista de evidencias a eliminar
+  evidenciasAEliminar = [];
 
   document.getElementById('changeModalTitle').textContent = 'Agregar Cambio';
 
@@ -6017,6 +6284,12 @@ function clearChangeForm() {
 // Función para confirmar eliminación de cambio
 
 function confirmarEliminarCambio(cambioId, cambio) {
+  
+  // Verificar permisos antes de mostrar el modal
+  if (!tienePermisoGestionActual()) {
+    mostrarMensajePermisoDenegado();
+    return;
+  }
 
   const mensaje = cambio 
 
@@ -6024,63 +6297,54 @@ function confirmarEliminarCambio(cambioId, cambio) {
 
     : '¿Estás seguro de que deseas eliminar este cambio?';
 
-  document.getElementById('confirmMessage').textContent = mensaje;
-
-  document.getElementById('confirmDeleteBtn').onclick = () => eliminarCambio(cambioId);
-
-  showModal('confirmDeleteModal');
+  // Usar modal de confirmación personalizado (ya muestra el modal internamente)
+  showConfirmModal(
+    mensaje,
+    async () => {
+      await eliminarCambio(cambioId);
+    }
+  );
 
 }
 
 // Función para eliminar cambio
 
 async function eliminarCambio(cambioId) {
+  
+  // Verificar permisos antes de eliminar
+  if (!tienePermisoGestionActual()) {
+    mostrarMensajePermisoDenegado();
+    return;
+  }
 
   const currentProject = getCurrentProject();
 
   if (!currentProject || !currentProject.id) {
-
     showErrorMessage('No se pudo obtener la información del proyecto');
-
     return;
-
   }
 
   try {
-
     const response = await fetch(`/api/evento/${currentProject.id}/cambio/${cambioId}/eliminar/`, {
-
       method: 'POST',
-
       headers: {
-
         'X-CSRFToken': getCookie('csrftoken')
-
       }
-
     });
 
     const result = await response.json();
 
     if (result.success) {
-
-      showSuccessMessage('Cambio eliminado exitosamente');
-
-      hideModal('confirmDeleteModal');
-
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
-
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Cambio eliminado exitosamente');
     } else {
-
-      showErrorMessage(result.error || 'Error al eliminar el cambio');
-
+      // Lanzar error para que executeConfirmAction lo capture
+      throw new Error(result.error || 'Error al eliminar el cambio');
     }
 
   } catch (error) {
-
-    showErrorMessage('Error al eliminar el cambio. Por favor, intenta de nuevo.');
-
+    // Lanzar error para que executeConfirmAction lo capture
+    throw new Error(error.message || 'Error al eliminar el cambio. Por favor, intenta de nuevo.');
   }
 
 }
@@ -6200,6 +6464,9 @@ function editarCambio(cambioId, cambio) {
   const preview = document.getElementById('changeEvidencesPreview');
 
   if (preview) {
+
+    // Inicializar lista de evidencias a eliminar
+    evidenciasAEliminar = [];
 
     renderExistingEvidences(cambio.evidencias || []);
 
@@ -6415,6 +6682,12 @@ async function addChangeToProject() {
     } else {
     }
 
+    // Agregar evidencias marcadas para eliminación (solo al editar)
+    if (editingCambioId && evidenciasAEliminar.length > 0) {
+      formData.append('evidencias_eliminadas', JSON.stringify(evidenciasAEliminar));
+      console.log(`Enviando ${evidenciasAEliminar.length} evidencia(s) para eliminar:`, evidenciasAEliminar);
+    }
+
     // Agregar archivos de evidencias con sus descripciones individuales
 
     if (selectedEvidencesFiles.length > 0) {
@@ -6482,8 +6755,6 @@ async function addChangeToProject() {
 
     if (result.success) {
 
-      showSuccessMessage(editingCambioId ? 'Cambio actualizado exitosamente' : 'Cambio agregado exitosamente');
-
       // Si estamos editando, actualizar las descripciones de evidencias existentes que hayan cambiado
 
       if (editingCambioId) {
@@ -6495,14 +6766,17 @@ async function addChangeToProject() {
       editingCambioId = null;
       editingCambioGroupId = null;
       editingCambioIds = [];
+      
+      // Limpiar lista de evidencias a eliminar
+      evidenciasAEliminar = [];
 
       hideModal('addChangeModal');
 
       clearChangeForm();
 
-      // Recargar los detalles del proyecto
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
+      // Actualizar la vista en tiempo real (ya no estamos en modo edición)
+      const mensaje = editingCambioId ? 'Cambio actualizado exitosamente' : 'Cambio agregado exitosamente';
+      await refreshCurrentProject(mensaje);
 
     } else {
 
@@ -6830,7 +7104,7 @@ async function addPersonnelToProject() {
 
   if (selectedPersonnel.length === 0) {
 
-    alert('Por favor selecciona al menos un colaborador');
+    showErrorMessage('Por favor selecciona al menos un colaborador');
 
     return;
 
@@ -6840,7 +7114,7 @@ async function addPersonnelToProject() {
 
   if (!currentProject || !currentProject.id) {
 
-    alert('Error: No se pudo obtener la información del evento.');
+    showErrorMessage('Error: No se pudo obtener la información del evento.');
 
     return;
 
@@ -6860,7 +7134,7 @@ async function addPersonnelToProject() {
 
     if (newPersonnel.length === 0) {
 
-      alert('Los colaboradores seleccionados ya están asignados al evento.');
+      showErrorMessage('Los colaboradores seleccionados ya están asignados al evento.');
 
       return;
 
@@ -6921,21 +7195,20 @@ async function addPersonnelToProject() {
       // Recargar los detalles del evento
 
       shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
-
-      alert(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
-
       hideModal('addPersonnelModal');
+
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject(`${newPersonnel.length} colaborador(es) agregado(s) exitosamente`);
 
     } else {
 
-      alert(result.error || 'Error al agregar personal al evento.');
+      showErrorMessage(result.error || 'Error al agregar personal al evento.');
 
     }
 
   } catch (error) {
 
-    alert('Error al agregar personal. Por favor, intenta de nuevo.');
+    showErrorMessage('Error al agregar personal. Por favor, intenta de nuevo.');
 
   }
 
@@ -7283,21 +7556,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Botón "Agregar nuevo"
 
-  document.getElementById('btnAgregarNuevo').addEventListener('click', function() {
-
-    // Mostrar confirmación antes de redirigir
-
-  const confirmed = confirm('¿Está seguro que quiere crear un evento nuevo?\n\nAbandonará esta página y será redirigido al formulario de creación de eventos.');
-
-  if (confirmed) {
-
-    // Redirigir a la página de gestión de eventos con scroll automático al formulario de creación
-
-    window.location.href = window.DJANGO_URLS.gestioneseventos + '#createEventView';
-
+  const btnAgregarNuevo = document.getElementById('btnAgregarNuevo');
+  if (btnAgregarNuevo) {
+    btnAgregarNuevo.addEventListener('click', function() {
+      // Mostrar confirmación antes de redirigir usando modal personalizado
+      showConfirmModal(
+        '¿Está seguro que quiere crear un evento nuevo?\n\nAbandonará esta página y será redirigido al formulario de creación de eventos.',
+        () => {
+          // Redirigir a la página de gestión de eventos con scroll automático al formulario de creación
+          window.location.href = window.DJANGO_URLS.gestioneseventos + '#createEventView';
+        }
+      );
+    });
   }
-
-  });
 
   // Escuchar cambios en el hash de la URL
 
@@ -7389,7 +7660,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!currentProject || !currentProject.id) {
 
-          alert('Error: No se pudo obtener la información del evento.');
+          showErrorMessage('Error: No se pudo obtener la información del evento.');
 
           return;
 
@@ -7416,7 +7687,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const currentProject = getCurrentProject();
 
       if (!currentProject || !currentProject.id) {
-        alert('No se pudo obtener la información del evento para generar el reporte.');
+        showErrorMessage('No se pudo obtener la información del evento para generar el reporte.');
         return;
       }
 
@@ -8047,27 +8318,54 @@ document.addEventListener('DOMContentLoaded', function() {
   const closeConfirmModal = document.getElementById('closeConfirmModal');
 
   if (closeConfirmModal) {
-
-    closeConfirmModal.addEventListener('click', () => hideModal('confirmDeleteModal'));
-
+    // Remover listeners anteriores para evitar duplicados
+    closeConfirmModal.removeEventListener('click', cancelConfirmAction);
+    closeConfirmModal.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelConfirmAction(e);
+    }, true); // Usar capture phase para asegurar que se ejecute primero
   }
 
   const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
 
   if (cancelDeleteBtn) {
-
-    cancelDeleteBtn.addEventListener('click', () => hideModal('confirmDeleteModal'));
-
+    // Remover listeners anteriores para evitar duplicados
+    cancelDeleteBtn.removeEventListener('click', cancelConfirmAction);
+    cancelDeleteBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelConfirmAction(e);
+    }, true); // Usar capture phase para asegurar que se ejecute primero
   }
 
   const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
   if (confirmDeleteBtn) {
-    confirmDeleteBtn.addEventListener('click', function(e) {
-      executeDeleteAction();
-    });
-
-  } else {
+    // Remover listeners anteriores para evitar duplicados
+    confirmDeleteBtn.removeEventListener('click', executeConfirmAction);
+    // Usar la función unificada para confirmar acciones
+    confirmDeleteBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      executeConfirmAction(e);
+    }, true); // Usar capture phase para asegurar que se ejecute primero
+    // Asegurar que el botón esté habilitado
+    confirmDeleteBtn.disabled = false;
+    confirmDeleteBtn.style.pointerEvents = 'auto';
+    confirmDeleteBtn.style.opacity = '1';
+    confirmDeleteBtn.style.cursor = 'pointer';
+  }
+  
+  // Mantener compatibilidad con showConfirmDeleteModal (para eliminar secciones)
+  if (typeof window.showConfirmDeleteModal === 'undefined') {
+    window.showConfirmDeleteModal = function(message, callback) {
+      showConfirmModal(message, callback);
+    };
+  }
+  
+  if (typeof window.executeDeleteAction === 'undefined') {
+    window.executeDeleteAction = executeConfirmAction;
   }
 
   // Event listeners para botones de eliminación de sección
@@ -8960,15 +9258,10 @@ async function saveProjectData() {
       // DEBUG: Mostrar respuesta del backend
       console.log('✅ RESPUESTA DEL BACKEND:', result);
 
-      // Recargar los detalles del proyecto para mostrar los cambios
-
-      shouldRefreshLatestProjects = true;
-      console.log('🔄 Recargando detalles del proyecto...');
-      await loadProjectDetails(proyecto.id);
-
       hideModal('editDataModal');
 
-      showSuccessMessage('Datos del proyecto actualizados exitosamente.');
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Datos del proyecto actualizados exitosamente.');
 
       // Limpiar variables
 
@@ -9247,7 +9540,7 @@ async function addFileToProject() {
       confirmButton.disabled = false;
       confirmButton.textContent = originalLabel || 'Agregar';
     }
-    alert('Error: No se pudo obtener la información del evento.');
+    showErrorMessage('Error: No se pudo obtener la información del evento.');
     return;
   }
 
@@ -9299,19 +9592,15 @@ async function addFileToProject() {
     // Mostrar resultados
 
     if (successCount > 0) {
-      // Recargar los detalles del proyecto
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(proyecto.id);
-
       hideModal('addFileModal');
       
       clearFileForm();
 
-      if (errorCount === 0) {
-        showSuccessMessage(`${successCount} archivo(s) agregado(s) exitosamente.`);
-      } else {
-        showSuccessMessage(`${successCount} archivo(s) agregado(s). ${errorCount} archivo(s) fallaron.`);
-      }
+      // Actualizar la vista en tiempo real
+      const mensaje = errorCount === 0 
+        ? `${successCount} archivo(s) agregado(s) exitosamente.`
+        : `${successCount} archivo(s) agregado(s). ${errorCount} archivo(s) fallaron.`;
+      await refreshCurrentProject(mensaje);
     } else {
       // Todos fallaron
       showErrorMessage(`Error al agregar archivos: ${errors.join(', ')}`);
@@ -9366,12 +9655,8 @@ async function eliminarArchivoProyecto(archivoId) {
 
     if (result.success) {
 
-      // Recargar los detalles del proyecto para actualizar la lista
-
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(proyecto.id);
-
-      showSuccessMessage('Archivo eliminado exitosamente.');
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Archivo eliminado exitosamente.');
 
     } else {
 
@@ -9466,11 +9751,11 @@ async function updateProjectFileDescription() {
       throw new Error(result.error || 'No se pudo actualizar la descripción');
     }
 
-    shouldRefreshLatestProjects = true;
-    await loadProjectDetails(proyectoId);
     hideModal('editFileDescriptionModal');
-    showSuccessMessage('Descripción del archivo actualizada exitosamente.');
     currentProjectFileEdit = null;
+    
+    // Actualizar la vista en tiempo real
+    await refreshCurrentProject('Descripción del archivo actualizada exitosamente.');
   } catch (error) {
     showErrorMessage(error.message || 'Error al actualizar la descripción del archivo.');
   } finally {
@@ -9707,17 +9992,25 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
   }
 
-  if (!confirm('¿Estás seguro de que deseas eliminar este miembro del personal del evento?')) {
+  // Usar modal de confirmación personalizado
+  showConfirmModal(
+    '¿Estás seguro de que deseas eliminar este miembro del personal del evento?',
+    async () => {
+      // Ejecutar eliminación cuando el usuario confirme
+      await ejecutarEliminacionPersonal(personnelId, personnelType);
+    }
+  );
 
-    return;
+}
 
-  }
+// Función auxiliar para ejecutar la eliminación de personal
+async function ejecutarEliminacionPersonal(personnelId, personnelType) {
 
   const currentProject = getCurrentProject();
 
   if (!currentProject || !currentProject.id) {
 
-    alert('Error: No se pudo obtener la información del evento.');
+    showErrorMessage('Error: No se pudo obtener la información del evento.');
 
     return;
 
@@ -9777,22 +10070,18 @@ async function removePersonnelFromProject(personnelId, personnelType) {
 
     if (result.success) {
 
-      // Recargar los detalles del evento
-
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
-
-      alert('Personal eliminado exitosamente del evento.');
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Personal eliminado exitosamente del evento.');
 
     } else {
 
-      alert(result.error || 'Error al eliminar personal del evento.');
+      showErrorMessage(result.error || 'Error al eliminar personal del evento.');
 
     }
 
   } catch (error) {
 
-    alert('Error al eliminar personal. Por favor, intenta de nuevo.');
+    showErrorMessage('Error al eliminar personal. Por favor, intenta de nuevo.');
 
   }
 
@@ -10218,21 +10507,23 @@ function showChangeDetailsModal(cambio) {
     }
   }
 
-  // Cargar evidencias (pasar permisos)
+  // Cargar evidencias (pasar permisos, pero NO permitir eliminar en modal de detalles - solo lectura)
+  // En el modal de detalles NO se pueden eliminar evidencias, solo verlas
 
-  loadEvidences(cambio.evidencias || [], puedeGestionar);
+  loadEvidences(cambio.evidencias || [], puedeGestionar, false);
 
   // Guardar el ID del cambio actual para agregar evidencias
 
   currentCambioId = cambio.id;
 
-  // Mostrar/ocultar botón de agregar evidencia según permisos
+  // Ocultar botón de agregar evidencia en el modal de detalles (solo lectura)
+  // Las evidencias solo se pueden agregar/eliminar al editar el cambio
 
   const addEvidenceBtn = document.getElementById('addEvidenceBtn');
 
   if (addEvidenceBtn) {
 
-    addEvidenceBtn.style.display = puedeGestionar ? 'flex' : 'none';
+    addEvidenceBtn.style.display = 'none'; // Siempre oculto en modal de detalles
 
   }
 
@@ -10278,12 +10569,8 @@ async function actualizarDescripcionCambio(cambioId, descripcion) {
 
     if (result.success) {
 
-      showSuccessMessage('Descripción del cambio actualizada exitosamente');
-
-      // Recargar los detalles del proyecto
-
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Descripción del cambio actualizada exitosamente');
 
       // Reabrir el modal de detalles del cambio con los datos actualizados
 
@@ -10369,12 +10656,8 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 
     if (result.success) {
 
-      showSuccessMessage('Descripción actualizada exitosamente');
-
-      // Recargar los detalles del proyecto
-
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Descripción actualizada exitosamente');
 
       // Reabrir el modal de detalles del cambio con datos actualizados
 
@@ -10412,7 +10695,7 @@ async function actualizarDescripcionEvidencia(evidenciaId, descripcion) {
 
 // Función para cargar evidencias
 
-function loadEvidences(evidences, puedeGestionar = false) {
+function loadEvidences(evidences, puedeGestionar = false, permiteEliminar = false) {
 
   const grid = document.getElementById('evidencesGrid');
 
@@ -10486,9 +10769,10 @@ function loadEvidences(evidences, puedeGestionar = false) {
 
       : `<span style="color: #6c757d; font-weight: 500; font-size: 0.9rem; flex: 1; min-width: 0; word-break: break-word; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar evidencias">${nombreArchivo}</span>`;
 
-    // Botón de eliminar solo si tiene permisos
+    // Botón de eliminar solo si tiene permisos Y se permite eliminar (modo edición)
+    // En el modal de detalles (solo lectura) NO se muestra el botón de eliminar
 
-    const botonEliminarHTML = puedeGestionar 
+    const botonEliminarHTML = (puedeGestionar && permiteEliminar)
 
       ? `<button class="evidence-remove" data-evidence-id="${evidence.id}" style="background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; transition: background 0.2s; flex-shrink: 0;" title="Eliminar evidencia" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
 
@@ -10743,18 +11027,14 @@ async function addEvidenceToChange() {
 
     if (result.success) {
 
-      showSuccessMessage('Evidencia agregada exitosamente');
-
       hideModal('addEvidenceModal');
 
       clearEvidenceForm();
 
-      // Recargar los detalles del proyecto para actualizar las evidencias
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Evidencia agregada exitosamente');
 
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
-
-      // Reabrir el modal de detalles del cambio
+      // Reabrir el modal de detalles del cambio con datos actualizados
 
       const cambio = currentProjectData?.cambios?.find(c => c.id === currentCambioId);
 
@@ -10792,7 +11072,25 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
   }
 
-  if (!confirm('¿Estás seguro de que deseas eliminar esta evidencia?')) {
+  // Usar modal de confirmación personalizado en lugar de confirm()
+  showConfirmModal(
+    '¿Estás seguro de que deseas eliminar esta evidencia?',
+    async () => {
+      // Ejecutar eliminación cuando el usuario confirme
+      await ejecutarEliminacionEvidencia(evidenciaId);
+    }
+  );
+
+}
+
+// Función auxiliar para ejecutar la eliminación de evidencia
+async function ejecutarEliminacionEvidencia(evidenciaId) {
+
+  const currentProject = getCurrentProject();
+
+  if (!currentProject || !currentProject.id || !currentCambioId) {
+
+    showErrorMessage('No se pudo obtener la información del cambio');
 
     return;
 
@@ -10812,19 +11110,41 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
     });
 
-    const result = await response.json();
+    // Verificar si la respuesta es exitosa o es un 404 (evidencia ya eliminada)
+    let result;
+    try {
+      result = await response.json();
+    } catch (jsonError) {
+      // Si no se puede parsear JSON, lanzar error
+      throw new Error('Respuesta inválida del servidor');
+    }
+
+    // Si es 404 y el error indica que la evidencia no existe, considerar como eliminación exitosa
+    // (la evidencia ya fue eliminada anteriormente)
+    if (response.status === 404 && result.error && result.error.includes('Evidencia no encontrada')) {
+      
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('La evidencia ya fue eliminada. Actualizando la vista...');
+
+      // Reabrir el modal de detalles del cambio con datos actualizados
+      const cambio = currentProjectData?.cambios?.find(c => c.id === currentCambioId);
+
+      if (cambio) {
+
+        showChangeDetailsModal(cambio);
+
+      }
+
+      return;
+
+    }
 
     if (result.success) {
 
-      showSuccessMessage('Evidencia eliminada exitosamente');
+      // Actualizar la vista en tiempo real
+      await refreshCurrentProject('Evidencia eliminada exitosamente');
 
-      // Recargar los detalles del proyecto
-
-      shouldRefreshLatestProjects = true;
-      await loadProjectDetails(currentProject.id);
-
-      // Reabrir el modal de detalles del cambio
-
+      // Reabrir el modal de detalles del cambio con datos actualizados
       const cambio = currentProjectData?.cambios?.find(c => c.id === currentCambioId);
 
       if (cambio) {
@@ -10841,7 +11161,19 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 
   } catch (error) {
 
+    console.error('Error al eliminar evidencia:', error);
     showErrorMessage('Error al eliminar evidencia. Por favor, intenta de nuevo.');
+
+    // Intentar actualizar el UI de todas formas para sincronizar con el estado real
+    try {
+      await refreshCurrentProject();
+      const cambio = currentProjectData?.cambios?.find(c => c.id === currentCambioId);
+      if (cambio) {
+        showChangeDetailsModal(cambio);
+      }
+    } catch (updateError) {
+      console.error('Error al actualizar UI:', updateError);
+    }
 
   }
 
@@ -10968,6 +11300,13 @@ function renderExistingEvidences(evidencias) {
         </a>
 
         <span style="color: #6c757d; font-size: 0.8rem; padding: 4px 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">Existente</span>
+        
+        <button type="button" class="btn-remove-evidence-existing" data-evidence-id="${evidencia.id}" style="background: rgba(220, 53, 69, 0.9); color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: 8px; transition: background 0.2s; flex-shrink: 0;" title="Marcar para eliminar" onmouseover="this.style.background='#dc3545'" onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
 
       </div>
 
@@ -11003,6 +11342,30 @@ function renderExistingEvidences(evidencias) {
 
     }
 
+  });
+
+  // Agregar event listeners para botones de eliminar evidencias existentes
+  preview.querySelectorAll('.btn-remove-evidence-existing').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const evidenciaId = this.getAttribute('data-evidence-id');
+      
+      // Marcar evidencia para eliminación
+      if (!evidenciasAEliminar.includes(evidenciaId)) {
+        evidenciasAEliminar.push(evidenciaId);
+        
+        // Marcar visualmente como eliminado
+        const evidenceDiv = this.closest('[data-evidence-existing="true"]');
+        if (evidenceDiv) {
+          evidenceDiv.style.opacity = '0.5';
+          evidenceDiv.style.textDecoration = 'line-through';
+          this.disabled = true;
+          this.title = 'Marcado para eliminar';
+        }
+        
+        console.log(`Evidencia ${evidenciaId} marcada para eliminación. Total: ${evidenciasAEliminar.length}`);
+      }
+    });
   });
 
 }

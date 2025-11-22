@@ -7445,6 +7445,17 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                     }, status=400)
                 colaboradores_objs.append(colaborador)
 
+        # Obtener evidencias marcadas para eliminación
+        evidencias_eliminadas_str = request.POST.get('evidencias_eliminadas')
+        evidencias_ids_eliminar = []
+        if evidencias_eliminadas_str:
+            try:
+                evidencias_ids_eliminar = json.loads(evidencias_eliminadas_str)
+                print(f'📎 Evidencias marcadas para eliminación: {evidencias_ids_eliminar}')
+            except json.JSONDecodeError as e:
+                print(f'⚠️ Error al parsear evidencias_eliminadas: {e}')
+                evidencias_ids_eliminar = []
+
         # Obtener comunidades seleccionadas
         comunidades_ids_str = request.POST.get('comunidades_ids')
         print(f'🔵 comunidades_ids_str recibido (actualización): {comunidades_ids_str} (tipo: {type(comunidades_ids_str)})')
@@ -7727,6 +7738,23 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                                 import traceback
                                 traceback.print_exc()
 
+            # Eliminar evidencias marcadas para eliminación (ANTES de procesar nuevas)
+            if evidencias_ids_eliminar:
+                try:
+                    # Buscar evidencias que pertenecen a alguno de los cambios del grupo
+                    evidencias_a_eliminar = EventosEvidenciasCambios.objects.filter(
+                        id__in=evidencias_ids_eliminar,
+                        actividad=evento,
+                        cambio__grupo_id=grupo_uuid
+                    )
+                    eliminadas_count = _eliminar_queryset_con_archivos(evidencias_a_eliminar)
+                    if eliminadas_count:
+                        print(f'✅ Eliminadas {eliminadas_count} evidencia(s) del cambio')
+                except Exception as e:
+                    print(f'⚠️ Error al eliminar evidencias: {e}')
+                    import traceback
+                    traceback.print_exc()
+
             responsables_nombres = []
             grupo_cambios_actualizados = EventoCambioColaborador.objects.filter(
                 actividad=evento,
@@ -7800,6 +7828,8 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             'error': f'Error al actualizar cambio: {str(e)}'
         }, status=500)
 @permiso_gestionar_eventos
+@permiso_gestionar_eventos_api
+@permiso_gestionar_eventos_api
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_cambio(request, evento_id, cambio_id):
     """API: Eliminar un cambio y sus evidencias"""
@@ -8596,10 +8626,12 @@ def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
             'error': 'Cambio no encontrado'
         }, status=404)
     except EventosEvidenciasCambios.DoesNotExist:
+        # Si la evidencia ya no existe, considerar como eliminación exitosa (idempotencia)
+        # Esto evita errores cuando el frontend intenta eliminar una evidencia que ya fue eliminada
         return JsonResponse({
-            'success': False,
-            'error': 'Evidencia no encontrada'
-        }, status=404)
+            'success': True,
+            'message': 'La evidencia ya fue eliminada anteriormente'
+        }, status=200)
     except Exception as e:
         import traceback
         traceback.print_exc()
