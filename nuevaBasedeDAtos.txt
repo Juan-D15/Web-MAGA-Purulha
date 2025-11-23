@@ -2699,3 +2699,77 @@ $$ LANGUAGE plpgsql;
 --    sin ocupar espacio innecesario
 -- 4. Las foreign keys usan ON DELETE SET NULL para evitar problemas si se
 --    elimina una comunidad o región
+
+-- Índices para evidencias
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad_es_imagen 
+    ON evidencias(actividad_id, es_imagen) 
+    WHERE actividad_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad_tipo 
+    ON evidencias(actividad_id, archivo_tipo) 
+    WHERE actividad_id IS NOT NULL;
+
+-- Índices para galería de eventos
+CREATE INDEX IF NOT EXISTS idx_eventos_galeria_actividad_creado 
+    ON eventos_galeria(actividad_id, creado_en DESC);
+
+-- Índice para beneficiarios por actividad
+CREATE INDEX IF NOT EXISTS idx_actividad_beneficiarios_lookup 
+    ON actividad_beneficiarios(actividad_id, beneficiario_id);
+
+-- Índice para comunidades relacionadas
+CREATE INDEX IF NOT EXISTS idx_actividad_comunidades_lookup 
+    ON actividad_comunidades(actividad_id, comunidad_id);
+
+-- Índice para personal de actividades
+CREATE INDEX IF NOT EXISTS idx_actividad_personal_lookup 
+    ON actividad_personal(actividad_id, colaborador_id, usuario_id);
+
+-- =====================================================
+-- ÍNDICES ADICIONALES PARA OPTIMIZACIÓN
+-- =====================================================
+
+-- 1. ÍNDICE PARA OPTIMIZAR CONTEO DE BENEFICIARIOS DISTINTOS POR ACTIVIDAD
+-- Esta consulta se usa frecuentemente: COUNT(DISTINCT beneficiario_id) WHERE actividad_id = X
+-- El índice compuesto existente ayuda, pero este índice parcial optimiza aún más
+CREATE INDEX IF NOT EXISTS idx_actividad_beneficiarios_actividad_count 
+    ON actividad_beneficiarios(actividad_id, beneficiario_id) 
+    WHERE actividad_id IS NOT NULL;
+
+-- 2. ÍNDICE PARA OPTIMIZAR CONSULTAS POR ACTIVIDAD Y FECHA DE ACTUALIZACIÓN
+-- Optimiza la consulta de "Últimos Proyectos" ordenados por actualizado_en
+CREATE INDEX IF NOT EXISTS idx_actividades_actualizado_en_desc 
+    ON actividades(actualizado_en DESC) 
+    WHERE eliminado_en IS NULL;
+
+-- 3. ÍNDICE PARA OPTIMIZAR CONSULTAS DE EVIDENCIAS POR ACTIVIDAD Y TIPO
+-- Ya existe idx_evidencias_actividad_es_imagen pero agregamos uno más específico
+CREATE INDEX IF NOT EXISTS idx_evidencias_actividad_imagen_creado 
+    ON evidencias(actividad_id, es_imagen, creado_en DESC) 
+    WHERE actividad_id IS NOT NULL AND es_imagen = TRUE;
+
+-- 4. ÍNDICE PARA OPTIMIZAR GALERÍA POR ACTIVIDAD
+-- Optimiza la consulta de galería ordenada por fecha de creación
+CREATE INDEX IF NOT EXISTS idx_eventos_galeria_actividad_creado_desc 
+    ON eventos_galeria(actividad_id, creado_en DESC) 
+    WHERE actividad_id IS NOT NULL;
+
+-- 5. ÍNDICE PARA OPTIMIZAR ARCHIVOS POR ACTIVIDAD
+-- Optimiza la consulta de archivos ordenada por fecha de creación
+CREATE INDEX IF NOT EXISTS idx_actividad_archivos_actividad_creado_desc 
+    ON actividad_archivos(actividad_id, creado_en DESC) 
+    WHERE actividad_id IS NOT NULL;
+
+-- 6. ÍNDICE PARA OPTIMIZAR CAMBIOS POR ACTIVIDAD
+-- Optimiza la consulta de cambios de colaboradores ordenados por fecha
+CREATE INDEX IF NOT EXISTS idx_eventos_cambios_colab_actividad_fecha_desc 
+    ON eventos_cambios_colaboradores(actividad_id, fecha_cambio DESC) 
+    WHERE actividad_id IS NOT NULL;
+
+-- 7. ÍNDICE PARA OPTIMIZAR PERSONAL POR ACTIVIDAD
+-- Optimiza la consulta de personal asignado a actividades
+CREATE INDEX IF NOT EXISTS idx_actividad_personal_actividad_usuario_colab 
+    ON actividad_personal(actividad_id, usuario_id, colaborador_id) 
+    WHERE actividad_id IS NOT NULL;
+
+
