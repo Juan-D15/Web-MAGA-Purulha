@@ -2,7 +2,7 @@ from django.http import JsonResponse, HttpResponse
 from django.db import connection
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-from django.db.models import Count, Q, Sum, Avg, Max, Min, F, Prefetch
+from django.db.models import Count, Q, Sum, Avg, Max, Min, F, Prefetch, Subquery, OuterRef, IntegerField
 from django.db.models.functions import TruncMonth, TruncYear, Extract
 from django.core.files.storage import FileSystemStorage
 from django.core.mail import send_mail
@@ -4546,22 +4546,29 @@ def api_ultimos_proyectos(request):
         from django.utils.timezone import localtime, is_aware, make_aware
         import pytz
         
-        # Obtener los últimos 3 eventos actualizados
+        # OPTIMIZACIÓN: Usar annotate para precalcular conteos y prefetch mejorado
+        # NOTA: No usar slice dentro de Prefetch, causa problemas. Limitaremos en el loop.
         eventos = Actividad.objects.filter(
             eliminado_en__isnull=True
         ).select_related(
             'tipo', 'comunidad', 'comunidad__region', 'responsable', 'portada'
         ).prefetch_related(
-            'personal__usuario',
-            'beneficiarios__beneficiario',
-            'evidencias'
+            Prefetch('personal', queryset=ActividadPersonal.objects.select_related('usuario', 'colaborador')),
+            Prefetch('evidencias', queryset=Evidencia.objects.filter(es_imagen=True).order_by('creado_en'))
+        ).annotate(
+            personal_count=Count('personal', distinct=True)
         ).order_by('-actualizado_en')[:3]
         
         proyectos_data = []
         for evento in eventos:
             try:
-                # Obtener la primera evidencia como imagen principal
-                primera_evidencia = evento.evidencias.filter(es_imagen=True).first()
+                # Obtener la primera evidencia como imagen principal - usar datos precargados
+                primera_evidencia = None
+                for evidencia in evento.evidencias.all():
+                    if evidencia.es_imagen and evidencia.url_almacenamiento:
+                        primera_evidencia = evidencia
+                        break
+                
                 imagen_url = None
                 if primera_evidencia and primera_evidencia.url_almacenamiento:
                     try:
@@ -4588,11 +4595,13 @@ def api_ultimos_proyectos(request):
                     else:
                         ubicacion = evento.comunidad.nombre
                 
-                # Obtener conteo de personal
+                # OPTIMIZACIÓN: Usar conteo precalculado con annotate en lugar de .count()
                 try:
-                    personal_count = evento.personal.count()
+                    personal_count = evento.personal_count  # Usar conteo precalculado
                     personal_nombres = []
-                    for ap in evento.personal.all()[:3]:
+                    # Usar personal precargado (limitado a 3 en el loop)
+                    personal_list = list(evento.personal.all())[:3]  # Limitar a 3 después de cargar
+                    for ap in personal_list:
                         if ap.usuario:
                             personal_nombres.append(ap.usuario.nombre if ap.usuario.nombre else ap.usuario.username)
                         elif ap.colaborador:
@@ -6160,9 +6169,27 @@ def api_obtener_detalle_proyecto(request, evento_id):
         # Si las columnas no existen, no hacer prefetch para evitar errores
         # La función obtener_cambios_evento manejará la carga de manera segura
         
+        # OPTIMIZACIÓN: Usar annotate para precalcular conteos en la misma consulta
+        # IMPORTANTE: Para beneficiarios con 900+ registros, NO usar Count en annotate porque hace JOIN costoso
+        # En su lugar, calcular el conteo de beneficiarios de manera separada y eficiente
         evento = Actividad.objects.select_related(
             'tipo', 'comunidad', 'comunidad__region', 'responsable', 'colaborador'
-        ).prefetch_related(*prefetch_fields).get(id=evento_id, eliminado_en__isnull=True)
+        ).prefetch_related(*prefetch_fields).annotate(
+            # OPTIMIZACIÓN: No incluir beneficiarios_count aquí para evitar JOIN costoso con 900+ registros
+            # Se calculará de manera separada y eficiente después
+            evidencias_count=Count('evidencias', distinct=True),
+            archivos_count=Count('archivos', distinct=True),
+            galeria_count=Count('galeria_imagenes', distinct=True),
+            cambios_count=Count('cambios_colaboradores', distinct=True)
+        ).get(id=evento_id, eliminado_en__isnull=True)
+        
+        # OPTIMIZACIÓN CRÍTICA: Calcular conteo de beneficiarios de manera separada y eficiente
+        # Esto evita el JOIN costoso cuando hay 900+ beneficiarios
+        # Usar directamente la tabla intermedia actividad_beneficiarios sin JOIN con beneficiarios
+        from webmaga.models import ActividadBeneficiario
+        beneficiarios_count = ActividadBeneficiario.objects.filter(
+            actividad_id=evento_id
+        ).values('beneficiario_id').distinct().count()
         
         # Personal asignado
         personal_data = []
@@ -6199,10 +6226,10 @@ def api_obtener_detalle_proyecto(request, evento_id):
                     'tiene_colaborador': True
                 })
         
-        # OPTIMIZACIÓN: NO cargar todos los beneficiarios - solo calcular el conteo
+        # OPTIMIZACIÓN: NO cargar todos los beneficiarios - solo usar el conteo calculado arriba
         # Los beneficiarios solo se muestran en la tarjeta de datos (que usa el conteo)
         # Cargar 900+ beneficiarios consume mucho tiempo y CPU innecesariamente
-        beneficiarios_count = evento.beneficiarios.count()
+        # beneficiarios_count ya fue calculado arriba de manera optimizada (línea 6198-6200)
         beneficiarios_data = []  # Array vacío - no se usa en la vista de detalles
         
         # OPTIMIZACIÓN: Limitar evidencias de galería a las primeras 50 para vista de detalles
@@ -6326,14 +6353,14 @@ def api_obtener_detalle_proyecto(request, evento_id):
             'beneficiarios_count': beneficiarios_count,  # Solo el conteo para la tarjeta de datos
             'evidencias': evidencias_data,  # Limitadas a 50 para optimización
             'archivos': archivos_data,  # Limitados a 50 para optimización
-            'evidencias_count': evento.evidencias.count(),  # Conteo total de evidencias
-            'archivos_count': evento.archivos.count(),  # Conteo total de archivos
-            'galeria_count': evento.galeria_imagenes.count(),  # Conteo total de galería
+            'evidencias_count': evento.evidencias_count,  # Conteo precalculado con annotate
+            'archivos_count': evento.archivos_count,  # Conteo precalculado con annotate
+            'galeria_count': evento.galeria_count,  # Conteo precalculado con annotate
             'portada': obtener_portada_evento(evento),
             'tarjetas_datos': obtener_tarjetas_datos(evento),
             'comunidades': obtener_comunidades_evento(evento),
             'cambios': obtener_cambios_evento(evento),  # Limitados a 50 para optimización
-            'cambios_count': evento.cambios_colaboradores.count(),  # Conteo total de cambios de colaboradores
+            'cambios_count': evento.cambios_count,  # Conteo precalculado con annotate
             'puede_gestionar': puede_gestionar,
             'permisos': {
                 'puede_gestionar': puede_gestionar,
@@ -6442,6 +6469,10 @@ def api_agregar_imagen_galeria(request, evento_id):
             creado_por=usuario_maga
         )
         
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
+        
         return JsonResponse({
             'success': True,
             'message': 'Imagen agregada exitosamente',
@@ -6498,6 +6529,10 @@ def api_eliminar_imagen_galeria(request, evento_id, imagen_id):
         
         # Eliminar registro de la BD
         imagen_galeria.delete()
+        
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
         
         return JsonResponse({
             'success': True,
@@ -6564,6 +6599,10 @@ def api_agregar_archivo(request, evento_id):
             creado_por=usuario_maga
         )
         
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
+        
         return JsonResponse({
             'success': True,
             'message': 'Archivo agregado exitosamente',
@@ -6593,6 +6632,7 @@ def api_agregar_archivo(request, evento_id):
 
 
 @permiso_gestionar_eventos
+@permiso_gestionar_eventos_api
 @require_http_methods(["DELETE", "POST"])
 def api_eliminar_archivo(request, evento_id, archivo_id):
     """API: Eliminar archivo de un evento (solo de actividad_archivos, no evidencias)"""
@@ -6623,6 +6663,10 @@ def api_eliminar_archivo(request, evento_id, archivo_id):
         
         # Eliminar registro de la BD
         archivo.delete()
+        
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
         
         return JsonResponse({
             'success': True,
@@ -7263,6 +7307,10 @@ def api_crear_cambio(request, evento_id):
         # Retornar información del primer cambio creado (para compatibilidad) y lista de todos
         cambios_ids = [str(c.id) for c in cambios_creados]
         
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
+        
         return JsonResponse({
             'success': True,
             'message': f'Cambio creado exitosamente para {len(cambios_creados)} colaborador(es)',
@@ -7793,6 +7841,10 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                 fecha_local = timezone.make_aware(fecha_base, guatemala_tz)
             fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
         
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
+        
         return JsonResponse({
             'success': True,
             'message': 'Cambio actualizado exitosamente',
@@ -7870,6 +7922,10 @@ def api_eliminar_cambio(request, evento_id, cambio_id):
                 _eliminar_archivo_media(getattr(evidencia, 'url_almacenamiento', None))
             cambio.delete()
         
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
+        
         return JsonResponse({
             'success': True,
             'message': 'Cambio eliminado exitosamente'
@@ -7939,6 +7995,10 @@ def api_agregar_evidencia_cambio(request, evento_id, cambio_id):
             descripcion=descripcion,
             creado_por=usuario_maga
         )
+        
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
         
         return JsonResponse({
             'success': True,
@@ -9165,6 +9225,26 @@ def api_generar_reporte(request, report_type):
                             'region': com['comunidad__region__nombre'] or 'Sin región'
                         }
                 
+                # OPTIMIZACIÓN: Precalcular todos los datos necesarios antes del loop
+                # Precalcular conteos de beneficiarios por actividad
+                beneficiarios_counts = dict(
+                    ActividadBeneficiario.objects.filter(
+                        actividad_id__in=actividad_ids_filtradas
+                    ).values('actividad_id').annotate(
+                        total=Count('beneficiario_id', distinct=True)
+                    ).values_list('actividad_id', 'total')
+                )
+                
+                # Precargar todas las comunidades M2M de una vez
+                comunidades_m2m_map = {}
+                for ac in ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids_filtradas
+                ).select_related('comunidad').values('actividad_id', 'comunidad__nombre'):
+                    act_id = ac['actividad_id']
+                    if act_id not in comunidades_m2m_map:
+                        comunidades_m2m_map[act_id] = []
+                    comunidades_m2m_map[act_id].append(ac['comunidad__nombre'])
+                
                 # PRIMERO: Recolectar TODAS las actividades únicas con todas sus comunidades
                 # Esto evita que una actividad aparezca múltiples veces en los detalles
                 todas_actividades_unicas = {}
@@ -9176,17 +9256,17 @@ def api_generar_reporte(request, report_type):
                     if act.id in todas_actividades_unicas:
                         continue
                     
-                    # Obtener todas las comunidades de esta actividad (directa + M2M)
+                    # Obtener todas las comunidades de esta actividad (directa + M2M) - usando datos precargados
                     comunidades_actividad = []
                     if act.comunidad:
                         comunidades_actividad.append(act.comunidad.nombre)
-                    comunidades_m2m_act = ActividadComunidad.objects.filter(
-                        actividad_id=act.id
-                    ).select_related('comunidad').values_list('comunidad__nombre', flat=True)
-                    comunidades_actividad.extend(comunidades_m2m_act)
+                    # Usar datos precargados en lugar de consultar
+                    if act.id in comunidades_m2m_map:
+                        comunidades_actividad.extend(comunidades_m2m_map[act.id])
                     comunidades_actividad = sorted(list(set(comunidades_actividad)))  # Eliminar duplicados y ordenar
                     
-                    ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
+                    # Usar conteo precalculado en lugar de consultar
+                    ben_count = beneficiarios_counts.get(act.id, 0)
                     
                     todas_actividades_unicas[act.id] = {
                         'nombre': act.nombre,
@@ -9220,21 +9300,21 @@ def api_generar_reporte(request, report_type):
                         list(actividades_m2m_ids_com)
                     )
                     
-                    # Obtener beneficiarios SOLO de las actividades de esta comunidad
-                    beneficiarios_query = ActividadBeneficiario.objects.filter(
+                    # OPTIMIZACIÓN: Calcular todos los conteos de beneficiarios de una vez usando annotate
+                    beneficiarios_stats = ActividadBeneficiario.objects.filter(
                         actividad_id__in=actividades_comunidad_ids
-                    ).select_related('beneficiario__tipo', 'beneficiario__comunidad')
+                    ).values('beneficiario_id', 'beneficiario__tipo__nombre', 'beneficiario__comunidad_id').distinct()
                     
-                    total_benef = beneficiarios_query.values('beneficiario_id').distinct().count()
-                    benef_ind = beneficiarios_query.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
-                    benef_fam = beneficiarios_query.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
-                    benef_inst = beneficiarios_query.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                    total_benef = beneficiarios_stats.count()
+                    benef_ind = beneficiarios_stats.filter(beneficiario__tipo__nombre='individual').count()
+                    benef_fam = beneficiarios_stats.filter(beneficiario__tipo__nombre='familia').count()
+                    benef_inst = beneficiarios_stats.filter(beneficiario__tipo__nombre='institución').count()
                     
                     # CALCULAR BENEFICIARIOS EXCLUSIVOS: Solo beneficiarios individuales cuya comunidad_id coincide con esta comunidad
-                    beneficiarios_exclusivos = beneficiarios_query.filter(
+                    beneficiarios_exclusivos = beneficiarios_stats.filter(
                         beneficiario__tipo__nombre='individual',
                         beneficiario__comunidad_id=comunidad_id
-                    ).values('beneficiario_id').distinct().count()
+                    ).count()
                     
                     # Obtener responsables y colaboradores únicos de esta comunidad
                     actividades_comunidad = actividades_filtradas.filter(id__in=actividades_comunidad_ids)
@@ -9449,6 +9529,26 @@ def api_generar_reporte(request, report_type):
                             'nombre': reg['comunidad__region__nombre']
                         }
                 
+                # OPTIMIZACIÓN: Precalcular todos los datos necesarios antes del loop
+                # Precalcular conteos de beneficiarios por actividad
+                beneficiarios_counts_reg = dict(
+                    ActividadBeneficiario.objects.filter(
+                        actividad_id__in=actividad_ids_filtradas
+                    ).values('actividad_id').annotate(
+                        total=Count('beneficiario_id', distinct=True)
+                    ).values_list('actividad_id', 'total')
+                )
+                
+                # Precargar todas las comunidades M2M de una vez
+                comunidades_m2m_map_reg = {}
+                for ac in ActividadComunidad.objects.filter(
+                    actividad_id__in=actividad_ids_filtradas
+                ).select_related('comunidad').values('actividad_id', 'comunidad__nombre'):
+                    act_id = ac['actividad_id']
+                    if act_id not in comunidades_m2m_map_reg:
+                        comunidades_m2m_map_reg[act_id] = []
+                    comunidades_m2m_map_reg[act_id].append(ac['comunidad__nombre'])
+                
                 # PRIMERO: Recolectar TODAS las actividades únicas con todas sus comunidades
                 # Esto evita que una actividad aparezca múltiples veces en los detalles
                 todas_actividades_unicas_reg = {}
@@ -9460,17 +9560,17 @@ def api_generar_reporte(request, report_type):
                     if act.id in todas_actividades_unicas_reg:
                         continue
                     
-                    # Obtener todas las comunidades de esta actividad (directa + M2M)
+                    # Obtener todas las comunidades de esta actividad (directa + M2M) - usando datos precargados
                     comunidades_actividad = []
                     if act.comunidad:
                         comunidades_actividad.append(act.comunidad.nombre)
-                    comunidades_m2m_act = ActividadComunidad.objects.filter(
-                        actividad_id=act.id
-                    ).select_related('comunidad').values_list('comunidad__nombre', flat=True)
-                    comunidades_actividad.extend(comunidades_m2m_act)
+                    # Usar datos precargados en lugar de consultar
+                    if act.id in comunidades_m2m_map_reg:
+                        comunidades_actividad.extend(comunidades_m2m_map_reg[act.id])
                     comunidades_actividad = sorted(list(set(comunidades_actividad)))  # Eliminar duplicados y ordenar
                     
-                    ben_count = ActividadBeneficiario.objects.filter(actividad_id=act.id).count()
+                    # Usar conteo precalculado en lugar de consultar
+                    ben_count = beneficiarios_counts_reg.get(act.id, 0)
                     
                     todas_actividades_unicas_reg[act.id] = {
                         'nombre': act.nombre,
@@ -9506,21 +9606,21 @@ def api_generar_reporte(request, report_type):
                     actividad_ids_region = actividad_ids_directas_reg | actividad_ids_m2m_reg
                     actividades_region = actividades_filtradas.filter(id__in=actividad_ids_region)
                     
-                    # Obtener beneficiarios SOLO de las actividades de esta región
-                    beneficiarios_query = ActividadBeneficiario.objects.filter(
+                    # OPTIMIZACIÓN: Calcular todos los conteos de beneficiarios de una vez
+                    beneficiarios_stats_reg = ActividadBeneficiario.objects.filter(
                         actividad_id__in=actividad_ids_region
-                    ).select_related('beneficiario__tipo', 'beneficiario__comunidad', 'beneficiario__comunidad__region')
+                    ).values('beneficiario_id', 'beneficiario__tipo__nombre', 'beneficiario__comunidad__region_id').distinct()
                     
-                    total_benef = beneficiarios_query.values('beneficiario_id').distinct().count()
-                    benef_ind = beneficiarios_query.filter(beneficiario__tipo__nombre='individual').values('beneficiario_id').distinct().count()
-                    benef_fam = beneficiarios_query.filter(beneficiario__tipo__nombre='familia').values('beneficiario_id').distinct().count()
-                    benef_inst = beneficiarios_query.filter(beneficiario__tipo__nombre='institución').values('beneficiario_id').distinct().count()
+                    total_benef = beneficiarios_stats_reg.count()
+                    benef_ind = beneficiarios_stats_reg.filter(beneficiario__tipo__nombre='individual').count()
+                    benef_fam = beneficiarios_stats_reg.filter(beneficiario__tipo__nombre='familia').count()
+                    benef_inst = beneficiarios_stats_reg.filter(beneficiario__tipo__nombre='institución').count()
                     
                     # CALCULAR BENEFICIARIOS EXCLUSIVOS: Solo beneficiarios individuales cuya comunidad.region_id coincide con esta región
-                    beneficiarios_exclusivos = beneficiarios_query.filter(
+                    beneficiarios_exclusivos = beneficiarios_stats_reg.filter(
                         beneficiario__tipo__nombre='individual',
                         beneficiario__comunidad__region_id=region_id
-                    ).values('beneficiario_id').distinct().count()
+                    ).count()
                     
                     # Obtener responsables y colaboradores únicos de esta región
                     responsables = actividades_region.filter(responsable__isnull=False).values_list(
@@ -9947,14 +10047,15 @@ def api_generar_reporte(request, report_type):
                         'tiene_avances': False
                     }
             
-            # Construir query base para cambios de colaboradores
+            # Construir query base para cambios de colaboradores - OPTIMIZADO con prefetch
             cambios_query = EventoCambioColaborador.objects.filter(
                 colaborador__isnull=False,
                 colaborador__activo=True
             ).select_related(
                 'colaborador', 'colaborador__puesto', 'actividad', 
-                'actividad__comunidad', 'actividad__comunidad__region', 'actividad__tipo'
-            )
+                'actividad__comunidad', 'actividad__comunidad__region', 'actividad__tipo',
+                'actividad__comunidad__tipo'
+            ).prefetch_related('evidencias')  # Precargar evidencias para evitar consultas N+1
             
             # Aplicar filtros de fecha (usar datetime para DateTimeField)
             if fecha_inicio_dt:

@@ -169,7 +169,7 @@
       <div class="detail-content">
         <!-- Imagen Principal -->
         <div class="detail-main-image">
-          <img id="detailMainImage" src="" alt="Imagen principal del proyecto">
+          <img id="detailMainImage" src="" alt="Imagen principal del proyecto" loading="lazy">
           <div class="image-status-badge" id="imageStatusBadge">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -345,7 +345,7 @@
         </button>
       </div>
       <div class="modal-body" style="padding: 0; display: flex; align-items: center; justify-content: center; min-height: 70vh;">
-        <img id="fullSizeImage" src="" alt="Imagen en tamaño completo" style="max-width: 100%; max-height: 90vh; object-fit: contain; display: block;">
+        <img id="fullSizeImage" src="" alt="Imagen en tamaño completo" loading="eager" style="max-width: 100%; max-height: 90vh; object-fit: contain; display: block;">
       </div>
       <div class="modal-footer" style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0, 0, 0, 0.8); padding: 15px; text-align: center;">
         <p id="imageViewDescription" style="color: white; margin: 0; font-size: 0.95rem;"></p>
@@ -899,5 +899,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/proyectos.js' %}?v=42"></script>
+  <script src="{% static 'js/proyectos.js' %}?v=48"></script>
 {% endblock %}

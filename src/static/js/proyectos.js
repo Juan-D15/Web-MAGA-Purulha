@@ -367,7 +367,7 @@ function crearTarjetaProyecto(proyecto) {
 
     <div class="project-image">
 
-      <img src="${imagenUrl}" alt="${proyecto.nombre || proyecto.name}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80'">
+      <img src="${imagenUrl}" alt="${proyecto.nombre || proyecto.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80'">
 
       <div class="project-date-overlay">
 
@@ -467,6 +467,7 @@ function renderFeaturedProjectsGrid() {
 
       const imgTag = card.querySelector('img');
       if (imgTag && imagenDestacada) {
+        imgTag.loading = 'lazy';
         imgTag.src = imagenDestacada;
       }
 
@@ -666,7 +667,7 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
     <div class="project-image">
 
-      <img src="${imagenUrl}" alt="${nombreProyecto}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
+      <img src="${imagenUrl}" alt="${nombreProyecto}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
 
       <div class="project-date-overlay">
 
@@ -1248,7 +1249,7 @@ function mostrarDetalleProyecto(proyecto) {
 
             // Mostrar modal de confirmación
 
-            showConfirmDeleteModal(
+            showConfirmModal(
 
               `¿Estás seguro de que deseas eliminar el archivo "${fileName}"? Esta acción no se puede deshacer.`,
 
@@ -3664,6 +3665,17 @@ async function refreshCurrentProject(successMessage = null) {
       if (successMessage) {
         showSuccessMessage(successMessage);
       }
+      
+      // Actualizar la sección de "Últimos Proyectos" SIEMPRE después de hacer cambios
+      // Esto asegura que cuando se crea o actualiza un proyecto, aparezca en la lista
+      // Verificar si el contenedor existe en el DOM (puede estar oculto pero debe existir)
+      const latestProjectsContainer = document.querySelector('.latest-projects .projects-grid.featured');
+      if (latestProjectsContainer) {
+        // Actualizar con un pequeño delay para asegurar que el backend haya actualizado actualizado_en
+        setTimeout(() => {
+          refreshLatestProjectsFromServer();
+        }, 500);  // Esperar 500ms para que el backend actualice actualizado_en
+      }
     }
   } catch (error) {
     showErrorMessage(error.message || 'No se pudo actualizar la información del proyecto.');
@@ -3933,7 +3945,7 @@ function loadGalleryWithDescriptions(gallery) {
 
     imageItem.innerHTML = `
 
-      <img src="${image.url}" alt="${image.description}" onclick="openImageModal('${image.url}')">
+      <img src="${image.url}" alt="${image.description}" loading="lazy" onclick="openImageModal('${image.url}')">
 
       <div class="image-description">${image.description}</div>
 
@@ -4444,6 +4456,7 @@ function renderPendingProjectImages() {
     const img = document.createElement('img');
     img.src = item.previewUrl || '';
     img.alt = 'Vista previa de la imagen seleccionada';
+    img.loading = 'lazy';
     img.style.pointerEvents = 'none';
 
     const descriptionWrapper = document.createElement('div');
@@ -4533,8 +4546,10 @@ function renderProjectGalleryPage() {
       : '';
     const encodedName = encodeURIComponent(img.nombre || img.archivo_nombre || '');
     const imageUrlAttr = escapeHtml(img.url || '');
+    // SIEMPRE renderizar el botón si currentProjectGalleryCanManage es true
+    // El botón se mostrará/ocultará según los permisos
     const removeButton = currentProjectGalleryCanManage
-      ? `<button class="btn-remove-item" data-imagen-id="${img.id}" data-image-name="${encodedName}" title="Eliminar imagen">
+      ? `<button class="btn-remove-item" data-imagen-id="${img.id}" data-image-name="${encodedName}" title="Eliminar imagen" style="display: block;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -4548,7 +4563,7 @@ function renderProjectGalleryPage() {
     return `
       <div class="gallery-item" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}">
         ${removeButton}
-        <img src="${imageUrlAttr}" alt="${imageAltAttr}" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+        <img src="${imageUrlAttr}" alt="${imageAltAttr}" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
         ${descriptionHtml}
       </div>
     `;
@@ -4561,6 +4576,7 @@ function renderProjectGalleryPage() {
       </div>`
     : '';
 
+  // Insertar el HTML primero
   detailGallery.innerHTML = `
     <div class="project-gallery-wrapper">
       <div class="gallery-items-wrapper">
@@ -4570,28 +4586,101 @@ function renderProjectGalleryPage() {
     </div>
   `;
 
-  detailGallery.querySelectorAll('.gallery-item').forEach((item) => {
-    item.addEventListener('click', function (e) {
-      if (e.target.closest('.btn-remove-item')) {
+  // Agregar event listeners DESPUÉS de insertar el HTML
+  // IMPORTANTE: Usar delegación de eventos directamente sin clonar el wrapper
+  const galleryWrapper = detailGallery.querySelector('.gallery-items-wrapper');
+  
+  if (galleryWrapper) {
+    // Limpiar listeners anteriores si existen
+    if (galleryWrapper._imageDeleteHandler) {
+      galleryWrapper.removeEventListener('click', galleryWrapper._imageDeleteHandler, true);
+    }
+    if (galleryWrapper._imageModalHandler) {
+      galleryWrapper.removeEventListener('click', galleryWrapper._imageModalHandler, false);
+    }
+    
+    // Agregar event listener para botones de eliminar usando delegación de eventos
+    if (currentProjectGalleryCanManage) {
+      // Remover handler anterior si existe
+      if (galleryWrapper._imageDeleteHandler) {
+        galleryWrapper.removeEventListener('click', galleryWrapper._imageDeleteHandler, true);
+      }
+      
+      galleryWrapper._imageDeleteHandler = async function (e) {
+        // Verificar si el clic fue en un botón de eliminar imagen o en su contenido (SVG, etc.)
+        const clickedElement = e.target;
+        
+        // Buscar el botón más cercano que tenga data-imagen-id (puede ser el botón mismo o un padre)
+        let removeBtn = clickedElement.closest('[data-imagen-id]');
+        
+        // Si no se encontró directamente, buscar por la clase btn-remove-item
+        // Esto captura cuando se hace clic en el SVG dentro del botón
+        if (!removeBtn) {
+          const btnRemoveItem = clickedElement.closest('.btn-remove-item');
+          if (btnRemoveItem) {
+            // El botón con clase btn-remove-item debería tener el atributo data-imagen-id
+            removeBtn = btnRemoveItem;
+          }
+        }
+        
+        // También verificar si el elemento clickeado es el SVG o una línea dentro del SVG
+        if (!removeBtn) {
+          const svgElement = clickedElement.closest('svg');
+          if (svgElement) {
+            const parentBtn = svgElement.closest('[data-imagen-id]') || svgElement.closest('.btn-remove-item');
+            if (parentBtn) {
+              removeBtn = parentBtn;
+            }
+          }
+        }
+        
+        // Verificar que encontramos el botón y que tiene el atributo data-imagen-id
+        if (removeBtn && removeBtn.hasAttribute('data-imagen-id')) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
+          const imagenId = removeBtn.getAttribute('data-imagen-id');
+          const imageName = removeBtn.hasAttribute('data-image-name') 
+            ? decodeURIComponent(removeBtn.getAttribute('data-image-name'))
+            : '';
+          
+          if (imagenId) {
+            console.log('Eliminando imagen de galería:', imagenId); // Debug
+            confirmarEliminacionImagenGaleria(imagenId, imageName);
+          }
+          return false;
+        }
+      };
+      
+      // Agregar el listener en capture phase para que se ejecute primero
+      galleryWrapper.addEventListener('click', galleryWrapper._imageDeleteHandler, true);
+    }
+
+    // Agregar event listener para abrir modal de imagen (en bubbling phase)
+    galleryWrapper._imageModalHandler = function (e) {
+      // Si el clic fue en un botón de eliminar, no hacer nada
+      if (e.target.closest('.btn-remove-item') || e.target.closest('[data-imagen-id]')) {
         return;
       }
-      const imageUrl = this.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('data-image-url') || this.querySelector('img')?.getAttribute('src');
-      const imageDescription = this.getAttribute('data-image-description') || this.querySelector('img')?.getAttribute('data-image-description') || '';
+      
+      // Buscar el gallery-item más cercano al elemento clickeado
+      const galleryItem = e.target.closest('.gallery-item');
+      if (!galleryItem) {
+        return;
+      }
+      
+      const imageUrl = galleryItem.getAttribute('data-image-url') || 
+                       galleryItem.querySelector('img')?.getAttribute('data-image-url') || 
+                       galleryItem.querySelector('img')?.getAttribute('src');
+      const imageDescription = galleryItem.getAttribute('data-image-description') || 
+                              galleryItem.querySelector('img')?.getAttribute('data-image-description') || '';
       if (imageUrl) {
         showImageViewModal(imageUrl, imageDescription);
       }
-    });
-  });
-
-  if (currentProjectGalleryCanManage) {
-    detailGallery.querySelectorAll('[data-imagen-id]').forEach((btn) => {
-      btn.addEventListener('click', async function (e) {
-        e.stopPropagation();
-        const imagenId = this.getAttribute('data-imagen-id');
-        const imageName = decodeURIComponent(this.getAttribute('data-image-name') || '');
-        confirmarEliminacionImagenGaleria(imagenId, imageName);
-      });
-    });
+    };
+    
+    galleryWrapper.addEventListener('click', galleryWrapper._imageModalHandler, false);
   }
 }
 
@@ -4607,7 +4696,8 @@ function confirmarEliminacionImagenGaleria(imagenId, imageName = '') {
     ? `¿Estás seguro de que deseas eliminar la imagen "${trimmedName}" de la galería?`
     : '¿Estás seguro de que deseas eliminar esta imagen de la galería?';
 
-  showConfirmDeleteModal(message, async () => {
+  // Usar showConfirmModal en lugar de showConfirmDeleteModal para consistencia
+  showConfirmModal(message, async () => {
     await eliminarImagenGaleria(imagenId);
   });
 }
@@ -4923,6 +5013,7 @@ async function eliminarImagenGaleria(imagenId) {
   }
 
   try {
+    console.log('Eliminando imagen:', imagenId, 'del proyecto:', currentProject.id); // Debug
     const response = await fetch(`/api/evento/${currentProject.id}/galeria/${imagenId}/eliminar/`, {
       method: 'POST',
       headers: {
@@ -4930,16 +5021,24 @@ async function eliminarImagenGaleria(imagenId) {
       }
     });
 
+    if (!response.ok) {
+      console.error('Error en la respuesta HTTP:', response.status, response.statusText); // Debug
+      const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+      throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`);
+    }
+
     const result = await response.json();
+    console.log('Respuesta de la API:', result); // Debug
 
     if (result.success) {
       // Actualizar la vista en tiempo real
       await refreshCurrentProject('Imagen eliminada exitosamente de la galería.');
     } else {
-      showErrorMessage(result.error || 'Error al eliminar la imagen de la galería.');
+      throw new Error(result.error || 'Error al eliminar la imagen de la galería.');
     }
   } catch (error) {
-    showErrorMessage('Error al eliminar la imagen. Por favor, intenta de nuevo.');
+    console.error('Error al eliminar imagen:', error); // Debug
+    showErrorMessage(error.message || 'Error al eliminar la imagen. Por favor, intenta de nuevo.');
   }
 }
 // Función para mostrar modal de editar descripción
@@ -5642,7 +5741,7 @@ function removeSelectedCard(index) {
 
   }
 
-  showConfirmDeleteModal(
+  showConfirmModal(
 
     '¿Estás seguro de que deseas eliminar este dato del proyecto?',
 
@@ -10794,7 +10893,7 @@ function loadEvidences(evidences, puedeGestionar = false, permiteEliminar = fals
 
         ${isImage ? 
 
-          `<img src="${evidence.url}" alt="${nombreArchivo}" class="evidence-image" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">` :
+          `<img src="${evidence.url}" alt="${nombreArchivo}" class="evidence-image" loading="lazy" style="width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">` :
 
           `<div class="evidence-file-icon" style="font-size: 1.8rem; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: rgba(0, 123, 255, 0.2); border-radius: 6px; flex-shrink: 0;">📄</div>`
 
@@ -11277,15 +11376,15 @@ function renderExistingEvidences(evidencias) {
 
         ${isImage ? 
 
-          `<img src="${evidencia.url}" alt="${nombreArchivo}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` :
+          `<img src="${evidencia.url}" alt="${nombreArchivo}" loading="lazy" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">` :
 
-          `<div style="width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">📄</div>`
+          `<div style="width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;">📄</div>`
 
         }
 
-        <span style="color: #fff; flex: 1;">${nombreArchivo}</span>
+        <span style="color: #fff; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(nombreArchivo)}">${escapeHtml(nombreArchivo)}</span>
 
-        <a href="${evidencia.url}" target="_blank" style="color: #007bff; text-decoration: none; margin-right: 8px;" title="Ver archivo">
+        <a href="${evidencia.url}" target="_blank" style="color: #007bff; text-decoration: none; margin-right: 8px; flex-shrink: 0;" title="Ver archivo">
 
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 
