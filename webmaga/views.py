@@ -180,11 +180,22 @@ def _eliminar_queryset_con_archivos(queryset):
     if not objetos:
         return 0
 
+    # Obtener todas las URLs únicas para eliminar cada archivo físico solo una vez
+    # (varios registros pueden apuntar al mismo archivo físico)
+    urls_unicas = set()
     ids = []
+    
     for obj in objetos:
         ids.append(obj.pk)
-        _eliminar_archivo_media(getattr(obj, 'url_almacenamiento', None))
-
+        url = getattr(obj, 'url_almacenamiento', None)
+        if url:
+            urls_unicas.add(url)
+    
+    # Eliminar cada archivo físico solo una vez
+    for url in urls_unicas:
+        _eliminar_archivo_media(url)
+    
+    # Eliminar todos los registros de la base de datos
     queryset.model.objects.filter(pk__in=ids).delete()
     return len(ids)
 
@@ -4327,52 +4338,146 @@ def api_verificar_admin(request):
 @permiso_gestionar_eventos
 @require_http_methods(["DELETE"])
 def api_eliminar_evento(request, evento_id):
-    """Elimina un evento (soft delete)"""
+    """Elimina un evento permanentemente de la base de datos (hard delete) y todos sus archivos físicos"""
     try:
         evento = Actividad.objects.get(id=evento_id, eliminado_en__isnull=True)
         usuario_maga = get_usuario_maga(request.user)
+        nombre_evento = evento.nombre
+        
+        # Guardar datos para bitácora antes de eliminar
+        from django.forms.models import model_to_dict
+        
+        def convertir_para_json(obj):
+            """Función recursiva para convertir objetos no serializables a JSON (UUIDs, datetime, etc.)"""
+            # Manejar tipos básicos
+            if obj is None:
+                return None
+            if isinstance(obj, (str, int, float, bool)):
+                return obj
+            
+            # Manejar UUIDs
+            if isinstance(obj, uuid.UUID):
+                return str(obj)
+            
+            # Manejar datetime y date
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            if hasattr(obj, 'isoformat') and callable(getattr(obj, 'isoformat')):
+                try:
+                    return obj.isoformat()
+                except:
+                    return str(obj)
+            
+            # Manejar diccionarios recursivamente
+            if isinstance(obj, dict):
+                return {str(key): convertir_para_json(value) for key, value in obj.items()}
+            
+            # Manejar listas recursivamente
+            if isinstance(obj, (list, tuple)):
+                return [convertir_para_json(item) for item in obj]
+            
+            # Para cualquier otro tipo, intentar convertir a string
+            try:
+                # Si es un objeto de modelo Django, obtener solo los campos básicos
+                if hasattr(obj, '_meta'):
+                    return str(obj.id) if hasattr(obj, 'id') else str(obj)
+                return str(obj)
+            except:
+                return None
+        
+        try:
+            datos_evento = model_to_dict(evento)
+            # Convertir todos los UUIDs, datetime y otros objetos no serializables
+            datos_evento = convertir_para_json(datos_evento)
+            
+            # Validar que sea serializable a JSON antes de guardar
+            try:
+                json.dumps(datos_evento, default=str)
+            except Exception as json_test_error:
+                print(f"⚠️ Error al validar serialización JSON: {str(json_test_error)}")
+                # Si falla, usar método simplificado
+                raise json_test_error
+                
+        except Exception as dict_error:
+            print(f"⚠️ Error al serializar evento para bitácora: {str(dict_error)}")
+            import traceback
+            traceback.print_exc()
+            # Usar método simplificado como fallback
+            datos_evento = {
+                'id': str(evento.id),
+                'nombre': nombre_evento,
+                'tipo_id': str(evento.tipo_id) if evento.tipo_id else None,
+                'comunidad_id': str(evento.comunidad_id) if evento.comunidad_id else None,
+                'fecha': evento.fecha.isoformat() if evento.fecha else None,
+                'estado': evento.estado,
+                'descripcion': (evento.descripcion[:500] if evento.descripcion else None),  # Limitar tamaño
+            }
         
         # Eliminar portada (archivo físico + registro)
         portada = getattr(evento, 'portada', None)
         if portada:
             eliminar_portada_evento(portada)
 
-        # Eliminar evidencias principales
+        # Eliminar evidencias principales (archivos físicos + registros)
         _eliminar_queryset_con_archivos(evento.evidencias.all())
 
-        # Eliminar imágenes de galería
+        # Eliminar imágenes de galería (archivos físicos + registros)
         _eliminar_queryset_con_archivos(evento.galeria_imagenes.all())
 
-        # Eliminar archivos adjuntos
+        # Eliminar archivos adjuntos (archivos físicos + registros)
         _eliminar_queryset_con_archivos(evento.archivos.all())
 
         # Eliminar evidencias asociadas a cambios internos
         for cambio in list(evento.cambios.all()):
             _eliminar_queryset_con_archivos(cambio.evidencias.all())
-            cambio.delete()
 
         # Eliminar evidencias asociadas a cambios de colaboradores
         for cambio_colaborador in list(evento.cambios_colaboradores.all()):
             _eliminar_queryset_con_archivos(cambio_colaborador.evidencias.all())
-            cambio_colaborador.delete()
 
         # Limpieza adicional de evidencias de cambios (por seguridad)
         _eliminar_queryset_con_archivos(evento.evidencias_cambios.all())
 
-        # Soft delete - Marca el evento como eliminado con timestamp timezone-aware
-        evento.eliminado_en = timezone.now()
-        evento.save()
+        # Hard delete - Eliminar permanentemente el evento
+        # Las relaciones con CASCADE se eliminarán automáticamente:
+        # - actividad_comunidades
+        # - actividad_portadas
+        # - actividad_personal
+        # - actividad_beneficiarios
+        # - evidencias
+        # - eventos_galeria
+        # - actividad_archivos
+        # - actividad_cambios
+        # - eventos_cambios_colaboradores
+        # - cambio_evidencias
+        # - eventos_evidencias_cambios
+        # Los recordatorios quedarán con actividad_id=NULL (ON DELETE SET NULL)
         
-        # Registrar el cambio
-        ActividadCambio.objects.create(
-            actividad=evento,
-            responsable=usuario_maga,
-            descripcion_cambio=f'Evento "{evento.nombre}" eliminado por {usuario_maga.username if usuario_maga else "sistema"}'
-        )
+        evento.delete()  # Hard delete - elimina permanentemente
+        
+        # Registrar en bitácora de transacciones
+        try:
+            from .models import BitacoraTransaccion
+            BitacoraTransaccion.objects.create(
+                usuario=usuario_maga,
+                accion='ELIMINAR',
+                tabla_afectada='actividades',
+                registro_id=evento_id,  # evento_id ya es UUID, Django lo maneja
+                datos_anteriores=datos_evento,  # Ya convertido con UUIDs a strings
+                datos_nuevos=None,
+                resultado='exitoso',
+                ip_address=request.META.get('REMOTE_ADDR', ''),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+        except Exception as bitacora_error:
+            print(f"⚠️ Error al registrar en bitácora: {str(bitacora_error)}")
+            import traceback
+            traceback.print_exc()
+            # No fallar la eliminación si hay error en bitácora
         
         return JsonResponse({
             'success': True,
-            'message': 'Evento eliminado exitosamente'
+            'message': f'Evento "{nombre_evento}" eliminado permanentemente'
         })
         
     except Actividad.DoesNotExist:
@@ -4381,6 +4486,9 @@ def api_eliminar_evento(request, evento_id):
             'error': 'Evento no encontrado'
         }, status=404)
     except Exception as e:
+        print(f"❌ Error en api_eliminar_evento: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': f'Error al eliminar evento: {str(e)}'
@@ -7205,15 +7313,17 @@ def api_crear_cambio(request, evento_id):
                         file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
                         print(f'📎 Archivo guardado: {saved_name} -> {file_url}')
                         
-                        # Crear un registro de evidencia en la BD para cada cambio creado
-                        # Todos apuntan al mismo archivo físico
-                        primera_evidencia_id = None
-                        evidencias_creadas_count = 0
-                        for cambio_colaborador in cambios_creados:
+                        # Crear SOLO UNA evidencia asociada al primer cambio del grupo
+                        # Esto evita duplicados cuando hay múltiples colaboradores/comunidades
+                        # El archivo físico es único y la evidencia pertenece al grupo completo
+                        if cambios_creados:
                             try:
+                                # Obtener el primer cambio del grupo (el más antiguo)
+                                primer_cambio = cambios_creados[0]
+                                
                                 # Validar que el cambio existe y tiene ID
-                                if not cambio_colaborador.id:
-                                    raise ValueError(f'El cambio {cambio_colaborador} no tiene ID válido')
+                                if not primer_cambio.id:
+                                    raise ValueError(f'El cambio {primer_cambio} no tiene ID válido')
                                 
                                 # Validar que el evento existe
                                 if not evento.id:
@@ -7223,15 +7333,16 @@ def api_crear_cambio(request, evento_id):
                                 if not usuario_maga or not usuario_maga.id:
                                     raise ValueError('El usuario no tiene ID válido')
                                 
-                                print(f'📝 Creando evidencia para cambio {cambio_colaborador.id}, actividad {evento.id}, usuario {usuario_maga.id}')
+                                print(f'📝 Creando UNA evidencia para el grupo (asociada al primer cambio {primer_cambio.id}), actividad {evento.id}, usuario {usuario_maga.id}')
+                                print(f'📝 Total de cambios en el grupo: {len(cambios_creados)} (solo se crea UNA evidencia para todos)')
                                 
                                 evidencia = EventosEvidenciasCambios.objects.create(
                                     actividad=evento,
-                                    cambio=cambio_colaborador,
+                                    cambio=primer_cambio,  # Asociar solo al primer cambio del grupo
                                     archivo_nombre=archivo.name,
                                     archivo_tipo=archivo.content_type or 'application/octet-stream',
                                     archivo_tamanio=archivo.size,
-                                    url_almacenamiento=file_url,  # Misma URL para todos
+                                    url_almacenamiento=file_url,
                                     descripcion=descripcion_evidencia if descripcion_evidencia else None,
                                     creado_por=usuario_maga
                                 )
@@ -7240,11 +7351,10 @@ def api_crear_cambio(request, evento_id):
                                 if not evidencia.id:
                                     raise ValueError('La evidencia se creó pero no tiene ID')
                                 
-                                if primera_evidencia_id is None:
-                                    primera_evidencia_id = evidencia.id
-                                
-                                evidencias_creadas_count += 1
-                                print(f'✅ Evidencia creada exitosamente para cambio {cambio_colaborador.id}: {evidencia.id} - {evidencia.archivo_nombre}')
+                                primera_evidencia_id = evidencia.id
+                                evidencias_creadas_count = 1
+                                print(f'✅ Evidencia única creada exitosamente para el grupo: {evidencia.id} - {evidencia.archivo_nombre}')
+                                print(f'✅ Asociada al cambio {primer_cambio.id} del grupo (compartida por {len(cambios_creados)} cambio(s))')
                                 
                                 # Verificar que se puede recuperar de la BD
                                 evidencia_verificada = EventosEvidenciasCambios.objects.filter(id=evidencia.id).first()
@@ -7253,16 +7363,19 @@ def api_crear_cambio(request, evento_id):
                                 print(f'✅ Evidencia verificada en BD: {evidencia_verificada.id}')
                                 
                             except Exception as e:
-                                print(f'❌ Error al crear evidencia para cambio {cambio_colaborador.id}: {e}')
-                                print(f'❌ Tipo de error: {type(e).__name__}')
+                                print(f'❌ Error al crear evidencia para el grupo: {e}')
                                 import traceback
                                 traceback.print_exc()
-                                raise Exception(f'Error al crear evidencia para cambio {cambio_colaborador.id}: {str(e)}')
+                                primera_evidencia_id = None
+                                evidencias_creadas_count = 0
+                        else:
+                            primera_evidencia_id = None
+                            evidencias_creadas_count = 0
                         
                         if evidencias_creadas_count == 0:
                             raise ValueError(f'No se pudo crear ninguna evidencia para los {len(cambios_creados)} cambios')
                         
-                        print(f'✅ Total de evidencias creadas para este archivo: {evidencias_creadas_count} (una por cada cambio)')
+                        print(f'✅ Total de evidencias creadas para este archivo: {evidencias_creadas_count} (una evidencia única para todo el grupo de {len(cambios_creados)} cambio(s))')
                         
                         # Agregar a evidencias_data solo una vez (para evitar duplicados en la respuesta)
                         if primera_evidencia_id:
@@ -7697,26 +7810,34 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                                     if not descripcion_evidencia:
                                         descripcion_evidencia = request.POST.get('descripcion_evidencia', '').strip()
                                     
-                                    # Guardar el archivo físico
+                                    # Obtener el primer cambio del grupo para asociar la evidencia
+                                    primer_cambio = cambios_para_evidencias.order_by('creado_en').first()
+                                    
+                                    if not primer_cambio:
+                                        print(f'⚠️ No se encontró un cambio principal para el grupo {grupo_uuid} para asociar la evidencia.')
+                                        continue
+                                    
+                                    # Guardar el archivo físico (solo una vez)
                                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
                                     file_extension = os.path.splitext(archivo.name)[1]
-                                    filename = f"{timestamp}_{cambio_colaborador.id}_{index}{file_extension}"
+                                    filename = f"{timestamp}_{primer_cambio.id}_{index}{file_extension}"
                                     saved_name = fs.save(filename, archivo)
                                     file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
                                     
-                                    # Crear evidencia para cada cambio del grupo
-                                    for cambio_evidencia in cambios_para_evidencias:
-                                        EventosEvidenciasCambios.objects.create(
-                                            actividad=evento,
-                                            cambio=cambio_evidencia,
-                                            archivo_nombre=archivo.name,
-                                            archivo_tipo=archivo.content_type or 'application/octet-stream',
-                                            archivo_tamanio=archivo.size,
-                                            url_almacenamiento=file_url,
-                                            descripcion=descripcion_evidencia if descripcion_evidencia else None,
-                                            creado_por=usuario_maga
-                                        )
-                                    print(f'✅ Nueva evidencia agregada: {archivo.name}')
+                                    # Crear SOLO UNA evidencia asociada al primer cambio del grupo
+                                    # Esto evita duplicados cuando hay múltiples colaboradores/comunidades
+                                    # El archivo físico es único y la evidencia pertenece al grupo completo
+                                    EventosEvidenciasCambios.objects.create(
+                                        actividad=evento,
+                                        cambio=primer_cambio,  # Asociar solo al primer cambio del grupo
+                                        archivo_nombre=archivo.name,
+                                        archivo_tipo=archivo.content_type or 'application/octet-stream',
+                                        archivo_tamanio=archivo.size,
+                                        url_almacenamiento=file_url,
+                                        descripcion=descripcion_evidencia if descripcion_evidencia else None,
+                                        creado_por=usuario_maga
+                                    )
+                                    print(f'✅ Nueva evidencia agregada: {archivo.name} (asociada al primer cambio {primer_cambio.id} del grupo - compartida por {cambios_para_evidencias.count()} cambio(s))')
                                 except Exception as e:
                                     print(f'❌ Error al procesar nueva evidencia {key}: {e}')
                                     import traceback
@@ -7742,7 +7863,7 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                         os.makedirs(evidencias_dir, exist_ok=True)
                         fs = FileSystemStorage(location=evidencias_dir)
                         
-                        # Obtener todos los cambios del grupo para asociar evidencias
+                        # Obtener todos los cambios del grupo para asociar evidencias a cada colaborador
                         cambios_para_evidencias = EventoCambioColaborador.objects.filter(
                             actividad=evento,
                             grupo_id=grupo_uuid
@@ -7761,26 +7882,35 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
                                 if not descripcion_evidencia:
                                     descripcion_evidencia = request.POST.get('descripcion_evidencia', '').strip()
                                 
-                                # Guardar el archivo físico
+                                # Guardar el archivo físico (solo una vez)
                                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')
                                 file_extension = os.path.splitext(archivo.name)[1]
-                                filename = f"{timestamp}_{cambio_colaborador.id}_{index}{file_extension}"
+                                # Obtener el primer cambio del grupo para asociar la evidencia
+                                primer_cambio = cambios_para_evidencias.order_by('creado_en').first()
+                                
+                                if not primer_cambio:
+                                    print(f'⚠️ No se encontró un cambio principal para el grupo {grupo_uuid} para asociar la evidencia.')
+                                    continue
+                                
+                                cambio_id_archivo = primer_cambio.id
+                                filename = f"{timestamp}_{cambio_id_archivo}_{index}{file_extension}"
                                 saved_name = fs.save(filename, archivo)
                                 file_url = f"/media/evidencias_cambios_eventos/{saved_name}"
                                 
-                                # Crear evidencia para cada cambio del grupo
-                                for cambio_evidencia in cambios_para_evidencias:
-                                    EventosEvidenciasCambios.objects.create(
-                                        actividad=evento,
-                                        cambio=cambio_evidencia,
-                                        archivo_nombre=archivo.name,
-                                        archivo_tipo=archivo.content_type or 'application/octet-stream',
-                                        archivo_tamanio=archivo.size,
-                                        url_almacenamiento=file_url,
-                                        descripcion=descripcion_evidencia if descripcion_evidencia else None,
-                                        creado_por=usuario_maga
-                                    )
-                                print(f'✅ Nueva evidencia agregada: {archivo.name}')
+                                # Crear SOLO UNA evidencia asociada al primer cambio del grupo
+                                # Esto evita duplicados cuando hay múltiples colaboradores/comunidades
+                                # El archivo físico es único y la evidencia pertenece al grupo completo
+                                EventosEvidenciasCambios.objects.create(
+                                    actividad=evento,
+                                    cambio=primer_cambio,  # Asociar solo al primer cambio del grupo
+                                    archivo_nombre=archivo.name,
+                                    archivo_tipo=archivo.content_type or 'application/octet-stream',
+                                    archivo_tamanio=archivo.size,
+                                    url_almacenamiento=file_url,
+                                    descripcion=descripcion_evidencia if descripcion_evidencia else None,
+                                    creado_por=usuario_maga
+                                )
+                                print(f'✅ Nueva evidencia agregada: {archivo.name} (asociada al primer cambio {primer_cambio.id} del grupo - compartida por {cambios_para_evidencias.count()} cambio(s))')
                             except Exception as e:
                                 print(f'❌ Error al procesar nueva evidencia {key}: {e}')
                                 import traceback
@@ -7789,15 +7919,58 @@ def api_actualizar_cambio(request, evento_id, cambio_id):
             # Eliminar evidencias marcadas para eliminación (ANTES de procesar nuevas)
             if evidencias_ids_eliminar:
                 try:
-                    # Buscar evidencias que pertenecen a alguno de los cambios del grupo
-                    evidencias_a_eliminar = EventosEvidenciasCambios.objects.filter(
+                    # Obtener las evidencias iniciales marcadas para eliminación
+                    evidencias_iniciales = EventosEvidenciasCambios.objects.filter(
                         id__in=evidencias_ids_eliminar,
-                        actividad=evento,
-                        cambio__grupo_id=grupo_uuid
+                        actividad=evento
                     )
-                    eliminadas_count = _eliminar_queryset_con_archivos(evidencias_a_eliminar)
+                    print(f'📎 Buscando {len(evidencias_ids_eliminar)} evidencia(s) inicial(es) para eliminar: {evidencias_ids_eliminar}')
+                    print(f'📎 Evidencias iniciales encontradas en BD: {evidencias_iniciales.count()}')
+                    
+                    # Para cada evidencia inicial, buscar TODAS las evidencias relacionadas
+                    # (mismo archivo_nombre, mismo creado_por, misma actividad)
+                    todas_las_evidencias_a_eliminar = EventosEvidenciasCambios.objects.none()
+                    
+                    for evidencia_inicial in evidencias_iniciales:
+                        archivo_nombre = evidencia_inicial.archivo_nombre
+                        url_almacenamiento = evidencia_inicial.url_almacenamiento
+                        creado_por_id = evidencia_inicial.creado_por.id if evidencia_inicial.creado_por else None
+                        
+                        # Buscar todas las evidencias relacionadas con el mismo archivo
+                        # Criterios: misma actividad, mismo nombre de archivo, mismo creador
+                        evidencias_relacionadas = EventosEvidenciasCambios.objects.filter(
+                            actividad=evento,
+                            archivo_nombre=archivo_nombre
+                        )
+                        
+                        # Filtrar por creado_por si existe (para mayor seguridad)
+                        if creado_por_id:
+                            evidencias_relacionadas = evidencias_relacionadas.filter(creado_por_id=creado_por_id)
+                        else:
+                            evidencias_relacionadas = evidencias_relacionadas.filter(creado_por__isnull=True)
+                        
+                        # Filtrar también por URL de almacenamiento si está disponible (mismo archivo físico)
+                        # Esto proporciona una capa adicional de seguridad
+                        if url_almacenamiento:
+                            evidencias_relacionadas = evidencias_relacionadas.filter(url_almacenamiento=url_almacenamiento)
+                        
+                        # Combinar con las evidencias encontradas anteriormente
+                        todas_las_evidencias_a_eliminar = todas_las_evidencias_a_eliminar | evidencias_relacionadas
+                        
+                        print(f'📎 Archivo "{archivo_nombre}" (URL: {url_almacenamiento[:50] if url_almacenamiento else "N/A"}..., creado_por: {creado_por_id}): {evidencias_relacionadas.count()} evidencia(s) relacionada(s) encontrada(s)')
+                    
+                    # Eliminar duplicados usando distinct()
+                    todas_las_evidencias_a_eliminar = todas_las_evidencias_a_eliminar.distinct()
+                    
+                    print(f'📎 Total de evidencias únicas a eliminar: {todas_las_evidencias_a_eliminar.count()}')
+                    
+                    # Eliminar todas las evidencias relacionadas (archivo físico + registros en BD)
+                    eliminadas_count = _eliminar_queryset_con_archivos(todas_las_evidencias_a_eliminar)
+                    
                     if eliminadas_count:
-                        print(f'✅ Eliminadas {eliminadas_count} evidencia(s) del cambio')
+                        print(f'✅ Eliminadas {eliminadas_count} evidencia(s) del cambio (BD y archivos físicos)')
+                    else:
+                        print(f'⚠️ No se eliminaron evidencias. Verificar que existan en la BD con los IDs: {evidencias_ids_eliminar}')
                 except Exception as e:
                     print(f'⚠️ Error al eliminar evidencias: {e}')
                     import traceback
@@ -8666,9 +8839,54 @@ def api_eliminar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id):
                 'error': 'Usuario no autenticado'
             }, status=401)
         
-        _eliminar_queryset_con_archivos(
-            EventosEvidenciasCambios.objects.filter(pk=evidencia.pk)
+        # Obtener información de la evidencia antes de eliminarla
+        archivo_nombre = evidencia.archivo_nombre
+        url_almacenamiento = evidencia.url_almacenamiento
+        creado_por_id = evidencia.creado_por.id if evidencia.creado_por else None
+        
+        # Buscar TODAS las evidencias relacionadas que tienen el mismo:
+        # - actividad_id (mismo evento) - REQUERIDO
+        # - archivo_nombre (mismo archivo) - REQUERIDO
+        # - creado_por (mismo usuario que creó) - REQUERIDO para seguridad
+        # - url_almacenamiento (mismo archivo físico) - OPCIONAL pero recomendado para mayor seguridad
+        # Esto asegura eliminar todas las referencias del mismo archivo en todos los cambios del evento
+        evidencias_relacionadas = EventosEvidenciasCambios.objects.filter(
+            actividad=evento,
+            archivo_nombre=archivo_nombre
         )
+        
+        # Filtrar por creado_por para mayor seguridad (evita eliminar archivos con el mismo nombre de otros usuarios)
+        if creado_por_id:
+            evidencias_relacionadas = evidencias_relacionadas.filter(creado_por_id=creado_por_id)
+        else:
+            # Si no hay creado_por, solo eliminar las que tampoco tienen creado_por
+            evidencias_relacionadas = evidencias_relacionadas.filter(creado_por__isnull=True)
+        
+        # Filtrar también por URL de almacenamiento si está disponible (mismo archivo físico)
+        # Esto proporciona una capa adicional de seguridad para evitar eliminar archivos diferentes con el mismo nombre
+        if url_almacenamiento:
+            evidencias_relacionadas = evidencias_relacionadas.filter(url_almacenamiento=url_almacenamiento)
+        
+        print(f'📎 Eliminando evidencia: {archivo_nombre}')
+        print(f'📎 URL: {url_almacenamiento}')
+        print(f'📎 Creado por: {creado_por_id}')
+        print(f'📎 Total de evidencias relacionadas encontradas: {evidencias_relacionadas.count()}')
+        
+        # Eliminar todas las evidencias relacionadas (archivo físico + registros en BD)
+        eliminadas_count = _eliminar_queryset_con_archivos(evidencias_relacionadas)
+        
+        print(f'✅ Eliminadas {eliminadas_count} evidencia(s) relacionada(s) del archivo "{archivo_nombre}"')
+        
+        # Refrescar el objeto del cambio desde la BD para invalidar el cache del prefetch
+        # Esto asegura que cuando se carguen los cambios, las evidencias se consulten de nuevo
+        cambio.refresh_from_db()
+        
+        # Actualizar actualizado_en del evento para que aparezca en "Últimos Proyectos"
+        evento.actualizado_en = timezone.now()
+        evento.save(update_fields=['actualizado_en'])
+        
+        # También refrescar el evento para invalidar cualquier cache relacionado
+        evento.refresh_from_db()
 
         return JsonResponse({
             'success': True,

@@ -6460,6 +6460,8 @@ function editarCambio(cambioId, cambio) {
   editingCambioGroupId = cambio.grupo_id || null;
   editingCambioIds = Array.isArray(cambio.ids) && cambio.ids.length ? cambio.ids : [cambioId];
   editingCambioId = editingCambioIds[0] || cambioId;
+  // También establecer currentCambioId para que funcione la eliminación de evidencias
+  currentCambioId = editingCambioId;
 
   resetChangeCurrentTimeControls();
 
@@ -6873,8 +6875,10 @@ async function addChangeToProject() {
 
       clearChangeForm();
 
-      // Actualizar la vista en tiempo real (ya no estamos en modo edición)
-      const mensaje = editingCambioId ? 'Cambio actualizado exitosamente' : 'Cambio agregado exitosamente';
+      // Actualizar la vista en tiempo real
+      // Nota: editingCambioId ya fue puesto en null arriba, así que siempre mostrará 'Cambio agregado'
+      // Esto es correcto porque ya limpiamos las variables de edición
+      const mensaje = 'Cambio guardado exitosamente';
       await refreshCurrentProject(mensaje);
 
     } else {
@@ -9736,6 +9740,14 @@ async function eliminarArchivoProyecto(archivoId) {
 
   try {
 
+    // Cerrar el modal de edición de descripción si está abierto para el archivo que se está eliminando
+    if (currentProjectFileEdit && currentProjectFileEdit.id === archivoId) {
+      hideModal('editFileDescriptionModal');
+      currentProjectFileEdit = null;
+      // Esperar un momento para que el modal se cierre completamente antes de continuar
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     // Llamar a la API para eliminar
 
     const response = await fetch(`/api/evento/${proyecto.id}/archivo/${archivoId}/eliminar/`, {
@@ -9755,6 +9767,8 @@ async function eliminarArchivoProyecto(archivoId) {
     if (result.success) {
 
       // Actualizar la vista en tiempo real
+      // Usar un pequeño delay para asegurar que el backend haya procesado completamente la eliminación
+      await new Promise(resolve => setTimeout(resolve, 200));
       await refreshCurrentProject('Archivo eliminado exitosamente.');
 
     } else {
@@ -11186,8 +11200,11 @@ async function eliminarEvidenciaCambio(evidenciaId) {
 async function ejecutarEliminacionEvidencia(evidenciaId) {
 
   const currentProject = getCurrentProject();
+  
+  // Usar editingCambioId como respaldo si currentCambioId no está definido
+  const cambioIdParaEliminar = currentCambioId || editingCambioId;
 
-  if (!currentProject || !currentProject.id || !currentCambioId) {
+  if (!currentProject || !currentProject.id || !cambioIdParaEliminar) {
 
     showErrorMessage('No se pudo obtener la información del cambio');
 
@@ -11197,7 +11214,7 @@ async function ejecutarEliminacionEvidencia(evidenciaId) {
 
   try {
 
-    const response = await fetch(`/api/evento/${currentProject.id}/cambio/${currentCambioId}/evidencia/${evidenciaId}/eliminar/`, {
+    const response = await fetch(`/api/evento/${currentProject.id}/cambio/${cambioIdParaEliminar}/evidencia/${evidenciaId}/eliminar/`, {
 
       method: 'POST',
 
@@ -11222,16 +11239,63 @@ async function ejecutarEliminacionEvidencia(evidenciaId) {
     // (la evidencia ya fue eliminada anteriormente)
     if (response.status === 404 && result.error && result.error.includes('Evidencia no encontrada')) {
       
+      // Esperar un momento para asegurar que el backend haya procesado completamente
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // Actualizar la vista en tiempo real
       await refreshCurrentProject('La evidencia ya fue eliminada. Actualizando la vista...');
+      
+      // Esperar un momento adicional para asegurar que currentProjectData se haya actualizado
+      await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Reabrir el modal de detalles del cambio con datos actualizados
-      const cambio = currentProjectData?.cambios?.find(c => c.id === currentCambioId);
+      // Obtener los datos actualizados del proyecto desde el servidor
+      const proyectoActualizado = getCurrentProject();
+      if (!proyectoActualizado || !proyectoActualizado.id) {
+        showErrorMessage('No se pudo obtener la información del proyecto actualizado');
+        return;
+      }
+
+      // Recargar los datos del proyecto desde el servidor para asegurar que las evidencias estén actualizadas
+      await refreshCurrentProject();
+      
+      // Esperar un momento más para asegurar que los datos se hayan actualizado completamente
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Obtener el cambio actualizado desde los datos frescos del servidor
+      const proyectoFresco = getCurrentProject();
+      const cambio = proyectoFresco?.cambios?.find(c => c.id === cambioIdParaEliminar || (c.ids && c.ids.includes(cambioIdParaEliminar)));
 
       if (cambio) {
-
-        showChangeDetailsModal(cambio);
-
+        // Actualizar currentCambioId y editingCambioId con el ID del grupo si es necesario
+        if (cambio.id !== cambioIdParaEliminar && cambio.ids && cambio.ids.includes(cambioIdParaEliminar)) {
+          currentCambioId = cambio.id;
+          editingCambioId = cambio.id;
+        }
+        
+        // Verificar qué modal está abierto y actualizar el correspondiente
+        const addChangeModal = document.getElementById('addChangeModal');
+        const changeDetailsModal = document.getElementById('changeDetailsModal');
+        const isEditModalOpen = addChangeModal && window.getComputedStyle(addChangeModal).display !== 'none';
+        const isDetailsModalOpen = changeDetailsModal && window.getComputedStyle(changeDetailsModal).display !== 'none';
+        
+        if (isEditModalOpen) {
+          // Si estamos en el modal de edición, actualizar el preview de evidencias
+          renderExistingEvidences(cambio.evidencias || []);
+          
+          // Remover la evidencia de la lista de evidencias a eliminar si estaba marcada
+          const evidenciaIndex = evidenciasAEliminar.indexOf(evidenciaId);
+          if (evidenciaIndex > -1) {
+            evidenciasAEliminar.splice(evidenciaIndex, 1);
+          }
+        } else if (isDetailsModalOpen) {
+          // Si estamos en el modal de detalles, reabrir el modal con los datos actualizados
+          showChangeDetailsModal(cambio);
+        } else {
+          // Si ningún modal está abierto, abrir el modal de detalles
+          showChangeDetailsModal(cambio);
+        }
+      } else {
+        showErrorMessage('No se pudo encontrar el cambio actualizado');
       }
 
       return;
@@ -11240,16 +11304,63 @@ async function ejecutarEliminacionEvidencia(evidenciaId) {
 
     if (result.success) {
 
+      // Esperar un momento para asegurar que el backend haya procesado completamente la eliminación
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       // Actualizar la vista en tiempo real
       await refreshCurrentProject('Evidencia eliminada exitosamente');
+      
+      // Esperar un momento adicional para asegurar que currentProjectData se haya actualizado
+      await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Reabrir el modal de detalles del cambio con datos actualizados
-      const cambio = currentProjectData?.cambios?.find(c => c.id === currentCambioId);
+      // Obtener los datos actualizados del proyecto desde el servidor
+      const proyectoActualizado = getCurrentProject();
+      if (!proyectoActualizado || !proyectoActualizado.id) {
+        showErrorMessage('No se pudo obtener la información del proyecto actualizado');
+        return;
+      }
+
+      // Recargar los datos del proyecto desde el servidor para asegurar que las evidencias estén actualizadas
+      await refreshCurrentProject();
+      
+      // Esperar un momento más para asegurar que los datos se hayan actualizado completamente
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Obtener el cambio actualizado desde los datos frescos del servidor
+      const proyectoFresco = getCurrentProject();
+      const cambio = proyectoFresco?.cambios?.find(c => c.id === cambioIdParaEliminar || (c.ids && c.ids.includes(cambioIdParaEliminar)));
 
       if (cambio) {
-
-        showChangeDetailsModal(cambio);
-
+        // Actualizar currentCambioId y editingCambioId con el ID del grupo si es necesario
+        if (cambio.id !== cambioIdParaEliminar && cambio.ids && cambio.ids.includes(cambioIdParaEliminar)) {
+          currentCambioId = cambio.id;
+          editingCambioId = cambio.id;
+        }
+        
+        // Verificar qué modal está abierto y actualizar el correspondiente
+        const addChangeModal = document.getElementById('addChangeModal');
+        const changeDetailsModal = document.getElementById('changeDetailsModal');
+        const isEditModalOpen = addChangeModal && window.getComputedStyle(addChangeModal).display !== 'none';
+        const isDetailsModalOpen = changeDetailsModal && window.getComputedStyle(changeDetailsModal).display !== 'none';
+        
+        if (isEditModalOpen) {
+          // Si estamos en el modal de edición, actualizar el preview de evidencias
+          renderExistingEvidences(cambio.evidencias || []);
+          
+          // Remover la evidencia de la lista de evidencias a eliminar si estaba marcada
+          const evidenciaIndex = evidenciasAEliminar.indexOf(evidenciaId);
+          if (evidenciaIndex > -1) {
+            evidenciasAEliminar.splice(evidenciaIndex, 1);
+          }
+        } else if (isDetailsModalOpen) {
+          // Si estamos en el modal de detalles, reabrir el modal con los datos actualizados
+          showChangeDetailsModal(cambio);
+        } else {
+          // Si ningún modal está abierto, abrir el modal de detalles
+          showChangeDetailsModal(cambio);
+        }
+      } else {
+        showErrorMessage('No se pudo encontrar el cambio actualizado');
       }
 
     } else {
@@ -11265,10 +11376,40 @@ async function ejecutarEliminacionEvidencia(evidenciaId) {
 
     // Intentar actualizar el UI de todas formas para sincronizar con el estado real
     try {
+      // Esperar un momento antes de actualizar
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       await refreshCurrentProject();
-      const cambio = currentProjectData?.cambios?.find(c => c.id === currentCambioId);
+      
+      // Esperar un momento adicional para asegurar que currentProjectData se haya actualizado
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      const proyectoActualizado = getCurrentProject();
+      const cambioIdParaBuscar = currentCambioId || editingCambioId;
+      const cambio = proyectoActualizado?.cambios?.find(c => c.id === cambioIdParaBuscar || (c.ids && c.ids.includes(cambioIdParaBuscar)));
       if (cambio) {
-        showChangeDetailsModal(cambio);
+        // Actualizar currentCambioId y editingCambioId con el ID del grupo si es necesario
+        if (cambio.id !== cambioIdParaBuscar && cambio.ids && cambio.ids.includes(cambioIdParaBuscar)) {
+          currentCambioId = cambio.id;
+          editingCambioId = cambio.id;
+        }
+        
+        // Verificar qué modal está abierto y actualizar el correspondiente
+        const addChangeModal = document.getElementById('addChangeModal');
+        const changeDetailsModal = document.getElementById('changeDetailsModal');
+        const isEditModalOpen = addChangeModal && window.getComputedStyle(addChangeModal).display !== 'none';
+        const isDetailsModalOpen = changeDetailsModal && window.getComputedStyle(changeDetailsModal).display !== 'none';
+        
+        if (isEditModalOpen) {
+          // Si estamos en el modal de edición, actualizar el preview de evidencias
+          renderExistingEvidences(cambio.evidencias || []);
+        } else if (isDetailsModalOpen) {
+          // Si estamos en el modal de detalles, reabrir el modal con los datos actualizados
+          showChangeDetailsModal(cambio);
+        } else {
+          // Si ningún modal está abierto, abrir el modal de detalles
+          showChangeDetailsModal(cambio);
+        }
       }
     } catch (updateError) {
       console.error('Error al actualizar UI:', updateError);
@@ -11449,7 +11590,7 @@ function renderExistingEvidences(evidencias) {
       e.stopPropagation();
       const evidenciaId = this.getAttribute('data-evidence-id');
       
-      // Marcar evidencia para eliminación
+      // Marcar evidencia para eliminación (se eliminará al guardar)
       if (!evidenciasAEliminar.includes(evidenciaId)) {
         evidenciasAEliminar.push(evidenciaId);
         

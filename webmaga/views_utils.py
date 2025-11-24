@@ -364,10 +364,11 @@ def obtener_cambios_evento(evento):
     # OPTIMIZACIÓN: Limitar cambios a los 50 más recientes para vista de detalles
     # Los cambios adicionales se cargan bajo demanda si es necesario
     MAX_CAMBIOS_VISTA = 50
+    # NO usar prefetch_related('evidencias') aquí porque puede cachear evidencias eliminadas
+    # En su lugar, haremos consultas directas por cada cambio
     cambios_queryset = (
         EventoCambioColaborador.objects.filter(actividad=evento)
         .select_related(*select_related_fields)
-        .prefetch_related('evidencias')
         .order_by('-fecha_cambio', '-creado_en')
     )
     cambios_total = cambios_queryset.count()
@@ -388,6 +389,61 @@ def obtener_cambios_evento(evento):
             print(f'⚠️ Error al filtrar por comunidad: {e}')
 
     cambios_por_grupo = {}
+    
+    # Pre-cargar todas las evidencias por grupo_id para evitar duplicados
+    # cuando hay múltiples colaboradores en el mismo grupo
+    from webmaga.models import EventosEvidenciasCambios
+    evidencias_por_grupo = {}
+    grupos_unicos = set()
+    for cambio in cambios:
+        grupo_uuid = getattr(cambio, 'grupo_id', None) or cambio.id
+        grupos_unicos.add(grupo_uuid)
+    
+    # Pre-cargar evidencias por grupo una sola vez
+    for grupo_uuid in grupos_unicos:
+        grupo_clave = str(grupo_uuid)
+        # Obtener todos los cambios del mismo grupo
+        cambios_del_grupo = list(EventoCambioColaborador.objects.filter(
+            actividad=evento,
+            grupo_id=grupo_uuid
+        ).values_list('id', flat=True))
+        print(f'🔍 Grupo {grupo_clave}: Cambios del grupo: {cambios_del_grupo}')
+        
+        # Obtener todas las evidencias de todos los cambios del grupo
+        # Usar un diccionario para evitar duplicados por ID (más compatible con todas las bases de datos)
+        # También verificar duplicados por URL de almacenamiento para evitar el mismo archivo múltiples veces
+        evidencias_temp = {}
+        evidencias_por_url = {}  # Diccionario adicional para verificar duplicados por URL
+        if cambios_del_grupo:
+            # Usar una consulta directa con distinct para evitar duplicados a nivel de base de datos
+            evidencias_qs = EventosEvidenciasCambios.objects.filter(
+                actividad=evento,
+                cambio_id__in=cambios_del_grupo
+            ).order_by('creado_en')
+            
+            print(f'📎 Grupo {grupo_clave}: Evidencias encontradas en BD: {evidencias_qs.count()}')
+            
+            # Agregar al diccionario usando ID como clave para asegurar unicidad
+            # También verificar si ya existe una evidencia con la misma URL (mismo archivo físico)
+            for evidencia in evidencias_qs:
+                evidencia_key = str(evidencia.id)
+                evidencia_url = evidencia.url_almacenamiento or ''
+                
+                # Verificar si ya existe una evidencia con la misma URL (mismo archivo físico)
+                if evidencia_url in evidencias_por_url:
+                    print(f'  ⚠️ Evidencia {evidencia.id} ({evidencia.archivo_nombre}) con URL duplicada - omitida (ya existe evidencia {evidencias_por_url[evidencia_url].id})')
+                    continue
+                
+                # Solo agregar si no existe ya por ID (evita duplicados por seguridad)
+                if evidencia_key not in evidencias_temp:
+                    evidencias_temp[evidencia_key] = evidencia
+                    evidencias_por_url[evidencia_url] = evidencia
+                    print(f'  ✅ Evidencia {evidencia.id} ({evidencia.archivo_nombre}) agregada al grupo {grupo_clave}')
+                else:
+                    print(f'  ⚠️ Evidencia {evidencia.id} ({evidencia.archivo_nombre}) ya existe en el grupo {grupo_clave} por ID - omitida')
+        
+        evidencias_por_grupo[grupo_clave] = list(evidencias_temp.values())
+        print(f'📦 Grupo {grupo_clave}: Total de evidencias únicas (por ID y URL): {len(evidencias_por_grupo[grupo_clave])}')
 
     for cambio in cambios:
         grupo_uuid = getattr(cambio, 'grupo_id', None) or cambio.id
@@ -395,9 +451,6 @@ def obtener_cambios_evento(evento):
         colaborador = cambio.colaborador
         colaborador_id_str = str(colaborador.id) if colaborador else None
         responsable_nombre = colaborador.nombre if colaborador else 'Colaborador desconocido'
-
-        evidencias_qs = cambio.evidencias.all()
-        print(f'📎 Evidencias encontradas para cambio {cambio.id}: {evidencias_qs.count()}')
 
         if grupo_clave not in cambios_por_grupo:
             fecha_display = ''
@@ -411,6 +464,25 @@ def obtener_cambios_evento(evento):
                     fecha_local = timezone.make_aware(cambio.fecha_cambio, guatemala_tz)
                 fecha_display = fecha_local.strftime('%d/%m/%Y %H:%M')
 
+            # Obtener evidencias del grupo (ya pre-cargadas y sin duplicados)
+            evidencias_lista = evidencias_por_grupo.get(grupo_clave, [])
+            print(f'📎 Evidencias encontradas para grupo {grupo_clave}: {len(evidencias_lista)}')
+            
+            # Preparar evidencias como diccionario usando ID como clave
+            evidencias_dict_inicial = {}
+            for evidencia in evidencias_lista:
+                evidencia_key = str(evidencia.id)
+                archivo_tipo = evidencia.archivo_tipo or ''
+                es_imagen = archivo_tipo.startswith('image/') if archivo_tipo else False
+                evidencias_dict_inicial[evidencia_key] = {
+                    'id': str(evidencia.id),
+                    'nombre': evidencia.archivo_nombre,
+                    'url': evidencia.url_almacenamiento,
+                    'tipo': archivo_tipo,
+                    'es_imagen': es_imagen,
+                    'descripcion': evidencia.descripcion or '',
+                }
+
             cambios_por_grupo[grupo_clave] = {
                 'id': str(cambio.id),
                 'ids': [],
@@ -422,7 +494,7 @@ def obtener_cambios_evento(evento):
                 'responsables_display': '',
                 'colaboradores_ids': [],
                 'colaboradores': [],
-                'evidencias_dict': {},
+                'evidencias_dict': evidencias_dict_inicial,  # Inicializar con evidencias del grupo
                 'comunidades': [],  # Lista de nombres de comunidades
             }
 
@@ -470,24 +542,18 @@ def obtener_cambios_evento(evento):
             # Si hay un error al acceder a la comunidad, simplemente ignorar
             print(f'⚠️ Error al acceder a comunidad del cambio {cambio.id}: {e}')
 
-        for evidencia in evidencias_qs:
-            evidencia_key = evidencia.url_almacenamiento or str(evidencia.id)
-            if evidencia_key in grupo_data['evidencias_dict']:
-                continue
-            archivo_tipo = evidencia.archivo_tipo or ''
-            es_imagen = archivo_tipo.startswith('image/') if archivo_tipo else False
-            grupo_data['evidencias_dict'][evidencia_key] = {
-                'id': str(evidencia.id),
-                'nombre': evidencia.archivo_nombre,
-                'url': evidencia.url_almacenamiento,
-                'tipo': archivo_tipo,
-                'es_imagen': es_imagen,
-                'descripcion': evidencia.descripcion or '',
-            }
-
     cambios_data = []
     for grupo in cambios_por_grupo.values():
-        grupo['evidencias'] = list(grupo.pop('evidencias_dict').values())
+        evidencias_dict = grupo.pop('evidencias_dict', {})
+        # Convertir el diccionario a lista y asegurar que no hay duplicados por ID
+        evidencias_lista = list(evidencias_dict.values())
+        # Verificar unicidad por ID (por seguridad adicional)
+        evidencias_unicas = {}
+        for evidencia in evidencias_lista:
+            evidencia_id = evidencia.get('id') or str(evidencia.get('id', ''))
+            if evidencia_id and evidencia_id not in evidencias_unicas:
+                evidencias_unicas[evidencia_id] = evidencia
+        grupo['evidencias'] = list(evidencias_unicas.values())
         grupo['responsables_display'] = ', '.join(grupo['responsables'])
         grupo['responsable'] = grupo['responsables_display']
         grupo['responsable_id'] = grupo['colaboradores_ids'][0] if grupo['colaboradores_ids'] else None
@@ -496,6 +562,7 @@ def obtener_cambios_evento(evento):
         print(f'🔍 Grupo {grupo["grupo_id"]}: Lista de comunidades antes de convertir: {comunidades_lista}')
         grupo['comunidades'] = ', '.join(comunidades_lista) if comunidades_lista else ''
         print(f'🔍 Grupo {grupo["grupo_id"]}: String de comunidades después de convertir: "{grupo["comunidades"]}"')
+        print(f'📎 Grupo {grupo["grupo_id"]}: Total de evidencias en el grupo (antes de filtrado): {len(evidencias_lista)}, después de filtrado: {len(grupo["evidencias"])} (debe ser único por grupo)')
         cambios_data.append(grupo)
         print(f'✅ Cambio agrupado agregado: {grupo["id"]} (grupo {grupo["grupo_id"]}) con {len(grupo["colaboradores_ids"])} colaborador(es) y {len(comunidades_lista)} comunidad(es) - String final: "{grupo["comunidades"]}"')
 

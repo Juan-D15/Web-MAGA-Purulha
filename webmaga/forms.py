@@ -169,6 +169,7 @@ class ActividadForm(forms.Form):
             ('planificado', 'Planificado'),
             ('en_progreso', 'En Progreso'),
             ('completado', 'Completado'),
+            ('cancelado', 'Cancelado'),
         ],
         initial='planificado',
         widget=forms.Select(attrs={
