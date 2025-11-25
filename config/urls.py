@@ -47,20 +47,41 @@ def serve_service_worker(request):
     logger.info('Service Worker request recibido')
     
     try:
-        # Ruta al archivo del Service Worker
-        sw_path = os.path.join(settings.STATICFILES_DIRS[0], 'js', 'service-worker.js')
-        logger.info(f'Buscando Service Worker en: {sw_path}')
+        # En producción, buscar primero en STATIC_ROOT (después de collectstatic)
+        # En desarrollo, buscar en STATICFILES_DIRS
+        sw_path = None
+        
+        if not settings.DEBUG and hasattr(settings, 'STATIC_ROOT') and settings.STATIC_ROOT:
+            # Producción: buscar en STATIC_ROOT
+            sw_path = os.path.join(settings.STATIC_ROOT, 'js', 'service-worker.js')
+            logger.info(f'[PRODUCCIÓN] Buscando Service Worker en: {sw_path}')
+            if not os.path.exists(sw_path):
+                logger.warn(f'Service Worker no encontrado en STATIC_ROOT: {sw_path}')
+                sw_path = None
+        
+        # Si no se encontró en STATIC_ROOT o estamos en desarrollo, buscar en STATICFILES_DIRS
+        if not sw_path and hasattr(settings, 'STATICFILES_DIRS') and settings.STATICFILES_DIRS:
+            sw_path = os.path.join(settings.STATICFILES_DIRS[0], 'js', 'service-worker.js')
+            logger.info(f'[DESARROLLO/FALLBACK] Buscando Service Worker en: {sw_path}')
         
         # Verificar que el archivo exista
-        if not os.path.exists(sw_path):
-            logger.error(f'Service Worker no encontrado en: {sw_path}')
-            return HttpResponse('Service Worker not found', status=404, content_type='text/plain')
+        if not sw_path or not os.path.exists(sw_path):
+            error_msg = f'Service Worker no encontrado. Buscado en: {sw_path}'
+            logger.error(error_msg)
+            # Intentar servir desde WhiteNoise si está disponible
+            try:
+                from whitenoise import WhiteNoise
+                # WhiteNoise debería servir el archivo automáticamente
+                return HttpResponse('Service Worker not found. Please run collectstatic.', 
+                                  status=404, content_type='text/plain')
+            except:
+                return HttpResponse(error_msg, status=404, content_type='text/plain')
         
         # Leer el contenido del archivo
         with open(sw_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        logger.info('Service Worker leído exitosamente, sirviendo con headers especiales')
+        logger.info(f'Service Worker leído exitosamente desde: {sw_path}')
         
         # Crear respuesta con el header Service-Worker-Allowed
         response = HttpResponse(content, content_type='application/javascript')

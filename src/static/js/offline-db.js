@@ -497,30 +497,48 @@ const offlineDB = new OfflineDB();
 
 // Inicializar cuando el DOM esté listo
 if (typeof window !== 'undefined') {
-  // Inicializar inmediatamente si es posible
-  offlineDB.init().catch(error => {
-    console.error('❌ Error al inicializar IndexedDB:', error);
-  });
-
-  // También inicializar cuando el DOM esté listo (por si acaso)
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        await offlineDB.init();
-        console.log('✅ IndexedDB inicializado correctamente');
-      } catch (error) {
-        console.error('❌ Error al inicializar IndexedDB:', error);
-      }
-    });
+  console.log('🔍 [OFFLINE-DB] Inicializando IndexedDB...');
+  console.log('🔍 [OFFLINE-DB] document.readyState:', document.readyState);
+  console.log('🔍 [OFFLINE-DB] indexedDB disponible:', !!window.indexedDB);
+  
+  // Verificar que IndexedDB esté disponible
+  if (!window.indexedDB) {
+    console.error('❌ [OFFLINE-DB] IndexedDB no está disponible en este navegador');
   } else {
-    // DOM ya está listo
-    offlineDB.init().catch(error => {
-      console.error('❌ Error al inicializar IndexedDB:', error);
+    // Inicializar inmediatamente si es posible
+    offlineDB.init().then(() => {
+      console.log('✅ [OFFLINE-DB] IndexedDB inicializado correctamente (inmediato)');
+      window.OfflineDB = offlineDB;
+    }).catch(error => {
+      console.error('❌ [OFFLINE-DB] Error al inicializar IndexedDB (inmediato):', error);
     });
-  }
 
-  // Exponer globalmente
-  window.OfflineDB = offlineDB;
+    // También inicializar cuando el DOM esté listo (por si acaso)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', async () => {
+        console.log('🔍 [OFFLINE-DB] DOM cargado, inicializando IndexedDB...');
+        try {
+          await offlineDB.init();
+          console.log('✅ [OFFLINE-DB] IndexedDB inicializado correctamente (DOMContentLoaded)');
+          window.OfflineDB = offlineDB;
+        } catch (error) {
+          console.error('❌ [OFFLINE-DB] Error al inicializar IndexedDB (DOMContentLoaded):', error);
+        }
+      });
+    } else {
+      // DOM ya está listo
+      console.log('🔍 [OFFLINE-DB] DOM ya está listo, inicializando IndexedDB...');
+      offlineDB.init().then(() => {
+        console.log('✅ [OFFLINE-DB] IndexedDB inicializado correctamente (DOM listo)');
+        window.OfflineDB = offlineDB;
+      }).catch(error => {
+        console.error('❌ [OFFLINE-DB] Error al inicializar IndexedDB (DOM listo):', error);
+      });
+    }
+
+    // Exponer globalmente inmediatamente (aunque aún no esté inicializado)
+    window.OfflineDB = offlineDB;
+  }
 }
 
 // Exportar para uso en otros módulos (si se usa módulos)

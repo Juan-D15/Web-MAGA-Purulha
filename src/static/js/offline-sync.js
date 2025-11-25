@@ -1441,22 +1441,34 @@
     // Verificar si está offline (navigator.onLine puede no ser confiable, también verificar si hay errores de red)
     const isOffline = !navigator.onLine;
     
+    console.log('🔍 [OFFLINE-SYNC] checkAndShowOfflineBanner - isOffline:', isOffline, 'navigator.onLine:', navigator.onLine);
+    
     if (isOffline) {
-      console.log('⚠️ Verificando estado offline - Mostrando banner');
+      console.log('⚠️ [OFFLINE-SYNC] Estado offline detectado - Intentando mostrar banner');
       const banner = getBannerElement();
+      console.log('🔍 [OFFLINE-SYNC] Banner encontrado:', !!banner);
+      
       if (banner) {
+        console.log('✅ [OFFLINE-SYNC] Mostrando banner offline');
         showBanner('Sin conexión a Internet. Los cambios se guardarán localmente.');
         updateSyncStatus();
       } else {
+        console.warn('⚠️ [OFFLINE-SYNC] Banner no encontrado, reintentando en 500ms...');
         // Si el banner no existe todavía, intentar de nuevo después de un breve delay
         setTimeout(() => {
           const bannerRetry = getBannerElement();
+          console.log('🔍 [OFFLINE-SYNC] Reintento - Banner encontrado:', !!bannerRetry);
           if (bannerRetry && !navigator.onLine) {
+            console.log('✅ [OFFLINE-SYNC] Mostrando banner offline (reintento)');
             showBanner('Sin conexión a Internet. Los cambios se guardarán localmente.');
             updateSyncStatus();
+          } else if (!bannerRetry) {
+            console.error('❌ [OFFLINE-SYNC] Banner no encontrado después del reintento. Verifica que el elemento #offlineBanner exista en el DOM.');
           }
         }, 500);
       }
+    } else {
+      console.log('✅ [OFFLINE-SYNC] Estado online detectado');
     }
   }
 
@@ -1469,9 +1481,15 @@
   });
 
   window.addEventListener('offline', () => {
-    console.log('⚠️ Conexión perdida - Modo offline activado');
+    console.log('⚠️ [OFFLINE-SYNC] Evento "offline" detectado - Modo offline activado');
+    console.log('🔍 [OFFLINE-SYNC] navigator.onLine:', navigator.onLine);
     showBanner('Sin conexión a Internet. Los cambios se guardarán localmente.');
     updateSyncStatus();
+    
+    // Verificar también después de un breve delay para asegurar que el banner se muestre
+    setTimeout(() => {
+      checkAndShowOfflineBanner();
+    }, 100);
   });
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -1587,13 +1605,20 @@
   // Verificar estado offline inmediatamente si el DOM ya está listo
   // Esto asegura que el banner se muestre incluso si la página se carga offline
   function initOfflineCheck() {
+    console.log('🔍 [OFFLINE-SYNC] Inicializando verificación offline...');
+    console.log('🔍 [OFFLINE-SYNC] navigator.onLine:', navigator.onLine);
+    console.log('🔍 [OFFLINE-SYNC] document.readyState:', document.readyState);
+    
     // Verificar múltiples veces para asegurar que el banner se muestre
     checkAndShowOfflineBanner();
     
     // Verificar después de que el DOM esté completamente cargado
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(checkAndShowOfflineBanner, 100);
+        console.log('🔍 [OFFLINE-SYNC] DOM cargado, verificando offline...');
+        setTimeout(() => {
+          checkAndShowOfflineBanner();
+        }, 100);
       });
     } else {
       // DOM ya está listo, verificar después de un breve delay
