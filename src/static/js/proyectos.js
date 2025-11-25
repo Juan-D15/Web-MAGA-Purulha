@@ -7658,14 +7658,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const btnAgregarNuevo = document.getElementById('btnAgregarNuevo');
   if (btnAgregarNuevo) {
     btnAgregarNuevo.addEventListener('click', function() {
-      // Mostrar confirmación antes de redirigir usando modal personalizado
-      showConfirmModal(
-        '¿Está seguro que quiere crear un evento nuevo?\n\nAbandonará esta página y será redirigido al formulario de creación de eventos.',
-        () => {
-          // Redirigir a la página de gestión de eventos con scroll automático al formulario de creación
-          window.location.href = window.DJANGO_URLS.gestioneseventos + '#createEventView';
-        }
-      );
+      // Redirigir directamente a la página de gestión de eventos con scroll automático al formulario de creación
+      if (window.DJANGO_URLS && window.DJANGO_URLS.gestioneseventos) {
+        window.location.href = window.DJANGO_URLS.gestioneseventos + '#createEventView';
+      }
     });
   }
 
