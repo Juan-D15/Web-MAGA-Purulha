@@ -247,9 +247,11 @@ class OfflineDB {
         if (categoryKeyNormalizado && categoryKeyNormalizado !== 'sin-tipo' && categoryKeyNormalizado !== 'sin tipo') {
           // Si categoryKey es válido y coincide, incluir
           if (categoryKeyNormalizado === tipoNormalizadoSolicitado) {
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por categoryKey: ${categoryKeyNormalizado}`);
             return true;
           } else {
             // Si categoryKey existe pero no coincide, excluir
+            console.log(`❌ Proyecto ${p.id} (${p.nombre || p.name}) excluido: categoryKey "${categoryKeyNormalizado}" no coincide con "${tipoNormalizadoSolicitado}"`);
             return false;
           }
         }
@@ -330,36 +332,53 @@ class OfflineDB {
           // Para "Capacitación" -> "capacitaciones"
           if (tipoNormalizadoSolicitado === 'capacitaciones' && (proyectoTipoLower.includes('capacit'))) {
             coincide = true;
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por palabra clave "capacit"`);
           }
           // Para "Entrega" -> "entregas"
           else if (tipoNormalizadoSolicitado === 'entregas' && (proyectoTipoLower.includes('entreg'))) {
             coincide = true;
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por palabra clave "entreg"`);
           }
           // Para "Proyecto de Ayuda" -> "proyectos-ayuda"
           else if (tipoNormalizadoSolicitado === 'proyectos-ayuda' && (proyectoTipoLower.includes('proyecto') || proyectoTipoLower.includes('ayuda'))) {
             coincide = true;
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por palabra clave "proyecto/ayuda"`);
           }
+        }
+        
+        if (!coincide) {
+          console.log(`❌ Proyecto ${p.id} (${p.nombre || p.name}) excluido: tipo "${proyectoTipoOriginal}" no coincide con "${tipoNormalizadoSolicitado}"`);
+          console.log(`   Detalles: tipo="${p.tipo || 'N/A'}", type="${p.type || 'N/A'}", categoryKey="${p.categoryKey || 'N/A'}"`);
         }
         
         return coincide;
       });
       
-      console.log(`🔍 getAllProyectos: Proyectos filtrados para tipo "${tipo}": ${filtrados.length}`);
+      console.log(`🔍 getAllProyectos: Proyectos filtrados para tipo "${tipo}": ${filtrados.length} de ${all.length} totales`);
+      
+      // Mostrar detalles de TODOS los proyectos para debugging
+      if (all.length > 0) {
+        console.log(`📋 Detalles de TODOS los proyectos en IndexedDB:`);
+        all.forEach((p, index) => {
+          const estaIncluido = filtrados.some(f => f.id === p.id);
+          console.log(`  ${estaIncluido ? '✅' : '❌'} Proyecto ${index + 1}/${all.length}:`, {
+            id: p.id,
+            nombre: p.nombre || p.name,
+            tipo: p.tipo || 'N/A',
+            type: p.type || 'N/A',
+            categoryKey: p.categoryKey || 'N/A',
+            category: p.category || 'N/A',
+            incluido: estaIncluido
+          });
+        });
+      }
+      
       if (filtrados.length === 0 && all.length > 0) {
         // Mostrar qué tipos tienen los proyectos para debugging
         const tiposEncontrados = [...new Set(all.map(p => 
           p.tipo || p.type || p.categoryKey || p.category || 'sin-tipo'
         ))];
         console.log(`ℹ️ Tipos disponibles en IndexedDB:`, tiposEncontrados);
-        // Mostrar detalles de los primeros 3 proyectos para debugging
-        console.log(`🔍 Detalles de los primeros 3 proyectos:`, all.slice(0, 3).map(p => ({
-          id: p.id,
-          nombre: p.nombre || p.name,
-          tipo: p.tipo || 'N/A',
-          type: p.type || 'N/A',
-          categoryKey: p.categoryKey || 'N/A',
-          category: p.category || 'N/A'
-        })));
       }
       
       return filtrados;
