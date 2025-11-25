@@ -2897,24 +2897,71 @@ input#projectSearchInput[type="text"] {
   color: rgba(255, 255, 255, 0.45); /* Placeholder claro para fondo oscuro */
 }
 
-#addChangeModal .form-textarea {
-  background: rgba(15, 23, 42, 0.55);
-  border-color: rgba(148, 163, 184, 0.25);
-  color: #f8fafc;
+/* Estilos específicos para el textarea de descripción del cambio */
+#addChangeModal .form-textarea,
+#addChangeModal textarea#changeDescription,
+textarea#changeDescription.form-textarea {
+  background: rgba(30, 41, 59, 0.85) !important;
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: none !important;
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
 }
 
-#addChangeModal .form-textarea:focus {
-  background: rgba(15, 23, 42, 0.75);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #ffffff;
+#addChangeModal .form-textarea:focus,
+#addChangeModal .form-textarea:active,
+#addChangeModal .form-textarea:focus-visible,
+#addChangeModal textarea#changeDescription:focus,
+#addChangeModal textarea#changeDescription:active,
+textarea#changeDescription.form-textarea:focus,
+textarea#changeDescription.form-textarea:active {
+  background: rgba(37, 56, 82, 0.95) !important;
+  background-color: rgba(37, 56, 82, 0.95) !important;
+  border: 1px solid rgba(0, 123, 255, 0.6) !important;
+  border-color: rgba(0, 123, 255, 0.6) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15) !important;
 }
 
-#addChangeModal .form-textarea::placeholder {
-  color: rgba(184, 197, 209, 0.6);
+#addChangeModal .form-textarea::placeholder,
+#addChangeModal textarea#changeDescription::placeholder,
+textarea#changeDescription.form-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  opacity: 1 !important;
 }
 
-#addChangeModal .form-textarea:focus::placeholder {
-  color: rgba(184, 197, 209, 0.45);
+#addChangeModal .form-textarea:focus::placeholder,
+#addChangeModal textarea#changeDescription:focus::placeholder,
+textarea#changeDescription.form-textarea:focus::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  opacity: 1 !important;
+}
+
+/* Prevenir fondo blanco del autofill de navegadores */
+#addChangeModal .form-textarea:-webkit-autofill,
+#addChangeModal .form-textarea:-webkit-autofill:hover,
+#addChangeModal .form-textarea:-webkit-autofill:focus,
+#addChangeModal .form-textarea:-webkit-autofill:active,
+#addChangeModal textarea#changeDescription:-webkit-autofill,
+#addChangeModal textarea#changeDescription:-webkit-autofill:hover,
+#addChangeModal textarea#changeDescription:-webkit-autofill:focus,
+#addChangeModal textarea#changeDescription:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(30, 41, 59, 0.85) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  background: rgba(30, 41, 59, 0.85) !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 .form-input:focus::placeholder,
@@ -3013,6 +3060,73 @@ input#projectSearchInput[type="text"] {
 .btn-danger *,
 button * {
   pointer-events: none;
+}
+
+/* Estilos específicos para el textarea de editar descripción del archivo */
+#editFileDescriptionModal .form-textarea,
+#editFileDescriptionModal textarea#editFileDescriptionInput,
+textarea#editFileDescriptionInput.form-textarea {
+  background: rgba(30, 41, 59, 0.85) !important;
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: none !important;
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+}
+
+#editFileDescriptionModal .form-textarea:focus,
+#editFileDescriptionModal .form-textarea:active,
+#editFileDescriptionModal .form-textarea:focus-visible,
+#editFileDescriptionModal textarea#editFileDescriptionInput:focus,
+#editFileDescriptionModal textarea#editFileDescriptionInput:active,
+textarea#editFileDescriptionInput.form-textarea:focus,
+textarea#editFileDescriptionInput.form-textarea:active {
+  background: rgba(37, 56, 82, 0.95) !important;
+  background-color: rgba(37, 56, 82, 0.95) !important;
+  border: 1px solid rgba(0, 123, 255, 0.6) !important;
+  border-color: rgba(0, 123, 255, 0.6) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15) !important;
+}
+
+#editFileDescriptionModal .form-textarea::placeholder,
+#editFileDescriptionModal textarea#editFileDescriptionInput::placeholder,
+textarea#editFileDescriptionInput.form-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  opacity: 1 !important;
+}
+
+#editFileDescriptionModal .form-textarea:focus::placeholder,
+#editFileDescriptionModal textarea#editFileDescriptionInput:focus::placeholder,
+textarea#editFileDescriptionInput.form-textarea:focus::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  opacity: 1 !important;
+}
+
+/* Prevenir fondo blanco del autofill de navegadores */
+#editFileDescriptionModal .form-textarea:-webkit-autofill,
+#editFileDescriptionModal .form-textarea:-webkit-autofill:hover,
+#editFileDescriptionModal .form-textarea:-webkit-autofill:focus,
+#editFileDescriptionModal .form-textarea:-webkit-autofill:active,
+#editFileDescriptionModal textarea#editFileDescriptionInput:-webkit-autofill,
+#editFileDescriptionModal textarea#editFileDescriptionInput:-webkit-autofill:hover,
+#editFileDescriptionModal textarea#editFileDescriptionInput:-webkit-autofill:focus,
+#editFileDescriptionModal textarea#editFileDescriptionInput:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(30, 41, 59, 0.85) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background-color: rgba(30, 41, 59, 0.85) !important;
+  background: rgba(30, 41, 59, 0.85) !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 /* Permitir interacción con inputs y textareas */
