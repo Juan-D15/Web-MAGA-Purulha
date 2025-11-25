@@ -778,32 +778,33 @@ html {
   min-width: 200px;
   padding: 12px 42px 12px 16px;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-100);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(30, 41, 59, 0.85); /* Fondo más oscuro y visible */
+  color: #ffffff; /* Texto blanco para mejor visibilidad */
   font-size: 15px;
   font-weight: 500;
   line-height: 1.3;
   transition: all 0.3s ease;
   appearance: none;
   cursor: pointer;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23b8c5d1' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.1);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: calc(100% - 16px) center;
   background-size: 12px 8px;
 }
 
 .filter-select:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(0, 123, 255, 0.35);
+  background: rgba(37, 56, 82, 0.95); /* Fondo más claro al hover pero aún oscuro */
+  border-color: rgba(0, 123, 255, 0.5);
 }
 
 .filter-select:focus {
   outline: none;
-  border-color: rgba(0, 123, 255, 0.5);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 123, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+  background: rgba(37, 56, 82, 0.95);
+  color: #ffffff; /* Asegurar texto blanco al enfocar */
 }
 
 .filter-select:disabled,
@@ -841,8 +842,8 @@ html {
   position: relative;
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.85); /* Fondo más oscuro y visible */
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   padding: 12px 16px;
   transition: all 0.3s ease;
@@ -850,9 +851,9 @@ html {
 }
 
 .search-input-wrapper:focus-within {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(0, 123, 255, 0.5);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  background: rgba(37, 56, 82, 0.95); /* Fondo más claro al enfocar pero aún oscuro */
+  border-color: rgba(0, 123, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
 }
 
 .search-icon {
@@ -867,17 +868,83 @@ html {
 
 .project-search-input {
   flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text-100);
+  background: transparent !important; /* Forzar fondo transparente */
+  border: none !important;
+  outline: none !important;
+  color: #ffffff !important; /* Texto blanco para que sea visible */
+  -webkit-text-fill-color: #ffffff !important; /* Forzar color de texto en WebKit */
+  caret-color: #ffffff !important; /* Color del cursor */
   font-size: 15px;
   font-weight: 400;
   padding: 0;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  transition: none !important; /* Eliminar transiciones que puedan causar retraso */
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+}
+
+.project-search-input:focus,
+.project-search-input:active,
+.project-search-input:focus-visible {
+  background: transparent !important; /* Mantener transparente al enfocar */
+  border: none !important;
+  outline: none !important;
+  color: #ffffff !important; /* Mantener texto blanco al enfocar */
+  -webkit-text-fill-color: #ffffff !important; /* Forzar color de texto en WebKit */
+  caret-color: #ffffff !important; /* Color del cursor */
+  box-shadow: none !important;
+}
+
+/* Asegurar que el texto sea blanco mientras se escribe */
+.project-search-input::selection {
+  background-color: rgba(0, 123, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+
+.project-search-input::-moz-selection {
+  background-color: rgba(0, 123, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+
+.project-search-input:-webkit-autofill,
+.project-search-input:-webkit-autofill:hover,
+.project-search-input:-webkit-autofill:focus,
+.project-search-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(30, 41, 59, 0.85) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Regla adicional para forzar texto blanco en todos los estados - máxima especificidad */
+input.project-search-input,
+input#projectSearchInput,
+.search-input-wrapper input.project-search-input,
+.search-input-wrapper input#projectSearchInput,
+.list-search-container input.project-search-input,
+.list-search-container input#projectSearchInput {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background: transparent !important;
+}
+
+/* Forzar texto blanco incluso durante la escritura */
+input.project-search-input[type="text"],
+input#projectSearchInput[type="text"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
 }
 
 .project-search-input::placeholder {
-  color: var(--text-50);
+  color: rgba(255, 255, 255, 0.5); /* Placeholder más visible */
 }
 
 .search-clear-btn {
@@ -916,8 +983,8 @@ html {
 
 /* Elemento de lista */
 .list-item {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border);
+  background: rgba(30, 41, 59, 0.85); /* Fondo más oscuro y visible */
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -928,10 +995,10 @@ html {
 }
 
 .list-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(37, 56, 82, 0.95); /* Fondo más claro al hover pero aún oscuro */
+  border-color: rgba(255, 255, 255, 0.25);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 /* Contenido del elemento */
@@ -949,7 +1016,7 @@ html {
 .list-item-title {
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-100);
+  color: #ffffff; /* Texto blanco para mejor visibilidad */
   margin: 0;
 }
 
@@ -974,7 +1041,7 @@ html {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-80);
+  color: rgba(255, 255, 255, 0.85); /* Color más claro para mejor visibilidad */
   font-size: 14px;
   font-weight: 500;
 }
@@ -990,12 +1057,12 @@ html {
 }
 
 .list-item-date {
-  color: var(--text-60);
+  color: rgba(255, 255, 255, 0.7); /* Color más claro para mejor visibilidad */
   font-size: 13px;
 }
 
 .list-item-date strong {
-  color: var(--text-80);
+  color: rgba(255, 255, 255, 0.9); /* Color más claro para mejor visibilidad */
   font-weight: 600;
 }
 

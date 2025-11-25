@@ -322,30 +322,98 @@
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
+  background: rgba(30, 41, 59, 0.85); /* Fondo más oscuro y visible */
+  border: 1px solid rgba(255, 255, 255, 0.15); /* Borde acorde al diseño */
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.search-box:focus-within {
+  background: rgba(37, 56, 82, 0.95); /* Fondo más claro al enfocar pero aún oscuro */
+  border-color: rgba(0, 123, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
 }
 
 .search-icon {
   position: absolute;
-  left: 1rem;
-  color: var(--text-100);
+  left: 16px;
+  color: rgba(255, 255, 255, 0.7);
   z-index: 1;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.search-box:focus-within .search-icon {
+  color: #007bff;
 }
 
 .search-box input {
   width: 100%;
-  padding: 0.75rem 1rem 0.75rem 3rem;
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-100);
-  font-size: 1rem;
-  transition: var(--transition);
+  padding: 0 0 0 32px; /* Espacio para el icono */
+  border: none !important;
+  outline: none !important;
+  font-size: 15px;
+  font-weight: 400;
+  transition: none !important; /* Eliminar transiciones que puedan causar retraso */
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important; /* Forzar color de texto en WebKit */
+  caret-color: #ffffff !important; /* Color del cursor */
 }
 
-.search-box input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  background: rgba(255, 255, 255, 0.1);
+.search-box input:focus,
+.search-box input:active,
+.search-box input:focus-visible {
+  outline: none !important;
+  border: none !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+}
+
+.search-box input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  opacity: 1 !important;
+}
+
+/* Estilos específicos para el buscador de regiones */
+#searchRegions,
+input#searchRegions[type="text"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+}
+
+#searchRegions:focus,
+input#searchRegions[type="text"]:focus {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  border: none !important;
+  outline: none !important;
+}
+
+#searchRegions:-webkit-autofill,
+#searchRegions:-webkit-autofill:hover,
+#searchRegions:-webkit-autofill:focus,
+#searchRegions:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(30, 41, 59, 0.85) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 .filter-controls {

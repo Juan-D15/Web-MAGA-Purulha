@@ -169,10 +169,23 @@ body.modal-open .drawer {
 
 .search{margin-left:auto;position:relative;flex:1;max-width:420px}
 .search__wrap{display:flex;align-items:center;gap:8px;padding:8px 12px 8px 14px;border-radius:999px;border:1px solid var(--border);background:#2c3647 !important;box-shadow:none}
+/* Forzar texto blanco en buscador de navbar - regla más específica con ID */
+#buscar-proyecto,
+input#buscar-proyecto[type="search"],
+.nav .search__wrap input[type="search"],
+.nav .search input[type="search"]{color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;caret-color:#ffffff !important;background:transparent !important;border:none !important;outline:none !important}
+#buscar-proyecto:focus,
+input#buscar-proyecto[type="search"]:focus,
+.nav .search__wrap input[type="search"]:focus,
+.nav .search input[type="search"]:focus{color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;caret-color:#ffffff !important;background:transparent !important}
 .nav .search__wrap input,
 .nav .search input[type="search"],
 .search__wrap input[type="search"],
-.search input{flex:1;background:transparent !important;border:0;outline:0;color:#ffffff !important;font-weight:600;font-size:15px}
+.search input{flex:1;background:transparent !important;border:0 !important;outline:0 !important;color:#ffffff !important;font-weight:600;font-size:15px;-webkit-text-fill-color:#ffffff !important;caret-color:#ffffff !important}
+.nav .search__wrap input::-webkit-input-placeholder,
+.nav .search input[type="search"]::-webkit-input-placeholder,
+.search__wrap input[type="search"]::-webkit-input-placeholder,
+.search input::-webkit-input-placeholder{color:rgba(255,255,255,0.5) !important;opacity:1 !important}
 .nav .search__wrap input:focus,
 .nav .search__wrap input:active,
 .nav .search input[type="search"]:focus,
@@ -180,7 +193,7 @@ body.modal-open .drawer {
 .search__wrap input[type="search"]:focus,
 .search__wrap input[type="search"]:active,
 .search input:focus,
-.search input:active,
+.search input:active{color:#ffffff !important;background:transparent !important;-webkit-text-fill-color:#ffffff !important;border:0 !important;outline:0 !important}
 .nav .search__wrap input:-webkit-autofill,
 .nav .search input[type="search"]:-webkit-autofill,
 .search__wrap input[type="search"]:-webkit-autofill,
@@ -192,7 +205,7 @@ body.modal-open .drawer {
 .nav .search__wrap input:-webkit-autofill:focus,
 .nav .search input[type="search"]:-webkit-autofill:focus,
 .search__wrap input[type="search"]:-webkit-autofill:focus,
-.search input:-webkit-autofill:focus{color:#ffffff !important;background:transparent !important;-webkit-text-fill-color:#ffffff !important;box-shadow:0 0 0 1000px transparent inset !important;-webkit-box-shadow:0 0 0 1000px transparent inset !important}
+.search input:-webkit-autofill:focus{color:#ffffff !important;background:transparent !important;-webkit-text-fill-color:#ffffff !important;box-shadow:0 0 0 1000px transparent inset !important;-webkit-box-shadow:0 0 0 1000px transparent inset !important;-webkit-background-clip:text !important}
 .nav .search__wrap input::placeholder,
 .nav .search input::placeholder,
 .search__wrap input::placeholder,

@@ -162,37 +162,32 @@
         debugLog('Buscar proyecto:', query);
         const isOnProjectsPage = window.location.pathname.includes('/proyectos');
         
-        // Si estamos en la página de proyectos Y las funciones están disponibles, usar búsqueda local
-        if (isOnProjectsPage && typeof window.showListView === 'function' && typeof window.filterProjectsBySearch === 'function') {
-          // Verificar si estamos en la vista de lista
-          const listView = document.getElementById('projectsListView');
-          if (listView && listView.style.display !== 'none') {
-            // Ya estamos en la vista de lista, buscar directamente
-            const projectSearchInput = document.getElementById('projectSearchInput');
-            if (projectSearchInput) {
-              projectSearchInput.value = query;
+          // Si estamos en la página de proyectos Y las funciones están disponibles, usar búsqueda local
+          // NOTA: El buscador de la navbar NO sincroniza con el buscador de la lista
+          if (isOnProjectsPage && typeof window.showListView === 'function' && typeof window.filterProjectsBySearch === 'function') {
+            // Verificar si estamos en la vista de lista
+            const listView = document.getElementById('projectsListView');
+            if (listView && listView.style.display !== 'none') {
+              // Ya estamos en la vista de lista, buscar directamente
+              // NO actualizar el valor del buscador de la lista
+              window.filterProjectsBySearch(query);
+            } else {
+              // Si no estamos en la vista de lista, mostrarla primero y luego buscar
+              if (typeof window.showListView === 'function') {
+                window.showListView();
+                setTimeout(() => {
+                  // NO actualizar el valor del buscador de la lista
+                  if (typeof window.filterProjectsBySearch === 'function') {
+                    window.filterProjectsBySearch(query);
+                  }
+                  // Mostrar el botón de limpiar si hay texto
+                  const searchClearBtn = document.getElementById('searchClearBtn');
+                  if (searchClearBtn && query.trim()) {
+                    searchClearBtn.style.display = 'block';
+                  }
+                }, 500);
+              }
             }
-            window.filterProjectsBySearch(query);
-          } else {
-            // Si no estamos en la vista de lista, mostrarla primero y luego buscar
-            if (typeof window.showListView === 'function') {
-              window.showListView();
-              setTimeout(() => {
-                const projectSearchInput = document.getElementById('projectSearchInput');
-                if (projectSearchInput) {
-                  projectSearchInput.value = query;
-                }
-                if (typeof window.filterProjectsBySearch === 'function') {
-                  window.filterProjectsBySearch(query);
-                }
-                // Mostrar el botón de limpiar si hay texto
-                const searchClearBtn = document.getElementById('searchClearBtn');
-                if (searchClearBtn && query.trim()) {
-                  searchClearBtn.style.display = 'block';
-                }
-              }, 500);
-            }
-          }
         } else {
           // NO estamos en la página de proyectos O las funciones no están disponibles
           // Guardar la búsqueda en sessionStorage para aplicarla al cargar
@@ -218,6 +213,8 @@
       });
 
       // Búsqueda en tiempo real si estamos en la página de proyectos
+      // NOTA: El buscador de la navbar NO sincroniza con el buscador de la lista
+      // Cada uno funciona de forma independiente
       if (window.location.pathname.includes('/proyectos')) {
         let searchTimeout = null;
         searchInput.addEventListener('input', function() {
@@ -229,19 +226,17 @@
           }
 
           // Aplicar búsqueda después de un pequeño delay
+          // SIN sincronizar con el buscador de la lista
           searchTimeout = setTimeout(() => {
             if (typeof window.filterProjectsBySearch === 'function') {
               // Verificar si estamos en la vista de listado
               const listView = document.getElementById('projectsListView');
               if (listView && listView.style.display !== 'none') {
                 // Ya estamos en la vista de lista, buscar directamente
-                const projectSearchInput = document.getElementById('projectSearchInput');
-                if (projectSearchInput) {
-                  projectSearchInput.value = query;
-                }
+                // NO actualizar el valor del buscador de la lista
                 window.filterProjectsBySearch(query);
                 
-                // Mostrar/ocultar botón de limpiar
+                // Mostrar/ocultar botón de limpiar del buscador de la lista
                 const searchClearBtn = document.getElementById('searchClearBtn');
                 if (searchClearBtn) {
                   searchClearBtn.style.display = query ? 'flex' : 'none';
@@ -251,13 +246,10 @@
                 window.showListView();
                 setTimeout(() => {
                   if (typeof window.filterProjectsBySearch === 'function') {
-                    const projectSearchInput = document.getElementById('projectSearchInput');
-                    if (projectSearchInput) {
-                      projectSearchInput.value = query;
-                    }
+                    // NO actualizar el valor del buscador de la lista
                     window.filterProjectsBySearch(query);
                     
-                    // Mostrar/ocultar botón de limpiar
+                    // Mostrar/ocultar botón de limpiar del buscador de la lista
                     const searchClearBtn = document.getElementById('searchClearBtn');
                     if (searchClearBtn) {
                       searchClearBtn.style.display = query ? 'flex' : 'none';

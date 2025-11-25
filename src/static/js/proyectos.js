@@ -7601,11 +7601,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       filterProjectsBySearch(searchTerm);
       
-      // Sincronizar con el buscador principal si existe
-      const mainSearchInput = document.getElementById('buscar-proyecto');
-      if (mainSearchInput) {
-        mainSearchInput.value = searchTerm;
-      }
+      // NO sincronizar con el buscador principal - cada buscador funciona independientemente
 
     });
 

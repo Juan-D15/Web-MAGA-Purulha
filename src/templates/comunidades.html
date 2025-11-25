@@ -5,7 +5,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-  <link rel="stylesheet" href="{% static 'css/comunidades.css' %}?v=18">
+  <link rel="stylesheet" href="{% static 'css/comunidades.css' %}?v=20">
   <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
   <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}">
 {% endblock %}
@@ -82,7 +82,7 @@
       <div class="list-controls">
         <div class="search-controls">
           <div class="search-box">
-            <input type="text" id="searchCommunities" placeholder="Buscar comunidades...">
+            <input type="text" id="searchCommunities" placeholder="Buscar comunidades..." style="color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; caret-color: #ffffff !important;">
           </div>
         </div>
         
@@ -167,7 +167,7 @@
           <div class="section-header">
             <h3 class="data-title">Datos Generales</h3>
             {% if user.is_authenticated %}
-              {% if es_admin or es_personal %}
+              {% if es_admin %}
               <button class="btn-edit-item" id="editDataBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>

@@ -425,32 +425,84 @@
   display: flex;
   align-items: center;
   width: 100%;
+  background: rgba(30, 41, 59, 0.85); /* Fondo más oscuro y visible */
+  border: 1px solid rgba(255, 255, 255, 0.15); /* Borde acorde al diseño */
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.search-box:focus-within {
+  background: rgba(37, 56, 82, 0.95); /* Fondo más claro al enfocar pero aún oscuro */
+  border-color: rgba(0, 123, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
 }
 
 .search-box input {
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 2px solid var(--border-color);
-  border-radius: var(--border-radius);
-  font-size: 1rem;
-  transition: var(--transition);
-  background: var(--background-primary);
-  background-color: #1e2736;
-  color: var(--text-primary);
-  color: #ffffff;
+  padding: 0;
+  border: none !important;
+  outline: none !important;
+  font-size: 15px;
+  font-weight: 400;
+  transition: none !important; /* Eliminar transiciones que puedan causar retraso */
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important; /* Forzar color de texto en WebKit */
+  caret-color: #ffffff !important; /* Color del cursor */
 }
 
-.search-box input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(7, 114, 210, 0.1);
-  background-color: #1e2736;
-  color: #ffffff;
+.search-box input:focus,
+.search-box input:active,
+.search-box input:focus-visible {
+  outline: none !important;
+  border: none !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
 }
 
 .search-box input::placeholder {
-  color: var(--text-muted);
-  opacity: 0.7;
+  color: rgba(255, 255, 255, 0.5) !important;
+  opacity: 1 !important;
+}
+
+/* Estilos específicos para el buscador de comunidades */
+#searchCommunities,
+input#searchCommunities[type="text"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+}
+
+#searchCommunities:focus,
+input#searchCommunities[type="text"]:focus {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  border: none !important;
+  outline: none !important;
+}
+
+#searchCommunities:-webkit-autofill,
+#searchCommunities:-webkit-autofill:hover,
+#searchCommunities:-webkit-autofill:focus,
+#searchCommunities:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(30, 41, 59, 0.85) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+  caret-color: #ffffff !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 .filter-controls {
