@@ -28,9 +28,36 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[Service Worker] Cacheando recursos para modo offline...');
-      return cache.addAll(CACHE_URLS).catch((error) => {
-        console.warn('[Service Worker] Error al cachear algunos recursos:', error);
-        // No fallar si algunos recursos no se pueden cachear
+      // Cachear recursos individualmente para que si uno falla, los demás puedan cachearse
+      return Promise.allSettled(
+        CACHE_URLS.map(url => {
+          return cache.add(url).catch((error) => {
+            // Verificar si es un error de red esperado (offline)
+            // Si el error es "Failed to fetch" o similar, es porque está offline, lo cual es normal
+            const isNetworkError = error.name === 'TypeError' && 
+              (error.message.includes('Failed to fetch') || 
+               error.message.includes('NetworkError') ||
+               error.message.includes('ERR_INTERNET_DISCONNECTED') ||
+               error.message.includes('ERR_NETWORK_CHANGED'));
+            
+            // Solo mostrar error si no es un error de red esperado (offline)
+            // Los errores de red son normales cuando se instala el SW sin conexión
+            if (!isNetworkError) {
+              // Solo mostrar error si no es un error de red esperado
+              console.warn(`[Service Worker] No se pudo cachear ${url}:`, error.message);
+            }
+            // Retornar null para indicar que este recurso no se pudo cachear
+            return null;
+          });
+        })
+      ).then((results) => {
+        const successful = results.filter(r => r.status === 'fulfilled' && r.value !== null).length;
+        const failed = results.length - successful;
+        if (successful > 0) {
+          console.log(`[Service Worker] ✅ ${successful} recursos cacheados exitosamente`);
+        }
+        // No mostrar advertencia sobre recursos fallidos, ya que es normal si está offline
+        // Los recursos se cachearán cuando haya conexión y se acceda a ellos
       });
     })
   );
@@ -134,27 +161,56 @@ async function checkRemindersFromServiceWorker() {
     // Usar el nuevo endpoint que verifica sesión activa
     const apiUrl = `${baseUrl}/api/reminders/check-background/`;
     
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      credentials: 'same-origin',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
-      },
-      cache: 'no-store' // Evitar caché
-    });
+    let response;
+    try {
+      response = await fetch(apiUrl, {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store' // Evitar caché
+      });
+    } catch (fetchError) {
+      // Si el fetch falla, probablemente estamos offline
+      // No mostrar error en consola si es un error de red esperado
+      if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
+        // Silenciosamente ignorar errores de red (offline)
+        return;
+      }
+      // Si es otro tipo de error, lanzarlo para que se maneje en el catch externo
+      throw fetchError;
+    }
     
     if (!response.ok) {
-      console.warn('[Service Worker] Error al obtener recordatorios:', response.status, response.statusText);
       // Si es error 401/403, el usuario no está autenticado o cerró sesión
       if (response.status === 401 || response.status === 403) {
         console.log('[Service Worker] Usuario no autenticado o sesión cerrada, saltando verificación');
+        return;
       }
+      // Para otros errores HTTP, solo mostrar warning (no error)
+      console.warn('[Service Worker] Error al obtener recordatorios:', response.status, response.statusText);
       return;
     }
     
-    const data = await response.json();
+    // Verificar que la respuesta sea JSON antes de intentar parsear
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // Si no es JSON (probablemente HTML de error), ignorar silenciosamente
+      console.log('[Service Worker] Respuesta no es JSON, saltando verificación');
+      return;
+    }
+    
+    let data;
+    try {
+      data = await response.json();
+    } catch (jsonError) {
+      // Si falla el parsing JSON (por ejemplo, si es HTML), ignorar silenciosamente
+      console.log('[Service Worker] Error al parsear JSON, saltando verificación');
+      return;
+    }
     
     // Verificar si la sesión está activa
     if (!data.session_active) {
@@ -269,7 +325,11 @@ async function checkRemindersFromServiceWorker() {
                 'Content-Type': 'application/json'
               }
             }).catch(err => {
-              console.warn('[Service Worker] Error al marcar como enviado:', err);
+              // Solo mostrar warning si no es un error de red esperado (offline)
+              if (err.name !== 'TypeError' || !err.message.includes('Failed to fetch')) {
+                console.warn('[Service Worker] Error al marcar como enviado:', err);
+              }
+              // Si es un error de red, ignorarlo silenciosamente (se marcará cuando vuelva la conexión)
             });
           }
         }).catch(err => {
@@ -283,7 +343,12 @@ async function checkRemindersFromServiceWorker() {
     });
     
   } catch (error) {
-    console.error('[Service Worker] Error al verificar recordatorios:', error);
+    // Solo mostrar error si no es un error de red esperado (offline)
+    // Los errores de red ya se manejan en el try interno
+    if (error.name !== 'TypeError' || !error.message.includes('Failed to fetch')) {
+      console.error('[Service Worker] Error inesperado al verificar recordatorios:', error);
+    }
+    // Si es un error de red, simplemente ignorarlo silenciosamente (estamos offline)
   }
 }
 
@@ -381,9 +446,37 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // No cachear requests a la API (excepto algunas específicas)
   const url = new URL(event.request.url);
+  
+  // No cachear recursos externos (Google Fonts, CDN, etc.)
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // No cachear requests a la API (excepto algunas específicas)
   if (url.pathname.startsWith('/api/') && !url.pathname.includes('/api/usuario/')) {
+    return;
+  }
+
+  // Páginas HTML que deben ser cacheadas para modo offline
+  // Incluir todas las rutas principales y sus variantes
+  const htmlPages = [
+    '/proyectos/', '/comunidades/', '/regiones/', '/', '/index/',
+    '/gestioneseventos/', '/gestionusuarios/', '/generarreportes/', 
+    '/reportes/', '/mapa-completo/', '/perfil/', '/config-general/',
+    '/preguntas-frecuentes/'
+  ];
+  // Detectar si es una página HTML (no tiene extensión de archivo o es una ruta conocida)
+  const hasFileExtension = url.pathname.match(/\.(html|htm|css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|json|xml|pdf|doc|docx|xls|xlsx|ppt|pptx|txt)$/i);
+  const isHtmlPage = !hasFileExtension && (
+    htmlPages.some(page => url.pathname === page || url.pathname.startsWith(page)) ||
+    (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/static/') && !url.pathname.startsWith('/media/'))
+  );
+
+  // IMPORTANTE: No interceptar solicitudes de /media/ cuando está online
+  // Permitir que pasen directamente al servidor para evitar problemas con imágenes
+  if (url.pathname.startsWith('/media/') && navigator.onLine) {
+    // Dejar que la solicitud pase directamente al servidor sin interceptarla
     return;
   }
 
@@ -391,17 +484,41 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((response) => {
       // Si está en caché, devolverlo
       if (response) {
-        // Actualizar en segundo plano (stale-while-revalidate)
-        fetch(event.request).then((freshResponse) => {
-          if (freshResponse && freshResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, freshResponse);
-            });
-          }
-        }).catch(() => {
-          // Ignorar errores de red en segundo plano
-        });
+        // Actualizar en segundo plano (stale-while-revalidate) solo si hay conexión
+        if (navigator.onLine) {
+          fetch(event.request).then((freshResponse) => {
+            if (freshResponse && freshResponse.status === 200) {
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, freshResponse);
+              });
+            }
+          }).catch(() => {
+            // Ignorar errores de red en segundo plano
+          });
+        }
         return response;
+      }
+
+      // Si no está en caché y estamos offline, devolver error
+      if (!navigator.onLine) {
+        // Para páginas HTML, intentar servir cualquier página HTML en caché como fallback
+        if (isHtmlPage) {
+          return caches.open(CACHE_NAME).then((cache) => {
+            return cache.keys().then((keys) => {
+              // Buscar cualquier página HTML en caché
+              const htmlKey = keys.find(key => {
+                const keyUrl = new URL(key.url);
+                return keyUrl.origin === self.location.origin && 
+                       htmlPages.some(page => keyUrl.pathname === page || keyUrl.pathname.startsWith(page));
+              });
+              if (htmlKey) {
+                return cache.match(htmlKey);
+              }
+              return new Response('Sin conexión a internet', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+            });
+          });
+        }
+        return new Response('Sin conexión a internet', { status: 503, headers: { 'Content-Type': 'text/plain' } });
       }
 
       // Si no está en caché, hacer fetch
@@ -411,18 +528,72 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
 
-        // Cachear recursos estáticos (CSS, JS, imágenes)
-        if (url.pathname.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
+        // Cachear recursos estáticos (CSS, JS, imágenes) y páginas HTML
+        if (url.pathname.match(/\.(css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/) || isHtmlPage) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
+            if (isHtmlPage) {
+              console.log(`[Service Worker] ✅ Página cacheada: ${url.pathname}`);
+            }
           });
         }
 
         return response;
       }).catch((error) => {
-        // Si falla el fetch y no está en caché, devolver página offline (si existe)
-        console.log('[Service Worker] Fetch failed:', error);
+        // Si falla el fetch y es una página HTML, intentar servir desde caché
+        if (isHtmlPage) {
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            
+            // Si la página específica no está en caché, intentar servir cualquier página HTML cacheada como fallback
+            // Esto permite navegar entre módulos incluso si no todos están cacheados
+            return caches.open(CACHE_NAME).then((cache) => {
+              return cache.keys().then((keys) => {
+                // Buscar cualquier página HTML cacheada
+                const htmlRequests = keys.filter((request) => {
+                  try {
+                    const cachedUrl = new URL(request.url);
+                    const cachedHasExtension = cachedUrl.pathname.match(/\.(html|htm|css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|json|xml|pdf|doc|docx|xls|xlsx|ppt|pptx|txt)$/i);
+                    const cachedIsHtml = !cachedHasExtension && 
+                      !cachedUrl.pathname.startsWith('/api/') && 
+                      !cachedUrl.pathname.startsWith('/static/') && 
+                      !cachedUrl.pathname.startsWith('/media/');
+                    return cachedIsHtml;
+                  } catch (e) {
+                    return false;
+                  }
+                });
+                
+                // Si hay páginas HTML cacheadas, servir la primera disponible
+                if (htmlRequests.length > 0) {
+                  return cache.match(htmlRequests[0]);
+                }
+                
+                // Si no hay ninguna página HTML cacheada, intentar servir la página principal
+                return caches.match('/').then((fallback) => {
+                  return fallback || new Response('Sin conexión. Por favor, visita esta página con conexión a Internet al menos una vez para que esté disponible offline.', {
+                    status: 503,
+                    statusText: 'Service Unavailable',
+                    headers: new Headers({
+                      'Content-Type': 'text/html; charset=utf-8'
+                    })
+                  });
+                });
+              });
+            });
+          });
+        }
+        
+        // Si no es una página HTML, devolver error normalmente
+        // No mostrar errores de red (offline) en consola
+        // Solo loguear si es un error inesperado y es un recurso interno
+        if (url.origin === self.location.origin && 
+            !(error.name === 'TypeError' && error.message.includes('Failed to fetch'))) {
+          console.log('[Service Worker] Fetch failed:', error);
+        }
         return caches.match('/').then((fallback) => {
           return fallback || new Response('Sin conexión', {
             status: 503,

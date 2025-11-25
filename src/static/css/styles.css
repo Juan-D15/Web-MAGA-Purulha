@@ -87,6 +87,98 @@ textarea::placeholder{
   content:"!";
   line-height:1;
 }
+
+/* Indicador de estado de sincronización */
+.sync-status {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #2196F3;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  min-width: 200px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sync-status:hover {
+  transform: scale(1.02);
+  opacity: 0.9;
+}
+
+.sync-status:active {
+  transform: scale(0.98);
+}
+
+.sync-status.offline {
+  background: #FF9800;
+}
+
+.sync-status.syncing {
+  background: #2196F3;
+}
+
+.sync-status.synced {
+  background: #4CAF50;
+}
+
+.sync-status.error {
+  background: #F44336;
+}
+
+.sync-status-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.sync-icon {
+  font-size: 18px;
+  animation: spin 1s linear infinite;
+}
+
+.sync-status.synced .sync-icon {
+  animation: none;
+}
+
+.sync-status.synced .sync-icon::before {
+  content: "✅";
+}
+
+.sync-status.error .sync-icon {
+  animation: none;
+}
+
+.sync-status.error .sync-icon::before {
+  content: "❌";
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sync-text {
+  flex: 1;
+  font-weight: 500;
+}
+
+.sync-count {
+  font-size: 12px;
+  opacity: 0.9;
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
 .offline-text{
   font-weight:700;
   font-size:15px;

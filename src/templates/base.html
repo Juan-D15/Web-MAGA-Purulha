@@ -4,7 +4,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="{% static 'img/logos/maga_logo.png' %}" sizes="32x32" type="image/png">
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'img/logos/maga_logo.png' %}?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="{% static 'img/logos/maga_logo.png' %}?v=2">
+  <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/logos/maga_logo.png' %}?v=2">
+  <link rel="shortcut icon" type="image/png" href="{% static 'img/logos/maga_logo.png' %}?v=2">
   <title>{% block title %}Gestión de Eventos — Purulhá{% endblock %}</title>
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,6 +24,15 @@
     <span class="offline-indicator"></span>
     <span class="offline-text">Sin conexión a Internet</span>
     <span class="offline-subtext">Tus cambios se guardarán y se enviarán automáticamente cuando vuelva la conexión.</span>
+  </div>
+
+  <!-- Indicador de estado de sincronización (clickeable para forzar sincronización) -->
+  <div id="syncStatus" class="sync-status" style="display: none;" role="button" tabindex="0" aria-label="Forzar sincronización" title="Haz clic para forzar la sincronización">
+    <div class="sync-status-content">
+      <span class="sync-icon">🔄</span>
+      <span class="sync-text">Sincronizando...</span>
+      <span class="sync-count">0 pendientes</span>
+    </div>
   </div>
 
   <!-- ======= TOP / ENCABEZADO ======= -->
@@ -475,6 +488,7 @@
        style="display:none;"></div>
 
   <script src="{% static 'js/context-loader.js' %}?v=2"></script>
+  <script src="{% static 'js/offline-db.js' %}"></script>
   <script src="{% static 'js/offline-auth.js' %}"></script>
   <script src="{% static 'js/offline-sync.js' %}"></script>
   <script src="{% static 'js/navigation.js' %}?v=3"></script>
@@ -548,6 +562,13 @@
       
       // Función para verificar si el usuario está autenticado (múltiples métodos)
       async function checkUserAuthenticated() {
+        // Método 0: Verificar si hay sesión offline activa (prioridad cuando está offline)
+        const hasOfflineSession = window.OfflineAuth && window.OfflineAuth.getActiveSession && window.OfflineAuth.getActiveSession();
+        if (hasOfflineSession && hasOfflineSession.userInfo) {
+          console.log('[Notificaciones Globales] Usuario autenticado (sesión offline activa)');
+          return true;
+        }
+        
         // Método 1: Verificar elemento djangoContextData
         const djangoContext = document.getElementById('djangoContextData');
         if (djangoContext) {
@@ -560,27 +581,43 @@
         
         // Método 2: Verificar haciendo una petición a la API de notificaciones
         // Si la API responde con session_active: true, el usuario está autenticado
-        try {
-          const testUrl = '/api/reminders/notifications/';
-          const testRes = await fetch(testUrl, {
-            method: 'GET',
-            headers: {
-              'X-Requested-With': 'XMLHttpRequest',
-              'Accept': 'application/json'
-            },
-            credentials: 'same-origin',
-            cache: 'no-store'
-          });
-          
-          if (testRes.ok) {
-            const testData = await testRes.json();
-            if (testData.session_active === true) {
-              console.log('[Notificaciones Globales] Usuario autenticado (método 2: API)');
-              return true;
+        // Solo si hay conexión, si está offline no intentar
+        if (navigator.onLine) {
+          try {
+            const testUrl = '/api/reminders/notifications/';
+            const testRes = await fetch(testUrl, {
+              method: 'GET',
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+              },
+              credentials: 'same-origin',
+              cache: 'no-store'
+            });
+            
+            if (testRes.ok) {
+              // Verificar Content-Type antes de parsear
+              const contentType = testRes.headers.get('content-type');
+              if (contentType && contentType.includes('application/json')) {
+                const testData = await testRes.json();
+                if (testData.session_active === true) {
+                  console.log('[Notificaciones Globales] Usuario autenticado (método 2: API)');
+                  return true;
+                }
+              }
+            }
+          } catch (error) {
+            // Si está offline, no mostrar error
+            if (navigator.onLine && !(error.name === 'TypeError' && error.message.includes('Failed to fetch'))) {
+              console.warn('[Notificaciones Globales] Error al verificar autenticación vía API:', error);
             }
           }
-        } catch (error) {
-          console.warn('[Notificaciones Globales] Error al verificar autenticación vía API:', error);
+        }
+        
+        // Si está offline y hay sesión offline, considerar autenticado
+        if (!navigator.onLine && hasOfflineSession) {
+          console.log('[Notificaciones Globales] Usuario autenticado (offline con sesión)');
+          return true;
         }
         
         console.log('[Notificaciones Globales] Usuario NO autenticado');
@@ -742,6 +779,11 @@
       
       // Verificar recordatorios pendientes
       async function checkGlobalReminders() {
+        // Si está offline, no intentar verificar recordatorios
+        if (!navigator.onLine) {
+          return;
+        }
+        
         try {
           console.log('[Notificaciones Globales] Verificando recordatorios...');
           const url = '/api/reminders/notifications/';
@@ -757,7 +799,17 @@
           });
           
           if (!res.ok) {
-            console.warn('[Notificaciones Globales] Error en respuesta:', res.status, res.statusText);
+            // Solo mostrar error si no es un error offline esperado (503 cuando está offline)
+            if (res.status === 503 && !navigator.onLine) {
+              // Error offline esperado, ignorar silenciosamente
+              return;
+            }
+            
+            // Solo mostrar warning si no es un error de red (offline)
+            if (res.status !== 0) {
+              console.warn('[Notificaciones Globales] Error en respuesta:', res.status, res.statusText);
+            }
+            
             if (res.status === 401 || res.status === 403) {
               console.log('[Notificaciones Globales] Usuario no autenticado, deteniendo verificación');
               if (reminderCheckInterval) {
@@ -879,7 +931,11 @@
             }
           });
         } catch (error) {
-          console.error('[Notificaciones Globales] Error al verificar recordatorios:', error);
+          // Solo mostrar error si no es un error de red esperado (offline)
+          if (error.name !== 'TypeError' || !error.message.includes('Failed to fetch')) {
+            console.error('[Notificaciones Globales] Error al verificar recordatorios:', error);
+          }
+          // Si es un error de red (offline), ignorar silenciosamente
         }
       }
       
@@ -889,10 +945,19 @@
         console.log('[Notificaciones Globales] URL actual:', window.location.pathname);
         
         // Verificar autenticación antes de continuar
+        // PERO: No cancelar si estamos en una página pública como proyectos, comunidades, regiones, index
+        const publicPages = ['/proyectos/', '/comunidades/', '/regiones/', '/', '/index/'];
+        const isPublicPage = publicPages.some(page => window.location.pathname === page || window.location.pathname.startsWith(page));
+        
         const isUserAuthenticated = await checkUserAuthenticated();
-        if (!isUserAuthenticated) {
+        if (!isUserAuthenticated && !isPublicPage) {
           console.log('[Notificaciones Globales] Usuario no autenticado, cancelando inicialización');
           return;
+        }
+        
+        // Si es una página pública, continuar sin verificar autenticación
+        if (isPublicPage) {
+          console.log('[Notificaciones Globales] Página pública detectada, continuando sin verificar autenticación');
         }
         
         console.log('[Notificaciones Globales] Usuario autenticado, continuando...');

@@ -72,6 +72,36 @@
           </div>
         </div>
 
+        <!-- Sincronización Offline -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <div class="config-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+              </svg>
+            </div>
+            <h3 class="config-card-title">Sincronización Offline</h3>
+          </div>
+          <div class="config-card-content">
+            <p class="config-card-description">
+              Guarda toda la información en caché para poder trabajar sin conexión a internet. Esto incluye proyectos, eventos, beneficiarios, comunidades y regiones.
+            </p>
+            <button class="btn-primary" id="btnSincronizarCache" style="position: relative;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="syncIcon">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+              </svg>
+              <span id="syncButtonText">Sincronizar Ahora</span>
+              <span id="syncProgress" style="display: none; margin-left: 8px;">0%</span>
+            </button>
+            <div id="syncStatus" style="margin-top: 12px; font-size: 0.9rem; color: #6c757d; display: none;"></div>
+            <div id="syncProgressBar" style="margin-top: 8px; display: none;">
+              <div style="width: 100%; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden;">
+                <div id="syncProgressBarFill" style="height: 100%; background: #007bff; width: 0%; transition: width 0.3s ease;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Modo Claro/Oscuro -->
         <div class="config-card">
           <div class="config-card-header">

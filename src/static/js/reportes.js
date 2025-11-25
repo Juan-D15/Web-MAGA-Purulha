@@ -30,12 +30,47 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadDashboardStats() {
     try {
         const response = await fetch('/reportes/dashboard/stats/');
+        
+        // Verificar si es un error offline esperado
+        const isOfflineError = !navigator.onLine || 
+          (response.status === 503 && window.OfflineSync && window.OfflineSync.isOfflineError && window.OfflineSync.isOfflineError(response));
+        
         if (!response.ok) {
+            if (isOfflineError) {
+                // Error offline esperado, no mostrar error
+                console.log('[Dashboard] Modo offline: No se pudieron cargar estadísticas');
+                return;
+            }
             throw new Error('Error al cargar estadísticas del dashboard');
         }
+        
+        // Verificar Content-Type antes de parsear
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            // No es JSON, probablemente HTML de error, no mostrar error si está offline
+            if (!navigator.onLine) {
+                console.log('[Dashboard] Modo offline: Respuesta no es JSON');
+                return;
+            }
+            throw new Error('Error al cargar estadísticas del dashboard');
+        }
+        
         const data = await response.json();
+        
+        // Verificar si la respuesta indica que es offline
+        if (window.OfflineSync && window.OfflineSync.isOfflineResponse && window.OfflineSync.isOfflineResponse(data)) {
+            console.log('[Dashboard] Modo offline: Respuesta offline detectada');
+            return;
+        }
+        
         renderDashboard(data);
     } catch (error) {
+        // Solo mostrar error si no es un error de red esperado (offline)
+        if (!navigator.onLine || (error.name === 'TypeError' && error.message.includes('Failed to fetch'))) {
+            console.log('[Dashboard] Modo offline: No se pudieron cargar estadísticas');
+            return;
+        }
+        // Para otros errores, mostrar mensaje
         showError('Error al cargar el dashboard. Por favor, recarga la página.');
     }
 }

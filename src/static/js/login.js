@@ -563,14 +563,33 @@ document.addEventListener('DOMContentLoaded', function() {
         // ✅ GUARDAR CREDENCIALES OFFLINE (si el usuario lo solicitó)
         if (rememberCheckbox?.checked && data.offline && window.OfflineAuth) {
           try {
-            await window.OfflineAuth.storeCredential(usernameValue, passwordValue, {
+            console.log('[Login] Guardando credenciales offline con userInfo:', data.user);
+            const result = await window.OfflineAuth.storeCredential(usernameValue, passwordValue, {
               durationHours: 720, // 30 días
               userInfo: data.user,
               serverHash: data.offline.hash,
               serverSalt: data.offline.salt,
             });
+            console.log('[Login] Credenciales guardadas, verificando sesión activa...');
+            // Verificar que la sesión se haya guardado correctamente
+            const activeSession = window.OfflineAuth.getActiveSession();
+            if (activeSession) {
+              console.log('[Login] ✅ Sesión activa creada correctamente:', activeSession.username);
+            } else {
+              console.warn('[Login] ⚠️ No se pudo crear la sesión activa');
+            }
           } catch (offlineError) {
-            console.warn('No se pudieron guardar las credenciales offline:', offlineError);
+            console.error('[Login] Error al guardar credenciales offline:', offlineError);
+          }
+        } else {
+          if (!rememberCheckbox?.checked) {
+            console.log('[Login] Recordarme no está marcado');
+          }
+          if (!data.offline) {
+            console.log('[Login] No se recibió data.offline del servidor');
+          }
+          if (!window.OfflineAuth) {
+            console.warn('[Login] window.OfflineAuth no está disponible');
           }
         }
 

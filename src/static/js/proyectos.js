@@ -4,6 +4,33 @@
 
 // Este archivo solo contiene la lógica específica de la página de proyectos
 
+// ======= MANEJO DE ERRORES DE IMÁGENES OFFLINE =======
+// Suprimir errores 503 en la consola para imágenes cuando está offline
+window.addEventListener('error', function(event) {
+  // Verificar si es un error de carga de imagen
+  if (event.target && event.target.tagName === 'IMG') {
+    // Si estamos offline y es un error 503, suprimirlo silenciosamente
+    if (!navigator.onLine) {
+      event.preventDefault();
+      event.stopPropagation();
+      // El onerror del img ya manejará el placeholder
+      return false;
+    }
+  }
+}, true);
+
+// También manejar errores de recursos no cargados
+window.addEventListener('unhandledrejection', function(event) {
+  // Suprimir errores de carga de imágenes cuando está offline
+  if (!navigator.onLine && event.reason && typeof event.reason === 'object') {
+    const message = event.reason.message || String(event.reason);
+    if (message.includes('503') || message.includes('Failed to load resource')) {
+      event.preventDefault();
+      return false;
+    }
+  }
+});
+
 /* ---------- ANIMACIONES DE ENTRADA ---------- */
 
 const observerOptions = {
@@ -44,6 +71,32 @@ document.querySelectorAll('.project-card, .featured-card, .category-section').fo
 
 });
 
+// ======= FUNCIONES AUXILIARES =======
+
+// Función para convertir archivo a base64
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64String = reader.result.split(',')[1]; // Remover el prefijo data:type;base64,
+      resolve(base64String);
+    };
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Función para convertir base64 a Blob (para mostrar archivos offline)
+function base64ToBlob(base64, mimeType) {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
+
 // ======= DATOS DE PROYECTOS - CARGA DESDE BD =======
 
 // Los datos se cargarán desde la API
@@ -58,71 +111,311 @@ let projectsData = {
 
 };
 
-// Función para cargar proyectos desde la API
+// Función para obtener referencia a IndexedDB (usa la instancia global)
+function getOfflineDB() {
+  return window.OfflineDB || null;
+}
+
+// Inicializar IndexedDB (solo asegurar que esté inicializado)
+async function initOfflineDB() {
+  if (window.OfflineDB) {
+    try {
+      await window.OfflineDB.init();
+      console.log('✅ IndexedDB inicializado en proyectos.js');
+      return true;
+    } catch (error) {
+      console.warn('⚠️ Error al inicializar IndexedDB:', error);
+      return false;
+    }
+  }
+  return false;
+}
+
+// Función para cargar proyectos desde la API o IndexedDB
 
 async function cargarProyectosPorTipo(tipo) {
-
+  console.log(`🔵 [cargarProyectosPorTipo] Iniciando carga para tipo: "${tipo}"`);
+  
   try {
+    // PRIMERO: Intentar cargar desde el servidor
+    let proyectosDelServidor = null;
+    
+    try {
+      console.log(`🟢 [cargarProyectosPorTipo] Intentando fetch para tipo: "${tipo}"`);
+      let response;
+      try {
+        response = await fetch(`/api/proyectos/${tipo}/`);
+        console.log(`🟢 [cargarProyectosPorTipo] Respuesta recibida - status: ${response.status}, ok: ${response.ok}`);
+      } catch (fetchError) {
+        // Si el fetch falla completamente (error de red), es offline
+        console.log(`📴 Fetch falló completamente (error de red), cargando desde IndexedDB...`, fetchError.message);
+        throw new Error('Network error - load from IndexedDB');
+      }
 
-    const response = await fetch(`/api/proyectos/${tipo}/`);
+      // Verificar si es un error offline esperado
+      const isOfflineError = !navigator.onLine || 
+        response.status === 503 ||
+        (response.status === 503 && window.OfflineSync && window.OfflineSync.isOfflineError && window.OfflineSync.isOfflineError(response));
 
-    if (!response.ok) {
+      console.log(`🟢 [cargarProyectosPorTipo] isOfflineError: ${isOfflineError}, navigator.onLine: ${navigator.onLine}, status: ${response.status}`);
 
-      throw new Error(`Error HTTP: ${response.status}`);
+      // Si es un error offline, saltar directamente al fallback de IndexedDB
+      if (isOfflineError) {
+        console.log(`📴 Error offline detectado (status: ${response.status}), cargando desde IndexedDB...`);
+        throw new Error('Offline error - load from IndexedDB');
+      }
 
+      if (response.ok) {
+        console.log(`🟢 [cargarProyectosPorTipo] Respuesta OK, parseando JSON...`);
+        // Verificar Content-Type antes de parsear JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          // No es JSON, probablemente HTML (página de error o login), cargar desde IndexedDB
+          console.log('📴 Respuesta no es JSON, cargando desde IndexedDB');
+          throw new Error('Invalid content type - not JSON');
+        }
+        
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          // Si falla el parseo, probablemente es HTML, cargar desde IndexedDB
+          console.log('📴 Error al parsear JSON, cargando desde IndexedDB');
+          throw new Error('Invalid content type - not JSON');
+        }
+        
+        // Verificar si la respuesta indica que es offline
+        if (window.OfflineSync && window.OfflineSync.isOfflineResponse && window.OfflineSync.isOfflineResponse(data)) {
+          // Es una respuesta offline, continuar para cargar desde IndexedDB
+          console.log('📴 Respuesta offline detectada en data, cargando desde IndexedDB...');
+        } else if (data.success && data.proyectos) {
+          // Convertir el formato de la API al formato esperado por el frontend
+          const proyectos = data.proyectos.map(proyecto => {
+            // Extraer el nombre del tipo (puede venir como string o como objeto)
+            let tipoNombre = tipo; // Por defecto usar el tipo solicitado
+            if (proyecto.tipo) {
+              if (typeof proyecto.tipo === 'string') {
+                // Si es string, verificar que no sea un UUID
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!uuidRegex.test(proyecto.tipo)) {
+                  tipoNombre = proyecto.tipo; // Es un nombre, no un UUID
+                }
+              } else if (typeof proyecto.tipo === 'object' && proyecto.tipo.nombre) {
+                tipoNombre = proyecto.tipo.nombre;
+              }
+            }
+            
+            return {
+              id: proyecto.id,
+              name: proyecto.nombre,
+              location: proyecto.ubicacion,
+              createdDate: proyecto.creado_en,
+              modifiedDate: proyecto.actualizado_en,
+              type: tipoNombre,
+              categoryKey: tipo, // Guardar la clave de categoría para filtrado
+              tipo: tipoNombre, // Guardar el nombre del tipo, no el ID
+              estado: proyecto.estado,
+              estado_display: proyecto.estado_display,
+              descripcion: proyecto.descripcion,
+              portada: proyecto.portada || null,
+              imagen_principal: proyecto.imagen_principal,
+              personal_count: proyecto.personal_count,
+              personal_nombres: proyecto.personal_nombres,
+              beneficiarios_count: proyecto.beneficiarios_count,
+              evidencias_count: proyecto.evidencias_count,
+              fecha: proyecto.fecha
+            };
+          });
+
+          // Guardar en IndexedDB para uso offline (en segundo plano, no bloquea)
+          const db = getOfflineDB();
+          if (db) {
+            // Usar Promise.all para guardar todos los proyectos en paralelo
+            Promise.all(proyectos.map(async proyecto => {
+              try {
+                // Normalizar el tipo antes de guardar
+                let tipoNormalizado = proyecto.type || proyecto.tipo || tipo;
+                // Si el tipo viene como objeto, extraer el nombre
+                if (tipoNormalizado && typeof tipoNormalizado === 'object' && tipoNormalizado.nombre) {
+                  tipoNormalizado = tipoNormalizado.nombre;
+                }
+                tipoNormalizado = tipoNormalizado ? String(tipoNormalizado) : tipo;
+                
+                // Determinar categoryKey basado en el tipo normalizado
+                let categoryKey = tipo; // Por defecto usar el tipo solicitado
+                if (tipoNormalizado) {
+                  const tipoLower = tipoNormalizado.toLowerCase();
+                  if (tipoLower.includes('capacitación') || tipoLower.includes('capacitacion')) {
+                    categoryKey = 'capacitaciones';
+                  } else if (tipoLower.includes('entrega')) {
+                    categoryKey = 'entregas';
+                  } else if (tipoLower.includes('proyecto') || tipoLower.includes('ayuda')) {
+                    categoryKey = 'proyectos-ayuda';
+                  }
+                }
+                
+                await db.saveProyecto({
+                  ...proyecto,
+                  tipo: tipoNormalizado,
+                  categoryKey: categoryKey, // Guardar la clave de categoría determinada
+                  ultimo_sync: new Date().toISOString(),
+                });
+              } catch (error) {
+                // Silenciar errores de IndexedDB, no deben afectar la funcionalidad
+                console.warn('Error al guardar proyecto en IndexedDB:', error);
+              }
+            })).catch(err => {
+              console.warn('Error al guardar proyectos en IndexedDB:', err);
+            });
+          }
+
+          proyectosDelServidor = proyectos;
+          console.log(`✅ [cargarProyectosPorTipo] Proyectos cargados desde servidor para tipo "${tipo}": ${proyectos.length}`);
+          
+          // Si hay proyectos del servidor, retornarlos
+          if (proyectos && proyectos.length > 0) {
+            return proyectos;
+          } else {
+            // Si no hay proyectos del servidor, intentar IndexedDB como fallback
+            console.log(`⚠️ No hay proyectos del servidor para tipo "${tipo}", intentando IndexedDB como fallback...`);
+            // Continuar al bloque de IndexedDB
+          }
+        } else {
+          // Si data.success es false o no hay proyectos, intentar IndexedDB como fallback
+          console.log('⚠️ Respuesta del servidor indica error o sin proyectos (data.success = false o sin proyectos), intentando cargar desde IndexedDB...');
+          console.log('⚠️ Data recibida:', data);
+          // Continuar al bloque de IndexedDB en todos los casos
+        }
+      } else {
+        // Error de respuesta (503, etc.), continuar para IndexedDB
+        console.log(`⚠️ Error en respuesta del servidor (status: ${response.status}, ok: ${response.ok}), intentando cargar desde IndexedDB...`);
+        // Lanzar error para que el catch maneje el fallback a IndexedDB
+        throw new Error(`Server error ${response.status} - load from IndexedDB`);
+      }
+    } catch (error) {
+      // Si es un error de red (offline), de Content-Type, o error del servidor, continuar para IndexedDB
+      const isOfflineError = !navigator.onLine || 
+        (error.name === 'TypeError' && error.message.includes('Failed to fetch')) ||
+        (error.name === 'TypeError' && error.message.includes('NetworkError')) ||
+        (error.message && error.message.includes('Invalid content type')) ||
+        (error.message && error.message.includes('load from IndexedDB')) ||
+        (error.message && error.message.includes('Offline error')) ||
+        (error.message && error.message.includes('Network error'));
+      
+      if (isOfflineError) {
+        console.log('📴 Error detectado, cargando desde IndexedDB...', error.message);
+      } else {
+        console.warn('⚠️ Error al cargar desde servidor:', error);
+        console.log('📴 Intentando cargar desde IndexedDB como fallback...');
+      }
+      // Continuar al bloque de IndexedDB en todos los casos
     }
 
-    const data = await response.json();
-
-    if (data.success) {
-
-      // Convertir el formato de la API al formato esperado por el frontend
-
-      return data.proyectos.map(proyecto => ({
-
-        id: proyecto.id,
-
-        name: proyecto.nombre,
-
-        location: proyecto.ubicacion,
-
-        createdDate: proyecto.creado_en,
-
-        modifiedDate: proyecto.actualizado_en,
-
-        type: proyecto.tipo,
-        categoryKey: tipo,
-
-        estado: proyecto.estado,
-
-        estado_display: proyecto.estado_display,
-
-        descripcion: proyecto.descripcion,
-
-        portada: proyecto.portada || null,
-
-        imagen_principal: proyecto.imagen_principal,
-
-        personal_count: proyecto.personal_count,
-
-        personal_nombres: proyecto.personal_nombres,
-
-        beneficiarios_count: proyecto.beneficiarios_count,
-
-        evidencias_count: proyecto.evidencias_count,
-
-        fecha: proyecto.fecha
-
-      }));
-
+    // FALLBACK: Si no hay conexión o falló el servidor, SIEMPRE intentar cargar desde IndexedDB
+    console.log(`🟡 [cargarProyectosPorTipo] Llegó al bloque de IndexedDB para tipo: "${tipo}"`);
+    const db = getOfflineDB();
+    console.log(`🟡 [cargarProyectosPorTipo] getOfflineDB() retornó:`, db ? 'IndexedDB disponible' : 'null/undefined');
+    if (db) {
+      try {
+        console.log(`📴 Modo offline: Cargando proyectos de tipo "${tipo}" desde IndexedDB`);
+        
+        // Primero verificar cuántos proyectos hay en total en IndexedDB
+        const todosLosProyectos = await db.getAllProyectos();
+        console.log(`📦 Total de proyectos en IndexedDB:`, todosLosProyectos?.length || 0);
+        
+        if (todosLosProyectos && todosLosProyectos.length > 0) {
+          // Mostrar información de los primeros proyectos para debugging
+          console.log(`🔍 Primeros 3 proyectos en IndexedDB:`, todosLosProyectos.slice(0, 3).map(p => ({
+            id: p.id,
+            nombre: p.nombre || p.name,
+            tipo: p.tipo || 'N/A',
+            type: p.type || 'N/A',
+            categoryKey: p.categoryKey || 'N/A',
+            category: p.category || 'N/A',
+            tieneTipo: !!(p.tipo || p.type || p.categoryKey || p.category)
+          })));
+          
+          // Mostrar todos los tipos únicos encontrados
+          const tiposUnicos = [...new Set(todosLosProyectos.map(p => 
+            p.tipo || p.type || p.categoryKey || p.category || 'sin-tipo'
+          ))];
+          console.log(`🔍 Todos los tipos únicos en IndexedDB:`, tiposUnicos);
+          
+          // Si hay proyectos sin tipo, intentar actualizarlos desde el servidor cuando haya conexión
+          const proyectosSinTipo = todosLosProyectos.filter(p => !(p.tipo || p.type || p.categoryKey || p.category));
+          if (proyectosSinTipo.length > 0 && navigator.onLine) {
+            console.log(`⚠️ Hay ${proyectosSinTipo.length} proyectos sin tipo. Se actualizarán en la próxima sincronización.`);
+          }
+        }
+        
+        const proyectosOffline = await db.getAllProyectos(tipo);
+        console.log(`📊 Proyectos encontrados en IndexedDB para tipo "${tipo}":`, proyectosOffline?.length || 0);
+        
+        if (proyectosOffline && proyectosOffline.length > 0) {
+          const proyectosMapeados = proyectosOffline.map(p => {
+            // Si el proyecto no tiene categoryKey, intentar inferirlo del tipo
+            let categoryKey = p.categoryKey || tipo;
+            if (!p.categoryKey && (p.tipo || p.type)) {
+              const tipoProyecto = String(p.tipo || p.type).toLowerCase();
+              if (tipoProyecto.includes('capacitación') || tipoProyecto.includes('capacitacion')) {
+                categoryKey = 'capacitaciones';
+              } else if (tipoProyecto.includes('entrega')) {
+                categoryKey = 'entregas';
+              } else if (tipoProyecto.includes('proyecto') || tipoProyecto.includes('ayuda')) {
+                categoryKey = 'proyectos-ayuda';
+              }
+            }
+            
+            return {
+              id: p.id,
+              name: p.name || p.nombre,
+              location: p.location || p.ubicacion,
+              createdDate: p.createdDate || p.creado_en || p.fecha,
+              modifiedDate: p.modifiedDate || p.actualizado_en,
+              type: p.type || p.tipo || categoryKey || p.category,
+              categoryKey: categoryKey,
+              estado: p.estado,
+              estado_display: p.estado_display,
+              descripcion: p.descripcion,
+              portada: p.portada || null,
+              imagen_principal: p.imagen_principal,
+              personal_count: p.personal_count,
+              personal_nombres: p.personal_nombres,
+              beneficiarios_count: p.beneficiarios_count,
+              evidencias_count: p.evidencias_count,
+              fecha: p.fecha || p.createdDate || p.creado_en
+            };
+          });
+          console.log(`✅ ${proyectosMapeados.length} proyectos cargados desde IndexedDB para tipo "${tipo}"`);
+          return proyectosMapeados;
+        } else {
+          console.log(`⚠️ No se encontraron proyectos de tipo "${tipo}" en IndexedDB`);
+          // Si no hay proyectos del tipo específico, mostrar qué tipos hay disponibles
+          if (todosLosProyectos && todosLosProyectos.length > 0) {
+            const tiposEncontrados = [...new Set(todosLosProyectos.map(p => 
+              p.tipo || p.type || p.categoryKey || p.category || 'sin-tipo'
+            ))];
+            console.log(`ℹ️ Tipos de proyectos encontrados en IndexedDB:`, tiposEncontrados);
+            
+            // NO mostrar todos los proyectos como fallback
+            // Si no hay proyectos del tipo solicitado, retornar array vacío
+            console.log(`ℹ️ No hay proyectos de tipo "${tipo}" en IndexedDB. Tipos disponibles: ${tiposEncontrados.join(', ')}`);
+            console.log(`💡 Los proyectos se categorizarán automáticamente cuando se sincronicen o se editen.`);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error al cargar desde IndexedDB:', error);
+        console.error('❌ Stack trace:', error.stack);
+        return [];
+      }
     } else {
-
+      console.warn('⚠️ IndexedDB no está disponible');
       return [];
-
     }
 
   } catch (error) {
 
+    console.error('❌ Error al cargar proyectos:', error);
     return [];
 
   }
@@ -134,31 +427,162 @@ async function cargarProyectosPorTipo(tipo) {
 async function cargarUltimosProyectos() {
 
   try {
-
+    // Usar fetch (que está interceptado por offlineAwareFetch)
     const response = await fetch('/api/ultimos-proyectos/');
 
-    if (!response.ok) {
+    // Verificar si es un error offline esperado
+    const isOfflineError = !navigator.onLine || 
+      (response.status === 503 && window.OfflineSync && window.OfflineSync.isOfflineError && window.OfflineSync.isOfflineError(response));
 
-      throw new Error(`Error HTTP: ${response.status}`);
+    if (response.ok) {
+      // Verificar Content-Type antes de parsear
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // No es JSON, probablemente HTML (página de error o login), cargar desde IndexedDB
+        console.log('📴 Respuesta no es JSON en cargarUltimosProyectos, cargando desde IndexedDB');
+        throw new Error('Invalid content type - not JSON');
+      }
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // Si falla el parseo, probablemente es HTML, cargar desde IndexedDB
+        console.log('📴 Error al parsear JSON en cargarUltimosProyectos, cargando desde IndexedDB');
+        throw new Error('Invalid content type - not JSON');
+      }
+      
+      // Verificar si la respuesta indica que es offline
+      if (window.OfflineSync && window.OfflineSync.isOfflineResponse && window.OfflineSync.isOfflineResponse(data)) {
+        // Es una respuesta offline, intentar cargar desde IndexedDB
+        const db = getOfflineDB();
+        if (db) {
+          try {
+            console.log('📴 Respuesta offline detectada, cargando últimos proyectos desde IndexedDB');
+            const proyectosOffline = await db.getAllProyectos();
+            if (proyectosOffline && proyectosOffline.length > 0) {
+              // Ordenar por fecha de creación (más recientes primero) y tomar los primeros 10
+              const proyectosOrdenados = proyectosOffline
+                .sort((a, b) => {
+                  const fechaA = new Date(a.createdDate || a.fecha || 0);
+                  const fechaB = new Date(b.createdDate || b.fecha || 0);
+                  return fechaB - fechaA;
+                })
+                .slice(0, 10);
+              return proyectosOrdenados;
+            }
+          } catch (dbError) {
+            console.warn('⚠️ Error al cargar últimos proyectos desde IndexedDB:', dbError);
+          }
+        }
+        return [];
+      }
 
-    }
-
-    const data = await response.json();
-
-    if (data.success) {
-
-      return data.proyectos || [];
-
-    } else {
-
+      if (data.success) {
+        return data.proyectos || [];
+      } else {
+        return [];
+      }
+    } else if (isOfflineError) {
+      // Error offline esperado, intentar cargar desde IndexedDB
+      const db = getOfflineDB();
+      if (db) {
+        try {
+          console.log('📴 Modo offline: Cargando últimos proyectos desde IndexedDB');
+          const proyectosOffline = await db.getAllProyectos();
+          if (proyectosOffline && proyectosOffline.length > 0) {
+            // Normalizar y ordenar por fecha de creación (más recientes primero) y tomar los primeros 10
+            const proyectosNormalizados = proyectosOffline.map(p => ({
+              id: p.id,
+              name: p.name || p.nombre,
+              location: p.location || p.ubicacion,
+              createdDate: p.createdDate || p.creado_en || p.fecha,
+              modifiedDate: p.modifiedDate || p.actualizado_en,
+              type: p.type || p.tipo || p.categoryKey || p.category,
+              categoryKey: p.categoryKey || p.tipo || p.type || p.category,
+              estado: p.estado,
+              estado_display: p.estado_display,
+              descripcion: p.descripcion,
+              portada: p.portada || null,
+              imagen_principal: p.imagen_principal,
+              personal_count: p.personal_count,
+              personal_nombres: p.personal_nombres,
+              beneficiarios_count: p.beneficiarios_count,
+              evidencias_count: p.evidencias_count,
+              fecha: p.fecha || p.createdDate || p.creado_en
+            }));
+            const proyectosOrdenados = proyectosNormalizados
+              .sort((a, b) => {
+                const fechaA = new Date(a.createdDate || a.fecha || 0);
+                const fechaB = new Date(b.createdDate || b.fecha || 0);
+                return fechaB - fechaA;
+              })
+              .slice(0, 10);
+            console.log(`✅ ${proyectosOrdenados.length} últimos proyectos cargados desde IndexedDB`);
+            return proyectosOrdenados;
+          }
+        } catch (dbError) {
+          console.warn('⚠️ Error al cargar últimos proyectos desde IndexedDB:', dbError);
+        }
+      }
       return [];
-
+    } else {
+      // Error real del servidor, retornar vacío
+      return [];
     }
 
   } catch (error) {
-
+    // Si es un error de red (offline) o de Content-Type (HTML en lugar de JSON), intentar cargar desde IndexedDB
+    const isOfflineError = !navigator.onLine || 
+      (error.name === 'TypeError' && error.message.includes('Failed to fetch')) ||
+      (error.message && error.message.includes('Invalid content type'));
+    
+    if (isOfflineError) {
+      // Intentar cargar desde IndexedDB
+      const db = getOfflineDB();
+      if (db) {
+        try {
+          console.log('📴 Modo offline: Cargando últimos proyectos desde IndexedDB');
+          const proyectosOffline = await db.getAllProyectos();
+          if (proyectosOffline && proyectosOffline.length > 0) {
+            // Normalizar y ordenar por fecha de creación (más recientes primero) y tomar los primeros 10
+            const proyectosNormalizados = proyectosOffline.map(p => ({
+              id: p.id,
+              name: p.name || p.nombre,
+              location: p.location || p.ubicacion,
+              createdDate: p.createdDate || p.creado_en || p.fecha,
+              modifiedDate: p.modifiedDate || p.actualizado_en,
+              type: p.type || p.tipo || p.categoryKey || p.category,
+              categoryKey: p.categoryKey || p.tipo || p.type || p.category,
+              estado: p.estado,
+              estado_display: p.estado_display,
+              descripcion: p.descripcion,
+              portada: p.portada || null,
+              imagen_principal: p.imagen_principal,
+              personal_count: p.personal_count,
+              personal_nombres: p.personal_nombres,
+              beneficiarios_count: p.beneficiarios_count,
+              evidencias_count: p.evidencias_count,
+              fecha: p.fecha || p.createdDate || p.creado_en
+            }));
+            const proyectosOrdenados = proyectosNormalizados
+              .sort((a, b) => {
+                const fechaA = new Date(a.createdDate || a.fecha || 0);
+                const fechaB = new Date(b.createdDate || b.fecha || 0);
+                return fechaB - fechaA;
+              })
+              .slice(0, 10);
+            console.log(`✅ ${proyectosOrdenados.length} últimos proyectos cargados desde IndexedDB`);
+            return proyectosOrdenados;
+          }
+        } catch (dbError) {
+          console.warn('⚠️ Error al cargar últimos proyectos desde IndexedDB:', dbError);
+        }
+      }
+      return [];
+    }
+    // Otro tipo de error, retornar vacío
     return [];
-
   }
 
 }
@@ -168,28 +592,51 @@ async function cargarUltimosProyectos() {
 async function inicializarProyectos() {
 
   try {
+    console.log('🚀 Inicializando proyectos...');
+    console.log('🔍 Estado de conexión:', navigator.onLine ? 'Online' : 'Offline');
+    console.log('🔍 IndexedDB disponible:', window.OfflineDB ? 'Sí' : 'No');
 
     // Cargar todos los tipos de proyectos y los últimos en paralelo
+    console.log('🔄 Iniciando carga de proyectos en paralelo...');
 
     const [capacitaciones, entregas, proyectosAyuda, ultimosProyectos] = await Promise.all([
 
-      cargarProyectosPorTipo('capacitaciones'),
+      cargarProyectosPorTipo('capacitaciones').catch(err => {
+        console.error('❌ Error al cargar capacitaciones:', err);
+        return [];
+      }),
 
-      cargarProyectosPorTipo('entregas'),
+      cargarProyectosPorTipo('entregas').catch(err => {
+        console.error('❌ Error al cargar entregas:', err);
+        return [];
+      }),
 
-      cargarProyectosPorTipo('proyectos-ayuda'),
+      cargarProyectosPorTipo('proyectos-ayuda').catch(err => {
+        console.error('❌ Error al cargar proyectos-ayuda:', err);
+        return [];
+      }),
 
-      cargarUltimosProyectos()
+      cargarUltimosProyectos().catch(err => {
+        console.error('❌ Error al cargar últimos proyectos:', err);
+        return [];
+      })
 
     ]);
 
+    console.log('📊 Proyectos cargados:', {
+      capacitaciones: capacitaciones?.length || 0,
+      entregas: entregas?.length || 0,
+      proyectosAyuda: proyectosAyuda?.length || 0,
+      ultimosProyectos: ultimosProyectos?.length || 0
+    });
+
     // Actualizar projectsData con los resultados
 
-    projectsData.capacitaciones = capacitaciones;
+    projectsData.capacitaciones = capacitaciones || [];
 
-    projectsData.entregas = entregas;
+    projectsData.entregas = entregas || [];
 
-    projectsData['proyectos-ayuda'] = proyectosAyuda;
+    projectsData['proyectos-ayuda'] = proyectosAyuda || [];
 
     // Renderizar proyectos en el HTML
 
@@ -197,16 +644,24 @@ async function inicializarProyectos() {
 
     // Renderizar últimos proyectos
 
-    renderizarUltimosProyectos(ultimosProyectos);
+    renderizarUltimosProyectos(ultimosProyectos || []);
 
     // Verificar si hay un hash en la URL para abrir un evento específico
 
     verificarHashYAbrirEvento();
 
   } catch (error) {
-
+    console.error('❌ Error al inicializar proyectos:', error);
+    // Intentar renderizar con datos vacíos para que la UI no se quede en blanco
+    renderizarProyectosEnHTML();
+    renderizarUltimosProyectos([]);
   }
 
+}
+
+// Exponer función globalmente para que pueda ser llamada desde otras páginas
+if (typeof window !== 'undefined') {
+  window.inicializarProyectos = inicializarProyectos;
 }
 
 // Función para verificar el hash de la URL y abrir el evento correspondiente
@@ -235,10 +690,164 @@ function verificarHashYAbrirEvento() {
 
 if (document.readyState === 'loading') {
 
-  document.addEventListener('DOMContentLoaded', inicializarProyectos);
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Inicializar IndexedDB en segundo plano, no bloquear la carga
+    initOfflineDB().catch(err => console.warn('IndexedDB no disponible:', err));
+    inicializarProyectos();
+    
+    // Listener para actualizar proyectos cuando se sincronizan cambios
+    document.addEventListener('OfflineSync:sent', async (event) => {
+      const item = event.detail;
+      if (!item || !item.url) return;
+      
+      // Manejar sincronización de imágenes
+      if (item.url.includes('/galeria/agregar/')) {
+        // Extraer el ID del proyecto de la URL
+        const match = item.url.match(/\/evento\/([^/]+)\/galeria\/agregar/);
+        if (match && match[1]) {
+          const proyectoId = match[1];
+          console.log('🔄 Imagen sincronizada para proyecto:', proyectoId);
+          
+          // Recargar el proyecto desde el servidor para obtener la imagen con su ID real
+          try {
+            const db = getOfflineDB();
+            if (db) {
+              const response = await fetch(`/api/proyecto/${proyectoId}/`);
+              if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.proyecto) {
+                  // Actualizar el proyecto en IndexedDB
+                  await db.saveProyecto(data.proyecto);
+                  console.log('✅ Proyecto actualizado en IndexedDB después de sincronizar imagen');
+                  
+                  // Si estamos viendo este proyecto, actualizar la vista
+                  if (currentProjectId === proyectoId) {
+                    await refreshCurrentProject();
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ Error al actualizar proyecto después de sincronizar imagen:', error);
+          }
+        }
+      }
+      
+      // Manejar sincronización de creación de eventos/proyectos
+      if (item.url.includes('/evento/crear/')) {
+        console.log('🔄 Evento/proyecto sincronizado, actualizando...');
+        
+        try {
+          const db = getOfflineDB();
+          const responseData = item.response;
+          
+          // Si la respuesta incluye el ID del evento creado, actualizar en IndexedDB
+          if (responseData && responseData.success && (responseData.id || responseData.evento_id)) {
+            const eventoIdReal = responseData.id || responseData.evento_id;
+            console.log('🔄 Evento creado con ID real:', eventoIdReal);
+            
+            // Buscar el evento temporal en IndexedDB y actualizarlo con el ID real
+            if (db) {
+              try {
+                // Obtener todos los proyectos offline
+                const proyectosOffline = await db.getAllProyectos();
+                // Buscar el proyecto temporal por el ID de la cola o por ser el más reciente offline
+                const proyectoTemporal = proyectosOffline.find(p => {
+                  if (!p.id || !p.is_offline) return false;
+                  // Buscar por offline_queue_id si existe
+                  if (p.offline_queue_id && p.offline_queue_id === item.id) {
+                    return true;
+                  }
+                  // Si no tiene offline_queue_id, buscar por ID temporal (offline_)
+                  if (p.id.startsWith('offline_') && !p.offline_queue_id) {
+                    // Verificar si es el más reciente (creado en los últimos 5 minutos)
+                    const createdTime = p.created_at ? new Date(p.created_at).getTime() : 0;
+                    const now = Date.now();
+                    return (now - createdTime) < 5 * 60 * 1000; // 5 minutos
+                  }
+                  return false;
+                });
+                
+                if (proyectoTemporal) {
+                  console.log('🔄 Proyecto temporal encontrado:', proyectoTemporal.id, 'actualizando con ID real:', eventoIdReal);
+                  
+                  // Recargar el proyecto completo desde el servidor con el ID real
+                  const response = await fetch(`/api/proyecto/${eventoIdReal}/`);
+                  if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.proyecto) {
+                      // Eliminar el proyecto temporal
+                      try {
+                        await db.delete('proyectos', proyectoTemporal.id);
+                        console.log('✅ Proyecto temporal eliminado:', proyectoTemporal.id);
+                      } catch (deleteError) {
+                        console.warn('⚠️ Error al eliminar proyecto temporal:', deleteError);
+                      }
+                      
+                      // Guardar el proyecto real
+                      await db.saveProyecto(data.proyecto);
+                      console.log('✅ Proyecto actualizado en IndexedDB con ID real:', eventoIdReal);
+                    }
+                  } else {
+                    console.warn('⚠️ No se pudo cargar el proyecto desde el servidor:', response.status);
+                  }
+                } else {
+                  console.log('ℹ️ No se encontró proyecto temporal para actualizar');
+                }
+              } catch (error) {
+                console.warn('⚠️ Error al actualizar proyecto temporal:', error);
+              }
+            }
+          }
+          
+          // Esperar un momento para que el servidor procese la creación
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Sincronizar desde el servidor para actualizar IndexedDB con el nuevo proyecto
+          if (window.OfflineSync && typeof window.OfflineSync.syncFromServer === 'function') {
+            try {
+              await window.OfflineSync.syncFromServer();
+              console.log('✅ Datos sincronizados desde servidor después de crear proyecto');
+            } catch (error) {
+              console.warn('⚠️ Error al sincronizar desde servidor:', error);
+            }
+          }
+          
+          // Recargar la lista de proyectos desde el servidor
+          if (typeof cargarProyectosPorTipo === 'function') {
+            // Recargar todas las categorías
+            try {
+              await Promise.all([
+                cargarProyectosPorTipo('capacitaciones'),
+                cargarProyectosPorTipo('entregas'),
+                cargarProyectosPorTipo('proyectos-ayuda')
+              ]);
+              console.log('✅ Proyectos recargados después de sincronizar creación');
+            } catch (error) {
+              console.warn('⚠️ Error al recargar proyectos:', error);
+            }
+          }
+          
+          // También recargar últimos proyectos si la función existe
+          if (typeof cargarUltimosProyectos === 'function') {
+            try {
+              await cargarUltimosProyectos();
+              console.log('✅ Últimos proyectos recargados');
+            } catch (error) {
+              console.warn('⚠️ Error al recargar últimos proyectos:', error);
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ Error al recargar proyectos después de sincronizar creación:', error);
+        }
+      }
+    });
+  });
 
 } else {
 
+  // Inicializar IndexedDB en segundo plano, no bloquear la carga
+  initOfflineDB().catch(err => console.warn('IndexedDB no disponible:', err));
   inicializarProyectos();
 
 }
@@ -330,7 +939,16 @@ function renderizarCategoria(categoriaId, proyectos) {
   const proyectosMostrar = proyectos.slice(0, 3);
 
   proyectosMostrar.forEach(proyecto => {
-
+    // Debug: Verificar datos del proyecto antes de crear la tarjeta
+    if (proyecto && (!proyecto.portada || !proyecto.imagen_principal)) {
+      console.log(`🔍 [${categoriaId}] Proyecto sin imagen:`, {
+        id: proyecto.id,
+        nombre: proyecto.nombre || proyecto.name,
+        portada: proyecto.portada,
+        imagen_principal: proyecto.imagen_principal
+      });
+    }
+    
     const projectCard = crearTarjetaProyecto(proyecto);
 
     gridContainer.appendChild(projectCard);
@@ -360,14 +978,32 @@ function crearTarjetaProyecto(proyecto) {
   const anio = fecha.getFullYear();
 
   // Determinar la imagen a usar
-
-  const imagenUrl = (proyecto.portada && proyecto.portada.url) || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
+  const placeholderSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='100%' height='100%' fill='%231d2531'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23b8c5d1' font-family='Arial' font-size='16'>Sin imagen</text></svg>";
+  
+  // Manejar diferentes formatos de portada (igual que en crearTarjetaProyectoDestacado)
+  let imagenUrl = null;
+  if (proyecto.portada) {
+    if (typeof proyecto.portada === 'string') {
+      imagenUrl = proyecto.portada;
+    } else if (proyecto.portada && typeof proyecto.portada === 'object' && proyecto.portada.url) {
+      imagenUrl = proyecto.portada.url;
+    }
+  }
+  
+  if (!imagenUrl) {
+    imagenUrl = proyecto.imagen_principal || null;
+  }
+  
+  // Si no hay imagen, usar placeholder
+  if (!imagenUrl) {
+    imagenUrl = placeholderSvg;
+  }
 
   card.innerHTML = `
 
     <div class="project-image">
 
-      <img src="${imagenUrl}" alt="${proyecto.nombre || proyecto.name}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80'">
+      <img src="${imagenUrl}" alt="${proyecto.nombre || proyecto.name}" loading="lazy" onerror="this.onerror=null; this.src='${placeholderSvg}'">
 
       <div class="project-date-overlay">
 
@@ -466,9 +1102,18 @@ function renderFeaturedProjectsGrid() {
         null;
 
       const imgTag = card.querySelector('img');
-      if (imgTag && imagenDestacada) {
+      if (imgTag) {
         imgTag.loading = 'lazy';
-        imgTag.src = imagenDestacada;
+        const placeholderSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='100%' height='100%' fill='%231d2531'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23b8c5d1' font-family='Arial' font-size='16'>Sin imagen</text></svg>";
+        if (imagenDestacada) {
+          imgTag.src = imagenDestacada;
+          imgTag.onerror = function() {
+            this.onerror = null;
+            this.src = placeholderSvg;
+          };
+        } else {
+          imgTag.src = placeholderSvg;
+        }
       }
 
       featuredGrid.appendChild(card);
@@ -655,9 +1300,10 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
   const anio = fecha.getFullYear() || new Date().getFullYear();
 
+  const placeholderSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='100%' height='100%' fill='%231d2531'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23b8c5d1' font-family='Arial' font-size='16'>Sin imagen</text></svg>";
   const portadaUrl = proyecto.portada && proyecto.portada.url ? proyecto.portada.url : null;
 
-  const imagenUrl = portadaUrl || proyecto.imagen_principal || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+  const imagenUrl = portadaUrl || proyecto.imagen_principal || placeholderSvg;
 
   const nombreProyecto = proyecto.nombre || proyecto.name || 'Sin nombre';
 
@@ -667,7 +1313,7 @@ function crearTarjetaProyectoDestacado(proyecto) {
 
     <div class="project-image">
 
-      <img src="${imagenUrl}" alt="${nombreProyecto}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
+      <img src="${imagenUrl}" alt="${nombreProyecto}" loading="lazy" onerror="this.onerror=null; this.src='${placeholderSvg}'">
 
       <div class="project-date-overlay">
 
@@ -737,54 +1383,202 @@ async function loadProjectDetails(projectId) {
 
     resetProjectPermissionState();
 
-    const response = await fetch(`/api/proyecto/${projectId}/`);
+    const db = getOfflineDB();
+    let proyecto = null;
+    let data = null;
+    let loadedFromServer = false; // Flag para saber si se cargó desde el servidor
 
-    if (!response.ok) {
-      isLoadingProjectDetails = false;
-      throw new Error(`Error HTTP: ${response.status}`);
+    // PRIMERO: Intentar cargar desde el servidor
+    try {
+      const response = await fetch(`/api/proyecto/${projectId}/`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
 
+      // Verificar si es un error offline
+      const isOfflineError = !navigator.onLine || 
+        response.status === 503 ||
+        (response.status === 503 && window.OfflineSync && window.OfflineSync.isOfflineError && window.OfflineSync.isOfflineError(response));
+
+      if (response.ok && !isOfflineError) {
+        // Verificar Content-Type
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+          loadedFromServer = true; // Se cargó desde el servidor
+        } else {
+          throw new Error('Invalid content type - not JSON');
+        }
+      } else {
+        // Error offline o del servidor, intentar IndexedDB
+        throw new Error(`Server error ${response.status} - load from IndexedDB`);
+      }
+    } catch (error) {
+      // Si falla el servidor, intentar cargar desde IndexedDB
+      console.log('📴 Error al cargar desde servidor, intentando IndexedDB...', error.message);
+      
+      if (db) {
+        try {
+          proyecto = await db.getProyecto(projectId);
+          if (proyecto) {
+            console.log('✅ Proyecto cargado desde IndexedDB:', projectId);
+            data = { success: true, proyecto: proyecto };
+            loadedFromServer = false; // Se cargó desde IndexedDB
+          } else {
+            isLoadingProjectDetails = false;
+            showErrorMessage('Proyecto no encontrado. Verifica tu conexión a internet o sincroniza los datos.');
+            return null;
+          }
+        } catch (dbError) {
+          console.warn('⚠️ Error al cargar proyecto desde IndexedDB:', dbError);
+          isLoadingProjectDetails = false;
+          showErrorMessage('Error al cargar proyecto. Verifica tu conexión a internet o sincroniza los datos.');
+          return null;
+        }
+      } else {
+        isLoadingProjectDetails = false;
+        showErrorMessage('No se pudo cargar el proyecto. Verifica tu conexión a internet.');
+        return null;
+      }
     }
-
-    const data = await response.json();
 
     if (data.success) {
 
       // Guardar el proyecto en variables globales antes de mostrar
 
-      const proyecto = data.proyecto;
+      proyecto = data.proyecto;
 
       currentProjectData = proyecto;
 
       currentProjectId = proyecto.id;
 
+      // Configurar permisos del usuario (tanto si se cargó desde servidor como desde IndexedDB)
       if (proyecto.permisos && typeof proyecto.permisos === 'object') {
         window.USER_AUTH = window.USER_AUTH || {};
-    window.USER_AUTH.permisos = Object.assign({}, window.USER_AUTH.permisos || {}, proyecto.permisos);
+        window.USER_AUTH.permisos = Object.assign({}, window.USER_AUTH.permisos || {}, proyecto.permisos);
         if (typeof proyecto.permisos.es_admin === 'boolean') {
           window.USER_AUTH.isAdmin = proyecto.permisos.es_admin;
         }
         if (typeof proyecto.permisos.es_personal === 'boolean') {
           window.USER_AUTH.isPersonal = proyecto.permisos.es_personal;
         }
-    window.USER_AUTH.permisos.puede_gestionar = Boolean(proyecto.permisos.puede_gestionar);
-  } else if (window.USER_AUTH) {
-    window.USER_AUTH.permisos = Object.assign({}, window.USER_AUTH.permisos || {});
-    window.USER_AUTH.permisos.puede_gestionar = false;
+        window.USER_AUTH.permisos.puede_gestionar = Boolean(proyecto.permisos.puede_gestionar);
+      } else if (window.USER_AUTH) {
+        window.USER_AUTH.permisos = Object.assign({}, window.USER_AUTH.permisos || {});
+        window.USER_AUTH.permisos.puede_gestionar = false;
       }
 
+      // Determinar si el usuario puede gestionar este proyecto
       let puedeGestionar = null;
       if (typeof proyecto.puede_gestionar === 'boolean') {
         puedeGestionar = proyecto.puede_gestionar;
       } else if (proyecto.permisos && typeof proyecto.permisos.puede_gestionar === 'boolean') {
         puedeGestionar = proyecto.permisos.puede_gestionar;
       } else {
-        puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
+        // Si está offline y no hay permisos explícitos, verificar desde la sesión offline
+        const isOffline = !navigator.onLine;
+        if (isOffline && window.OfflineAuth) {
+          const offlineSession = window.OfflineAuth.getActiveSession();
+          if (offlineSession && offlineSession.userInfo) {
+            // Si es admin, puede gestionar todos los proyectos
+            if (offlineSession.userInfo.isAdmin || offlineSession.userInfo.rol === 'admin') {
+              puedeGestionar = true;
+            } else if (offlineSession.userInfo.isPersonal || offlineSession.userInfo.rol === 'personal') {
+              // Si es personal, verificar si el proyecto tiene permisos guardados
+              // Si el proyecto se guardó con permisos, confiar en ellos
+              // Si no, verificar si el usuario está asociado al proyecto
+              if (proyecto.permisos?.puede_gestionar !== undefined) {
+                puedeGestionar = proyecto.permisos.puede_gestionar;
+              } else if (proyecto.puede_gestionar !== undefined) {
+                puedeGestionar = proyecto.puede_gestionar;
+              } else {
+                // Si no hay permisos guardados, verificar si el usuario está en el personal del proyecto
+                const personalIds = (proyecto.personal || []).map(p => p.id || p.usuario_id || p.colaborador_id).filter(Boolean);
+                const userId = offlineSession.userInfo.id || offlineSession.userInfo.userId;
+                const collaboratorId = offlineSession.userInfo.collaboratorId || offlineSession.userInfo.colaborador_id;
+                
+                // Verificar si el usuario está asociado al proyecto
+                puedeGestionar = personalIds.includes(userId) || personalIds.includes(collaboratorId) || true; // Por defecto true para permitir trabajar offline
+                console.log('🔐 Verificando permisos personal offline:', {
+                  userId,
+                  collaboratorId,
+                  personalIds,
+                  puedeGestionar
+                });
+              }
+            }
+          }
+        } else {
+          // Si está online, verificar con el servidor
+          puedeGestionar = await usuarioPuedeGestionarProyecto(proyecto);
+        }
       }
 
       puedeGestionarProyectoActual = Boolean(puedeGestionar);
+      console.log('🔐 Permisos configurados:', {
+        puedeGestionar: puedeGestionarProyectoActual,
+        esAdmin: window.USER_AUTH?.isAdmin,
+        esPersonal: window.USER_AUTH?.isPersonal,
+        permisos: proyecto.permisos
+      });
+
+      // Guardar proyecto completo en IndexedDB para uso offline (solo si se cargó desde el servidor)
+      if (loadedFromServer && data && data.success && proyecto && db) {
+        try {
+          // Normalizar el tipo antes de guardar
+          let tipo = proyecto.tipo || proyecto.categoryKey || proyecto.category || null;
+          if (tipo && typeof tipo === 'object' && tipo.nombre) {
+            tipo = tipo.nombre;
+          }
+          tipo = tipo ? String(tipo) : null;
+          
+          // Determinar categoryKey basado en el tipo
+          let categoryKey = proyecto.categoryKey || null;
+          if (!categoryKey && tipo) {
+            const tipoLower = tipo.toLowerCase();
+            if (tipoLower.includes('capacitación') || tipoLower.includes('capacitacion')) {
+              categoryKey = 'capacitaciones';
+            } else if (tipoLower.includes('entrega')) {
+              categoryKey = 'entregas';
+            } else if (tipoLower.includes('proyecto') || tipoLower.includes('ayuda')) {
+              categoryKey = 'proyectos-ayuda';
+            }
+          }
+          
+          await db.saveProyecto({
+            ...proyecto,
+            tipo: tipo,
+            categoryKey: categoryKey || tipo,
+            // Asegurar que todos los campos importantes estén incluidos
+            descripcion: proyecto.descripcion || '',
+            cambios: proyecto.cambios || [],
+            archivos: proyecto.archivos || [],
+            evidencias: proyecto.evidencias || [],
+            tarjetas_datos: proyecto.tarjetas_datos || [],
+            beneficiarios: proyecto.beneficiarios || [],
+            personal: proyecto.personal || [],
+            comunidades: proyecto.comunidades || [],
+            // Preservar permisos para uso offline
+            permisos: proyecto.permisos || {},
+            puede_gestionar: proyecto.puede_gestionar ?? proyecto.permisos?.puede_gestionar ?? false,
+            ultimo_sync: new Date().toISOString(),
+            is_offline: false
+          });
+          console.log('✅ Proyecto completo guardado en IndexedDB:', projectId, {
+            descripcion: proyecto.descripcion ? 'Sí' : 'No',
+            cambios: proyecto.cambios?.length || 0,
+            archivos: proyecto.archivos?.length || 0
+          });
+        } catch (error) {
+          console.warn('⚠️ Error al guardar proyecto en IndexedDB:', error);
+        }
+      }
+
       projectActionButtonSelectors = buildProjectActionButtonSelectors();
 
-      mostrarDetalleProyecto(proyecto);
+      await mostrarDetalleProyecto(proyecto);
 
       aplicarVisibilidadBotonesGestion(puedeGestionarProyectoActual);
 
@@ -817,7 +1611,7 @@ async function loadProjectDetails(projectId) {
 
 // Función para mostrar los detalles del proyecto en la vista de detalle
 
-function mostrarDetalleProyecto(proyecto) {
+async function mostrarDetalleProyecto(proyecto) {
   // Generar un ID único para este renderizado
   const renderizadoId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
@@ -1131,10 +1925,24 @@ function mostrarDetalleProyecto(proyecto) {
       });
 
       detailFiles.innerHTML = archivosOrdenados.map(archivo => {
+        // Si el archivo está en base64 (offline), crear URL temporal
+        let archivoUrl = archivo.url || archivo.archivo || '';
+        if (archivo.base64 && !archivoUrl) {
+          try {
+            const mimeType = archivo.tipo || (archivo.es_imagen ? 'image/jpeg' : 'application/octet-stream');
+            const blob = base64ToBlob(archivo.base64, mimeType);
+            archivoUrl = URL.createObjectURL(blob);
+          } catch (error) {
+            console.warn('Error al crear URL desde base64:', error);
+          }
+        }
 
         const extension = archivo.es_imagen ? 'IMG' : (archivo.nombre.split('.').pop()?.toUpperCase() || 'FILE');
 
         const tamanioTexto = archivo.tamanio ? formatFileSize(archivo.tamanio) : '';
+        
+        // Indicador de archivo offline
+        const offlineBadge = archivo.es_offline ? '<span style="background: #ffc107; color: #000; padding: 2px 6px; border-radius: 3px; font-size: 0.7rem; margin-left: 6px;">OFFLINE</span>' : '';
 
         const puedeEliminar = puedeGestionar && !archivo.es_evidencia; // Solo se pueden eliminar archivos que NO sean evidencias Y si tiene permisos
         const puedeEditar = puedeGestionar && !archivo.es_evidencia;
@@ -1145,7 +1953,7 @@ function mostrarDetalleProyecto(proyecto) {
         // Escapar HTML del nombre del archivo para seguridad
         const nombreArchivoEscapado = escapeHtml(archivo.nombre);
         const nombreArchivo = puedeGestionar 
-          ? `<a href="${archivo.url}" target="_blank" rel="noopener noreferrer" title="${nombreArchivoEscapado}">${nombreArchivoEscapado}</a>`
+          ? `<a href="${archivoUrl || archivo.url || '#'}" target="_blank" rel="noopener noreferrer" title="${nombreArchivoEscapado}">${nombreArchivoEscapado}${offlineBadge}</a>`
           : `<span style="color: #6c757d; cursor: not-allowed;" title="Debes iniciar sesión como admin o personal para ver/descargar archivos">${nombreArchivoEscapado}</span>`;
 
         return `
@@ -1180,7 +1988,7 @@ function mostrarDetalleProyecto(proyecto) {
 
           ${puedeGestionar ? `
           <div class="file-actions">
-            <a class="file-download-btn" href="${archivo.url}" target="_blank" rel="noopener noreferrer">
+            <a class="file-download-btn" href="${archivoUrl || archivo.url || '#'}" target="_blank" rel="noopener noreferrer">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7,10 12,15 17,10"></polyline>
@@ -1279,7 +2087,7 @@ function mostrarDetalleProyecto(proyecto) {
 
   if (proyecto.cambios && proyecto.cambios.length > 0) {
 
-    renderCambios(proyecto.cambios);
+    await renderCambios(proyecto.cambios);
 
   } else {
 
@@ -2078,7 +2886,7 @@ function showProjectDetail(projectId) {
 }
 // Función para cargar los datos del proyecto en la vista detallada (LEGACY - usar mostrarDetalleProyecto)
 
-function loadProjectDetail(project) {
+async function loadProjectDetail(project) {
 
   // Actualizar las variables globales
 
@@ -2204,7 +3012,7 @@ function loadProjectDetail(project) {
 
   if (cambios && cambios.length > 0) {
 
-    renderCambios(cambios);
+    await renderCambios(cambios);
 
   } else {
 
@@ -2264,8 +3072,10 @@ function backFromDetail() {
 }
 
 // Event listener para el botón de volver desde la vista detallada
-
-document.getElementById('btnBackFromDetail').addEventListener('click', backFromDetail);
+const btnBackFromDetail = document.getElementById('btnBackFromDetail');
+if (btnBackFromDetail) {
+  btnBackFromDetail.addEventListener('click', backFromDetail);
+}
 
 // Función para agregar event listeners a los botones "Ver más"
 
@@ -2701,7 +3511,23 @@ function ensureModalCloseHandlers() {
 }
 
 async function obtenerUsuarioActualInfo() {
+  // Verificar si hay sesión offline activa
+  const hasOfflineSession = window.OfflineAuth && window.OfflineAuth.getActiveSession && window.OfflineAuth.getActiveSession();
+  const isOffline = !navigator.onLine;
+  
+  // Si hay sesión offline activa, considerar al usuario como autenticado
+  if (hasOfflineSession && hasOfflineSession.userInfo) {
+    // Asegurar que USER_AUTH esté configurado con la sesión offline
+    if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
+      window.USER_AUTH = hasOfflineSession.userInfo;
+    }
+  }
+  
   if (!window.USER_AUTH || !window.USER_AUTH.isAuthenticated) {
+    // Si está offline y no hay sesión offline, retornar null silenciosamente
+    if (isOffline) {
+      return null;
+    }
     return null;
   }
 
@@ -2715,12 +3541,26 @@ async function obtenerUsuarioActualInfo() {
 
   const url = (window.DJANGO_URLS && window.DJANGO_URLS.usuario) || '/api/usuario/';
 
+  // Usar fetch (que está interceptado por offlineAwareFetch)
   usuarioActualInfoPromise = fetch(url, { credentials: 'include' })
     .then(response => {
+      // Verificar si es un error offline esperado
       if (!response.ok) {
+        // Si es 503 y estamos offline, es esperado
+        if (response.status === 503 && (!navigator.onLine || (window.OfflineSync && window.OfflineSync.isOfflineError && window.OfflineSync.isOfflineError(response)))) {
+          // No mostrar error, es esperado cuando está offline
+          return null;
+        }
         return null;
       }
       return response.json();
+    })
+    .then(data => {
+      // Verificar si la respuesta indica que es offline
+      if (data && window.OfflineSync && window.OfflineSync.isOfflineResponse && window.OfflineSync.isOfflineResponse(data)) {
+        return null;
+      }
+      return data;
     })
     .then(data => {
       if (data && data.autenticado !== false) {
@@ -3083,7 +3923,7 @@ function updateProjectData(newData) {
 
 // Función para agregar comunidad
 
-function addCommunityToProject(communityName) {
+async function addCommunityToProject(communityName) {
 
   const currentProject = getCurrentProject();
 
@@ -3109,7 +3949,7 @@ function addCommunityToProject(communityName) {
 
     // Actualizar la vista
 
-    loadProjectDetail(currentProject);
+    await loadProjectDetail(currentProject);
 
     showSuccessMessage('Comunidad agregada exitosamente');
 
@@ -3123,7 +3963,7 @@ function addCommunityToProject(communityName) {
 
 // Función para agregar personal
 
-function addPersonnelToProject(personnelData) {
+async function addPersonnelToProject(personnelData) {
 
   const currentProject = getCurrentProject();
 
@@ -3143,7 +3983,7 @@ function addPersonnelToProject(personnelData) {
 
     // Actualizar la vista
 
-    loadProjectDetail(currentProject);
+    await loadProjectDetail(currentProject);
 
     showSuccessMessage('Personal agregado exitosamente');
 
@@ -3157,7 +3997,7 @@ function addPersonnelToProject(personnelData) {
 
 // Función para agregar imagen
 
-function addImageToProject(imageData) {
+async function addImageToProject(imageData) {
 
   const currentProject = getCurrentProject();
 
@@ -3171,7 +4011,7 @@ function addImageToProject(imageData) {
 
   // Actualizar la vista
 
-  loadProjectDetail(currentProject);
+  await loadProjectDetail(currentProject);
 
   showSuccessMessage('Imagen agregada exitosamente');
 
@@ -3179,7 +4019,7 @@ function addImageToProject(imageData) {
 
 // Función para agregar cambio
 
-function addChangeToProject(changeData) {
+async function addChangeToProject(changeData) {
 
   const currentProject = getCurrentProject();
 
@@ -3193,14 +4033,14 @@ function addChangeToProject(changeData) {
 
   // Actualizar la vista
 
-  loadProjectDetail(currentProject);
+  await loadProjectDetail(currentProject);
 
   showSuccessMessage('Cambio agregado exitosamente');
 
 }
 // Función para actualizar descripción
 
-function updateProjectDescription(newDescription) {
+async function updateProjectDescription(newDescription) {
 
   const currentProject = getCurrentProject();
 
@@ -3208,7 +4048,7 @@ function updateProjectDescription(newDescription) {
 
   // Actualizar la vista
 
-  loadProjectDetail(currentProject);
+  await loadProjectDetail(currentProject);
 
   showSuccessMessage('Descripción actualizada exitosamente');
 
@@ -3216,7 +4056,7 @@ function updateProjectDescription(newDescription) {
 
 // Función para actualizar datos del proyecto
 
-function updateProjectData(newData) {
+async function updateProjectData(newData) {
 
   const currentProject = getCurrentProject();
 
@@ -3224,7 +4064,7 @@ function updateProjectData(newData) {
 
   // Actualizar la vista
 
-  loadProjectDetail(currentProject);
+  await loadProjectDetail(currentProject);
 
   showSuccessMessage('Datos actualizados exitosamente');
 
@@ -4158,7 +4998,7 @@ function loadCommunities(communities) {
 }
 // Función para renderizar cambios desde la API
 
-function renderCambios(cambios) {
+async function renderCambios(cambios) {
 
   const container = document.getElementById('detailChanges');
 
@@ -4184,14 +5024,66 @@ function renderCambios(cambios) {
 
   const puedeGestionar = puedeGestionarGaleria();
 
-  cambios.forEach((cambio, index) => {
+  // Cargar datos de colaboradores y comunidades desde IndexedDB si están disponibles
+  const db = getOfflineDB();
+  let colaboradoresMap = new Map();
+  let comunidadesMap = new Map();
 
+  if (db) {
+    try {
+      // Cargar colaboradores desde IndexedDB
+      const colaboradores = await db.getAll('colaboradores');
+      if (colaboradores && colaboradores.length > 0) {
+        colaboradores.forEach(col => {
+          colaboradoresMap.set(String(col.id), col.nombre || col.nombres || 'Sin nombre');
+        });
+      }
+
+      // Cargar comunidades desde IndexedDB
+      const comunidades = await db.getAll('comunidades');
+      if (comunidades && comunidades.length > 0) {
+        comunidades.forEach(com => {
+          comunidadesMap.set(String(com.id), com.nombre || 'Sin nombre');
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ Error al cargar datos desde IndexedDB para renderizar cambios:', error);
+    }
+  }
+
+  for (const cambio of cambios) {
     // Obtener el texto de comunidades
     let comunidadesTexto = '';
     if (cambio.comunidades && typeof cambio.comunidades === 'string' && cambio.comunidades.trim() !== '') {
       comunidadesTexto = cambio.comunidades.trim();
     } else if (cambio.comunidades_nombres && typeof cambio.comunidades_nombres === 'string' && cambio.comunidades_nombres.trim() !== '') {
       comunidadesTexto = cambio.comunidades_nombres.trim();
+    } else if (cambio.comunidades_ids && Array.isArray(cambio.comunidades_ids) && cambio.comunidades_ids.length > 0) {
+      // Si solo tenemos IDs, buscar los nombres desde IndexedDB
+      const nombresComunidades = cambio.comunidades_ids
+        .map(id => comunidadesMap.get(String(id)))
+        .filter(nombre => nombre)
+        .join(', ');
+      if (nombresComunidades) {
+        comunidadesTexto = nombresComunidades;
+      }
+    }
+
+    // Obtener el texto de responsables
+    let responsablesTexto = '';
+    if (cambio.responsables_display && typeof cambio.responsables_display === 'string' && cambio.responsables_display.trim() !== '') {
+      responsablesTexto = cambio.responsables_display.trim();
+    } else if (cambio.responsable && typeof cambio.responsable === 'string' && cambio.responsable.trim() !== '') {
+      responsablesTexto = cambio.responsable.trim();
+    } else if (cambio.colaboradores_ids && Array.isArray(cambio.colaboradores_ids) && cambio.colaboradores_ids.length > 0) {
+      // Si solo tenemos IDs, buscar los nombres desde IndexedDB
+      const nombresColaboradores = cambio.colaboradores_ids
+        .map(id => colaboradoresMap.get(String(id)))
+        .filter(nombre => nombre)
+        .join(', ');
+      if (nombresColaboradores) {
+        responsablesTexto = nombresColaboradores;
+      }
     }
 
     const changeItem = document.createElement('div');
@@ -4203,11 +5095,14 @@ function renderCambios(cambios) {
       changeItem.setAttribute('data-grupo-id', cambio.grupo_id);
     }
 
+    // Indicador de cambio offline
+    const offlineBadge = cambio.es_offline ? '<span style="background: #ffc107; color: #000; padding: 2px 6px; border-radius: 3px; font-size: 0.7rem; margin-left: 6px;">OFFLINE</span>' : '';
+    
     changeItem.innerHTML = `
       <div class="change-content">
-        <div class="change-date">${cambio.fecha_display || cambio.fecha_cambio || 'Sin fecha'}</div>
+        <div class="change-date">${cambio.fecha_display || (cambio.fecha_cambio ? new Date(cambio.fecha_cambio).toLocaleString('es-GT', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Sin fecha')}${offlineBadge}</div>
         <div class="change-description">${cambio.descripcion || 'Sin descripción'}</div>
-        <div class="change-personnel">Por: ${cambio.responsables_display || cambio.responsable || 'Sin responsable'}</div>
+        <div class="change-personnel">Por: ${responsablesTexto || 'Sin responsable'}</div>
         ${comunidadesTexto ? 
           `<div class="change-communities" style="margin-top: 8px; color: #0ea5e9; font-size: 0.9rem; display: block !important; visibility: visible !important; opacity: 1 !important;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
@@ -4328,7 +5223,7 @@ function renderCambios(cambios) {
 
     }
 
-  });
+  }
 
 }
 // Función para mostrar modal de imagen en tamaño completo
@@ -4545,7 +5440,18 @@ function renderProjectGalleryPage() {
       ? `<div class="gallery-item-description">${descriptionText}</div>`
       : '';
     const encodedName = encodeURIComponent(img.nombre || img.archivo_nombre || '');
-    const imageUrlAttr = escapeHtml(img.url || '');
+    
+    // Manejar imágenes offline: si tiene base64 pero no url, crear data URL
+    let imageUrlAttr = img.url || '';
+    if (!imageUrlAttr && img.base64) {
+      const mimeType = img.tipo || img.archivo_tipo || 'image/jpeg';
+      imageUrlAttr = `data:${mimeType};base64,${img.base64}`;
+    }
+    imageUrlAttr = escapeHtml(imageUrlAttr);
+    
+    // Indicador de imagen offline
+    const offlineBadge = img.es_offline ? '<span style="background: #ffc107; color: #000; padding: 2px 6px; border-radius: 3px; font-size: 0.7rem; position: absolute; top: 8px; right: 8px; z-index: 10;">OFFLINE</span>' : '';
+    
     // SIEMPRE renderizar el botón si currentProjectGalleryCanManage es true
     // El botón se mostrará/ocultará según los permisos
     const removeButton = currentProjectGalleryCanManage
@@ -4559,11 +5465,14 @@ function renderProjectGalleryPage() {
 
     const imageDescriptionAttr = escapeHtml(img.descripcion || '');
     const imageAltAttr = escapeHtml(img.nombre || img.archivo_nombre || 'Imagen');
+    
+    const placeholderSvg = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='100%' height='100%' fill='%231d2531'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23b8c5d1' font-family='Arial' font-size='16'>Sin imagen</text></svg>";
 
     return `
-      <div class="gallery-item" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}">
+      <div class="gallery-item" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" style="position: relative;">
+        ${offlineBadge}
         ${removeButton}
-        <img src="${imageUrlAttr}" alt="${imageAltAttr}" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'">
+        <img src="${imageUrlAttr}" alt="${imageAltAttr}" data-image-url="${imageUrlAttr}" data-image-description="${imageDescriptionAttr}" loading="lazy" onerror="this.onerror=null; this.src='${placeholderSvg}'">
         ${descriptionHtml}
       </div>
     `;
@@ -4874,109 +5783,208 @@ async function addImageToProject() {
 
   }
 
-  const csrfToken = getCookie('csrftoken');
-
-  if (!csrfToken) {
-
-    showErrorMessage('Error de autenticación. Por favor, recarga la página.');
-
-    return;
-
-  }
-
   const confirmButton = document.getElementById('confirmImageBtn');
-
   const originalLabel = confirmButton ? confirmButton.textContent : null;
 
   if (confirmButton) {
-
     confirmButton.disabled = true;
-
     confirmButton.textContent = 'Guardando...';
-
   }
 
   const imagesToUpload = [...pendingProjectGalleryImages];
+  const isOffline = !navigator.onLine;
+  const db = getOfflineDB();
+
+  // Modo offline: guardar imágenes en IndexedDB
+  if (isOffline && db) {
+    try {
+      if (!currentProject.evidencias) {
+        currentProject.evidencias = [];
+      }
+
+      // Convertir imágenes a base64 y agregarlas al proyecto
+      for (let i = 0; i < imagesToUpload.length; i++) {
+        const item = imagesToUpload[i];
+        const file = item.file;
+        const description = (item.description || '').trim();
+
+        try {
+          const base64 = await fileToBase64(file);
+          const extension = file.name.split('.').pop()?.toLowerCase() || '';
+          const mimeType = file.type || `image/${extension}`;
+
+          const nuevaEvidencia = {
+            id: `tmp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            nombre: file.name,
+            archivo_nombre: file.name,
+            descripcion: description,
+            tamanio: file.size,
+            tipo: mimeType,
+            archivo_tipo: mimeType,
+            extension: extension,
+            base64: base64,
+            url: `data:${mimeType};base64,${base64}`, // URL para mostrar inmediatamente
+            es_imagen: true,
+            es_galeria: true,
+            es_offline: true,
+            creado_en: new Date().toISOString(),
+            modificado_offline: true
+          };
+
+          currentProject.evidencias.push(nuevaEvidencia);
+        } catch (error) {
+          console.warn(`Error al convertir imagen ${file.name} a base64:`, error);
+          showErrorMessage(`Error al procesar la imagen ${file.name}. Por favor, intenta con otra imagen.`);
+        }
+      }
+
+      currentProject.modificado_offline = true;
+      currentProject.ultimo_sync = new Date().toISOString();
+
+      await db.saveProyecto(currentProject);
+
+      // Actualizar vista inmediatamente
+      currentProjectData = currentProject;
+      await mostrarDetalleProyecto(currentProject);
+
+      // Limpiar formulario
+      clearImageForm();
+      hideModal('addImageModal');
+
+      // Liberar previews
+      imagesToUpload.forEach(revokePendingImagePreview);
+
+      showSuccessMessage(`${imagesToUpload.length} imagen(es) guardada(s) sin conexión. Se enviarán automáticamente cuando vuelva el internet.`);
+
+      // Intentar agregar a la cola de sincronización
+      // Guardar archivos como base64 para poder serializarlos
+      const csrfToken = getCookie('csrftoken');
+      if (window.OfflineSync && window.OfflineSync.enqueueManual && csrfToken) {
+        for (let i = 0; i < imagesToUpload.length; i++) {
+          const item = imagesToUpload[i];
+          const file = item.file;
+          const description = (item.description || '').trim();
+
+          try {
+            // Convertir archivo a base64 para poder serializarlo
+            const base64 = await fileToBase64(file);
+            
+            // Guardar en la cola usando enqueueManual que procesa el body correctamente
+            window.OfflineSync.enqueueManual(`/api/evento/${currentProject.id}/galeria/agregar/`, {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': csrfToken
+              },
+              body: {
+                type: 'formdata',
+                files: [{
+                  key: 'imagen',
+                  fileName: file.name,
+                  fileType: file.type,
+                  base64: base64
+                }],
+                fields: description ? [{ key: 'descripcion', value: description }] : []
+              }
+            });
+            console.log(`✅ Imagen ${file.name} agregada a la cola de sincronización`);
+          } catch (error) {
+            console.error(`❌ Error al agregar imagen ${file.name} a la cola:`, error);
+          }
+        }
+        // Actualizar el estado de sincronización
+        if (window.OfflineSync.updateSyncStatus) {
+          window.OfflineSync.updateSyncStatus();
+        }
+      } else {
+        console.warn('⚠️ OfflineSync no está disponible o no hay CSRF token');
+      }
+
+      isUploadingImage = false;
+      if (confirmButton) {
+        confirmButton.disabled = false;
+        confirmButton.textContent = originalLabel || 'Agregar';
+      }
+
+      return;
+    } catch (error) {
+      console.error('Error al guardar imágenes offline:', error);
+      showErrorMessage('Error al guardar las imágenes offline. Por favor, intenta de nuevo.');
+      isUploadingImage = false;
+      if (confirmButton) {
+        confirmButton.disabled = false;
+        confirmButton.textContent = originalLabel || 'Agregar';
+      }
+      return;
+    }
+  }
+
+  // Modo online: enviar al servidor normalmente
+  const csrfToken = getCookie('csrftoken');
+
+  if (!csrfToken) {
+    showErrorMessage('Error de autenticación. Por favor, recarga la página.');
+    isUploadingImage = false;
+    if (confirmButton) {
+      confirmButton.disabled = false;
+      confirmButton.textContent = originalLabel || 'Agregar';
+    }
+    return;
+  }
 
   let uploadedCount = 0;
 
   try {
-
     for (const item of imagesToUpload) {
-
       const formData = new FormData();
-
       formData.append('imagen', item.file);
-
       formData.append('descripcion', (item.description || '').trim());
 
       const response = await fetch(`/api/evento/${currentProject.id}/galeria/agregar/`, {
-
         method: 'POST',
-
         headers: {
-
           'X-CSRFToken': csrfToken,
-
         },
-
         body: formData,
-
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-
         throw new Error(result.error || 'No se pudo agregar la imagen');
-
       }
 
       uploadedCount += 1;
-
     }
 
     clearImageForm();
-
     hideModal('addImageModal');
 
     // Actualizar la vista en tiempo real
     await refreshCurrentProject(uploadedCount === 1 ? 'Imagen agregada exitosamente' : 'Imágenes agregadas exitosamente');
 
   } catch (error) {
-
     if (uploadedCount > 0) {
       const uploadedItems = imagesToUpload.slice(0, uploadedCount);
       uploadedItems.forEach(revokePendingImagePreview);
     }
 
     pendingProjectGalleryImages = imagesToUpload.slice(uploadedCount);
-
     renderPendingProjectImages();
 
     if (uploadedCount > 0) {
-
       showErrorMessage((error.message || 'Ocurrió un problema al agregar las imágenes.') + ' Se subieron ' + uploadedCount + ' imagen(es) antes del error.');
-
     } else {
-
       showErrorMessage(error.message || 'No se pudieron agregar las imágenes.');
-
     }
 
   } finally {
-
     // Liberar el flag
     isUploadingImage = false;
 
     if (confirmButton) {
-
       confirmButton.disabled = false;
-
       confirmButton.textContent = originalLabel || 'Agregar';
-
     }
-
   }
 
 }
@@ -5120,6 +6128,9 @@ async function updateProjectDescription() {
 
   }
 
+  const isOffline = !navigator.onLine;
+  const db = getOfflineDB();
+
   try {
 
     // Preparar datos para enviar a la API
@@ -5128,9 +6139,53 @@ async function updateProjectDescription() {
 
     formData.append('descripcion', newDescriptionHtml);
 
-    // Enviar a la API
+    if (isOffline && db) {
+      // Modo offline: guardar en IndexedDB y cola de sincronización
+      proyecto.descripcion = newDescriptionHtml;
+      proyecto.modificado_offline = true;
+      proyecto.ultimo_sync = new Date().toISOString();
+      
+      await db.saveProyecto(proyecto);
+      
+      // Actualizar la vista inmediatamente
+      currentProjectData = proyecto;
+      const detailDescription = document.getElementById('detailDescription');
+      if (detailDescription) {
+        detailDescription.innerHTML = newDescriptionHtml || '<p style="color: #6c757d;">No hay descripción disponible</p>';
+      }
+      
+      // Cerrar modal
+      closeModal('editDescriptionModal');
+      
+      showSuccessMessage('Descripción guardada sin conexión. Se enviará automáticamente cuando vuelva el internet.');
+      
+      // Intentar enviar a la cola de sincronización (si está disponible)
+      const csrfToken = getCookie('csrftoken');
+      if (window.OfflineSync && window.OfflineSync.enqueueManual && csrfToken) {
+        try {
+          window.OfflineSync.enqueueManual(`/api/evento/${proyecto.id}/actualizar/`, {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': csrfToken
+            },
+            body: formData
+          });
+          console.log('✅ Descripción agregada a la cola de sincronización');
+        } catch (error) {
+          console.error('❌ Error al agregar descripción a la cola:', error);
+        }
+        if (window.OfflineSync.updateSyncStatus) {
+          window.OfflineSync.updateSyncStatus();
+        }
+      }
+      
+      return;
+    }
+
+    // Modo online: enviar a la API
 
     const response = await fetch(`/api/evento/${proyecto.id}/actualizar/`, {
+      credentials: 'include',
 
       method: 'POST',
 
@@ -5795,7 +6850,7 @@ function clearDataForm() {
 
 // Función para actualizar datos del proyecto
 
-function updateProjectData() {
+async function updateProjectData() {
 
   const participants = document.getElementById('editParticipants').value;
 
@@ -5833,7 +6888,7 @@ function updateProjectData() {
 
     // Recargar la vista del proyecto
 
-    loadProjectDetail(currentProject);
+    await loadProjectDetail(currentProject);
 
     showSuccessMessage('Datos actualizados exitosamente');
 
@@ -5865,7 +6920,7 @@ function clearCommunityForm() {
 
 // Función para agregar comunidad al proyecto
 
-function addCommunityToProject() {
+async function addCommunityToProject() {
 
   const selectedCommunities = getSelectedCommunities();
 
@@ -5903,7 +6958,7 @@ function addCommunityToProject() {
 
     // Recargar la vista del proyecto
 
-    loadProjectDetail(currentProject);
+    await loadProjectDetail(currentProject);
 
     showSuccessMessage(`${selectedCommunities.length} comunidad(es) agregada(s) exitosamente`);
 
@@ -6759,6 +7814,7 @@ async function addChangeToProject() {
 
     // Enviar TODOS los colaboradores seleccionados como una lista JSON
     const colaboradoresIds = selectedPersonnel.map(p => p.id);
+    const colaboradoresNombres = selectedPersonnel.map(p => p.name || p.nombre || '').filter(n => n);
     
     if (colaboradoresIds.length > 0) {
       formData.append('colaboradores_ids', JSON.stringify(colaboradoresIds));
@@ -6777,6 +7833,8 @@ async function addChangeToProject() {
         return idStr;
       })
       .filter(id => id && id !== 'undefined' && id !== 'null' && id !== '');
+    
+    const comunidadesNombres = selectedCommunities.map(c => c.name || c.nombre || '').filter(n => n);
 
     if (comunidadesIds.length > 0) {
       formData.append('comunidades_ids', JSON.stringify(comunidadesIds));
@@ -6809,6 +7867,251 @@ async function addChangeToProject() {
 
     }
 
+    const isOffline = !navigator.onLine;
+    const db = getOfflineDB();
+
+    if (isOffline && db) {
+      // Modo offline: guardar cambio en IndexedDB
+      try {
+        // Crear objeto de cambio temporal
+        const cambioId = editingCambioId || `tmp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const fechaCambioInput = document.getElementById('changeDate').value;
+        const horaCambioInput = document.getElementById('changeTime').value;
+        const useCurrentTimeCheckbox = document.getElementById('changeUseCurrentTime');
+        const useCurrentTime = useCurrentTimeCheckbox ? useCurrentTimeCheckbox.checked : false;
+        
+        let fechaCambio = null;
+        if (useCurrentTime) {
+          fechaCambio = new Date().toISOString();
+        } else if (fechaCambioInput && horaCambioInput) {
+          fechaCambio = `${fechaCambioInput}T${horaCambioInput}:00`;
+        } else {
+          fechaCambio = new Date().toISOString();
+        }
+
+        // Convertir archivos de evidencias a base64
+        const evidenciasBase64 = [];
+        for (let i = 0; i < selectedEvidencesFiles.length; i++) {
+          const fileItem = selectedEvidencesFiles[i];
+          try {
+            const base64 = await fileToBase64(fileItem.file);
+            evidenciasBase64.push({
+              nombre: fileItem.file.name,
+              descripcion: fileItem.descripcion || '',
+              base64: base64,
+              tipo: fileItem.file.type,
+              tamanio: fileItem.file.size
+            });
+          } catch (error) {
+            console.warn('Error al convertir archivo a base64:', error);
+          }
+        }
+
+        // Obtener nombres de colaboradores y comunidades para mostrar
+        // Primero intentar desde los datos seleccionados (más confiable)
+        let responsablesNombres = colaboradoresNombres.length > 0 
+          ? colaboradoresNombres 
+          : [];
+        let comunidadesNombresTexto = comunidadesNombres.length > 0 
+          ? comunidadesNombres.join(', ') 
+          : '';
+
+        // Si no hay nombres, intentar obtener desde IndexedDB
+        if (responsablesNombres.length === 0 && colaboradoresIds.length > 0) {
+          const db = getOfflineDB();
+          if (db) {
+            try {
+              for (const colId of colaboradoresIds) {
+                try {
+                  const colaborador = await db.get('colaboradores', colId);
+                  if (colaborador && (colaborador.nombre || colaborador.nombres)) {
+                    responsablesNombres.push(colaborador.nombre || colaborador.nombres);
+                  }
+                } catch (error) {
+                  // Ignorar errores individuales
+                }
+              }
+            } catch (error) {
+              console.warn('⚠️ Error al obtener nombres de colaboradores desde IndexedDB:', error);
+            }
+          }
+        }
+
+        if (!comunidadesNombresTexto && comunidadesIds.length > 0) {
+          const db = getOfflineDB();
+          if (db) {
+            try {
+              const nombresComunidades = [];
+              for (const comId of comunidadesIds) {
+                try {
+                  const comunidad = await db.get('comunidades', comId);
+                  if (comunidad && comunidad.nombre) {
+                    nombresComunidades.push(comunidad.nombre);
+                  }
+                } catch (error) {
+                  // Ignorar errores individuales
+                }
+              }
+              if (nombresComunidades.length > 0) {
+                comunidadesNombresTexto = nombresComunidades.join(', ');
+              }
+            } catch (error) {
+              console.warn('⚠️ Error al obtener nombres de comunidades desde IndexedDB:', error);
+            }
+          }
+        }
+
+        const nuevoCambio = {
+          id: cambioId,
+          descripcion: description,
+          fecha_cambio: fechaCambio,
+          fecha_display: fechaCambio ? new Date(fechaCambio).toLocaleString('es-GT', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null,
+          colaboradores_ids: colaboradoresIds,
+          responsables_display: responsablesNombres.join(', ') || 'Sin responsable',
+          comunidades_ids: comunidadesIds,
+          comunidades_nombres: comunidadesNombresTexto,
+          evidencias: evidenciasBase64,
+          es_offline: true,
+          creado_en: new Date().toISOString(),
+          modificado_offline: true
+        };
+
+        // Actualizar proyecto en IndexedDB
+        if (!currentProject.cambios) {
+          currentProject.cambios = [];
+        }
+        
+        if (editingCambioId) {
+          // Editar cambio existente
+          const index = currentProject.cambios.findIndex(c => c.id === editingCambioId);
+          if (index !== -1) {
+            currentProject.cambios[index] = { ...currentProject.cambios[index], ...nuevoCambio };
+          } else {
+            currentProject.cambios.push(nuevoCambio);
+          }
+        } else {
+          // Agregar nuevo cambio
+          currentProject.cambios.push(nuevoCambio);
+        }
+
+        currentProject.modificado_offline = true;
+        currentProject.ultimo_sync = new Date().toISOString();
+
+        await db.saveProyecto(currentProject);
+
+        // Actualizar vista inmediatamente
+        currentProjectData = currentProject;
+        await renderCambios(currentProject.cambios);
+
+        // Limpiar formulario
+        editingCambioId = null;
+        editingCambioGroupId = null;
+        editingCambioIds = [];
+        evidenciasAEliminar = [];
+        hideModal('addChangeModal');
+        clearChangeForm();
+
+        showSuccessMessage('Cambio guardado sin conexión. Se enviará automáticamente cuando vuelva el internet.');
+
+        // Intentar agregar a la cola de sincronización
+        // Convertir archivos de evidencias a base64 para poder serializarlos
+        const csrfToken = getCookie('csrftoken');
+        if (window.OfflineSync && window.OfflineSync.enqueueManual && csrfToken) {
+          try {
+            // Convertir archivos de evidencias a base64
+            const filesBase64 = [];
+            const fieldsArray = [];
+            
+            for (let i = 0; i < selectedEvidencesFiles.length; i++) {
+              const fileItem = selectedEvidencesFiles[i];
+              try {
+                const base64 = await fileToBase64(fileItem.file);
+                filesBase64.push({
+                  key: `archivo_${i}`,
+                  fileName: fileItem.file.name,
+                  fileType: fileItem.file.type,
+                  base64: base64
+                });
+                if (fileItem.descripcion) {
+                  fieldsArray.push({
+                    key: `descripcion_evidencia_${i}`,
+                    value: fileItem.descripcion
+                  });
+                }
+              } catch (error) {
+                console.warn(`Error al convertir archivo ${fileItem.file.name} a base64:`, error);
+              }
+            }
+
+            // Agregar campos de texto
+            fieldsArray.push({ key: 'descripcion', value: description });
+            if (editingCambioId && editingCambioGroupId) {
+              fieldsArray.push({ key: 'grupo_id', value: editingCambioGroupId });
+            }
+            if (editingCambioId && editingCambioIds && editingCambioIds.length) {
+              fieldsArray.push({ key: 'cambio_ids', value: JSON.stringify(editingCambioIds) });
+            }
+            if (useCurrentTime) {
+              fieldsArray.push({ key: 'usar_fecha_actual', value: 'true' });
+            } else if (fechaCambio && horaCambio) {
+              fieldsArray.push({ key: 'fecha_cambio', value: `${fechaCambio}T${horaCambio}:00` });
+            }
+            if (colaboradoresIds.length > 0) {
+              fieldsArray.push({ key: 'colaboradores_ids', value: JSON.stringify(colaboradoresIds) });
+            }
+            if (comunidadesIds.length > 0) {
+              fieldsArray.push({ key: 'comunidades_ids', value: JSON.stringify(comunidadesIds) });
+            }
+            if (editingCambioId && evidenciasAEliminar.length > 0) {
+              fieldsArray.push({ key: 'evidencias_eliminadas', value: JSON.stringify(evidenciasAEliminar) });
+            }
+
+            // Crear objeto body con campos de texto y archivos
+            const bodyData = {
+              type: 'formdata',
+              files: filesBase64,
+              fields: fieldsArray
+            };
+
+            const url = editingCambioId 
+              ? `/api/evento/${currentProject.id}/cambio/${editingCambioId}/actualizar/`
+              : `/api/evento/${currentProject.id}/cambio/crear/`;
+
+            window.OfflineSync.enqueueManual(url, {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': csrfToken
+              },
+              body: bodyData
+            });
+            console.log('✅ Cambio agregado a la cola de sincronización');
+          } catch (error) {
+            console.error('❌ Error al agregar cambio a la cola:', error);
+          }
+          if (window.OfflineSync.updateSyncStatus) {
+            window.OfflineSync.updateSyncStatus();
+          }
+        }
+
+        isUploadingChange = false;
+        if (confirmButton) {
+          confirmButton.disabled = false;
+          confirmButton.textContent = originalLabel || 'Agregar';
+        }
+
+        return;
+      } catch (error) {
+        console.error('Error al guardar cambio offline:', error);
+        showErrorMessage('Error al guardar el cambio offline. Por favor, intenta de nuevo.');
+        isUploadingChange = false;
+        if (confirmButton) {
+          confirmButton.disabled = false;
+          confirmButton.textContent = originalLabel || 'Agregar';
+        }
+        return;
+      }
+    }
+
     const url = editingCambioId 
 
       ? `/api/evento/${currentProject.id}/cambio/${editingCambioId}/actualizar/`
@@ -6839,7 +8142,7 @@ async function addChangeToProject() {
     }
 
     const response = await fetch(url, {
-
+      credentials: 'include',
       method: 'POST',
 
       body: formData,
@@ -6926,7 +8229,7 @@ function clearDataForm() {
 
 // Función para actualizar datos del proyecto
 
-function updateProjectData() {
+async function updateProjectData() {
 
   const participants = document.getElementById('editParticipants').value;
 
@@ -6964,7 +8267,7 @@ function updateProjectData() {
 
     // Recargar la vista del proyecto
 
-    loadProjectDetail(currentProject);
+    await loadProjectDetail(currentProject);
 
     showSuccessMessage('Datos actualizados exitosamente');
 
@@ -6996,7 +8299,7 @@ function clearCommunityForm() {
 
 // Función para agregar comunidad al proyecto
 
-function addCommunityToProject() {
+async function addCommunityToProject() {
 
   const selectedCommunities = getSelectedCommunities();
 
@@ -7034,7 +8337,7 @@ function addCommunityToProject() {
 
     // Recargar la vista del proyecto
 
-    loadProjectDetail(currentProject);
+    await loadProjectDetail(currentProject);
 
     showSuccessMessage(`${selectedCommunities.length} comunidad(es) agregada(s) exitosamente`);
 
@@ -8186,7 +9489,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (confirmCommunitySelectionBtn) {
 
-    confirmCommunitySelectionBtn.addEventListener('click', () => {
+    confirmCommunitySelectionBtn.addEventListener('click', async () => {
 
       const selectedIndices = getSelectedIndices('communitySelectionList');
 
@@ -8204,7 +9507,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           });
 
-          loadProjectDetail(currentProject);
+          await loadProjectDetail(currentProject);
 
           showSuccessMessage(`${selectedIndices.length} comunidad(es) eliminada(s) exitosamente`);
 
@@ -8242,7 +9545,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (confirmChangeSelectionBtn) {
 
-    confirmChangeSelectionBtn.addEventListener('click', () => {
+    confirmChangeSelectionBtn.addEventListener('click', async () => {
 
       const selectedIndices = getSelectedIndices('changeSelectionList');
 
@@ -8260,7 +9563,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           });
 
-          loadProjectDetail(currentProject);
+          await loadProjectDetail(currentProject);
 
           showSuccessMessage(`${selectedIndices.length} cambio(s) eliminado(s) exitosamente`);
 
@@ -8298,7 +9601,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (confirmFileSelectionBtn) {
 
-    confirmFileSelectionBtn.addEventListener('click', () => {
+    confirmFileSelectionBtn.addEventListener('click', async () => {
 
       const selectedIndices = getSelectedIndices('fileSelectionList');
 
@@ -8316,7 +9619,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           });
 
-          loadProjectDetail(currentProject);
+          await loadProjectDetail(currentProject);
 
           showSuccessMessage(`${selectedIndices.length} archivo(s) eliminado(s) exitosamente`);
 
@@ -9639,6 +10942,125 @@ async function addFileToProject() {
     return;
   }
 
+  const isOffline = !navigator.onLine;
+  const db = getOfflineDB();
+
+  if (isOffline && db) {
+    // Modo offline: guardar archivos en IndexedDB
+    try {
+      if (!proyecto.archivos) {
+        proyecto.archivos = [];
+      }
+
+      // Convertir archivos a base64 y agregarlos al proyecto
+      for (let i = 0; i < selectedProjectFiles.length; i++) {
+        const fileItem = selectedProjectFiles[i];
+        const file = fileItem.file;
+        const description = fileItem.description || '';
+
+        try {
+          const base64 = await fileToBase64(file);
+          const extension = file.name.split('.').pop()?.toLowerCase() || '';
+          const esImagen = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension);
+
+          const nuevoArchivo = {
+            id: `tmp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            nombre: file.name,
+            descripcion: description,
+            tamanio: file.size,
+            tipo: file.type,
+            extension: extension,
+            es_imagen: esImagen,
+            base64: base64,
+            es_offline: true,
+            creado_en: new Date().toISOString(),
+            modificado_offline: true
+          };
+
+          proyecto.archivos.push(nuevoArchivo);
+        } catch (error) {
+          console.warn(`Error al convertir archivo ${file.name} a base64:`, error);
+          showErrorMessage(`Error al procesar el archivo ${file.name}. Por favor, intenta con otro archivo.`);
+        }
+      }
+
+      proyecto.modificado_offline = true;
+      proyecto.ultimo_sync = new Date().toISOString();
+
+      await db.saveProyecto(proyecto);
+
+      // Actualizar vista inmediatamente
+      currentProjectData = proyecto;
+      await mostrarDetalleProyecto(proyecto);
+
+      // Limpiar formulario
+      hideModal('addFileModal');
+      clearFileForm();
+
+      showSuccessMessage(`${selectedProjectFiles.length} archivo(s) guardado(s) sin conexión. Se enviarán automáticamente cuando vuelva el internet.`);
+
+      // Intentar agregar a la cola de sincronización
+      // Convertir archivos a base64 para poder serializarlos
+      const csrfToken = getCookie('csrftoken');
+      if (window.OfflineSync && window.OfflineSync.enqueueManual && csrfToken) {
+        for (let i = 0; i < selectedProjectFiles.length; i++) {
+          const fileItem = selectedProjectFiles[i];
+          const file = fileItem.file;
+          const description = fileItem.description || '';
+
+          try {
+            // Convertir archivo a base64 para poder serializarlo
+            const base64 = await fileToBase64(file);
+            
+            // Guardar en la cola usando enqueueManual que procesa el body correctamente
+            window.OfflineSync.enqueueManual(`/api/evento/${proyecto.id}/archivo/agregar/`, {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': csrfToken
+              },
+              body: {
+                type: 'formdata',
+                files: [{
+                  key: 'archivo',
+                  fileName: file.name,
+                  fileType: file.type,
+                  base64: base64
+                }],
+                fields: description ? [{ key: 'descripcion', value: description }] : []
+              }
+            });
+            console.log(`✅ Archivo ${file.name} agregado a la cola de sincronización`);
+          } catch (error) {
+            console.error(`❌ Error al agregar archivo ${file.name} a la cola:`, error);
+          }
+        }
+        // Actualizar el estado de sincronización
+        if (window.OfflineSync.updateSyncStatus) {
+          window.OfflineSync.updateSyncStatus();
+        }
+      } else {
+        console.warn('⚠️ OfflineSync no está disponible o no hay CSRF token');
+      }
+
+      isUploadingFile = false;
+      if (confirmButton) {
+        confirmButton.disabled = false;
+        confirmButton.textContent = originalLabel || 'Agregar';
+      }
+
+      return;
+    } catch (error) {
+      console.error('Error al guardar archivos offline:', error);
+      showErrorMessage('Error al guardar los archivos offline. Por favor, intenta de nuevo.');
+      isUploadingFile = false;
+      if (confirmButton) {
+        confirmButton.disabled = false;
+        confirmButton.textContent = originalLabel || 'Agregar';
+      }
+      return;
+    }
+  }
+
   try {
     
     let successCount = 0;
@@ -9663,6 +11085,7 @@ async function addFileToProject() {
         const url = `/api/evento/${proyecto.id}/archivo/agregar/`;
         
         const response = await fetch(url, {
+          credentials: 'include',
           method: 'POST',
           headers: {
             'X-CSRFToken': getCookie('csrftoken')
@@ -9873,7 +11296,7 @@ async function updateProjectFileDescription() {
 
 // Función obsoleta - mantener para compatibilidad pero no usar
 
-function addFileToProjectOld() {
+async function addFileToProjectOld() {
 
   const fileInput = document.getElementById('fileInput');
 
@@ -9935,7 +11358,7 @@ function addFileToProjectOld() {
 
     // Recargar la vista del proyecto
 
-    loadProjectDetail(currentProject);
+    await loadProjectDetail(currentProject);
 
     showSuccessMessage('Archivo agregado exitosamente');
 
@@ -10198,7 +11621,7 @@ function removeImageFromProject(imageIndex) {
 
     '¿Estás seguro de que deseas eliminar esta imagen de la galería?',
 
-    () => {
+    async () => {
 
       const currentProject = getCurrentProject();
 
@@ -10206,7 +11629,7 @@ function removeImageFromProject(imageIndex) {
 
         currentProject.gallery.splice(imageIndex, 1);
 
-        loadProjectDetail(currentProject);
+        await loadProjectDetail(currentProject);
 
         showSuccessMessage('Imagen eliminada exitosamente');
 
@@ -10224,7 +11647,7 @@ function removeCommunityFromProject(communityIndex) {
 
     '¿Estás seguro de que deseas quitar esta comunidad del proyecto?',
 
-    () => {
+    async () => {
 
       const currentProject = getCurrentProject();
 
@@ -10232,7 +11655,7 @@ function removeCommunityFromProject(communityIndex) {
 
         currentProject.communities.splice(communityIndex, 1);
 
-        loadProjectDetail(currentProject);
+        await loadProjectDetail(currentProject);
 
         showSuccessMessage('Comunidad eliminada exitosamente');
 
@@ -10250,7 +11673,7 @@ function removeChangeFromProject(changeIndex) {
 
     '¿Estás seguro de que deseas eliminar este cambio realizado?',
 
-    () => {
+    async () => {
 
       const currentProject = getCurrentProject();
 
@@ -10258,7 +11681,7 @@ function removeChangeFromProject(changeIndex) {
 
         currentProject.changes.splice(changeIndex, 1);
 
-        loadProjectDetail(currentProject);
+        await loadProjectDetail(currentProject);
 
         showSuccessMessage('Cambio eliminado exitosamente');
 
@@ -10277,7 +11700,7 @@ function removeFileFromProject(fileId) {
 
       '¿Estás seguro de que deseas eliminar este archivo?',
 
-      () => {
+      async () => {
 
         const currentProject = getCurrentProject();
 
@@ -10285,7 +11708,7 @@ function removeFileFromProject(fileId) {
 
           currentProject.files = currentProject.files.filter(file => file.id !== fileId);
 
-          loadProjectDetail(currentProject);
+          await loadProjectDetail(currentProject);
 
           showSuccessMessage('Archivo eliminado exitosamente');
 

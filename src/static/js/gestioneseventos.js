@@ -195,11 +195,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const createEventView = document.getElementById('createEventView');
     const manageEventView = document.getElementById('manageEventView');
     
-    // Botones de navegaci├│n
+    // Botones de navegación
     const openCreateEventBtn = document.getElementById('openCreateEventBtn');
     const openManageEventBtn = document.getElementById('openManageEventBtn');
     const backFromCreateBtn = document.getElementById('backFromCreateBtn');
     const backFromManageBtn = document.getElementById('backFromManageBtn');
+    
+    // Verificar que los elementos existan
+    if (!mainView || !createEventView || !manageEventView) {
+        console.error('❌ Error: No se encontraron las vistas principales. Verifica que el HTML esté correcto.');
+    }
+    if (!openCreateEventBtn || !openManageEventBtn) {
+        console.error('❌ Error: No se encontraron los botones de navegación. Verifica que el HTML esté correcto.');
+    }
     
     // Formulario
     const eventForm = document.getElementById('eventForm');
@@ -308,6 +316,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showCreateEventView(isEditing = false) {
+        console.log('📝 Mostrando vista de crear evento, isEditing:', isEditing);
+        
+        if (!mainView || !createEventView || !manageEventView) {
+            console.error('❌ Error: Las vistas no están disponibles');
+            return;
+        }
+        
         mainView.style.display = 'none';
         createEventView.style.display = 'block';
         manageEventView.style.display = 'none';
@@ -320,6 +335,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function showManageEventView() {
+        console.log('📋 Mostrando vista de gestionar eventos');
+        
+        if (!mainView || !createEventView || !manageEventView) {
+            console.error('❌ Error: Las vistas no están disponibles');
+            return;
+        }
+        
         mainView.style.display = 'none';
         createEventView.style.display = 'none';
         manageEventView.style.display = 'block';
@@ -350,11 +372,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Event listeners de navegación
     if (openCreateEventBtn) {
-        openCreateEventBtn.addEventListener('click', () => showCreateEventView(false));
+        openCreateEventBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🖱️ Click en botón Crear Evento');
+            showCreateEventView(false);
+        });
+    } else {
+        console.error('❌ No se encontró el botón openCreateEventBtn');
     }
     
     if (openManageEventBtn) {
-        openManageEventBtn.addEventListener('click', showManageEventView);
+        openManageEventBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🖱️ Click en botón Gestionar Eventos');
+            showManageEventView();
+        });
+    } else {
+        console.error('❌ No se encontró el botón openManageEventBtn');
     }
     
     // Detectar hash en la URL al cargar la página para mostrar la vista correspondiente
@@ -383,7 +419,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     const cargarFuncionRetry = cargarEventoDesdeHash || cargarEventoParaEditar;
                     if (typeof cargarFuncionRetry === 'function') {
                         cargarFuncionRetry(eventoId);
-                    } else {
                     }
                 }, 1500);
                 return; // Salir aquí también para no mostrar otras vistas
@@ -453,64 +488,410 @@ document.addEventListener('DOMContentLoaded', function() {
         backFromManageBtn.addEventListener('click', showMainView);
     }
     
-    // ===== CARGAR DATOS DESDE LA API =====
+    // ===== CARGAR DATOS DESDE LA API O INDEXEDDB =====
     async function cargarDatos() {
         try {
-            // Cargar comunidades
-            const responseComunidades = await fetch('/api/comunidades/');
-            if (responseComunidades.ok) {
-                const dataComunidades = await responseComunidades.json();
-                comunidadesList = dataComunidades;
-                renderBeneficiaryCommunityOptions(benefRegionSelect ? benefRegionSelect.value : '', benefCommunitySelect ? benefCommunitySelect.value : '');
-                renderBeneficiaryFiltersCommunityOptions(beneficiariesFilterRegionSelect ? beneficiariesFilterRegionSelect.value : '');
+            // Verificar si realmente hay conexión intentando un fetch simple
+            // navigator.onLine puede ser true incluso cuando no hay conexión real
+            const isOffline = !navigator.onLine;
+            const db = window.OfflineDB;
+            
+            // Función helper para verificar si realmente hay conexión
+            const checkConnection = async () => {
+                if (!navigator.onLine) return false;
+                try {
+                    const response = await fetch('/api/regiones/', { 
+                        method: 'HEAD',
+                        cache: 'no-cache',
+                        signal: AbortSignal.timeout(2000) // Timeout de 2 segundos
+                    });
+                    return response.ok;
+                } catch (error) {
+                    return false;
+                }
+            };
+            
+            // IMPORTANTE: Cargar primero las regiones, luego las comunidades
+            // (las comunidades necesitan las regiones para normalizarse correctamente)
+            
+            // Cargar regiones PRIMERO
+            let regionesCargadas = false;
+            if (isOffline && db) {
+                try {
+                    const regionesOffline = await db.getAllRegiones();
+                    if (regionesOffline && regionesOffline.length > 0) {
+                        regionesList = regionesOffline;
+                        regionesList.sort((a, b) => {
+                            const codeA = parseInt(a.codigo, 10);
+                            const codeB = parseInt(b.codigo, 10);
+                            const hasCodeA = !Number.isNaN(codeA);
+                            const hasCodeB = !Number.isNaN(codeB);
+
+                            if (hasCodeA && hasCodeB && codeA !== codeB) {
+                                return codeA - codeB;
+                            }
+                            if (hasCodeA && !hasCodeB) {
+                                return -1;
+                            }
+                            if (!hasCodeA && hasCodeB) {
+                                return 1;
+                            }
+
+                            const nombreA = (a.nombre || '').toString();
+                            const nombreB = (b.nombre || '').toString();
+                            return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base', numeric: true });
+                        });
+                        console.log('📴 Regiones cargadas desde IndexedDB:', regionesOffline.length);
+                        regionesCargadas = true;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar regiones desde IndexedDB:', error);
+                }
             }
             
-            // Cargar regiones
-            const responseRegiones = await fetch('/api/regiones/');
-            if (responseRegiones.ok) {
-                regionesList = await responseRegiones.json();
-                regionesList.sort((a, b) => {
-                    const codeA = parseInt(a.codigo, 10);
-                    const codeB = parseInt(b.codigo, 10);
-                    const hasCodeA = !Number.isNaN(codeA);
-                    const hasCodeB = !Number.isNaN(codeB);
+            // Si no se cargaron desde IndexedDB, intentar desde la API
+            if (!regionesCargadas) {
+                try {
+                    const responseRegiones = await fetch('/api/regiones/');
+                    // Verificar si la respuesta indica que estamos offline
+                    if (responseRegiones && responseRegiones.status === 503) {
+                        const dataRegiones = await responseRegiones.json().catch(() => ({}));
+                        if (dataRegiones.offline === true) {
+                            console.log('📴 Respuesta offline detectada, cargando desde IndexedDB...');
+                            throw new Error('Offline response');
+                        }
+                    }
+                    if (responseRegiones && responseRegiones.ok) {
+                        const dataRegiones = await responseRegiones.json();
+                        // La API puede devolver un objeto con success y regiones, o directamente un array
+                        regionesList = Array.isArray(dataRegiones) ? dataRegiones : (dataRegiones.regiones || []);
+                        regionesList.sort((a, b) => {
+                            const codeA = parseInt(a.codigo, 10);
+                            const codeB = parseInt(b.codigo, 10);
+                            const hasCodeA = !Number.isNaN(codeA);
+                            const hasCodeB = !Number.isNaN(codeB);
 
-                    if (hasCodeA && hasCodeB && codeA !== codeB) {
-                        return codeA - codeB;
-                    }
-                    if (hasCodeA && !hasCodeB) {
-                        return -1;
-                    }
-                    if (!hasCodeA && hasCodeB) {
-                        return 1;
-                    }
+                            if (hasCodeA && hasCodeB && codeA !== codeB) {
+                                return codeA - codeB;
+                            }
+                            if (hasCodeA && !hasCodeB) {
+                                return -1;
+                            }
+                            if (!hasCodeA && hasCodeB) {
+                                return 1;
+                            }
 
-                    const nombreA = (a.nombre || '').toString();
-                    const nombreB = (b.nombre || '').toString();
-                    return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base', numeric: true });
-                });
-                renderBeneficiaryRegionOptions(benefRegionSelect ? benefRegionSelect.value : '');
-                renderBeneficiaryCommunityOptions(benefRegionSelect ? benefRegionSelect.value : '', benefCommunitySelect ? benefCommunitySelect.value : '');
-                renderBeneficiaryFiltersRegionOptions(beneficiariesFilterRegionSelect ? beneficiariesFilterRegionSelect.value : '');
-                renderBeneficiaryFiltersCommunityOptions(beneficiariesFilterRegionSelect ? beneficiariesFilterRegionSelect.value : '', beneficiariesFilterCommunitySelect ? beneficiariesFilterCommunitySelect.value : '');
+                            const nombreA = (a.nombre || '').toString();
+                            const nombreB = (b.nombre || '').toString();
+                            return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base', numeric: true });
+                        });
+                        // Guardar en IndexedDB para uso offline
+                        if (db && regionesList.length > 0) {
+                            regionesList.forEach(async (region) => {
+                                try {
+                                    await db.saveRegion(region);
+                                } catch (error) {
+                                    // Ignorar errores al guardar
+                                }
+                            });
+                            console.log('✅ Regiones guardadas en IndexedDB:', regionesList.length);
+                        }
+                        regionesCargadas = true;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar regiones desde API:', error);
+                    // Si falla la API, intentar desde IndexedDB como fallback
+                    if (db && !regionesCargadas) {
+                        try {
+                            const regionesOffline = await db.getAllRegiones();
+                            if (regionesOffline && regionesOffline.length > 0) {
+                                regionesList = regionesOffline;
+                                regionesList.sort((a, b) => {
+                                    const codeA = parseInt(a.codigo, 10);
+                                    const codeB = parseInt(b.codigo, 10);
+                                    const hasCodeA = !Number.isNaN(codeA);
+                                    const hasCodeB = !Number.isNaN(codeB);
+
+                                    if (hasCodeA && hasCodeB && codeA !== codeB) {
+                                        return codeA - codeB;
+                                    }
+                                    if (hasCodeA && !hasCodeB) {
+                                        return -1;
+                                    }
+                                    if (!hasCodeA && hasCodeB) {
+                                        return 1;
+                                    }
+
+                                    const nombreA = (a.nombre || '').toString();
+                                    const nombreB = (b.nombre || '').toString();
+                                    return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base', numeric: true });
+                                });
+                                console.log('📴 Regiones cargadas desde IndexedDB (fallback):', regionesOffline.length);
+                                regionesCargadas = true;
+                            } else {
+                                console.warn('⚠️ No hay regiones en IndexedDB para cargar');
+                            }
+                        } catch (dbError) {
+                            console.warn('⚠️ Error al cargar regiones desde IndexedDB (fallback):', dbError);
+                        }
+                    }
+                }
+            }
+            
+            // Ahora cargar comunidades (después de tener las regiones)
+            let comunidadesCargadas = false;
+            if (isOffline && db) {
+                try {
+                    const comunidadesOffline = await db.getAllComunidades();
+                    if (comunidadesOffline && comunidadesOffline.length > 0) {
+                        // Normalizar comunidades: asegurar que tengan la estructura region correcta
+                        comunidadesList = comunidadesOffline.map(comunidad => {
+                            // Si no tiene region como objeto, intentar construirla desde region_id
+                            if (!comunidad.region || typeof comunidad.region !== 'object') {
+                                const regionId = comunidad.region_id || comunidad.region;
+                                // Buscar la región en regionesList si ya está cargada
+                                const regionObj = regionesList.find(r => String(r.id) === String(regionId));
+                                if (regionObj) {
+                                    comunidad.region = {
+                                        id: regionObj.id,
+                                        nombre: regionObj.nombre,
+                                        codigo: regionObj.codigo
+                                    };
+                                } else if (regionId) {
+                                    // Si no está en regionesList, crear un objeto básico
+                                    comunidad.region = {
+                                        id: regionId,
+                                        nombre: comunidad.region_nombre || 'Sin región',
+                                        codigo: null
+                                    };
+                                }
+                            }
+                            return comunidad;
+                        });
+                        console.log('📴 Comunidades cargadas desde IndexedDB:', comunidadesOffline.length);
+                        comunidadesCargadas = true;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar comunidades desde IndexedDB:', error);
+                }
+            }
+            
+            // Si no se cargaron desde IndexedDB, intentar desde la API
+            if (!comunidadesCargadas) {
+                try {
+                    const responseComunidades = await fetch('/api/comunidades/');
+                    // Verificar si la respuesta indica que estamos offline
+                    if (responseComunidades && responseComunidades.status === 503) {
+                        const dataComunidades = await responseComunidades.json().catch(() => ({}));
+                        if (dataComunidades.offline === true) {
+                            console.log('📴 Respuesta offline detectada, cargando comunidades desde IndexedDB...');
+                            throw new Error('Offline response');
+                        }
+                    }
+                    if (responseComunidades && responseComunidades.ok) {
+                        const dataComunidades = await responseComunidades.json();
+                        // La API puede devolver un objeto con success y comunidades, o directamente un array
+                        comunidadesList = Array.isArray(dataComunidades) ? dataComunidades : (dataComunidades.comunidades || []);
+                        // Guardar en IndexedDB para uso offline
+                        if (db && comunidadesList.length > 0) {
+                            comunidadesList.forEach(async (comunidad) => {
+                                try {
+                                    await db.saveComunidad(comunidad);
+                                } catch (error) {
+                                    // Ignorar errores al guardar
+                                }
+                            });
+                            console.log('✅ Comunidades guardadas en IndexedDB:', comunidadesList.length);
+                        }
+                        comunidadesCargadas = true;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar comunidades desde API:', error);
+                    // Si falla la API, intentar desde IndexedDB como fallback
+                    if (db && !comunidadesCargadas) {
+                        try {
+                            const comunidadesOffline = await db.getAllComunidades();
+                            if (comunidadesOffline && comunidadesOffline.length > 0) {
+                                // Normalizar comunidades: asegurar que tengan la estructura region correcta
+                                comunidadesList = comunidadesOffline.map(comunidad => {
+                                    // Si no tiene region como objeto, intentar construirla desde region_id
+                                    if (!comunidad.region || typeof comunidad.region !== 'object') {
+                                        const regionId = comunidad.region_id || comunidad.region;
+                                        // Buscar la región en regionesList si ya está cargada
+                                        const regionObj = regionesList.find(r => String(r.id) === String(regionId));
+                                        if (regionObj) {
+                                            comunidad.region = {
+                                                id: regionObj.id,
+                                                nombre: regionObj.nombre,
+                                                codigo: regionObj.codigo
+                                            };
+                                        } else if (regionId) {
+                                            // Si no está en regionesList, crear un objeto básico
+                                            comunidad.region = {
+                                                id: regionId,
+                                                nombre: comunidad.region_nombre || 'Sin región',
+                                                codigo: null
+                                            };
+                                        }
+                                    }
+                                    return comunidad;
+                                });
+                                console.log('📴 Comunidades cargadas desde IndexedDB (fallback):', comunidadesOffline.length);
+                                comunidadesCargadas = true;
+                            }
+                        } catch (dbError) {
+                            console.warn('⚠️ Error al cargar comunidades desde IndexedDB (fallback):', dbError);
+                        }
+                    }
+                }
+            }
+            
+            // Renderizar opciones de regiones y comunidades después de cargar ambos
+            // Esto se hace siempre, independientemente de si se cargaron desde IndexedDB o API
+            if (regionesList && regionesList.length > 0) {
+                try {
+                    renderBeneficiaryRegionOptions(benefRegionSelect ? benefRegionSelect.value : '');
+                    renderBeneficiaryFiltersRegionOptions(beneficiariesFilterRegionSelect ? beneficiariesFilterRegionSelect.value : '');
+                    console.log('✅ Opciones de regiones renderizadas:', regionesList.length);
+                } catch (error) {
+                    console.warn('⚠️ Error al renderizar opciones de regiones:', error);
+                }
+            } else {
+                console.warn('⚠️ No hay regiones para renderizar');
+            }
+            
+            if (comunidadesList && comunidadesList.length > 0) {
+                try {
+                    renderBeneficiaryCommunityOptions(benefRegionSelect ? benefRegionSelect.value : '', benefCommunitySelect ? benefCommunitySelect.value : '');
+                    renderBeneficiaryFiltersCommunityOptions(beneficiariesFilterRegionSelect ? beneficiariesFilterRegionSelect.value : '');
+                    console.log('✅ Opciones de comunidades renderizadas:', comunidadesList.length);
+                } catch (error) {
+                    console.warn('⚠️ Error al renderizar opciones de comunidades:', error);
+                }
+            } else {
+                console.warn('⚠️ No hay comunidades para renderizar');
             }
             
             // Cargar personal
-            const responsePersonal = await fetch('/api/personal/');
-            if (responsePersonal.ok) {
-                const dataPersonal = await responsePersonal.json();
-                personalList = dataPersonal;
+            let personalCargado = false;
+            if (isOffline && db) {
+                try {
+                    // Intentar cargar desde IndexedDB (colaboradores)
+                    const colaboradoresOffline = await db.getAll('colaboradores');
+                    if (colaboradoresOffline && colaboradoresOffline.length > 0) {
+                        // Convertir colaboradores al formato esperado por personalList
+                        personalList = colaboradoresOffline.map(col => ({
+                            id: col.id,
+                            nombre: col.nombre || col.nombres || '',
+                            username: col.username || '',
+                            tipo: 'colaborador',
+                            rol: col.puesto?.nombre || 'Colaborador'
+                        }));
+                        console.log('📴 Personal cargado desde IndexedDB:', personalList.length);
+                        personalCargado = true;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar personal desde IndexedDB:', error);
+                }
+            }
+            
+            // Si no se cargó desde IndexedDB, intentar desde la API
+            if (!personalCargado) {
+                try {
+                    const responsePersonal = await fetch('/api/personal/');
+                    // Verificar si la respuesta indica que estamos offline
+                    if (responsePersonal && responsePersonal.status === 503) {
+                        const dataPersonal = await responsePersonal.json().catch(() => ({}));
+                        if (dataPersonal.offline === true) {
+                            console.log('📴 Respuesta offline detectada, cargando personal desde IndexedDB...');
+                            throw new Error('Offline response');
+                        }
+                    }
+                    if (responsePersonal && responsePersonal.ok) {
+                        const dataPersonal = await responsePersonal.json();
+                        personalList = dataPersonal;
+                        // Guardar colaboradores en IndexedDB para uso offline
+                        if (db && dataPersonal.length > 0) {
+                            dataPersonal.forEach(async (persona) => {
+                                try {
+                                    if (persona.tipo === 'colaborador' || !persona.tipo) {
+                                        await db.put('colaboradores', {
+                                            id: persona.id,
+                                            nombre: persona.nombre,
+                                            nombres: persona.nombre,
+                                            username: persona.username,
+                                            puesto: persona.rol ? { nombre: persona.rol } : null,
+                                            saved_at: new Date().toISOString()
+                                        });
+                                    }
+                                } catch (error) {
+                                    // Ignorar errores al guardar
+                                }
+                            });
+                        }
+                        personalCargado = true;
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar personal desde API:', error);
+                    // Si falla la API, intentar desde IndexedDB como fallback
+                    if (db && !personalCargado) {
+                        try {
+                            const colaboradoresOffline = await db.getAll('colaboradores');
+                            if (colaboradoresOffline && colaboradoresOffline.length > 0) {
+                                // Convertir colaboradores al formato esperado por personalList
+                                personalList = colaboradoresOffline.map(col => ({
+                                    id: col.id,
+                                    nombre: col.nombre || col.nombres || '',
+                                    username: col.username || '',
+                                    tipo: 'colaborador',
+                                    rol: col.puesto?.nombre || 'Colaborador'
+                                }));
+                                console.log('📴 Personal cargado desde IndexedDB (fallback):', personalList.length);
+                                personalCargado = true;
+                            }
+                        } catch (dbError) {
+                            console.warn('⚠️ Error al cargar personal desde IndexedDB (fallback):', dbError);
+                        }
+                    }
+                }
+            }
+            
+            // Renderizar personal si se cargó
+            if (personalCargado && personalList.length > 0) {
                 renderPersonalList();
             }
             
             // Ya no cargamos beneficiarios de la API (se crean en el formulario)
             
         } catch (error) {
+            console.warn('⚠️ Error al cargar datos:', error);
         }
     }
     
     // Cargar datos al iniciar
     cargarDatos();
+    
+    // Sincronizar datos cuando vuelve la conexión
+    window.addEventListener('online', function() {
+        console.log('🌐 Conexión restaurada, sincronizando datos...');
+        if (window.OfflineSync && typeof window.OfflineSync.syncFromServer === 'function') {
+            window.OfflineSync.syncFromServer().then(() => {
+                // Recargar datos después de sincronizar
+                cargarDatos();
+            });
+        }
+    });
+    
+    // Sincronizar datos automáticamente cuando hay conexión (al cargar la página)
+    if (navigator.onLine && window.OfflineSync && typeof window.OfflineSync.syncFromServer === 'function') {
+        // Esperar un poco para que la página termine de cargar
+        setTimeout(() => {
+            window.OfflineSync.syncFromServer().then(() => {
+                // Recargar datos después de sincronizar
+                cargarDatos();
+            });
+        }, 2000);
+    }
     
     // Cargar cambios recientes
     cargarCambiosRecientes();
@@ -1130,27 +1511,111 @@ document.addEventListener('DOMContentLoaded', function() {
         // Asegurar que los datos estén cargados antes de abrir el modal
         if (regionesList.length === 0 || comunidadesList.length === 0) {
             try {
-                // Cargar comunidades
-                const responseComunidades = await fetch('/api/comunidades/');
-                if (responseComunidades.ok) {
-                    const dataComunidades = await responseComunidades.json();
-                    comunidadesList = dataComunidades;
-                }
+                const isOffline = !navigator.onLine;
+                const db = window.OfflineDB;
                 
-                // Cargar regiones
-                const responseRegiones = await fetch('/api/regiones/');
-                if (responseRegiones.ok) {
-                    regionesList = await responseRegiones.json();
-                    regionesList.sort((a, b) => {
-                        const codeA = parseInt(a.codigo, 10);
-                        const codeB = parseInt(b.codigo, 10);
-                        const hasCodeA = !Number.isNaN(codeA);
-                        const hasCodeB = !Number.isNaN(codeB);
-                        if (hasCodeA && hasCodeB) return codeA - codeB;
-                        if (hasCodeA) return -1;
-                        if (hasCodeB) return 1;
-                        return (a.nombre || '').localeCompare(b.nombre || '', 'es');
-                    });
+                if (isOffline && db) {
+                    // Cargar desde IndexedDB
+                    try {
+                        // Primero cargar regiones para poder normalizar las comunidades
+                        const regionesOffline = await db.getAllRegiones();
+                        if (regionesOffline && regionesOffline.length > 0) {
+                            regionesList = regionesOffline;
+                            regionesList.sort((a, b) => {
+                                const codeA = parseInt(a.codigo, 10);
+                                const codeB = parseInt(b.codigo, 10);
+                                const hasCodeA = !Number.isNaN(codeA);
+                                const hasCodeB = !Number.isNaN(codeB);
+                                if (hasCodeA && hasCodeB) return codeA - codeB;
+                                if (hasCodeA) return -1;
+                                if (hasCodeB) return 1;
+                                return (a.nombre || '').localeCompare(b.nombre || '', 'es');
+                            });
+                            console.log('📴 Regiones cargadas desde IndexedDB para modal:', regionesOffline.length);
+                        }
+                        
+                        // Luego cargar comunidades y normalizar con las regiones
+                        const comunidadesOffline = await db.getAllComunidades();
+                        if (comunidadesOffline && comunidadesOffline.length > 0) {
+                            // Normalizar comunidades: asegurar que tengan la estructura region correcta
+                            comunidadesList = comunidadesOffline.map(comunidad => {
+                                // Si no tiene region como objeto, intentar construirla desde region_id
+                                if (!comunidad.region || typeof comunidad.region !== 'object') {
+                                    const regionId = comunidad.region_id || comunidad.region;
+                                    // Buscar la región en regionesList
+                                    const regionObj = regionesList.find(r => String(r.id) === String(regionId));
+                                    if (regionObj) {
+                                        comunidad.region = {
+                                            id: regionObj.id,
+                                            nombre: regionObj.nombre,
+                                            codigo: regionObj.codigo
+                                        };
+                                    } else if (regionId) {
+                                        // Si no está en regionesList, crear un objeto básico
+                                        comunidad.region = {
+                                            id: regionId,
+                                            nombre: comunidad.region_nombre || 'Sin región',
+                                            codigo: null
+                                        };
+                                    }
+                                }
+                                return comunidad;
+                            });
+                            console.log('📴 Comunidades cargadas desde IndexedDB para modal:', comunidadesOffline.length);
+                        }
+                        
+                        // Renderizar las comunidades después de cargar
+                        if (comunidadesList.length > 0) {
+                            renderCommunityOptions(communityRegionSelect ? communityRegionSelect.value : '');
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Error al cargar desde IndexedDB:', error);
+                    }
+                } else {
+                    // Cargar desde API
+                    const responseComunidades = await fetch('/api/comunidades/');
+                    if (responseComunidades.ok) {
+                        const dataComunidades = await responseComunidades.json();
+                        // La API puede devolver un objeto con success y comunidades, o directamente un array
+                        comunidadesList = Array.isArray(dataComunidades) ? dataComunidades : (dataComunidades.comunidades || []);
+                        // Guardar en IndexedDB
+                        if (db && comunidadesList.length > 0) {
+                            comunidadesList.forEach(async (comunidad) => {
+                                try {
+                                    await db.saveComunidad(comunidad);
+                                } catch (error) {
+                                    // Ignorar errores
+                                }
+                            });
+                        }
+                    }
+                    
+                    const responseRegiones = await fetch('/api/regiones/');
+                    if (responseRegiones.ok) {
+                        const dataRegiones = await responseRegiones.json();
+                        // La API puede devolver un objeto con success y regiones, o directamente un array
+                        regionesList = Array.isArray(dataRegiones) ? dataRegiones : (dataRegiones.regiones || []);
+                        regionesList.sort((a, b) => {
+                            const codeA = parseInt(a.codigo, 10);
+                            const codeB = parseInt(b.codigo, 10);
+                            const hasCodeA = !Number.isNaN(codeA);
+                            const hasCodeB = !Number.isNaN(codeB);
+                            if (hasCodeA && hasCodeB) return codeA - codeB;
+                            if (hasCodeA) return -1;
+                            if (hasCodeB) return 1;
+                            return (a.nombre || '').localeCompare(b.nombre || '', 'es');
+                        });
+                        // Guardar en IndexedDB
+                        if (db && regionesList.length > 0) {
+                            regionesList.forEach(async (region) => {
+                                try {
+                                    await db.saveRegion(region);
+                                } catch (error) {
+                                    // Ignorar errores
+                                }
+                            });
+                        }
+                    }
                 }
             } catch (error) {
                 mostrarMensaje('error', 'Error al cargar las regiones y comunidades. Por favor, recarga la página.');
@@ -2202,22 +2667,79 @@ document.addEventListener('DOMContentLoaded', function() {
         benefSearchResults.innerHTML = '';
 
         try {
-            // Si hay query de búsqueda, hacer nueva llamada al API con parámetro q
-            // para buscar en TODA la base de datos, no solo en los 50 cargados
+            const isOffline = !navigator.onLine;
+            const db = window.OfflineDB;
             let catalogo;
             const queryLower = (query || '').trim().toLowerCase();
             
-            if (queryLower) {
-                // Con búsqueda: llamar al API con parámetro q para buscar en TODA la BD
-                const response = await fetch(`/api/beneficiarios/?q=${encodeURIComponent(query.trim())}`);
-                if (!response.ok) {
-                    throw new Error('Error al buscar beneficiarios');
+            if (isOffline && db) {
+                // Modo offline: buscar en IndexedDB
+                try {
+                    if (queryLower) {
+                        catalogo = await db.searchBeneficiarios(query.trim());
+                        console.log('📴 Beneficiarios encontrados en IndexedDB:', catalogo.length);
+                    } else {
+                        catalogo = await db.getAllBeneficiarios();
+                        console.log('📴 Beneficiarios cargados desde IndexedDB:', catalogo.length);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al buscar beneficiarios en IndexedDB:', error);
+                    catalogo = [];
                 }
-                catalogo = await response.json();
-                catalogo = Array.isArray(catalogo) ? catalogo : [];
             } else {
-                // Sin búsqueda: usar catálogo inicial (50 beneficiarios)
-                catalogo = await obtenerBeneficiariosCatalogo();
+                // Modo online: buscar en el servidor
+                try {
+                    if (queryLower) {
+                        // Con búsqueda: llamar al API con parámetro q para buscar en TODA la BD
+                        const response = await fetch(`/api/beneficiarios/?q=${encodeURIComponent(query.trim())}`);
+                        // Verificar si la respuesta indica que estamos offline
+                        if (response && response.status === 503) {
+                            const data = await response.json().catch(() => ({}));
+                            if (data.offline === true) {
+                                console.log('📴 Respuesta offline detectada, buscando beneficiarios en IndexedDB...');
+                                throw new Error('Offline response');
+                            }
+                        }
+                        if (!response || !response.ok) {
+                            throw new Error('Error al buscar beneficiarios');
+                        }
+                        catalogo = await response.json();
+                        catalogo = Array.isArray(catalogo) ? catalogo : [];
+                        
+                        // Guardar beneficiarios encontrados en IndexedDB
+                        if (db && catalogo.length > 0) {
+                            catalogo.forEach(async (benef) => {
+                                try {
+                                    await db.saveBeneficiario(benef);
+                                } catch (error) {
+                                    // Ignorar errores al guardar
+                                }
+                            });
+                        }
+                    } else {
+                        // Sin búsqueda: usar catálogo inicial (50 beneficiarios)
+                        catalogo = await obtenerBeneficiariosCatalogo();
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al buscar beneficiarios desde API:', error);
+                    // Si falla la API, intentar desde IndexedDB como fallback
+                    if (db) {
+                        try {
+                            if (queryLower) {
+                                catalogo = await db.searchBeneficiarios(query.trim());
+                                console.log('📴 Beneficiarios encontrados en IndexedDB (fallback):', catalogo.length);
+                            } else {
+                                catalogo = await db.getAllBeneficiarios();
+                                console.log('📴 Beneficiarios cargados desde IndexedDB (fallback):', catalogo.length);
+                            }
+                        } catch (dbError) {
+                            console.warn('⚠️ Error al buscar beneficiarios desde IndexedDB (fallback):', dbError);
+                            catalogo = [];
+                        }
+                    } else {
+                        catalogo = [];
+                    }
+                }
             }
 
             const seleccionadosIds = new Set([
@@ -4292,67 +4814,183 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 const data = await response.json();
 
-                if (response.ok && data.success) {
-                    
-                    // Guardar ID del evento creado
-                    const eventoIdCreado = data.id || data.evento_id;
-                    if (eventoIdCreado) {
-                        // Si hay beneficiarios pendientes de Excel, guardarlos automáticamente
-                        if (beneficiariosPendientesExcel.length > 0) {
+                // Verificar si es una respuesta offline (202 Accepted con X-Offline-Queued)
+                const isOfflineResponse = response.status === 202 && 
+                    (response.headers.get('X-Offline-Queued') === 'true' || 
+                     (data && data.offline === true));
+
+                if (isOfflineResponse || (response.ok && data.success)) {
+                    // Si es offline, guardar en IndexedDB para mostrarlo inmediatamente
+                    if (isOfflineResponse) {
+                        // Generar un ID temporal para el evento offline
+                        const tempId = 'offline_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                        
+                        // Guardar en IndexedDB
+                        if (window.OfflineDB) {
                             try {
-                                const responseBenef = await fetch('/api/beneficiarios/guardar-pendientes/', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'X-CSRFToken': getCookie('csrftoken')
-                                    },
-                                    body: JSON.stringify({
-                                        actividad_id: eventoIdCreado,
-                                        beneficiarios_pendientes: beneficiariosPendientesExcel
-                                    })
-                                });
+                                const db = window.OfflineDB;
                                 
-                                const dataBenef = await responseBenef.json();
-                                if (dataBenef.success) {
-                                    beneficiariosPendientesExcel = [];
-                                    actualizarContadorPendientes();
+                                // Obtener el nombre del tipo desde el select (no solo el ID)
+                                const eventTypeSelect = document.getElementById('eventType');
+                                let tipoNombre = null;
+                                let categoryKey = null;
+                                
+                                if (eventTypeSelect && eventTypeSelect.selectedIndex >= 0) {
+                                    // Obtener el texto de la opción seleccionada
+                                    tipoNombre = eventTypeSelect.options[eventTypeSelect.selectedIndex].text.trim();
+                                    
+                                    // Determinar categoryKey basado en el nombre del tipo
+                                    const tipoLower = tipoNombre.toLowerCase();
+                                    if (tipoLower.includes('capacitación') || tipoLower.includes('capacitacion')) {
+                                        categoryKey = 'capacitaciones';
+                                    } else if (tipoLower.includes('entrega')) {
+                                        categoryKey = 'entregas';
+                                    } else if (tipoLower.includes('proyecto') || tipoLower.includes('ayuda')) {
+                                        categoryKey = 'proyectos-ayuda';
+                                    }
                                 }
+                                
+                                // Si no se pudo obtener el nombre del tipo, usar el ID como fallback
+                                const tipoId = formData.get('tipo_actividad_id') || null;
+                                if (!tipoNombre && tipoId) {
+                                    // Intentar obtener el nombre desde IndexedDB si está disponible
+                                    try {
+                                        // Buscar en los tipos de actividad guardados (si existen)
+                                        const tiposActividad = await db.getAll('tipos_actividad');
+                                        const tipoEncontrado = tiposActividad.find(t => t.id === tipoId);
+                                        if (tipoEncontrado && tipoEncontrado.nombre) {
+                                            tipoNombre = tipoEncontrado.nombre;
+                                            // Determinar categoryKey
+                                            const tipoLower = tipoNombre.toLowerCase();
+                                            if (tipoLower.includes('capacitación') || tipoLower.includes('capacitacion')) {
+                                                categoryKey = 'capacitaciones';
+                                            } else if (tipoLower.includes('entrega')) {
+                                                categoryKey = 'entregas';
+                                            } else if (tipoLower.includes('proyecto') || tipoLower.includes('ayuda')) {
+                                                categoryKey = 'proyectos-ayuda';
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.warn('⚠️ No se pudo obtener el nombre del tipo desde IndexedDB:', error);
+                                    }
+                                }
+                                
+                                const eventoOffline = {
+                                    id: tempId,
+                                    nombre: formData.get('nombre') || 'Evento sin nombre',
+                                    tipo: tipoNombre || tipoId, // Guardar el nombre si está disponible, sino el ID
+                                    tipo_id: tipoId, // Guardar también el ID para referencia
+                                    categoryKey: categoryKey, // Guardar la clave de categoría para filtrado
+                                    fecha: formData.get('fecha') || new Date().toISOString().split('T')[0],
+                                    estado: formData.get('estado') || 'planificado',
+                                    descripcion: formData.get('descripcion') || '',
+                                    comunidades_seleccionadas: selectedCommunitiesList,
+                                    personal_ids: selectedPersonnelList,
+                                    beneficiarios_nuevos: beneficiariosNuevos,
+                                    tarjetas_datos_nuevas: projectDataNew,
+                                    portada_evento: coverImageFile ? 'pending' : null,
+                                    evidencias: accumulatedFiles.length > 0 ? 'pending' : [],
+                                    modificado_offline: true,
+                                    ultimo_sync: null,
+                                    created_at: new Date().toISOString(),
+                                    is_offline: true,
+                                    offline_queue_id: data.queue_id || null
+                                };
+                                
+                                await db.saveProyecto(eventoOffline);
+                                console.log('✅ Evento guardado localmente:', tempId, 'con tipo:', tipoNombre, 'categoryKey:', categoryKey);
                             } catch (error) {
+                                console.warn('⚠️ Error al guardar evento en IndexedDB:', error);
                             }
                         }
+                        
+                        mostrarMensaje('success', '📴 Evento guardado sin conexión. Se enviará automáticamente cuando vuelva el internet.');
+                        
+                        // Limpiar formulario
+                        eventForm.reset();
+                        selectedPersonnelList = [];
+                        selectedCommunitiesList = [];
+                        beneficiariosNuevos = [];
+                        beneficiariosExistentes = [];
+                        beneficiariosExistentesOriginales = [];
+                        beneficiariosModificados = [];
+                        beneficiariosEliminados = [];
+                        accumulatedFiles = [];
+                        updateFilePreview();
+                        renderBeneficiariosExistentes();
+                        resetQuickDataState();
+                        resetCoverSelection();
+                        
+                        // Limpiar beneficiarios pendientes de Excel
+                        beneficiariosPendientesExcel = [];
+                        actualizarContadorPendientes();
+                        
+                        // Redirigir a la vista de gestión después de 2 segundos
+                        setTimeout(() => {
+                            showManageEventView();
+                            cargarEventos();
+                        }, 2000);
+                    } else {
+                        // Guardar ID del evento creado (online)
+                        const eventoIdCreado = data.id || data.evento_id;
+                        if (eventoIdCreado) {
+                            // Si hay beneficiarios pendientes de Excel, guardarlos automáticamente
+                            if (beneficiariosPendientesExcel.length > 0) {
+                                try {
+                                    const responseBenef = await fetch('/api/beneficiarios/guardar-pendientes/', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRFToken': getCookie('csrftoken')
+                                        },
+                                        body: JSON.stringify({
+                                            actividad_id: eventoIdCreado,
+                                            beneficiarios_pendientes: beneficiariosPendientesExcel
+                                        })
+                                    });
+                                    
+                                    const dataBenef = await responseBenef.json();
+                                    if (dataBenef.success) {
+                                        beneficiariosPendientesExcel = [];
+                                        actualizarContadorPendientes();
+                                    }
+                                } catch (error) {
+                                    // Ignorar errores al guardar beneficiarios pendientes
+                                }
+                            }
+                        }
+                        
+                        // Mostrar mensaje de éxito con información de archivos
+                        let mensaje = data.message || 'Evento creado exitosamente';
+                        if (data.total_archivos > 0) {
+                            mensaje += ` (${data.total_archivos} archivo${data.total_archivos > 1 ? 's' : ''} guardado${data.total_archivos > 1 ? 's' : ''})`;
+                        }
+                        mostrarMensaje('success', mensaje);
+                        
+                        // Limpiar formulario
+                        eventForm.reset();
+                        selectedPersonnelList = [];
+                        selectedCommunitiesList = [];
+                        beneficiariosNuevos = []; // Limpiar beneficiarios
+                        beneficiariosExistentes = [];
+                        beneficiariosExistentesOriginales = [];
+                        beneficiariosModificados = [];
+                        beneficiariosEliminados = [];
+                        accumulatedFiles = []; // Limpiar archivos acumulados
+                        updateFilePreview(); // Actualizar preview vacío
+                        renderBeneficiariosExistentes(); // Actualizar vista de beneficiarios
+                        resetQuickDataState(); // Limpiar tarjetas de datos
+                        resetCoverSelection();
+                        
+                        // Limpiar beneficiarios pendientes de Excel
+                        beneficiariosPendientesExcel = [];
+                        actualizarContadorPendientes();
+                        
+                        // Volver a la vista principal
+                        setTimeout(() => {
+                            showMainView();
+                        }, 2000);
                     }
-                    
-                    // Mostrar mensaje de éxito con información de archivos
-                    let mensaje = data.message || 'Evento creado exitosamente';
-                    if (data.total_archivos > 0) {
-                        mensaje += ` (${data.total_archivos} archivo${data.total_archivos > 1 ? 's' : ''} guardado${data.total_archivos > 1 ? 's' : ''})`;
-                    }
-                    mostrarMensaje('success', mensaje);
-                    
-                    // Limpiar formulario
-                    eventForm.reset();
-                    selectedPersonnelList = [];
-                    selectedCommunitiesList = [];
-                    beneficiariosNuevos = []; // Limpiar beneficiarios
-                    beneficiariosExistentes = [];
-                    beneficiariosExistentesOriginales = [];
-                    beneficiariosModificados = [];
-                    beneficiariosEliminados = [];
-                    accumulatedFiles = []; // Limpiar archivos acumulados
-                    updateFilePreview(); // Actualizar preview vacío
-                    renderBeneficiariosExistentes(); // Actualizar vista de beneficiarios
-                    resetQuickDataState(); // Limpiar tarjetas de datos
-                    resetCoverSelection();
-                    
-                    // Limpiar beneficiarios pendientes de Excel
-                    beneficiariosPendientesExcel = [];
-                    actualizarContadorPendientes();
-                    
-                    // Volver a la vista principal
-                    setTimeout(() => {
-                        showMainView();
-                    }, 2000);
-                    
                 } else {
                     mostrarMensaje('error', data.error || 'Error al crear el evento');
                 }
@@ -4414,31 +5052,120 @@ document.addEventListener('DOMContentLoaded', function() {
     let eventosData = [];
     let eventosDataOriginal = []; // Guardar la lista original para el filtrado
     
-    // Cargar eventos cuando se abre la vista de gestión
-    if (openManageEventBtn) {
-        openManageEventBtn.addEventListener('click', showManageEventView);
-    }
+    // NOTA: El event listener para openManageEventBtn ya está configurado arriba (línea 356-358)
+    // No es necesario duplicarlo aquí
     
     async function cargarEventos() {
         try {
-            const response = await fetch('/api/eventos/');
+            const isOffline = !navigator.onLine;
+            const db = window.OfflineDB;
             
-            if (!response.ok) {
-                throw new Error('Error al cargar eventos');
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                const eventosCargados = Array.isArray(data.eventos) ? data.eventos : [];
-                eventosData = [...eventosCargados];
-                eventosDataOriginal = [...eventosCargados]; // Guardar copia original
-                renderEventos();
+            if (isOffline && db) {
+                // Modo offline: cargar desde IndexedDB
+                try {
+                    const eventosOffline = await db.getAllProyectos();
+                    if (eventosOffline && eventosOffline.length > 0) {
+                        eventosData = eventosOffline;
+                        eventosDataOriginal = [...eventosOffline];
+                        console.log('📴 Eventos cargados desde IndexedDB:', eventosOffline.length);
+                        renderEventos();
+                    } else {
+                        eventosData = [];
+                        eventosDataOriginal = [];
+                        renderEventos();
+                        mostrarMensaje('info', 'No hay eventos en caché offline');
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar eventos desde IndexedDB:', error);
+                    eventosData = [];
+                    eventosDataOriginal = [];
+                    renderEventos();
+                }
             } else {
-                mostrarMensaje('error', 'Error al cargar eventos');
+                // Modo online: cargar desde el servidor
+                const response = await fetch('/api/eventos/');
+                
+                if (!response.ok) {
+                    throw new Error('Error al cargar eventos');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const eventosCargados = Array.isArray(data.eventos) ? data.eventos : [];
+                    eventosData = [...eventosCargados];
+                    eventosDataOriginal = [...eventosCargados]; // Guardar copia original
+                    
+                    // Guardar eventos en IndexedDB para uso offline
+                    if (db && eventosCargados.length > 0) {
+                        // Guardar lista básica de eventos
+                        eventosCargados.forEach(async (evento) => {
+                            try {
+                                await db.saveProyecto({
+                                    ...evento,
+                                    ultimo_sync: new Date().toISOString(),
+                                    is_offline: false
+                                });
+                            } catch (error) {
+                                // Ignorar errores al guardar
+                            }
+                        });
+                        console.log('✅ Eventos guardados en IndexedDB (lista básica):', eventosCargados.length);
+                        
+                        // Cargar detalles completos de los primeros 5 eventos más recientes en segundo plano
+                        const eventosRecientes = eventosCargados.slice(0, 5);
+                        eventosRecientes.forEach(async (eventoBasico) => {
+                            try {
+                                const detalleResponse = await fetch(`/api/evento/${eventoBasico.id}/`, {
+                                    credentials: 'include',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                    }
+                                });
+                                if (detalleResponse.ok) {
+                                    const detalleData = await detalleResponse.json();
+                                    if (detalleData.success && detalleData.evento) {
+                                        const eventoCompleto = detalleData.evento;
+                                        // Guardar evento completo con todos sus detalles
+                                        await db.saveProyecto({
+                                            ...eventoCompleto,
+                                            beneficiarios: eventoCompleto.beneficiarios || [],
+                                            personal: eventoCompleto.personal || [],
+                                            comunidades: eventoCompleto.comunidades || [],
+                                            evidencias: eventoCompleto.evidencias || [],
+                                            cambios: eventoCompleto.cambios || [],
+                                            tarjetas_datos: eventoCompleto.tarjetas_datos || [],
+                                            ultimo_sync: new Date().toISOString(),
+                                            is_offline: false
+                                        });
+                                        
+                                        // Guardar beneficiarios individualmente
+                                        if (eventoCompleto.beneficiarios && Array.isArray(eventoCompleto.beneficiarios)) {
+                                            eventoCompleto.beneficiarios.forEach(async (benef) => {
+                                                try {
+                                                    await db.saveBeneficiario(benef);
+                                                } catch (error) {
+                                                    // Ignorar errores
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
+                            } catch (error) {
+                                // Ignorar errores al cargar detalles
+                            }
+                        });
+                        console.log('✅ Cargando detalles completos de', eventosRecientes.length, 'eventos más recientes en segundo plano...');
+                    }
+                    
+                    renderEventos();
+                } else {
+                    mostrarMensaje('error', 'Error al cargar eventos');
+                }
             }
             
         } catch (error) {
+            console.error('Error al cargar eventos:', error);
             mostrarMensaje('error', 'Error al cargar eventos');
         }
     }
@@ -4671,27 +5398,93 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== EDICIÓN DE EVENTOS =====
     async function cargarEventoParaEditar(eventoId) {
         try {
+            const isOffline = !navigator.onLine;
+            const db = window.OfflineDB;
+            let evento = null;
             
-            const response = await fetch(`/api/evento/${eventoId}/`);
-            
-            if (!response.ok) {
-                throw new Error('Error al cargar evento');
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                eventoEnEdicion = data.evento;
-                lastEditedEventId = String(data.evento.id || eventoId);
-                sessionStorage.setItem('lastEditedEventId', lastEditedEventId);
-                showCreateEventView(true);
-                prellenarFormularioConEvento(data.evento);
-                mostrarMensaje('info', 'Editando evento: ' + data.evento.nombre);
+            if (isOffline && db) {
+                // Modo offline: cargar desde IndexedDB
+                try {
+                    evento = await db.getProyecto(eventoId);
+                    if (evento) {
+                        console.log('📴 Evento cargado desde IndexedDB:', eventoId);
+                        eventoEnEdicion = evento;
+                        lastEditedEventId = String(evento.id || eventoId);
+                        sessionStorage.setItem('lastEditedEventId', lastEditedEventId);
+                        showCreateEventView(true);
+                        prellenarFormularioConEvento(evento);
+                        mostrarMensaje('info', 'Editando evento (offline): ' + evento.nombre);
+                    } else {
+                        mostrarMensaje('error', 'Evento no encontrado en caché offline');
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error al cargar evento desde IndexedDB:', error);
+                    mostrarMensaje('error', 'Error al cargar evento desde caché offline');
+                }
             } else {
-                mostrarMensaje('error', 'Error al cargar evento');
+                // Modo online: cargar desde el servidor
+                const response = await fetch(`/api/evento/${eventoId}/`);
+                
+                if (!response.ok) {
+                    throw new Error('Error al cargar evento');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    evento = data.evento;
+                    eventoEnEdicion = evento;
+                    lastEditedEventId = String(evento.id || eventoId);
+                    sessionStorage.setItem('lastEditedEventId', lastEditedEventId);
+                    
+                    // Guardar evento COMPLETO con todos sus detalles en IndexedDB para uso offline
+                    if (db) {
+                        try {
+                            // Guardar el evento completo con todos sus detalles
+                            await db.saveProyecto({
+                                ...evento,
+                                // Asegurar que todos los campos importantes estén incluidos
+                                beneficiarios: evento.beneficiarios || [],
+                                personal: evento.personal || [],
+                                comunidades: evento.comunidades || [],
+                                evidencias: evento.evidencias || [],
+                                cambios: evento.cambios || [],
+                                tarjetas_datos: evento.tarjetas_datos || [],
+                                ultimo_sync: new Date().toISOString(),
+                                is_offline: false
+                            });
+                            
+                            // También guardar beneficiarios individualmente para búsqueda
+                            if (evento.beneficiarios && Array.isArray(evento.beneficiarios)) {
+                                evento.beneficiarios.forEach(async (benef) => {
+                                    try {
+                                        await db.saveBeneficiario(benef);
+                                    } catch (error) {
+                                        // Ignorar errores al guardar beneficiarios individuales
+                                    }
+                                });
+                            }
+                            
+                            console.log('✅ Evento completo guardado en IndexedDB:', eventoId, {
+                                beneficiarios: evento.beneficiarios?.length || 0,
+                                personal: evento.personal?.length || 0,
+                                evidencias: evento.evidencias?.length || 0
+                            });
+                        } catch (error) {
+                            console.warn('⚠️ Error al guardar evento en IndexedDB:', error);
+                        }
+                    }
+                    
+                    showCreateEventView(true);
+                    prellenarFormularioConEvento(evento);
+                    mostrarMensaje('info', 'Editando evento: ' + evento.nombre);
+                } else {
+                    mostrarMensaje('error', 'Error al cargar evento');
+                }
             }
             
         } catch (error) {
+            console.error('Error al cargar evento:', error);
             mostrarMensaje('error', 'Error al cargar evento');
         }
     }
@@ -4761,7 +5554,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Cargar beneficiarios existentes (editables)
-        beneficiariosExistentes = (evento.beneficiarios || []).map(benef => {
+        const beneficiariosDelEvento = evento.beneficiarios || [];
+        
+        // Guardar beneficiarios en IndexedDB si estamos online
+        if (navigator.onLine && window.OfflineDB && beneficiariosDelEvento.length > 0) {
+            const db = window.OfflineDB;
+            beneficiariosDelEvento.forEach(async (benef) => {
+                try {
+                    await db.saveBeneficiario(benef);
+                } catch (error) {
+                    // Ignorar errores al guardar
+                }
+            });
+            console.log('✅ Beneficiarios del evento guardados en IndexedDB:', beneficiariosDelEvento.length);
+        }
+        
+        beneficiariosExistentes = beneficiariosDelEvento.map(benef => {
             // Obtener comunidad_id desde múltiples fuentes posibles
             const comunidadId = benef.comunidad_id 
                 ? String(benef.comunidad_id) 
@@ -5320,51 +6128,151 @@ document.addEventListener('DOMContentLoaded', function() {
             
         const data = await response.json();
             
-            if (response.ok && data.success) {
-                lastEditedEventId = String(eventoId);
-                sessionStorage.setItem('lastEditedEventId', lastEditedEventId);
-                mostrarMensaje('success', data.message || 'Evento actualizado exitosamente');
-                
-                // Resetear modo edición
-                eventoEnEdicion = null;
-                beneficiariosExistentes = [];
-                beneficiariosEliminados = [];
-                beneficiariosModificados = [];
-                evidenciasExistentes = [];
-                evidenciasEliminadas = [];
-                
-                // Resetear formulario
-                eventForm.reset();
-                selectedPersonnelList = [];
-                beneficiariosNuevos = [];
-                accumulatedFiles = [];
-                renderBeneficiariosExistentes();
-                updateFilePreview();
-                
-                // Restaurar título y botón
-                const formTitle = document.querySelector('.view-title');
-                if (formTitle) {
-                    formTitle.textContent = 'Crear Nuevo Evento';
+            // Verificar si es una respuesta offline (202 Accepted con X-Offline-Queued)
+            const isOfflineResponse = response.status === 202 && 
+                (response.headers.get('X-Offline-Queued') === 'true' || 
+                 (data && data.offline === true));
+            
+            if (isOfflineResponse || (response.ok && data.success)) {
+                // Si es offline, actualizar en IndexedDB
+                if (isOfflineResponse) {
+                    if (window.OfflineDB) {
+                        try {
+                            const db = window.OfflineDB;
+                            
+                            // Obtener el nombre del tipo desde el select (no solo el ID)
+                            const eventTypeSelect = document.getElementById('eventType');
+                            let tipoNombre = null;
+                            let categoryKey = null;
+                            
+                            if (eventTypeSelect && eventTypeSelect.selectedIndex >= 0) {
+                                // Obtener el texto de la opción seleccionada
+                                tipoNombre = eventTypeSelect.options[eventTypeSelect.selectedIndex].text.trim();
+                                
+                                // Determinar categoryKey basado en el nombre del tipo
+                                const tipoLower = tipoNombre.toLowerCase();
+                                if (tipoLower.includes('capacitación') || tipoLower.includes('capacitacion')) {
+                                    categoryKey = 'capacitaciones';
+                                } else if (tipoLower.includes('entrega')) {
+                                    categoryKey = 'entregas';
+                                } else if (tipoLower.includes('proyecto') || tipoLower.includes('ayuda')) {
+                                    categoryKey = 'proyectos-ayuda';
+                                }
+                            }
+                            
+                            // Si no se pudo obtener el nombre del tipo, intentar desde el proyecto existente o usar el ID
+                            const tipoId = formData.get('tipo_actividad_id') || null;
+                            if (!tipoNombre) {
+                                // Intentar obtener desde el proyecto existente
+                                try {
+                                    const proyectoExistente = await db.getProyecto(eventoId);
+                                    if (proyectoExistente && proyectoExistente.tipo) {
+                                        tipoNombre = proyectoExistente.tipo;
+                                        categoryKey = proyectoExistente.categoryKey || categoryKey;
+                                    } else if (tipoId) {
+                                        // Intentar obtener el nombre desde IndexedDB si está disponible
+                                        try {
+                                            const tiposActividad = await db.getAll('tipos_actividad');
+                                            const tipoEncontrado = tiposActividad.find(t => t.id === tipoId);
+                                            if (tipoEncontrado && tipoEncontrado.nombre) {
+                                                tipoNombre = tipoEncontrado.nombre;
+                                                // Determinar categoryKey
+                                                const tipoLower = tipoNombre.toLowerCase();
+                                                if (tipoLower.includes('capacitación') || tipoLower.includes('capacitacion')) {
+                                                    categoryKey = 'capacitaciones';
+                                                } else if (tipoLower.includes('entrega')) {
+                                                    categoryKey = 'entregas';
+                                                } else if (tipoLower.includes('proyecto') || tipoLower.includes('ayuda')) {
+                                                    categoryKey = 'proyectos-ayuda';
+                                                }
+                                            }
+                                        } catch (error) {
+                                            console.warn('⚠️ No se pudo obtener el nombre del tipo desde IndexedDB:', error);
+                                        }
+                                    }
+                                } catch (error) {
+                                    console.warn('⚠️ Error al obtener proyecto existente:', error);
+                                }
+                            }
+                            
+                            const eventoActualizado = {
+                                id: eventoId,
+                                nombre: formData.get('nombre') || 'Evento sin nombre',
+                                tipo: tipoNombre || tipoId, // Guardar el nombre si está disponible, sino el ID
+                                tipo_id: tipoId, // Guardar también el ID para referencia
+                                categoryKey: categoryKey, // Guardar la clave de categoría para filtrado
+                                fecha: formData.get('fecha') || new Date().toISOString().split('T')[0],
+                                estado: formData.get('estado') || 'planificado',
+                                descripcion: formData.get('descripcion') || '',
+                                comunidades_seleccionadas: selectedCommunitiesList,
+                                personal_ids: selectedPersonnelList,
+                                beneficiarios_nuevos: beneficiariosNuevos,
+                                tarjetas_datos_nuevas: projectDataNew,
+                                tarjetas_datos_actualizadas: projectDataUpdated,
+                                tarjetas_datos_eliminadas: projectDataDeleted,
+                                portada_evento: coverImageFile ? 'pending' : (coverImageRemoved ? null : 'keep'),
+                                evidencias: accumulatedFiles.length > 0 ? 'pending' : [],
+                                modificado_offline: true,
+                                ultimo_sync: null,
+                                updated_at: new Date().toISOString(),
+                                is_offline: true,
+                                offline_queue_id: data.queue_id || null
+                            };
+                            
+                            await db.saveProyecto(eventoActualizado);
+                            console.log('✅ Evento actualizado localmente:', eventoId, 'con tipo:', tipoNombre, 'categoryKey:', categoryKey);
+                        } catch (error) {
+                            console.warn('⚠️ Error al actualizar evento en IndexedDB:', error);
+                        }
+                    }
+                    
+                    mostrarMensaje('success', '📴 Cambios guardados sin conexión. Se enviarán automáticamente cuando vuelva el internet.');
+                } else {
+                    // Online - comportamiento normal
+                    lastEditedEventId = String(eventoId);
+                    sessionStorage.setItem('lastEditedEventId', lastEditedEventId);
+                    mostrarMensaje('success', data.message || 'Evento actualizado exitosamente');
+                    
+                    // Resetear modo edición
+                    eventoEnEdicion = null;
+                    beneficiariosExistentes = [];
+                    beneficiariosEliminados = [];
+                    beneficiariosModificados = [];
+                    evidenciasExistentes = [];
+                    evidenciasEliminadas = [];
+                    
+                    // Resetear formulario
+                    eventForm.reset();
+                    selectedPersonnelList = [];
+                    beneficiariosNuevos = [];
+                    accumulatedFiles = [];
+                    renderBeneficiariosExistentes();
+                    updateFilePreview();
+                    
+                    // Restaurar título y botón
+                    const formTitle = document.querySelector('.view-title');
+                    if (formTitle) {
+                        formTitle.textContent = 'Crear Nuevo Evento';
+                    }
+                    
+                    const submitBtn = document.querySelector('.btn-create-event');
+                    if (submitBtn) {
+                        submitBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Crear Evento
+                        `;
+                    }
+                    
+                    // Volver a la lista de eventos
+                    setTimeout(() => {
+                        showManageEventView();
+                        cargarEventos();
+                        cargarCambiosRecientes();
+                    }, 1500);
                 }
-                
-                const submitBtn = document.querySelector('.btn-create-event');
-                if (submitBtn) {
-                    submitBtn.innerHTML = `
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        Crear Evento
-                    `;
-                }
-                
-                // Volver a la lista de eventos
-                setTimeout(() => {
-                    showManageEventView();
-                    cargarEventos();
-                    cargarCambiosRecientes();
-                }, 1500);
-                
             } else {
                 mostrarMensaje('error', data.error || 'Error al actualizar el evento');
             }
@@ -5378,23 +6286,55 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // ===== CARGAR CAMBIOS RECIENTES =====
     async function cargarCambiosRecientes() {
+        console.log('🔄 Cargando cambios recientes...');
         try {
-            
+            // Usar fetch normal (offlineAwareFetch ya está interceptando todas las peticiones)
             const response = await fetch('/api/cambios-recientes/');
+            console.log('📡 Respuesta de cambios recientes:', response.status, response.ok);
+            
+            // Verificar si es un error offline
+            const isOfflineError = !navigator.onLine || 
+                response.status === 503 ||
+                (response.status === 503 && window.OfflineSync && window.OfflineSync.isOfflineError && window.OfflineSync.isOfflineError(response));
+            
+            if (isOfflineError) {
+                // Modo offline: mostrar mensaje o cargar desde IndexedDB si está disponible
+                console.log('📴 Modo offline: No se pueden cargar cambios recientes');
+                mostrarErrorCambios('Sin conexión. Los cambios recientes no están disponibles offline.');
+                return;
+            }
+            
             if (!response.ok) {
+                console.error('❌ Error HTTP al cargar cambios recientes:', response.status);
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('📦 Datos de cambios recientes recibidos:', data);
+            
+            // Verificar si es una respuesta offline
+            if (window.OfflineSync && window.OfflineSync.isOfflineResponse && window.OfflineSync.isOfflineResponse(data)) {
+                console.log('📴 Respuesta offline detectada');
+                mostrarErrorCambios('Sin conexión. Los cambios recientes no están disponibles offline.');
+                return;
+            }
             
             if (data.success) {
-                renderCambiosRecientes(data.cambios);
+                console.log('✅ Cambios recientes cargados:', data.cambios?.length || 0);
+                renderCambiosRecientes(data.cambios || []);
             } else {
+                console.error('❌ Error en respuesta de cambios recientes:', data.error);
                 mostrarErrorCambios('No se pudieron cargar los cambios recientes');
             }
             
         } catch (error) {
-            mostrarErrorCambios('Error de conexión al cargar cambios');
+            console.error('❌ Error al cargar cambios recientes:', error);
+            // Si es un error de red, mostrar mensaje offline
+            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                mostrarErrorCambios('Sin conexión. Los cambios recientes no están disponibles offline.');
+            } else {
+                mostrarErrorCambios('Error de conexión al cargar cambios');
+            }
         }
     }
     
@@ -7088,20 +8028,73 @@ document.addEventListener('DOMContentLoaded', function() {
         if (beneficiariosCatalogoPromise) {
             return beneficiariosCatalogoPromise;
         }
+        
+        const isOffline = !navigator.onLine;
+        const db = window.OfflineDB;
+        
+        if (isOffline && db) {
+            // Modo offline: cargar desde IndexedDB
+            try {
+                beneficiariosCatalogo = await db.getAllBeneficiarios();
+                console.log('📴 Catálogo de beneficiarios cargado desde IndexedDB:', beneficiariosCatalogo.length);
+                return beneficiariosCatalogo;
+            } catch (error) {
+                console.warn('⚠️ Error al cargar beneficiarios desde IndexedDB:', error);
+                beneficiariosCatalogo = [];
+                return beneficiariosCatalogo;
+            }
+        }
+        
+        // Modo online: cargar desde el servidor
         beneficiariosCatalogoPromise = fetch('/api/beneficiarios/')
-            .then(response => {
-                if (!response.ok) {
+            .then(async response => {
+                // Verificar si la respuesta indica que estamos offline
+                if (response && response.status === 503) {
+                    const data = await response.json().catch(() => ({}));
+                    if (data.offline === true) {
+                        console.log('📴 Respuesta offline detectada, cargando beneficiarios desde IndexedDB...');
+                        throw new Error('Offline response');
+                    }
+                }
+                if (!response || !response.ok) {
                     throw new Error('Error al obtener beneficiarios');
                 }
                 return response.json();
             })
             .then(data => {
                 beneficiariosCatalogo = Array.isArray(data) ? data : [];
+                
+                // Guardar en IndexedDB para uso offline
+                if (db && beneficiariosCatalogo.length > 0) {
+                    beneficiariosCatalogo.forEach(async (benef) => {
+                        try {
+                            await db.saveBeneficiario(benef);
+                        } catch (error) {
+                            // Ignorar errores al guardar
+                        }
+                    });
+                    console.log('✅ Catálogo de beneficiarios guardado en IndexedDB:', beneficiariosCatalogo.length);
+                }
+                
                 return beneficiariosCatalogo;
             })
-            .catch(error => {
-                beneficiariosCatalogo = [];
-                return beneficiariosCatalogo;
+            .catch(async error => {
+                console.warn('⚠️ Error al cargar beneficiarios desde API:', error);
+                // Si falla la API, intentar desde IndexedDB como fallback
+                if (db) {
+                    try {
+                        beneficiariosCatalogo = await db.getAllBeneficiarios();
+                        console.log('📴 Catálogo de beneficiarios cargado desde IndexedDB (fallback):', beneficiariosCatalogo.length);
+                        return beneficiariosCatalogo;
+                    } catch (dbError) {
+                        console.warn('⚠️ Error al cargar beneficiarios desde IndexedDB (fallback):', dbError);
+                        beneficiariosCatalogo = [];
+                        return beneficiariosCatalogo;
+                    }
+                } else {
+                    beneficiariosCatalogo = [];
+                    return beneficiariosCatalogo;
+                }
             })
             .finally(() => {
                 beneficiariosCatalogoPromise = null;

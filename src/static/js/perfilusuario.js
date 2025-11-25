@@ -20,13 +20,33 @@ document.addEventListener('DOMContentLoaded', function() {
 // Cargar datos del usuario
 async function loadUserData() {
     try {
-        const response = await fetch('/api/usuario/');
+        // Usar offlineAwareFetch si está disponible, sino usar fetch normal
+        const fetchFn = window.offlineAwareFetch || fetch;
+        const response = await fetchFn('/api/usuario/');
+        
         if (!response.ok) {
+            // Verificar si hay sesión offline activa antes de redirigir
+            const hasOfflineSession = window.OfflineAuth && window.OfflineAuth.getActiveSession && window.OfflineAuth.getActiveSession();
+            const isOffline = !navigator.onLine;
+            
+            // Si está offline o hay sesión offline, no redirigir
+            if (isOffline || hasOfflineSession) {
+                console.warn('Modo offline: No se pudieron cargar los datos del usuario');
+                // Intentar cargar datos desde localStorage si están disponibles
+                if (window.USER_AUTH && window.USER_AUTH.username) {
+                    // Mostrar datos básicos del usuario desde USER_AUTH
+                    displayUserDataFromAuth();
+                }
+                return;
+            }
+            
+            // Solo redirigir si es 401 y no hay sesión offline
             if (response.status === 401) {
-                // Usuario no autenticado, redirigir a index
+                // Usuario no autenticado y no hay sesión offline, redirigir a index
                 window.location.href = '/';
                 return;
             }
+            
             throw new Error('Error al cargar datos del usuario');
         }
         const data = await response.json();
@@ -44,7 +64,59 @@ async function loadUserData() {
         // Cargar foto de perfil
         loadProfilePhoto();
     } catch (error) {
-        showError('Error al cargar los datos del usuario');
+        // Verificar si hay sesión offline activa antes de mostrar error o redirigir
+        const hasOfflineSession = window.OfflineAuth && window.OfflineAuth.getActiveSession && window.OfflineAuth.getActiveSession();
+        const isOffline = !navigator.onLine;
+        
+        // Si está offline o hay sesión offline, no mostrar error ni redirigir
+        if (isOffline || hasOfflineSession) {
+            console.warn('Modo offline: No se pudieron cargar los datos del usuario');
+            // Intentar cargar datos desde localStorage si están disponibles
+            if (window.USER_AUTH && window.USER_AUTH.username) {
+                displayUserDataFromAuth();
+            }
+        } else {
+            // Solo mostrar error si no está offline y no hay sesión offline
+            showError('Error al cargar los datos del usuario');
+        }
+    }
+}
+
+// Mostrar datos básicos del usuario desde USER_AUTH cuando está offline
+function displayUserDataFromAuth() {
+    if (!window.USER_AUTH) return;
+    
+    const usernameInput = document.getElementById('datoUsername');
+    const nombreInput = document.getElementById('datoNombre');
+    const emailInput = document.getElementById('datoEmail');
+    
+    if (usernameInput && window.USER_AUTH.username) {
+        usernameInput.value = window.USER_AUTH.username;
+    }
+    if (nombreInput && window.USER_AUTH.username) {
+        nombreInput.value = window.USER_AUTH.username;
+    }
+    if (emailInput && window.USER_AUTH.email) {
+        emailInput.value = window.USER_AUTH.email;
+    }
+    
+    // Mostrar mensaje de que está en modo offline
+    const offlineNotice = document.createElement('div');
+    offlineNotice.style.cssText = `
+        background: #ffc107;
+        color: #000;
+        padding: 12px;
+        margin: 16px 0;
+        border-radius: 8px;
+        text-align: center;
+    `;
+    offlineNotice.textContent = '⚠️ Modo offline: Mostrando datos limitados. Los cambios se sincronizarán cuando se restablezca la conexión.';
+    
+    const container = document.querySelector('.perfil-container') || document.body;
+    const firstChild = container.firstElementChild;
+    if (firstChild && !container.querySelector('.offline-notice')) {
+        offlineNotice.className = 'offline-notice';
+        container.insertBefore(offlineNotice, firstChild);
     }
 }
 

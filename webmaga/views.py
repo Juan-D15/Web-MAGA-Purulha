@@ -503,63 +503,75 @@ def api_resetear_password(request):
 @require_http_methods(["POST"])
 def api_registrar_sesion_offline(request):
     """Registra o actualiza la autorización de sesión offline para un dispositivo."""
-    usuario_maga = get_usuario_maga(request.user)
-    if not usuario_maga:
-        return JsonResponse({'success': False, 'error': 'Usuario MAGA no encontrado.'}, status=404)
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({'success': False, 'error': 'Usuario MAGA no encontrado.'}, status=404)
 
-    data = _parse_request_data(request)
-    device_id = (data.get('device_id') or '').strip()
-    credential_hash = (data.get('credential_hash') or '').strip()
-    salt = (data.get('salt') or '').strip()
-    expires_at_str = data.get('expires_at')
-    permisos = data.get('permisos') or {}
-    metadata = data.get('metadata') or {}
+        data = _parse_request_data(request)
+        device_id = (data.get('device_id') or '').strip()
+        credential_hash = (data.get('credential_hash') or '').strip()
+        salt = (data.get('salt') or '').strip()
+        expires_at_str = data.get('expires_at')
+        permisos = data.get('permisos') or {}
+        metadata = data.get('metadata') or {}
 
-    if not device_id or not credential_hash or not salt:
+        if not device_id or not credential_hash or not salt:
+            return JsonResponse({
+                'success': False,
+                'error': 'Datos incompletos para registrar la sesión offline.'
+            }, status=400)
+
+        expires_at = timezone.now() + timedelta(hours=72)
+        if expires_at_str:
+            try:
+                parsed = datetime.fromisoformat(str(expires_at_str).replace('Z', '+00:00'))
+                if timezone.is_naive(parsed):
+                    expires_at = timezone.make_aware(parsed, timezone.get_current_timezone())
+                else:
+                    expires_at = parsed.astimezone(timezone.get_current_timezone())
+            except (ValueError, AttributeError):
+                pass
+
+        # Derivar hash que no expone directamente el hash enviado por el cliente
+        token_material = f"{credential_hash}:{salt}:{device_id}:{usuario_maga.id}"
+        token_hash = hashlib.sha256(token_material.encode('utf-8')).hexdigest()
+
+        # Truncar campos con límite de longitud para evitar errores de base de datos
+        navegador = metadata.get('navegador') or ''
+        sistema_operativo = metadata.get('sistema_operativo') or ''
+        dispositivo_id_truncado = device_id[:100] if len(device_id) > 100 else device_id
+        
+        defaults = {
+            'token_hash': token_hash,
+            'permisos_offline': permisos,
+            'datos_cache': metadata,
+            'sesion_activa': True,
+            'expira_en': expires_at,
+            'ultima_actividad': timezone.now(),
+            'ultima_sincronizacion': timezone.now(),
+            'requiere_reautenticacion': False,
+            'navegador': navegador[:100] if navegador else None,
+            'sistema_operativo': sistema_operativo[:100] if sistema_operativo else None,
+        }
+
+        SesionOffline.objects.update_or_create(
+            usuario=usuario_maga,
+            dispositivo_id=dispositivo_id_truncado,
+            defaults=defaults
+        )
+
+        return JsonResponse({
+            'success': True,
+            'device_id': device_id,
+            'expires_at': expires_at.isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error en api_registrar_sesion_offline: {str(e)}", exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': 'Datos incompletos para registrar la sesión offline.'
-        }, status=400)
-
-    expires_at = timezone.now() + timedelta(hours=72)
-    if expires_at_str:
-        try:
-            parsed = datetime.fromisoformat(str(expires_at_str).replace('Z', '+00:00'))
-            if timezone.is_naive(parsed):
-                expires_at = timezone.make_aware(parsed, timezone.get_current_timezone())
-            else:
-                expires_at = parsed.astimezone(timezone.get_current_timezone())
-        except ValueError:
-            pass
-
-    # Derivar hash que no expone directamente el hash enviado por el cliente
-    token_material = f"{credential_hash}:{salt}:{device_id}:{usuario_maga.id}"
-    token_hash = hashlib.sha256(token_material.encode('utf-8')).hexdigest()
-
-    defaults = {
-        'token_hash': token_hash,
-        'permisos_offline': permisos,
-        'datos_cache': metadata,
-        'sesion_activa': True,
-        'expira_en': expires_at,
-        'ultima_actividad': timezone.now(),
-        'ultima_sincronizacion': timezone.now(),
-        'requiere_reautenticacion': False,
-        'navegador': metadata.get('navegador'),
-        'sistema_operativo': metadata.get('sistema_operativo'),
-    }
-
-    SesionOffline.objects.update_or_create(
-        usuario=usuario_maga,
-        dispositivo_id=device_id,
-        defaults=defaults
-    )
-
-    return JsonResponse({
-        'success': True,
-        'device_id': device_id,
-        'expires_at': expires_at.isoformat()
-    })
+            'error': f'Error al registrar sesión offline: {str(e)}'
+        }, status=500)
 
 
 @login_required

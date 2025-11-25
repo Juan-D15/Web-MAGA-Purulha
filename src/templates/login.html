@@ -152,6 +152,13 @@
        data-user-email=""
        style="display:none;"></div>
 
+  <!-- Scripts necesarios para funcionalidad offline -->
+  <script src="{% static 'js/context-loader.js' %}?v=2"></script>
+  <script src="{% static 'js/offline-db.js' %}"></script>
+  <script src="{% static 'js/offline-auth.js' %}"></script>
+  <script src="{% static 'js/offline-sync.js' %}"></script>
+  
+  <!-- Script de login (debe cargarse después de offline-auth.js) -->
   <script src="{% static 'js/login.js' %}?v=3"></script>
 </body>
 </html>

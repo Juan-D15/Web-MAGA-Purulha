@@ -256,6 +256,12 @@
     await Promise.all(
       payloads.map(async (item) => {
         try {
+          // Solo intentar registrar si hay conexión
+          if (!navigator.onLine) {
+            // Si está offline, mantener pendingRegistration pero no mostrar error
+            return;
+          }
+          
           const response = await window.fetch('/api/auth/offline/register/', {
             method: 'POST',
             headers: {
@@ -264,16 +270,33 @@
             },
             body: JSON.stringify(item.body),
           });
+          
           if (!response.ok) {
+            // Si es error 500 o similar, no es crítico para el funcionamiento offline
+            // Solo loguear en modo debug, no mostrar error al usuario
             const detail = await response.json().catch(() => ({}));
-            throw new Error(detail.error || `HTTP ${response.status}`);
+            const errorMsg = detail.error || `HTTP ${response.status}`;
+            console.log(`[OfflineAuth] No se pudo registrar sesión en servidor (no crítico): ${errorMsg}`);
+            // Mantener pendingRegistration para reintentar más tarde
+            item.credential.lastRegistrationError = errorMsg;
+            item.credential.pendingRegistration = true;
+            modified = true;
+            return;
           }
+          
           const data = await response.json().catch(() => ({}));
           item.credential.pendingRegistration = false;
           item.credential.lastRegisteredAt = new Date().toISOString();
           item.credential.serverExpiresAt = data.expires_at || null;
           modified = true;
         } catch (error) {
+          // Si es un error de red (offline), no mostrar error
+          if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            // Estamos offline, mantener pendingRegistration pero no mostrar error
+            return;
+          }
+          // Para otros errores, solo loguear en modo debug
+          console.log(`[OfflineAuth] Error al registrar sesión (no crítico): ${error.message}`);
           item.credential.lastRegistrationError = error.message;
           item.credential.pendingRegistration = true;
           modified = true;
@@ -367,6 +390,34 @@
       }
 
       saveStore(store);
+      
+      // Si se proporciona userInfo, crear sesión activa automáticamente
+      if (options.userInfo) {
+        try {
+          const userInfo = enrichUserInfo(options.userInfo, {
+            username: credential.username || identity,
+          });
+          const session = {
+            username: userInfo.username,
+            activatedAt: new Date().toISOString(),
+            expiresAt: expiresAt,
+            deviceId: store.deviceId,
+            userInfo,
+          };
+          saveActiveSession(session);
+          if (document.body && document.body.classList) {
+            document.body.classList.add('offline-session-activa');
+          }
+          // También actualizar window.USER_AUTH para que esté disponible inmediatamente
+          window.USER_AUTH = userInfo;
+          console.log('[OfflineAuth] Sesión activa creada:', { username: userInfo.username, expiresAt });
+        } catch (error) {
+          console.error('[OfflineAuth] Error al crear sesión activa:', error);
+        }
+      } else {
+        console.warn('[OfflineAuth] No se proporcionó userInfo al guardar credenciales');
+      }
+      
       return { hash, salt, expiresAt };
     },
 
@@ -480,22 +531,38 @@
     async bootstrap(userAuth) {
       const store = ensureStore();
       cleanupExpiredEntries(store);
-      if (!navigator.onLine) {
-        const active = getActiveSession();
-        if (active && active.userInfo) {
-          window.USER_AUTH = active.userInfo;
-          if (document.body && document.body.classList) {
-            document.body.classList.add('offline-session-activa');
-          }
+      
+      // Siempre verificar si hay una sesión offline activa primero
+      const active = getActiveSession();
+      if (active && active.userInfo) {
+        // Si hay sesión offline activa, usarla (incluso si navigator.onLine es true)
+        // Esto permite que el usuario siga trabajando si la conexión falla intermitentemente
+        window.USER_AUTH = active.userInfo;
+        if (document.body && document.body.classList) {
+          document.body.classList.add('offline-session-activa');
+        }
+        
+        // Si estamos online, intentar sincronizar
+        if (navigator.onLine) {
+          this.syncUserInfo(active.userInfo);
+          recordVisitedPath(window.location.pathname + window.location.search);
+          await registerPendingSessions(store);
         }
         return;
       }
+      
+      // Si no hay sesión offline activa y estamos offline, no hacer nada más
+      if (!navigator.onLine) {
+        return;
+      }
 
-      if (navigator.onLine && userAuth && userAuth.isAuthenticated) {
+      // Si estamos online y hay autenticación del servidor, sincronizar
+      if (userAuth && userAuth.isAuthenticated) {
         this.syncUserInfo(userAuth);
         recordVisitedPath(window.location.pathname + window.location.search);
         await registerPendingSessions(store);
-      } else if (navigator.onLine && (!userAuth || !userAuth.isAuthenticated)) {
+      } else if (!userAuth || !userAuth.isAuthenticated) {
+        // Solo limpiar sesión offline si estamos online y no hay autenticación del servidor
         clearActiveSession();
       }
     },
@@ -516,4 +583,5 @@
     OfflineAuth.bootstrap(null);
   }
 })(window, document);
+
 
