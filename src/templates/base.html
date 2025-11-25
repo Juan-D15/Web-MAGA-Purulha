@@ -495,6 +495,53 @@
   <script src="{% static 'js/navigation.js' %}?v=3"></script>
   <script src="{% static 'js/admin-gestiones.js' %}"></script>
   
+  <!-- Función de diagnóstico alternativa (fallback si el script externo no carga) -->
+  <script>
+    // Verificar si diagnosticoOffline existe, si no, crear una versión básica
+    if (typeof window.diagnosticoOffline === 'undefined') {
+      console.warn('⚠️ [DIAGNÓSTICO] Script offline-diagnostico.js no se cargó, usando versión básica');
+      window.diagnosticoOffline = function() {
+        console.log('========================================');
+        console.log('🔍 DIAGNÓSTICO DE MODO OFFLINE (BÁSICO)');
+        console.log('========================================\n');
+        console.log('⚠️ El script completo no se cargó. Verificando componentes básicos...\n');
+        
+        console.log('1️⃣ NAVEGADOR:');
+        console.log('  ✅ Online:', navigator.onLine);
+        console.log('  ✅ IndexedDB:', !!window.indexedDB);
+        console.log('  ✅ Service Worker:', 'serviceWorker' in navigator);
+        console.log('');
+        
+        console.log('2️⃣ SCRIPTS:');
+        console.log('  ✅ offline-db.js:', typeof window.OfflineDB !== 'undefined');
+        console.log('  ✅ offline-sync.js:', typeof window.OfflineSync !== 'undefined');
+        console.log('  ✅ offline-auth.js:', typeof window.OfflineAuth !== 'undefined');
+        console.log('');
+        
+        console.log('3️⃣ BANNER:');
+        const banner = document.getElementById('offlineBanner');
+        console.log('  ✅ Banner existe:', !!banner);
+        if (banner) {
+          console.log('  ✅ Banner visible:', banner.classList.contains('is-visible'));
+        }
+        console.log('');
+        
+        console.log('4️⃣ SERVICE WORKER:');
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            console.log('  ✅ Registrado:', regs.length > 0);
+            console.log('  ✅ Cantidad:', regs.length);
+          });
+        }
+        console.log('');
+        
+        console.log('💡 Para diagnóstico completo, verifica que offline-diagnostico.js se cargue correctamente.');
+        console.log('   Revisa la pestaña Network en DevTools para ver si el archivo se está cargando.');
+      };
+      console.log('✅ [DIAGNÓSTICO] Función básica de diagnóstico creada como fallback');
+    }
+  </script>
+  
   <!-- Registrar Service Worker para notificaciones en todas las páginas -->
   <script>
     // Registrar Service Worker para notificaciones push (funciona en todas las páginas)

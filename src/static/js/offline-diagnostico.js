@@ -4,6 +4,9 @@
 (function() {
   'use strict';
 
+  // Log de confirmación de carga
+  console.log('✅ [DIAGNÓSTICO] Script offline-diagnostico.js cargado correctamente');
+
   window.diagnosticoOffline = function() {
     console.log('========================================');
     console.log('🔍 DIAGNÓSTICO DE MODO OFFLINE');
@@ -189,6 +192,13 @@
   // Ejecutar automáticamente si estamos en modo offline
   if (typeof window !== 'undefined' && !navigator.onLine) {
     console.log('⚠️ Modo offline detectado. Ejecuta diagnosticoOffline() para verificar el estado.');
+  }
+
+  // Verificar que la función se haya asignado correctamente
+  if (typeof window.diagnosticoOffline === 'function') {
+    console.log('✅ [DIAGNÓSTICO] Función diagnosticoOffline() disponible globalmente');
+  } else {
+    console.error('❌ [DIAGNÓSTICO] ERROR: La función diagnosticoOffline() NO se asignó correctamente');
   }
 })();
 
