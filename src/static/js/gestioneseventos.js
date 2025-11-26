@@ -5065,9 +5065,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     const eventosOffline = await db.getAllProyectos();
                     if (eventosOffline && eventosOffline.length > 0) {
-                        eventosData = eventosOffline;
-                        eventosDataOriginal = [...eventosOffline];
-                        console.log('📴 Eventos cargados desde IndexedDB:', eventosOffline.length);
+                        // Filtrar eventos inválidos antes de asignar
+                        const eventosValidos = eventosOffline.filter(evento => {
+                            return evento && 
+                                   evento.id !== undefined && 
+                                   evento.id !== null && 
+                                   evento.id !== 'undefined' && 
+                                   evento.id !== 'null' &&
+                                   evento.nombre && 
+                                   evento.nombre !== 'undefined' && 
+                                   evento.nombre !== 'null' &&
+                                   typeof evento.nombre === 'string' &&
+                                   evento.nombre.trim() !== '';
+                        });
+                        eventosData = eventosValidos;
+                        eventosDataOriginal = [...eventosValidos];
+                        console.log('📴 Eventos cargados desde IndexedDB:', eventosValidos.length);
                         renderEventos();
                     } else {
                         eventosData = [];
@@ -5093,11 +5106,48 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.success) {
                     const eventosCargados = Array.isArray(data.eventos) ? data.eventos : [];
-                    eventosData = [...eventosCargados];
-                    eventosDataOriginal = [...eventosCargados]; // Guardar copia original
+                    // Filtrar eventos inválidos antes de asignar
+                    const eventosValidos = eventosCargados.filter(evento => {
+                        return evento && 
+                               evento.id !== undefined && 
+                               evento.id !== null && 
+                               evento.id !== 'undefined' && 
+                               evento.id !== 'null' &&
+                               evento.nombre && 
+                               evento.nombre !== 'undefined' && 
+                               evento.nombre !== 'null' &&
+                               typeof evento.nombre === 'string' &&
+                               evento.nombre.trim() !== '';
+                    });
+                    eventosData = [...eventosValidos];
+                    eventosDataOriginal = [...eventosValidos]; // Guardar copia original
                     
                     // Guardar eventos en IndexedDB para uso offline
                     if (db && eventosCargados.length > 0) {
+                        // Obtener IDs de eventos del servidor
+                        const idsServidor = new Set(eventosCargados.map(e => String(e.id)));
+                        
+                        // Obtener todos los eventos del IndexedDB para comparar
+                        try {
+                            const eventosIndexedDB = await db.getAllProyectos();
+                            if (eventosIndexedDB && eventosIndexedDB.length > 0) {
+                                // Eliminar del IndexedDB los eventos que ya no existen en el servidor
+                                for (const eventoDB of eventosIndexedDB) {
+                                    const idDB = String(eventoDB.id);
+                                    if (!idsServidor.has(idDB)) {
+                                        try {
+                                            await db.delete('proyectos', eventoDB.id);
+                                            console.log('🗑️ Evento eliminado del IndexedDB (ya no existe en servidor):', idDB);
+                                        } catch (error) {
+                                            console.warn('⚠️ Error al eliminar evento obsoleto del IndexedDB:', error);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('⚠️ Error al sincronizar IndexedDB:', error);
+                        }
+                        
                         // Guardar lista básica de eventos
                         eventosCargados.forEach(async (evento) => {
                             try {
@@ -5177,7 +5227,28 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Usar eventos filtrados si se proporcionan, sino usar eventosData
         const fuenteEventos = eventosAFiltrar !== null ? eventosAFiltrar : eventosData;
-        const eventosParaRenderizar = Array.isArray(fuenteEventos) ? [...fuenteEventos] : [];
+        let eventosParaRenderizar = Array.isArray(fuenteEventos) ? [...fuenteEventos] : [];
+        
+        // Filtrar eventos inválidos o con datos undefined/null
+        eventosParaRenderizar = eventosParaRenderizar.filter(evento => {
+            // Verificar que el evento sea válido y tenga al menos un id y nombre
+            if (!evento || evento === null || evento === undefined) {
+                return false;
+            }
+            // Verificar que tenga id válido (debe ser un número o string no vacío)
+            if (evento.id === undefined || evento.id === null || evento.id === 'undefined' || evento.id === 'null') {
+                return false;
+            }
+            // Verificar que tenga nombre válido (no undefined, null, o string vacío)
+            if (!evento.nombre || evento.nombre === 'undefined' || evento.nombre === 'null' || evento.nombre === undefined || evento.nombre === null) {
+                return false;
+            }
+            // Verificar que el nombre no sea solo espacios en blanco
+            if (typeof evento.nombre === 'string' && evento.nombre.trim() === '') {
+                return false;
+            }
+            return true;
+        });
 
         if (lastEditedEventId) {
             const idx = eventosParaRenderizar.findIndex(evento => String(evento.id) === String(lastEditedEventId));
@@ -5225,26 +5296,36 @@ document.addEventListener('DOMContentLoaded', function() {
             eventItem.className = 'event-item';
             eventItem.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 20px; margin-bottom: 16px; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);';
             
+            // Valores por defecto para evitar mostrar "undefined"
+            const nombreEvento = evento.nombre || 'Sin nombre';
+            const tipoEvento = evento.tipo || evento.tipo_actividad_nombre || 'Sin tipo';
+            const comunidadesTexto = evento.comunidades_resumen || evento.comunidad || 'Sin comunidades';
+            const personalNombres = evento.personal_nombres || 'Sin personal';
+            const personalCount = evento.personal_count !== undefined ? evento.personal_count : 0;
+            const beneficiariosCount = evento.beneficiarios_count !== undefined ? evento.beneficiarios_count : 0;
+            const fechaEvento = evento.fecha || 'Sin fecha';
+            const creadoEn = evento.creado_en || '';
+            
             eventItem.innerHTML = `
                 <div class="event-info" style="flex: 1;">
-                    <h3 class="event-name" style="margin: 0 0 8px 0; font-size: 1.2rem; color: #b8c5d1;">${evento.nombre}</h3>
+                    <h3 class="event-name" style="margin: 0 0 8px 0; font-size: 1.2rem; color: #b8c5d1;">${nombreEvento}</h3>
                     <p class="event-type" style="margin: 4px 0; color: #6c757d; font-size: 0.9rem;">
-                        <strong>Tipo:</strong> ${evento.tipo}
+                        <strong>Tipo:</strong> ${tipoEvento}
                     </p>
                     <p class="event-communities" style="margin: 4px 0; color: #6c757d; font-size: 0.9rem;">
-                        <strong>Comunidades:</strong> ${evento.comunidades_resumen || evento.comunidad || 'Sin comunidades'}
+                        <strong>Comunidades:</strong> ${comunidadesTexto}
                      </p>
                     <p class="event-personnel" style="margin: 4px 0; color: #6c757d; font-size: 0.9rem;">
-                        <strong>Personal:</strong> ${evento.personal_nombres} (${evento.personal_count})
+                        <strong>Personal:</strong> ${personalNombres} (${personalCount})
                     </p>
                     <p class="event-beneficiaries" style="margin: 4px 0; color: #6c757d; font-size: 0.9rem;">
-                        <strong>Beneficiarios:</strong> ${evento.beneficiarios_count}
+                        <strong>Beneficiarios:</strong> ${beneficiariosCount}
                     </p>
                     <p class="event-date" style="margin: 4px 0; color: #6c757d; font-size: 0.9rem;">
-                        <strong>Fecha:</strong> ${evento.fecha} | <strong>Estado:</strong> <span style="color: ${estadoColor}; font-weight: 600;">${estadoFormateado}</span>
+                        <strong>Fecha:</strong> ${fechaEvento} | <strong>Estado:</strong> <span style="color: ${estadoColor}; font-weight: 600;">${estadoFormateado}</span>
                     </p>
                     <p class="event-created" style="margin: 4px 0; color: #6c757d; font-size: 0.85rem;">
-                        Creado: ${evento.creado_en}
+                        ${creadoEn ? `Creado: ${creadoEn}` : ''}
                     </p>
                 </div>
                 <div class="event-actions" style="display: flex; gap: 8px; flex-direction: column; min-width: 120px;">
@@ -5381,6 +5462,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (lastEditedEventId && String(eventoId) === String(lastEditedEventId)) {
                     lastEditedEventId = null;
                     sessionStorage.removeItem('lastEditedEventId');
+                }
+                
+                // Eliminar inmediatamente del array local para evitar que aparezca como undefined
+                eventosData = eventosData.filter(e => e && e.id && String(e.id) !== String(eventoId));
+                eventosDataOriginal = eventosDataOriginal.filter(e => e && e.id && String(e.id) !== String(eventoId));
+                
+                // Eliminar el evento del IndexedDB para evitar que aparezca en modo offline
+                const db = window.OfflineDB;
+                if (db) {
+                    try {
+                        await db.delete('proyectos', eventoId);
+                        console.log('✅ Evento eliminado del IndexedDB:', eventoId);
+                    } catch (error) {
+                        console.warn('⚠️ Error al eliminar evento del IndexedDB:', error);
+                        // Continuar de todas formas, no es crítico
+                    }
                 }
                 
                 // Recargar la lista de eventos y cambios recientes

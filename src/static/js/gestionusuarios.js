@@ -30,7 +30,9 @@ let colaboradoresGestionFilterTerm = '';
 let colaboradoresGestionFilterPuesto = '';
 
 let usuarioIdParaEliminar = null;
+let usuarioActivoParaEliminar = true; // Por defecto asumimos que está activo
 let colaboradorIdParaEliminar = null;
+let colaboradorActivoParaEliminar = true; // Por defecto asumimos que está activo
 let deleteUsuarioBtnDefaultHTML = '';
 let deleteColaboradorBtnDefaultHTML = '';
 
@@ -1059,7 +1061,7 @@ function mostrarUsuarios(usuarios) {
                         </svg>
                         Editar
                     </button>
-                    <button type="button" class="btn-delete-user" data-usuario-id="${usuario.id}" data-usuario-username="${usuario.username}" style="flex: 1; padding: 8px 16px; background: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    <button type="button" class="btn-delete-user" data-usuario-id="${usuario.id}" data-usuario-username="${usuario.username}" data-usuario-activo="${usuario.activo ? 'true' : 'false'}" style="flex: 1; padding: 8px 16px; background: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1085,7 +1087,8 @@ function mostrarUsuarios(usuarios) {
         btn.addEventListener('click', (e) => {
             const usuarioId = e.currentTarget.getAttribute('data-usuario-id');
             const usuarioUsername = e.currentTarget.getAttribute('data-usuario-username');
-            confirmarEliminarUsuario(usuarioId, usuarioUsername);
+            const usuarioActivo = e.currentTarget.getAttribute('data-usuario-activo') === 'true';
+            confirmarEliminarUsuario(usuarioId, usuarioUsername, usuarioActivo);
         });
     });
 }
@@ -1422,7 +1425,7 @@ function mostrarColaboradores(colaboradores) {
                         </svg>
                         Editar
                     </button>
-                    <button type="button" class="btn-delete-colaborador" data-colaborador-id="${colab.id}" data-colaborador-nombre="${colab.nombre}" style="flex: 1; padding: 8px 16px; background: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    <button type="button" class="btn-delete-colaborador" data-colaborador-id="${colab.id}" data-colaborador-nombre="${colab.nombre}" data-colaborador-activo="${colab.activo ? 'true' : 'false'}" style="flex: 1; padding: 8px 16px; background: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1448,7 +1451,8 @@ function mostrarColaboradores(colaboradores) {
         btn.addEventListener('click', (e) => {
             const colaboradorId = e.currentTarget.getAttribute('data-colaborador-id');
             const colaboradorNombre = e.currentTarget.getAttribute('data-colaborador-nombre');
-            confirmarEliminarColaborador(colaboradorId, colaboradorNombre);
+            const colaboradorActivo = e.currentTarget.getAttribute('data-colaborador-activo') === 'true';
+            confirmarEliminarColaborador(colaboradorId, colaboradorNombre, colaboradorActivo);
         });
     });
 }
@@ -1925,7 +1929,7 @@ function resetDeleteUsuarioModalState({ clearInputs = true } = {}) {
     restoreDeleteUsuarioButton();
 }
 
-function confirmarEliminarUsuario(usuarioId, usuarioUsername) {
+function confirmarEliminarUsuario(usuarioId, usuarioUsername, usuarioActivo = true) {
     const modal = document.getElementById('deleteUsuarioModal');
     const deleteUsuarioName = document.getElementById('deleteUsuarioName');
     
@@ -1935,7 +1939,37 @@ function confirmarEliminarUsuario(usuarioId, usuarioUsername) {
     }
 
     usuarioIdParaEliminar = usuarioId;
+    usuarioActivoParaEliminar = usuarioActivo; // Guardar el estado activo
     
+    if (deleteUsuarioName) {
+        deleteUsuarioName.textContent = usuarioUsername || '';
+    }
+    
+    // Actualizar el mensaje del modal según el estado del usuario
+    const modalMessage = modal.querySelector('.modal-body p:first-of-type');
+    const modalSubmessage = modal.querySelector('.modal-body p:nth-of-type(2)');
+    
+    if (usuarioActivo) {
+        // Usuario activo: se desactivará
+        if (modalMessage) {
+            modalMessage.innerHTML = `Estás a punto de <strong>desactivar</strong> el usuario: <strong id="deleteUsuarioName">${usuarioUsername || ''}</strong>`;
+        }
+        if (modalSubmessage) {
+            modalSubmessage.textContent = 'Esta acción desactivará el usuario. Podrás eliminarlo permanentemente después.';
+            modalSubmessage.style.color = 'var(--warning-color, #ffc107)';
+        }
+    } else {
+        // Usuario inactivo: se eliminará permanentemente
+        if (modalMessage) {
+            modalMessage.innerHTML = `Estás a punto de <strong style="color: var(--danger-color, #dc3545);">ELIMINAR PERMANENTEMENTE</strong> el usuario: <strong id="deleteUsuarioName">${usuarioUsername || ''}</strong>`;
+        }
+        if (modalSubmessage) {
+            modalSubmessage.textContent = '⚠️ ADVERTENCIA: Esta acción es irreversible. El usuario será eliminado permanentemente de la base de datos.';
+            modalSubmessage.style.color = 'var(--danger-color, #dc3545)';
+        }
+    }
+    
+    // Actualizar el nombre del usuario en el elemento con id
     if (deleteUsuarioName) {
         deleteUsuarioName.textContent = usuarioUsername || '';
     }
@@ -2004,18 +2038,27 @@ async function eliminarUsuario(usuarioId = null) {
         }
 
         // Si las credenciales son correctas, proceder con la eliminación
+        // Si el usuario está inactivo, se eliminará permanentemente
+        const eliminarPermanentemente = !usuarioActivoParaEliminar;
+        
         const response = await fetch(API_URLS.eliminarUsuario(targetUsuarioId), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken(),
             },
+            body: JSON.stringify({
+                eliminar_permanentemente: eliminarPermanentemente
+            }),
         });
         
         const result = await response.json();
         
         if (result.success) {
-            mostrarMensaje('Usuario eliminado exitosamente', 'success');
+            const mensaje = eliminarPermanentemente 
+                ? 'Usuario eliminado permanentemente de la base de datos' 
+                : 'Usuario desactivado exitosamente';
+            mostrarMensaje(mensaje, 'success');
             cerrarModalEliminarUsuario();
             await cargarUsuarios();
             await cargarColaboradoresParaSelect(); // Actualizar lista de colaboradores
@@ -2042,6 +2085,7 @@ function cerrarModalEliminarUsuario({ clearInputs = true } = {}) {
     if (modal) cerrarModal(modal);
     resetDeleteUsuarioModalState({ clearInputs });
     usuarioIdParaEliminar = null;
+    usuarioActivoParaEliminar = true; // Resetear a valor por defecto
 }
 
 // =====================================================
@@ -2217,7 +2261,7 @@ function resetDeleteColaboradorModalState({ clearInputs = true } = {}) {
     restoreDeleteColaboradorButton();
 }
 
-function confirmarEliminarColaborador(colaboradorId, colaboradorNombre) {
+function confirmarEliminarColaborador(colaboradorId, colaboradorNombre, colaboradorActivo = true) {
     const modal = document.getElementById('deleteColaboradorModal');
     const deleteColaboradorName = document.getElementById('deleteColaboradorName');
     
@@ -2227,7 +2271,37 @@ function confirmarEliminarColaborador(colaboradorId, colaboradorNombre) {
     }
 
     colaboradorIdParaEliminar = colaboradorId;
+    colaboradorActivoParaEliminar = colaboradorActivo; // Guardar el estado activo
     
+    if (deleteColaboradorName) {
+        deleteColaboradorName.textContent = colaboradorNombre || '';
+    }
+    
+    // Actualizar el mensaje del modal según el estado del colaborador
+    const modalMessage = modal.querySelector('.modal-body p:first-of-type');
+    const modalSubmessage = modal.querySelector('.modal-body p:nth-of-type(2)');
+    
+    if (colaboradorActivo) {
+        // Colaborador activo: se desactivará
+        if (modalMessage) {
+            modalMessage.innerHTML = `Estás a punto de <strong>desactivar</strong> el colaborador: <strong id="deleteColaboradorName">${colaboradorNombre || ''}</strong>`;
+        }
+        if (modalSubmessage) {
+            modalSubmessage.textContent = 'Esta acción desactivará el colaborador. Podrás eliminarlo permanentemente después.';
+            modalSubmessage.style.color = 'var(--warning-color, #ffc107)';
+        }
+    } else {
+        // Colaborador inactivo: se eliminará permanentemente
+        if (modalMessage) {
+            modalMessage.innerHTML = `Estás a punto de <strong style="color: var(--danger-color, #dc3545);">ELIMINAR PERMANENTEMENTE</strong> el colaborador: <strong id="deleteColaboradorName">${colaboradorNombre || ''}</strong>`;
+        }
+        if (modalSubmessage) {
+            modalSubmessage.textContent = '⚠️ ADVERTENCIA: Esta acción es irreversible. El colaborador será eliminado permanentemente de la base de datos.';
+            modalSubmessage.style.color = 'var(--danger-color, #dc3545)';
+        }
+    }
+    
+    // Actualizar el nombre del colaborador en el elemento con id
     if (deleteColaboradorName) {
         deleteColaboradorName.textContent = colaboradorNombre || '';
     }
@@ -2296,18 +2370,27 @@ async function eliminarColaborador(colaboradorId = null) {
         }
         
         // Si las credenciales son correctas, proceder con la eliminación
+        // Si el colaborador está inactivo, se eliminará permanentemente
+        const eliminarPermanentemente = !colaboradorActivoParaEliminar;
+        
         const response = await fetch(API_URLS.eliminarColaborador(targetColaboradorId), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken(),
             },
+            body: JSON.stringify({
+                eliminar_permanentemente: eliminarPermanentemente
+            }),
         });
         
         const result = await response.json();
         
         if (result.success) {
-            mostrarMensaje('Colaborador eliminado exitosamente', 'success');
+            const mensaje = eliminarPermanentemente 
+                ? 'Colaborador eliminado permanentemente de la base de datos' 
+                : 'Colaborador desactivado exitosamente';
+            mostrarMensaje(mensaje, 'success');
             cerrarModalEliminarColaborador();
             await cargarColaboradores();
             await cargarColaboradoresParaSelect(); // Actualizar lista de colaboradores
@@ -2334,6 +2417,7 @@ function cerrarModalEliminarColaborador({ clearInputs = true } = {}) {
     if (modal) cerrarModal(modal);
     resetDeleteColaboradorModalState({ clearInputs });
     colaboradorIdParaEliminar = null;
+    colaboradorActivoParaEliminar = true; // Resetear a valor por defecto
 }
 
 // =====================================================
