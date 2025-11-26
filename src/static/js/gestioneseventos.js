@@ -5065,9 +5065,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     const eventosOffline = await db.getAllProyectos();
                     if (eventosOffline && eventosOffline.length > 0) {
-                        eventosData = eventosOffline;
-                        eventosDataOriginal = [...eventosOffline];
-                        console.log('📴 Eventos cargados desde IndexedDB:', eventosOffline.length);
+                        // Filtrar eventos inválidos antes de asignar
+                        const eventosValidos = eventosOffline.filter(evento => {
+                            return evento && 
+                                   evento.id !== undefined && 
+                                   evento.id !== null && 
+                                   evento.id !== 'undefined' && 
+                                   evento.id !== 'null' &&
+                                   evento.nombre && 
+                                   evento.nombre !== 'undefined' && 
+                                   evento.nombre !== 'null' &&
+                                   typeof evento.nombre === 'string' &&
+                                   evento.nombre.trim() !== '';
+                        });
+                        eventosData = eventosValidos;
+                        eventosDataOriginal = [...eventosValidos];
+                        console.log('📴 Eventos cargados desde IndexedDB:', eventosValidos.length);
                         renderEventos();
                     } else {
                         eventosData = [];
@@ -5093,8 +5106,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.success) {
                     const eventosCargados = Array.isArray(data.eventos) ? data.eventos : [];
-                    eventosData = [...eventosCargados];
-                    eventosDataOriginal = [...eventosCargados]; // Guardar copia original
+                    // Filtrar eventos inválidos antes de asignar
+                    const eventosValidos = eventosCargados.filter(evento => {
+                        return evento && 
+                               evento.id !== undefined && 
+                               evento.id !== null && 
+                               evento.id !== 'undefined' && 
+                               evento.id !== 'null' &&
+                               evento.nombre && 
+                               evento.nombre !== 'undefined' && 
+                               evento.nombre !== 'null' &&
+                               typeof evento.nombre === 'string' &&
+                               evento.nombre.trim() !== '';
+                    });
+                    eventosData = [...eventosValidos];
+                    eventosDataOriginal = [...eventosValidos]; // Guardar copia original
                     
                     // Guardar eventos en IndexedDB para uso offline
                     if (db && eventosCargados.length > 0) {
@@ -5209,12 +5235,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!evento || evento === null || evento === undefined) {
                 return false;
             }
-            // Verificar que tenga id válido
-            if (!evento.id && evento.id !== 0) {
+            // Verificar que tenga id válido (debe ser un número o string no vacío)
+            if (evento.id === undefined || evento.id === null || evento.id === 'undefined' || evento.id === 'null') {
                 return false;
             }
             // Verificar que tenga nombre válido (no undefined, null, o string vacío)
-            if (!evento.nombre || evento.nombre === 'undefined' || evento.nombre === 'null') {
+            if (!evento.nombre || evento.nombre === 'undefined' || evento.nombre === 'null' || evento.nombre === undefined || evento.nombre === null) {
+                return false;
+            }
+            // Verificar que el nombre no sea solo espacios en blanco
+            if (typeof evento.nombre === 'string' && evento.nombre.trim() === '') {
                 return false;
             }
             return true;
@@ -5433,6 +5463,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     lastEditedEventId = null;
                     sessionStorage.removeItem('lastEditedEventId');
                 }
+                
+                // Eliminar inmediatamente del array local para evitar que aparezca como undefined
+                eventosData = eventosData.filter(e => e && e.id && String(e.id) !== String(eventoId));
+                eventosDataOriginal = eventosDataOriginal.filter(e => e && e.id && String(e.id) !== String(eventoId));
                 
                 // Eliminar el evento del IndexedDB para evitar que aparezca en modo offline
                 const db = window.OfflineDB;
