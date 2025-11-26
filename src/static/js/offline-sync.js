@@ -1026,14 +1026,16 @@
                   headers: {
                     'Accept': 'application/json',
                   }
-                }).catch(() => {
-                  // Si el fetch falla, retornar null para que se maneje en el catch
+                }).catch((error) => {
+                  // Si el fetch falla (error de red, 502, 503, etc.), retornar null para que se maneje en el catch
+                  // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
                   return null;
                 });
                 
-                // Si es 403 o null, el usuario no tiene permisos para ver este evento, ignorar silenciosamente
-                if (!detalleResponse || detalleResponse.status === 403) {
-                  // No mostrar error, es esperado cuando no hay permisos
+                // Si es 403, 502, 503, o null, ignorar silenciosamente
+                if (!detalleResponse || detalleResponse.status === 403 || 
+                    detalleResponse.status === 502 || detalleResponse.status === 503) {
+                  // No mostrar error, es esperado cuando no hay permisos o el servidor no está disponible
                   continue;
                 }
                 
@@ -1143,7 +1145,18 @@
 
       // Sincronizar comunidades
       try {
-        const comunidadesResponse = await fetch('/api/comunidades/');
+        const comunidadesResponse = await fetch('/api/comunidades/').catch((error) => {
+          // Si el fetch falla (error de red, 502, 503, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
+          return null;
+        });
+        
+        // Si la respuesta es null o tiene error 502/503, saltar silenciosamente
+        if (!comunidadesResponse || comunidadesResponse.status === 502 || comunidadesResponse.status === 503) {
+          // No mostrar error, es esperado cuando el servidor no está disponible
+          return;
+        }
+        
         if (comunidadesResponse.ok) {
           // Verificar Content-Type antes de parsear JSON
           const contentType = comunidadesResponse.headers.get('content-type');
@@ -1181,7 +1194,18 @@
 
       // Sincronizar regiones
       try {
-        const regionesResponse = await fetch('/api/regiones/');
+        const regionesResponse = await fetch('/api/regiones/').catch((error) => {
+          // Si el fetch falla (error de red, 502, 503, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
+          return null;
+        });
+        
+        // Si la respuesta es null o tiene error 502/503, saltar silenciosamente
+        if (!regionesResponse || regionesResponse.status === 502 || regionesResponse.status === 503) {
+          // No mostrar error, es esperado cuando el servidor no está disponible
+          return;
+        }
+        
         if (regionesResponse.ok) {
           // Verificar Content-Type antes de parsear JSON
           const contentType = regionesResponse.headers.get('content-type');
@@ -1220,7 +1244,18 @@
 
       // Sincronizar personal/colaboradores
       try {
-        const personalResponse = await fetch('/api/personal/');
+        const personalResponse = await fetch('/api/personal/').catch((error) => {
+          // Si el fetch falla (error de red, 502, 503, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
+          return null;
+        });
+        
+        // Si la respuesta es null o tiene error 502/503, saltar silenciosamente
+        if (!personalResponse || personalResponse.status === 502 || personalResponse.status === 503) {
+          // No mostrar error, es esperado cuando el servidor no está disponible
+          return;
+        }
+        
         if (personalResponse.ok) {
           // Verificar Content-Type antes de parsear JSON
           const contentType = personalResponse.headers.get('content-type');
