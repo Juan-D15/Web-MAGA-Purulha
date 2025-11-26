@@ -21,6 +21,7 @@ from .models import (
     RegionGaleria,
     TipoActividad,
     TipoComunidad,
+    TipoBeneficiario,
     Usuario,
     Beneficiario,
     Puesto,
@@ -361,6 +362,24 @@ def preguntas_frecuentes(request):
     return render(request, 'preguntas-frecuentes.html', context)
 
 
+@login_required(login_url='webmaga:login')
+def beneficiarios(request):
+    """Vista de gestión de beneficiarios - REQUIERE: Usuario autenticado (admin o personal)"""
+    usuario_maga = get_usuario_maga(request.user)
+    
+    if not usuario_maga:
+        messages.error(request, 'No se encontró tu información de usuario.')
+        return redirect('webmaga:login')
+    
+    context = {
+        'usuario_maga': usuario_maga,
+        'tipos_beneficiario': TipoBeneficiario.objects.all(),
+        'regiones': Region.objects.all().order_by('codigo'),
+        'comunidades': Comunidad.objects.filter(activo=True).select_related('region', 'tipo').order_by('nombre'),
+    }
+    return render(request, 'beneficiarios.html', context)
+
+
 __all__ = [
     'index',
     'comunidades',
@@ -377,5 +396,6 @@ __all__ = [
     'perfilusuario',
     'configgeneral',
     'preguntas_frecuentes',
+    'beneficiarios',
 ]
 

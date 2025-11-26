@@ -71,12 +71,12 @@
           <a class="nav__link {% block nav_inicio %}{% endblock %}" href="{% url 'webmaga:index' %}">Inicio</a>
           <a class="nav__link {% block nav_mapa %}{% endblock %}" href="{% url 'webmaga:mapa-completo' %}">Mapa</a>
 
-          <!-- Proyectos Activos -->
+          <!-- Proyectos -->
           <div class="dd">
             <button class="dd__btn nav__link" aria-haspopup="true" aria-expanded="false">
-              Proyectos Activos <span class="chev" aria-hidden="true"></span>
+              Proyectos <span class="chev" aria-hidden="true"></span>
             </button>
-            <div class="dd__panel" role="menu" aria-label="Proyectos Activos">
+            <div class="dd__panel" role="menu" aria-label="Proyectos">
               <div class="dd__section">
                 <div class="dd__grid">
                   <a class="dd__item" href="{% url 'webmaga:proyectos' %}" role="menuitem" tabindex="0">Ver Todos</a>
@@ -130,6 +130,11 @@
               </div>
             </div>
           </div>
+
+          <!-- Beneficiarios (Solo para usuarios logueados) -->
+          {% if user.is_authenticated %}
+          <a class="nav__link {% block nav_beneficiarios %}{% endblock %}" href="{% url 'webmaga:beneficiarios' %}">BENEFICIARIOS</a>
+          {% endif %}
         </div>
 
         <!-- Buscador principal (permanece en móvil) - Busca PROYECTOS -->
@@ -255,7 +260,7 @@
 
         <div class="ddm">
           <button class="ddm__btn" aria-expanded="false">
-            Proyectos Activos <span class="car"></span>
+            Proyectos <span class="car"></span>
           </button>
           <div class="ddm__panel">
             <a href="{% url 'webmaga:proyectos' %}" class="ddm__item">Ver Todos</a>
@@ -298,6 +303,11 @@
             <a href="{% url 'webmaga:regiones' %}" class="ddm__item">Ver Regiones</a>
           </div>
         </div>
+
+        <!-- Beneficiarios Móvil (Solo para usuarios logueados) -->
+        {% if user.is_authenticated %}
+        <a href="{% url 'webmaga:beneficiarios' %}" class="drawer__link">BENEFICIARIOS</a>
+        {% endif %}
 
         <!-- Usuario en móvil -->
         <div class="ddm" id="mobileUserMenu">

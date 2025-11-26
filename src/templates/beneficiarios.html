@@ -1,0 +1,723 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Gestión de Beneficiarios — MAGA Purulhá{% endblock %}
+{% block extra_css %}
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/beneficiarios.css' %}?v=1">
+  <link rel="stylesheet" href="{% static 'css/gestioneseventos.css' %}?v=14">
+  <link rel="stylesheet" href="{% static 'css/login-modal.css' %}">
+{% endblock %}
+{% block nav_beneficiarios %}active{% endblock %}
+{% block content %}
+  <!-- ======= MAIN CONTENT ======= -->
+  <main class="beneficiarios-main">
+    <div class="beneficiarios-container">
+      <!-- Vista Principal con Botones -->
+      <div id="mainView" class="main-view">
+        <div class="view-header">
+          <h2 class="view-title">Gestión de Beneficiarios</h2>
+          <p class="view-subtitle">Administra y gestiona los beneficiarios del sistema</p>
+        </div>
+
+        <div class="main-cards">
+          <div class="main-card" id="addBeneficiaryCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="8.5" cy="7" r="4"></circle>
+                <line x1="20" y1="8" x2="20" y2="14"></line>
+                <line x1="23" y1="11" x2="17" y2="11"></line>
+              </svg>
+            </div>
+            <h3 class="card-title">Agregar Beneficiario</h3>
+            <p class="card-description">Registra nuevos beneficiarios en el sistema o agrégalos a proyectos existentes</p>
+            <button type="button" class="card-button" id="openAddBeneficiaryBtn">
+              <span>Agregar Nuevo</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="main-card" id="listBeneficiariesCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+            </div>
+            <h3 class="card-title">Listado de Beneficiarios</h3>
+            <p class="card-description">Consulta, filtra y gestiona todos los beneficiarios registrados en el sistema</p>
+            <button type="button" class="card-button" id="openListBeneficiariesBtn">
+              <span>Ver Listado</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Botón de Importar desde Excel -->
+        <div style="margin-top: 32px; padding-top: 32px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <button type="button" class="action-button" id="openImportExcelBtn" style="width: 100%; max-width: 500px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Importar Beneficiarios desde Excel</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Vista de Agregar Beneficiario -->
+      <div id="addBeneficiaryView" class="add-beneficiary-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromAddBeneficiaryBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Agregar Beneficiario</h2>
+        </div>
+
+        <div class="form-container">
+          <div class="benef-mode-toggle" style="display:flex; gap:8px; margin-bottom:16px;">
+            <button type="button" class="benef-mode-btn active" data-mode="nuevo" style="flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(76, 175, 80, 0.2); color:#ffffff; font-weight:700; cursor:pointer;">Registrar nuevo</button>
+            <button type="button" class="benef-mode-btn" data-mode="existente" style="flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#ffffff; font-weight:700; cursor:pointer;">Buscar existente</button>
+          </div>
+
+        <div id="benef_nuevo_section">
+        <form id="beneficiaryForm">
+              <!-- Campos del formulario (se ocultan cuando se activa Excel) -->
+              <div id="formFieldsContainer">
+              <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                  <label for="benef_region_select" class="form-label">Región *</label>
+                  <select id="benef_region_select" class="form-select" required>
+                    <option value="">Seleccione una región</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                  <label for="benef_comunidad_select" class="form-label">Comunidad *</label>
+                  <select id="benef_comunidad_select" class="form-select" required>
+                    <option value="">Seleccione una comunidad</option>
+                  </select>
+                  <small style="color: #6c757d;">Selecciona la comunidad a la que pertenece el beneficiario.</small>
+                </div>
+              </div>
+              
+              <!-- Buscador de catálogo (similar a gestioneseventos.html) -->
+              <div class="form-group">
+                <label for="benef_nuevo_catalog_input" class="form-label">Buscar Comunidad o Región</label>
+                <div class="beneficiaries-search-container" style="margin-bottom: 0;">
+                  <div class="beneficiaries-search-wrapper">
+                    <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" id="benef_nuevo_catalog_input" class="beneficiaries-search-input" placeholder="Ej: Barrio Las Moras o Región 1" autocomplete="off">
+                    <button type="button" id="benef_nuevo_catalog_clear" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                    <ul id="benef_nuevo_catalog_suggestions" class="input-suggestions"></ul>
+                  </div>
+                </div>
+                <small style="color: #6c757d;">Escribe para buscar y seleccionar una comunidad o región. Al seleccionar una comunidad, se actualizará automáticamente la región.</small>
+              </div>
+
+              <!-- Campos para Individual -->
+              <div id="campos_individual" style="display: none;">
+                <div class="form-group">
+                  <label for="benef_ind_nombre" class="form-label">Nombre *</label>
+                  <input type="text" id="benef_ind_nombre" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Juan" required>
+                  <small style="color: #6c757d;">Solo letras y espacios</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_apellido" class="form-label">Apellido *</label>
+                  <input type="text" id="benef_ind_apellido" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Pérez García" required>
+                  <small style="color: #6c757d;">Solo letras y espacios</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_dpi" class="form-label">DPI</label>
+                  <input type="text" id="benef_ind_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 1234567890101">
+                  <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_fecha_nac" class="form-label">
+                    Fecha de Nacimiento
+                    <span id="benef_ind_edad_display" style="color: #6c757d; font-weight: normal; margin-left: 8px;"></span>
+                  </label>
+                  <input type="date" id="benef_ind_fecha_nac" class="form-input">
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_edad" class="form-label">Edad</label>
+                  <input type="number" id="benef_ind_edad" class="form-input" min="0" max="150" placeholder="Ej: 25" style="-moz-appearance: textfield;">
+                  <small style="color: #6c757d;">Solo números</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_genero" class="form-label">Género *</label>
+                  <select id="benef_ind_genero" class="form-select" required>
+                    <option value="">Seleccione</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="femenino">Femenino</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_telefono" class="form-label">Teléfono</label>
+                  <input type="tel" id="benef_ind_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55123456">
+                  <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
+                </div>
+              </div>
+
+              <!-- Campos para Familia -->
+              <div id="campos_familia" style="display: none;">
+                <div class="form-group">
+                  <label for="benef_fam_nombre" class="form-label">Nombre de la Familia *</label>
+                  <input type="text" id="benef_fam_nombre" class="form-input" placeholder="Ej: Familia González" required>
+                </div>
+                <div class="form-group">
+                  <label for="benef_fam_jefe" class="form-label">Jefe de Familia *</label>
+                  <input type="text" id="benef_fam_jefe" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Pedro González Ramírez" required>
+                  <small style="color: #6c757d;">Solo letras y espacios</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_fam_dpi" class="form-label">DPI del Jefe de Familia</label>
+                  <input type="text" id="benef_fam_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 4567890123104">
+                  <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_fam_telefono" class="form-label">Teléfono</label>
+                  <input type="tel" id="benef_fam_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55456789">
+                  <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_fam_miembros" class="form-label">Número de Miembros *</label>
+                  <input type="number" id="benef_fam_miembros" class="form-input" min="1" max="999" placeholder="Ej: 5" required>
+                  <small style="color: #6c757d;">Número positivo (máximo 999)</small>
+                </div>
+              </div>
+
+              <!-- Campos para Institución -->
+              <div id="campos_institucion" style="display: none;">
+                <div class="form-group">
+                  <label for="benef_inst_nombre" class="form-label">Nombre de la Institución *</label>
+                  <input type="text" id="benef_inst_nombre" class="form-input" placeholder="Ej: Escuela Rural Mixta" required>
+                </div>
+                <div class="form-group">
+                  <label for="benef_inst_tipo" class="form-label">Tipo de Institución *</label>
+                  <select id="benef_inst_tipo" class="form-select">
+                    <option value="">Seleccione</option>
+                    <option value="escuela">Escuela</option>
+                    <option value="cooperativa">Cooperativa</option>
+                    <option value="asociación">Asociación</option>
+                    <option value="ONG">ONG</option>
+                    <option value="iglesia">Iglesia</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="benef_inst_representante" class="form-label">Representante Legal *</label>
+                  <input type="text" id="benef_inst_representante" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Carmen Ramírez" required>
+                  <small style="color: #6c757d;">Solo letras y espacios</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_inst_dpi_rep" class="form-label">DPI del Representante</label>
+                  <input type="text" id="benef_inst_dpi_rep" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 7890123456107">
+                  <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_inst_telefono" class="form-label">Teléfono</label>
+                  <input type="tel" id="benef_inst_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55789012">
+                  <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_inst_email" class="form-label">Email</label>
+                  <input type="email" id="benef_inst_email" class="form-input" pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" placeholder="Ej: contacto@institucion.org">
+                  <small style="color: #6c757d;">Formato: ejemplo@dominio.com</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_inst_num_beneficiarios" class="form-label">Número de Beneficiarios Directos *</label>
+                  <input type="number" id="benef_inst_num_beneficiarios" class="form-input" min="1" max="99999" placeholder="Ej: 150" required>
+                  <small style="color: #6c757d;">Número positivo (máximo 99999)</small>
+                </div>
+              </div>
+
+              <!-- Campos para Otro -->
+              <div id="campos_otro" style="display: none;">
+                <div class="form-group">
+                  <label for="benef_otro_nombre" class="form-label">Nombre/Descripción *</label>
+                  <input type="text" id="benef_otro_nombre" class="form-input" placeholder="Ej: Grupo Comunitario" required>
+                </div>
+                <div class="form-group">
+                  <label for="benef_otro_tipo_desc" class="form-label">Especifique el Tipo *</label>
+                  <input type="text" id="benef_otro_tipo_desc" class="form-input" placeholder="Ej: Grupo juvenil, Comité local, etc." required>
+                </div>
+                <div class="form-group">
+                  <label for="benef_otro_contacto" class="form-label">Persona de Contacto *</label>
+                  <input type="text" id="benef_otro_contacto" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Nombre del responsable" required>
+                  <small style="color: #6c757d;">Solo letras y espacios</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_otro_telefono" class="form-label">Teléfono</label>
+                  <input type="tel" id="benef_otro_telefono" class="form-input" maxlength="8" pattern="[0-9]{8}" placeholder="Ej: 55901234">
+                  <small style="color: #6c757d;">Debe tener exactamente 8 números</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_otro_descripcion" class="form-label">Descripción Adicional *</label>
+                  <textarea id="benef_otro_descripcion" class="form-textarea" rows="3" placeholder="Información adicional sobre este beneficiario" required></textarea>
+                </div>
+              </div>
+              </div>
+              <!-- Fin de campos del formulario -->
+
+              <!-- Tipo de Beneficiario (siempre visible) -->
+              <div class="form-group">
+                <label for="benef_tipo" class="form-label">Tipo de Beneficiario *</label>
+                <select id="benef_tipo" class="form-select" required>
+                  <option value="">Seleccione un tipo</option>
+                  <option value="individual">Individual</option>
+                  <option value="familia">Familia</option>
+                  <option value="institución">Institución</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+
+              <!-- Toggle para Importar desde Excel (solo para tipo individual) -->
+              <div id="excel_toggle_section" class="form-group" style="display: none;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <input type="checkbox" id="useExcelImportCheckbox" style="width: 18px; height: 18px; cursor: pointer;">
+                  <span>Importar beneficiarios desde archivo Excel</span>
+                </label>
+                <small style="color: #6c757d; display: block; margin-top: 4px;">Al activar esta opción, se ocultarán los campos del formulario y podrás importar múltiples beneficiarios desde un archivo Excel.</small>
+              </div>
+
+              <!-- Importar datos de Excel (solo para tipo individual) -->
+              <div id="excel_import_section" class="form-group" style="display: none;">
+                <label class="form-label">Importar datos de Excel</label>
+                <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ffc107;">
+                      <path d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <strong style="color: #ffc107;">Importante:</strong>
+                  </div>
+                  <p style="color: #b8c5d1; font-size: 0.9rem; margin: 0 0 12px 0; line-height: 1.5;">
+                    El archivo Excel debe seguir la plantilla oficial para que la importación funcione correctamente. 
+                    Descarga la plantilla antes de completar tu archivo.
+                  </p>
+                  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button type="button" id="downloadTemplateBtn" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 0.9rem;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                      Obtener Plantilla
+                    </button>
+                  </div>
+                </div>
+                <div class="file-upload" style="margin-top: 12px;">
+                  <input type="file" id="excelFileInput" accept=".xlsx,.xls" class="file-input">
+                  <label for="excelFileInput" class="file-label" style="flex-direction: column; gap: 6px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>Seleccionar archivo Excel (.xlsx o .xls)</span>
+                    <small style="color: #6c757d;">Solo archivos Excel con la plantilla correcta</small>
+                  </label>
+                </div>
+                <div id="excelFileInfo" style="display: none; margin-top: 12px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #007bff;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                      </svg>
+                      <span id="excelFileName" style="color: #ffffff; font-weight: 500;"></span>
+                    </div>
+                    <button type="button" id="removeExcelFileBtn" class="btn-danger" style="padding: 6px 12px; font-size: 0.85rem;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div id="excelImportStatus" style="display: none; margin-top: 12px;"></div>
+                <div id="excelPendingActions" style="display: none; margin-top: 16px; padding: 16px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+                  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                    <div style="flex: 1; min-width: 200px;">
+                      <p style="margin: 0 0 4px 0; color: #ffffff; font-weight: 600; font-size: 0.95rem;">
+                        Beneficiarios listos para agregar
+                      </p>
+                      <p style="margin: 0; color: #b8c5d1; font-size: 0.85rem;">
+                        <span id="excelPendingCount">0</span> beneficiario(s) en espera
+                      </p>
+                    </div>
+                    <div style="color: #b8c5d1; font-size: 0.85rem; padding: 8px 0;">
+                      <p style="margin: 0;">Los beneficiarios se guardarán cuando presiones el botón "Guardar Beneficiario" al final del formulario.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Opción: Agregar beneficiario a un proyecto (siempre visible) -->
+              <div class="form-group" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                  <input type="checkbox" id="addToProjectCheckbox" style="width: 18px; height: 18px; cursor: pointer;">
+                  <span>Agregar beneficiario a un proyecto</span>
+                </label>
+                <div id="projectSelectionSection" style="display: none; margin-top: 16px;">
+                  <div class="form-group">
+                    <label for="projectSearchInput" class="form-label">Buscar Proyecto</label>
+                    <div class="beneficiaries-search-container">
+                      <div class="beneficiaries-search-wrapper">
+                        <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <input type="text" id="projectSearchInput" class="beneficiaries-search-input" placeholder="Buscar proyecto por nombre..." autocomplete="off">
+                        <button type="button" id="projectSearchClearBtn" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Proyectos Disponibles</label>
+                    <div id="projectsChecklist" style="max-height: 300px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.03);">
+                      <div style="text-align: center; padding: 20px; color: #6c757d;">
+                        <p>Cargando proyectos...</p>
+                      </div>
+                    </div>
+                    <div id="selectedProjectsContainer" style="margin-top: 12px; padding: 10px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+                      <span class="selected-count" style="color: #007bff; font-weight: 600; font-size: 0.9rem;">0 proyectos seleccionados</span>
+                    </div>
+                    <small style="color: #6c757d; margin-top: 8px; display: block;">Solo se muestran los proyectos a los que tienes acceso</small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Botones de acción (siempre visibles) -->
+              <div class="form-actions" style="margin-top: 32px; display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" id="cancelBeneficiaryBtn" class="btn-secondary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                  Cancelar
+                </button>
+                <button type="button" id="saveBeneficiaryBtn" class="btn-primary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  Guardar Beneficiario
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div id="benef_existente_section" style="display:none;">
+            <div class="form-group" style="display: grid; gap: 14px;">
+              <label class="form-label" style="margin-bottom: 0;">Filtros de búsqueda</label>
+              <div style="display: grid; gap: 10px;">
+                <div class="suggestions-wrapper">
+                  <label for="benef_search_catalog_input" class="form-label">Buscar comunidad o región</label>
+                  <input type="text" id="benef_search_catalog_input" class="form-input form-input-suggestive" placeholder="Ej: Barrio Las Moras o Región 1" autocomplete="off" style="width: 100%;">
+                  <ul id="benef_search_catalog_suggestions" class="input-suggestions"></ul>
+                </div>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  <div style="flex: 1 1 220px;">
+                    <label for="benef_search_region" class="form-label">Región</label>
+                    <select id="benef_search_region" class="form-select">
+                      <option value="">Todas las regiones</option>
+                    </select>
+                  </div>
+                  <div style="flex: 1 1 220px;">
+                    <label for="benef_search_comunidad" class="form-label">Comunidad</label>
+                    <select id="benef_search_comunidad" class="form-select">
+                      <option value="">Todas las comunidades</option>
+                    </select>
+                  </div>
+                  <div style="flex: 1 1 220px;">
+                    <label for="benef_search_tipo" class="form-label">Tipo de beneficiario</label>
+                    <select id="benef_search_tipo" class="form-select">
+                      <option value="">Todos los tipos</option>
+                      <option value="individual">Individual</option>
+                      <option value="familia">Familia</option>
+                      <option value="institución">Institución</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label for="benef_search_input" class="form-label">Buscar beneficiario</label>
+                  <input type="text" id="benef_search_input" class="form-input" placeholder="Ingresa nombre, DPI, comunidad o tipo... (opcional)">
+                </div>
+              </div>
+              <small style="color:#b8c5d1;">Puedes combinar filtros o escribir en el buscador para refinar los resultados.</small>
+            </div>
+            <div id="benef_search_status" style="display:none; color:#b8c5d1; font-size:0.9rem; margin-bottom:10px;"></div>
+            <div id="benef_search_results" class="benef-search-results" style="display:grid; gap:10px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista de Listado de Beneficiarios -->
+      <div id="listBeneficiariesView" class="list-beneficiaries-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromListBeneficiariesBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Listado de Beneficiarios</h2>
+        </div>
+
+        <!-- Panel de Filtros -->
+        <div class="filters-panel">
+          <div class="filters-header">
+            <h3 class="filters-title">Filtros</h3>
+            <button class="filters-toggle" id="filtersToggle">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="18 15 12 9 6 15"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div class="filters-content" id="filtersContent">
+            <div class="filters-grid">
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Tipo de Beneficiario</label>
+                <div class="filter-checkboxes" id="filterTipoBeneficiario">
+                  <label><input type="checkbox" value="individual" checked> Individual</label>
+                  <label><input type="checkbox" value="familia" checked> Familia</label>
+                  <label><input type="checkbox" value="institución" checked> Institución</label>
+                  <label><input type="checkbox" value="otro" checked> Otro</label>
+                </div>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Buscar Comunidad o Región</label>
+                <div id="selectedComunidadesTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="beneficiaries-search-container" style="margin-bottom: 0;">
+                  <div class="beneficiaries-search-wrapper">
+                    <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" id="searchComunidadListado" class="beneficiaries-search-input" placeholder="Ej: Barrio Las Moras o Región 1" autocomplete="off">
+                    <button type="button" id="searchComunidadListadoClear" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                    <ul id="searchComunidadListadoSuggestions" class="input-suggestions"></ul>
+                  </div>
+                </div>
+                <small style="color: #6c757d; display: block; margin-top: 8px;">Escribe para buscar y seleccionar una comunidad o región.</small>
+              </div>
+              
+              <div class="filter-group filter-group-full">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                  <label class="filter-label" style="margin-bottom: 0;">Filtrar por Evento</label>
+                  <span class="toggle-icon" id="toggleIconEventosListado" style="cursor: pointer;" onclick="toggleChecklistBeneficiarios('eventosListado')">▶</span>
+                </div>
+                <div id="selectedEventosListadoTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                <div class="search-input-container" style="margin-bottom: 12px;">
+                  <input type="text" class="filter-input filter-search" id="searchEventoListado" placeholder="Buscar evento...">
+                </div>
+                <div id="eventosListadoContainer" style="display: none;">
+                  <div class="filter-checkboxes" id="filterEventosListado" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="filters-actions">
+              <button class="btn-secondary" id="resetFiltersBtn">Limpiar Filtros</button>
+              <button class="btn-primary" id="applyFiltersBtn">Aplicar Filtros</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buscador y Ordenamiento -->
+        <div class="list-controls">
+          <div class="search-control">
+            <div class="beneficiaries-search-container">
+              <div class="beneficiaries-search-wrapper">
+                <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" id="beneficiariesListSearch" class="beneficiaries-search-input" placeholder="Buscar por nombre, DPI o teléfono...">
+                <button type="button" id="beneficiariesListSearchClear" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="sort-control">
+            <label for="sortBeneficiaries" class="form-label">Ordenar por:</label>
+            <select id="sortBeneficiaries" class="form-select">
+              <option value="reciente">Más reciente</option>
+              <option value="alfabetico">Alfabético</option>
+              <option value="comunidad">Por Comunidad</option>
+              <option value="actividad">Por Actividad</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Resultados -->
+        <div class="results-content">
+          <div class="results-header-info">
+            <span id="beneficiariesCount" class="results-count">0 beneficiarios encontrados</span>
+          </div>
+          <div class="results-container" id="beneficiariesList">
+            <div class="loading-state">
+              <div class="spinner"></div>
+              <p>Cargando beneficiarios...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal para Ver Detalles del Beneficiario -->
+  <div id="beneficiaryDetailsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Detalles del Beneficiario</h3>
+        <button class="modal-close" id="closeBeneficiaryDetailsModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <div id="beneficiaryDetailsContent">
+          <div style="text-align: center; padding: 40px; color: #6c757d;">
+            <div class="spinner" style="border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+            <p>Cargando detalles del beneficiario...</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="closeBeneficiaryDetailsBtn" class="btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Importar Beneficiarios desde Excel -->
+  <div id="importExcelModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Importar Beneficiarios desde Archivo Excel</h3>
+        <button class="modal-close" id="closeImportExcelModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Importar datos de Excel</label>
+          <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ffc107;">
+                <path d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <strong style="color: #ffc107;">Importante</strong>
+            </div>
+            <p style="margin: 0; color: #b8c5d1; font-size: 0.9rem; line-height: 1.5;">
+              El archivo Excel debe seguir la plantilla correcta para que la importación funcione. 
+              Descarga la plantilla antes de completar tus datos.
+            </p>
+            <button type="button" id="downloadTemplateBtnGeneral" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 0.9rem; margin-top: 12px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Obtener Plantilla
+            </button>
+          </div>
+          <div class="file-upload" style="margin-top: 12px;">
+            <input type="file" id="excelFileInputGeneral" accept=".xlsx,.xls" class="file-input">
+            <label for="excelFileInputGeneral" class="file-label" style="flex-direction: column; gap: 6px;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #6c757d;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span style="color: #6c757d; font-size: 0.9rem;">Haz clic para seleccionar archivo Excel</span>
+              <span style="color: #6c757d; font-size: 0.85rem;">Formatos soportados: .xlsx, .xls</span>
+            </label>
+          </div>
+          <div id="excelFileInfoGeneral" style="display: none; margin-top: 12px; padding: 12px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #007bff;">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+                <span id="excelFileNameGeneral" style="color: #007bff; font-weight: 500;"></span>
+              </div>
+              <button type="button" id="removeExcelFileBtnGeneral" style="background: none; border: none; color: #dc3545; cursor: pointer; padding: 4px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="excelImportStatusGeneral" style="display: none; margin-top: 12px;"></div>
+          <div id="excelPendingActionsGeneral" style="display: none; margin-top: 16px; padding: 16px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+              <div style="flex: 1; min-width: 200px;">
+                <p style="margin: 0 0 4px 0; color: #ffffff; font-weight: 600; font-size: 0.95rem;">
+                  Beneficiarios listos para agregar
+                </p>
+                <p style="margin: 0; color: #b8c5d1; font-size: 0.85rem;">
+                  <span id="excelPendingCountGeneral">0</span> beneficiario(s) en espera
+                </p>
+              </div>
+              <button type="button" id="ingresarBeneficiariosBDGeneralBtn" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-size: 0.9rem; white-space: nowrap;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                Añadir Beneficiarios a la Base de Datos General
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/beneficiarios.js' %}?v=1"></script>
+{% endblock %}
+

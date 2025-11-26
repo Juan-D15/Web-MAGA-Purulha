@@ -96,6 +96,7 @@ from .views_pages import (
     logout_view,
     reportes_index,
     perfilusuario,
+    beneficiarios,
 )
 
 
@@ -2504,12 +2505,28 @@ def api_listar_beneficiarios(request):
     """API: Listar beneficiarios disponibles
     - Sin búsqueda: Retorna los primeros 50 (para carga inicial rápida)
     - Con búsqueda: SIN LÍMITE - busca en TODA la base de datos
+    Soporta filtros: q (búsqueda), region_id, comunidad_id, tipo
     """
     search = (request.GET.get('q') or '').strip()
+    region_id = request.GET.get('region_id')
+    comunidad_id = request.GET.get('comunidad_id')
+    tipo = request.GET.get('tipo')
 
     beneficiarios = Beneficiario.objects.filter(activo=True).select_related(
-        'tipo', 'comunidad'
+        'tipo', 'comunidad', 'comunidad__region'
     ).prefetch_related('individual', 'familia', 'institucion')
+
+    # Filtro por región
+    if region_id:
+        beneficiarios = beneficiarios.filter(comunidad__region_id=region_id)
+
+    # Filtro por comunidad
+    if comunidad_id:
+        beneficiarios = beneficiarios.filter(comunidad_id=comunidad_id)
+
+    # Filtro por tipo
+    if tipo:
+        beneficiarios = beneficiarios.filter(tipo__nombre=tipo)
 
     if search:
         # Con búsqueda: Buscar en TODA la base de datos sin límites
@@ -2602,6 +2619,466 @@ def api_obtener_beneficiario(request, beneficiario_id):
         return JsonResponse({
             'success': False,
             'error': f'Error al obtener beneficiario: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_listar_beneficiarios_completo(request):
+    """API: Listar todos los beneficiarios con sus proyectos vinculados para el módulo de beneficiarios"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Obtener todos los beneficiarios activos
+        beneficiarios = Beneficiario.objects.filter(activo=True).select_related(
+            'tipo', 'comunidad', 'comunidad__region'
+        ).prefetch_related(
+            'individual', 'familia', 'institucion',
+            Prefetch(
+                'actividades',  # related_name en ActividadBeneficiario es 'actividades'
+                queryset=ActividadBeneficiario.objects.select_related('actividad', 'actividad__tipo').filter(
+                    actividad__eliminado_en__isnull=True
+                ),
+                to_attr='actividades_prefetch'
+            )
+        ).order_by('-creado_en')
+        
+        beneficiarios_list = []
+        for ben in beneficiarios:
+            nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(ben)
+            
+            # Obtener proyectos/actividades vinculadas
+            proyectos = []
+            for ab in ben.actividades_prefetch:
+                proyectos.append({
+                    'id': str(ab.actividad.id),
+                    'nombre': ab.actividad.nombre,
+                    'fecha': ab.actividad.fecha.isoformat() if ab.actividad.fecha else None,
+                    'tipo': ab.actividad.tipo.nombre if ab.actividad.tipo else None
+                })
+            
+            beneficiarios_list.append({
+                'id': str(ben.id),
+                'nombre': nombre_display,
+                'tipo': tipo_envio,
+                'tipo_display': tipo_envio.title() if tipo_envio else '',
+                'comunidad_id': str(ben.comunidad_id) if ben.comunidad_id else None,
+                'comunidad_nombre': ben.comunidad.nombre if ben.comunidad else None,
+                'region_id': str(ben.comunidad.region_id) if ben.comunidad and ben.comunidad.region_id else None,
+                'region_nombre': ben.comunidad.region.nombre if ben.comunidad and ben.comunidad.region else None,
+                'detalles': detalles,
+                'proyectos': proyectos,
+                'creado_en': ben.creado_en.isoformat() if ben.creado_en else None,
+                'actualizado_en': ben.actualizado_en.isoformat() if ben.actualizado_en else None
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'beneficiarios': beneficiarios_list
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al listar beneficiarios: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_beneficiario_proyectos(request, beneficiario_id):
+    """API: Obtener proyectos/actividades vinculadas a un beneficiario"""
+    try:
+        beneficiario = Beneficiario.objects.filter(
+            id=beneficiario_id, activo=True
+        ).first()
+        
+        if not beneficiario:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        actividades = Actividad.objects.filter(
+            actividad_beneficiarios__beneficiario=beneficiario,
+            eliminado_en__isnull=True
+        ).select_related('tipo').order_by('-fecha')
+        
+        proyectos = []
+        for actividad in actividades:
+            proyectos.append({
+                'id': str(actividad.id),
+                'nombre': actividad.nombre,
+                'fecha': actividad.fecha.isoformat() if actividad.fecha else None,
+                'tipo': actividad.tipo.nombre if actividad.tipo else None
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'proyectos': proyectos
+        })
+    
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener proyectos: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_proyectos_usuario(request):
+    """API: Obtener proyectos/actividades accesibles al usuario actual"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        is_admin = usuario_maga.rol == 'admin'
+        colaborador_usuario_id = None
+        
+        if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+            colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        
+        # Si es admin, mostrar todos los eventos
+        if is_admin:
+            actividades = Actividad.objects.filter(
+                eliminado_en__isnull=True
+            ).select_related('tipo', 'comunidad').order_by('-creado_en')[:500]
+        else:
+            # Si no es admin, solo mostrar eventos donde el colaborador del usuario está asignado
+            if colaborador_usuario_id:
+                actividades = Actividad.objects.filter(
+                    eliminado_en__isnull=True,
+                    personal__colaborador_id=colaborador_usuario_id
+                ).distinct().select_related('tipo', 'comunidad').order_by('-creado_en')[:500]
+            else:
+                # Si no tiene colaborador vinculado, no mostrar eventos
+                actividades = Actividad.objects.none()
+        
+        proyectos = []
+        for actividad in actividades:
+            proyectos.append({
+                'id': str(actividad.id),
+                'nombre': actividad.nombre,
+                'fecha': actividad.fecha.isoformat() if actividad.fecha else None,
+                'tipo': actividad.tipo.nombre if actividad.tipo else None,
+                'comunidad': actividad.comunidad.nombre if actividad.comunidad else None
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'proyectos': proyectos
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener proyectos: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_crear_beneficiario(request):
+    """API: Crear un nuevo beneficiario (individual, familia, institución, otro)"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        data = _parse_request_data(request)
+        tipo = data.get('tipo')
+        comunidad_id = data.get('comunidad_id')
+        
+        if not tipo or not comunidad_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tipo de beneficiario y comunidad son obligatorios'
+            }, status=400)
+        
+        # Validar comunidad
+        try:
+            comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+        except Comunidad.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Comunidad no encontrada'
+            }, status=404)
+        
+        # Obtener tipo de beneficiario (mapear "otro" a "institución")
+        tipo_lookup = tipo if tipo != 'otro' else 'institución'
+        try:
+            tipo_beneficiario = TipoBeneficiario.objects.get(nombre=tipo_lookup)
+        except TipoBeneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': f'Tipo de beneficiario "{tipo}" no encontrado'
+            }, status=400)
+        
+        with transaction.atomic():
+            # Crear beneficiario principal
+            beneficiario = Beneficiario.objects.create(
+                tipo=tipo_beneficiario,
+                comunidad=comunidad,
+                activo=True
+            )
+            
+            # Crear datos específicos según el tipo
+            if tipo == 'individual':
+                BeneficiarioIndividual.objects.create(
+                    beneficiario=beneficiario,
+                    nombre=data.get('nombre', ''),
+                    apellido=data.get('apellido', ''),
+                    dpi=data.get('dpi') or None,
+                    fecha_nacimiento=data.get('fecha_nacimiento') or None,
+                    genero=data.get('genero') or None,
+                    telefono=data.get('telefono') or None
+                )
+            elif tipo == 'familia':
+                BeneficiarioFamilia.objects.create(
+                    beneficiario=beneficiario,
+                    nombre_familia=data.get('nombre_familia', ''),
+                    jefe_familia=data.get('jefe_familia', ''),
+                    dpi_jefe_familia=data.get('dpi_jefe_familia') or None,
+                    telefono=data.get('telefono') or None,
+                    numero_miembros=data.get('numero_miembros') or None
+                )
+            elif tipo == 'institución':
+                BeneficiarioInstitucion.objects.create(
+                    beneficiario=beneficiario,
+                    nombre_institucion=data.get('nombre_institucion', ''),
+                    tipo_institucion=data.get('tipo_institucion', 'otro'),
+                    representante_legal=data.get('representante_legal') or None,
+                    dpi_representante=data.get('dpi_representante') or None,
+                    telefono=data.get('telefono') or None,
+                    email=data.get('email') or None,
+                    numero_beneficiarios_directos=data.get('numero_beneficiarios_directos') or None
+                )
+            else:  # tipo == 'otro'
+                # Para "otro", guardamos en una tabla especial o usamos un campo adicional
+                # Por ahora, usaremos BeneficiarioInstitucion con tipo_institucion='otro'
+                BeneficiarioInstitucion.objects.create(
+                    beneficiario=beneficiario,
+                    nombre_institucion=data.get('nombre', ''),
+                    tipo_institucion='otro',
+                    representante_legal=data.get('contacto') or None,
+                    telefono=data.get('telefono') or None,
+                    numero_beneficiarios_directos=1
+                )
+            
+            # Agregar a proyectos si se especificaron
+            proyecto_ids = data.get('proyecto_ids', [])
+            if proyecto_ids:
+                actividades = Actividad.objects.filter(
+                    id__in=proyecto_ids,
+                    eliminado_en__isnull=True
+                )
+                
+                # Verificar permisos: solo agregar a proyectos accesibles
+                is_admin = usuario_maga.rol == 'admin'
+                colaborador_usuario_id = None
+                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+                
+                for actividad in actividades:
+                    # Verificar que el usuario tenga acceso a esta actividad
+                    if is_admin:
+                        # Admin puede agregar a cualquier proyecto
+                        ActividadBeneficiario.objects.get_or_create(
+                            actividad=actividad,
+                            beneficiario=beneficiario
+                        )
+                    elif colaborador_usuario_id:
+                        # Verificar que el colaborador esté asignado a esta actividad
+                        if ActividadPersonal.objects.filter(
+                            actividad=actividad,
+                            colaborador_id=colaborador_usuario_id
+                        ).exists():
+                            ActividadBeneficiario.objects.get_or_create(
+                                actividad=actividad,
+                                beneficiario=beneficiario
+                            )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Beneficiario creado exitosamente',
+            'beneficiario_id': str(beneficiario.id)
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al crear beneficiario: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_agregar_beneficiario_proyectos(request, beneficiario_id):
+    """API: Agregar un beneficiario a uno o más proyectos/actividades"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Validar beneficiario
+        try:
+            beneficiario = Beneficiario.objects.get(id=beneficiario_id, activo=True)
+        except Beneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        data = _parse_request_data(request)
+        proyecto_ids = data.get('proyecto_ids', [])
+        
+        if not proyecto_ids:
+            return JsonResponse({
+                'success': False,
+                'error': 'No se proporcionaron proyectos'
+            }, status=400)
+        
+        # Verificar permisos
+        is_admin = usuario_maga.rol == 'admin'
+        colaborador_usuario_id = None
+        if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+            colaborador_usuario_id = str(usuario_maga.colaborador.id)
+        
+        actividades = Actividad.objects.filter(
+            id__in=proyecto_ids,
+            eliminado_en__isnull=True
+        )
+        
+        agregados = 0
+        rechazados = []
+        
+        with transaction.atomic():
+            for actividad in actividades:
+                # Verificar permisos
+                puede_agregar = False
+                if is_admin:
+                    puede_agregar = True
+                elif colaborador_usuario_id:
+                    puede_agregar = ActividadPersonal.objects.filter(
+                        actividad=actividad,
+                        colaborador_id=colaborador_usuario_id
+                    ).exists()
+                
+                if puede_agregar:
+                    _, creado = ActividadBeneficiario.objects.get_or_create(
+                        actividad=actividad,
+                        beneficiario=beneficiario
+                    )
+                    if creado:
+                        agregados += 1
+                else:
+                    rechazados.append({
+                        'id': str(actividad.id),
+                        'nombre': actividad.nombre,
+                        'razon': 'No tienes acceso a este proyecto'
+                    })
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Beneficiario agregado a {agregados} proyecto(s)',
+            'agregados': agregados,
+            'rechazados': rechazados
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al agregar beneficiario a proyectos: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_beneficiario_detalle_completo(request, beneficiario_id):
+    """API: Obtener detalles completos de un beneficiario incluyendo proyectos"""
+    try:
+        beneficiario = Beneficiario.objects.filter(
+            id=beneficiario_id, activo=True
+        ).select_related(
+            'tipo', 'comunidad', 'comunidad__region'
+        ).prefetch_related(
+            'individual', 'familia', 'institucion',
+            Prefetch(
+                'actividad_beneficiarios',
+                queryset=ActividadBeneficiario.objects.select_related('actividad', 'actividad__tipo').filter(
+                    actividad__eliminado_en__isnull=True
+                ),
+                to_attr='actividades_prefetch'
+            )
+        ).first()
+        
+        if not beneficiario:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(beneficiario)
+        
+        # Obtener proyectos/actividades vinculadas
+        proyectos = []
+        for ab in beneficiario.actividades_prefetch:
+            proyectos.append({
+                'id': str(ab.actividad.id),
+                'nombre': ab.actividad.nombre,
+                'fecha': ab.actividad.fecha.isoformat() if ab.actividad.fecha else None,
+                'tipo': ab.actividad.tipo.nombre if ab.actividad.tipo else None,
+                'comunidad': ab.actividad.comunidad.nombre if ab.actividad.comunidad else None
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'beneficiario': {
+                'id': str(beneficiario.id),
+                'nombre': nombre_display,
+                'tipo': tipo_envio,
+                'tipo_display': tipo_envio.title() if tipo_envio else '',
+                'comunidad_id': str(beneficiario.comunidad_id) if beneficiario.comunidad_id else None,
+                'comunidad_nombre': beneficiario.comunidad.nombre if beneficiario.comunidad else None,
+                'region_id': str(beneficiario.comunidad.region_id) if beneficiario.comunidad and beneficiario.comunidad.region_id else None,
+                'region_nombre': beneficiario.comunidad.region.nombre if beneficiario.comunidad and beneficiario.comunidad.region else None,
+                'detalles': detalles,
+                'proyectos': proyectos,
+                'creado_en': beneficiario.creado_en.isoformat() if beneficiario.creado_en else None,
+                'actualizado_en': beneficiario.actualizado_en.isoformat() if beneficiario.actualizado_en else None
+            }
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener detalles: {str(e)}'
         }, status=500)
 
 

@@ -28,6 +28,7 @@ urlpatterns = [
     path('config-general/', views.configgeneral, name='configgeneral'),
     path('preguntas-frecuentes/', views.preguntas_frecuentes, name='preguntas-frecuentes'),
     path('manual-usuario/descargar/', views.descargar_manual_usuario, name='descargar-manual-usuario'),
+    path('beneficiarios/', views.beneficiarios, name='beneficiarios'),
     
     # APIs JSON (para AJAX)
     path('api/usuario/', views.api_usuario_actual, name='api-usuario'),
@@ -76,7 +77,13 @@ urlpatterns = [
     path('api/cambios-recientes/', views.api_cambios_recientes, name='api-cambios-recientes'),
     path('api/personal/', views.api_listar_personal, name='api-personal'),
     path('api/beneficiarios/', views.api_listar_beneficiarios, name='api-beneficiarios'),
+    path('api/beneficiarios/completo/', views.api_listar_beneficiarios_completo, name='api-beneficiarios-completo'),
     path('api/beneficiario/<uuid:beneficiario_id>/', views.api_obtener_beneficiario, name='api-obtener-beneficiario'),
+    path('api/beneficiario/<uuid:beneficiario_id>/detalle/', views.api_beneficiario_detalle_completo, name='api-beneficiario-detalle-completo'),
+    path('api/beneficiario/<uuid:beneficiario_id>/proyectos/', views.api_beneficiario_proyectos, name='api-beneficiario-proyectos'),
+    path('api/beneficiario/<uuid:beneficiario_id>/agregar-proyectos/', views.api_agregar_beneficiario_proyectos, name='api-agregar-beneficiario-proyectos'),
+    path('api/beneficiarios/crear/', views.api_crear_beneficiario, name='api-crear-beneficiario'),
+    path('api/proyectos/usuario/', views.api_proyectos_usuario, name='api-proyectos-usuario'),
     path('api/beneficiarios/importar-excel/', views.api_importar_beneficiarios_excel, name='api-importar-beneficiarios-excel'),
     path('api/beneficiarios/guardar-pendientes/', views.api_guardar_beneficiarios_pendientes, name='api-guardar-beneficiarios-pendientes'),
     path('api/beneficiarios/guardar-general/', views.api_guardar_beneficiarios_general, name='api-guardar-beneficiarios-general'),
