@@ -215,23 +215,32 @@ class OfflineDB {
         'proyectos-ayuda': 'proyectos-ayuda',
         // Agregar variaciones comunes que pueden venir de la inferencia
         'proyecto': 'proyectos-ayuda', // Si solo dice "proyecto"
-        'ayuda': 'proyectos-ayuda' // Si solo dice "ayuda"
+        'ayuda': 'proyectos-ayuda', // Si solo dice "ayuda"
+        // Variaciones con mayúsculas/minúsculas que pueden venir de la inferencia
+        'proyecto de ayuda': 'proyectos-ayuda',
+        'Proyecto de Ayuda': 'proyectos-ayuda',
+        'PROYECTO DE AYUDA': 'proyectos-ayuda'
       };
       
       // Función auxiliar para inferir categoría desde el nombre (definida fuera del filter para reutilización)
       const inferirCategoriaDesdeNombre = (nombre) => {
         if (!nombre) return null;
-        const nombreLower = nombre.toLowerCase();
+        // Normalizar el nombre: trim para quitar espacios al inicio/final y convertir a minúsculas
+        const nombreLower = String(nombre).trim().toLowerCase();
+        console.log(`🔍 [INFERENCIA] Analizando nombre: "${nombre}" (normalizado: "${nombreLower}")`);
+        
         // Palabras clave más amplias para mejor inferencia
         if (nombreLower.includes('capacit') || nombreLower.includes('curso') || nombreLower.includes('taller') || 
             nombreLower.includes('enseñanza') || nombreLower.includes('enseñar') || nombreLower.includes('aprendizaje') ||
             nombreLower.includes('formación') || nombreLower.includes('formacion') || nombreLower.includes('educación') ||
             nombreLower.includes('educacion') || nombreLower.includes('seminario') || nombreLower.includes('workshop')) {
+          console.log(`✅ [INFERENCIA] "${nombre}" → "Capacitación"`);
           return 'Capacitación';
         } else if (nombreLower.includes('entrega') || nombreLower.includes('donación') || nombreLower.includes('donacion') ||
                    nombreLower.includes('donar') || nombreLower.includes('regalo') || nombreLower.includes('obsequio') ||
                    nombreLower.includes('distribución') || nombreLower.includes('distribucion') || nombreLower.includes('reparto') ||
                    nombreLower.includes('materiales') || nombreLower.includes('material')) {
+          console.log(`✅ [INFERENCIA] "${nombre}" → "Entrega"`);
           return 'Entrega';
         } else if (nombreLower.includes('proyecto') || nombreLower.includes('ayuda') || nombreLower.includes('asistencia') ||
                    nombreLower.includes('apoyo') || nombreLower.includes('beneficio') || nombreLower.includes('social') ||
@@ -239,9 +248,11 @@ class OfflineDB {
                    nombreLower.includes('sistema') || nombreLower.includes('riego') || nombreLower.includes('infraestructura') ||
                    nombreLower.includes('construcción') || nombreLower.includes('construccion') || nombreLower.includes('instalación') ||
                    nombreLower.includes('instalacion') || nombreLower.includes('equipamiento') || nombreLower.includes('tecnología') ||
-                   nombreLower.includes('tecnologia')) {
+                   nombreLower.includes('tecnologia') || nombreLower.includes('miniriego') || nombreLower.includes('mini-riego')) {
+          console.log(`✅ [INFERENCIA] "${nombre}" → "Proyecto de Ayuda"`);
           return 'Proyecto de Ayuda';
         }
+        console.log(`❌ [INFERENCIA] "${nombre}" → No se pudo inferir`);
         return null;
       };
       
