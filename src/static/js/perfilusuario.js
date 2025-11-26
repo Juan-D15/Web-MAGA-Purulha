@@ -401,6 +401,18 @@ function setupEventListeners() {
                 });
             } catch (error) {
             } finally {
+                // Limpiar sesión offline del localStorage antes de redirigir
+                if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
+                    window.OfflineAuth.clearActiveSession();
+                }
+                // Limpiar también cualquier dato de usuario en localStorage/sessionStorage
+                try {
+                    localStorage.removeItem('userInfo');
+                    sessionStorage.removeItem('userInfo');
+                    localStorage.removeItem('magaOfflineActiveSession');
+                } catch (e) {
+                    // Ignorar errores de localStorage
+                }
                 window.location.href = targetUrl;
             }
         });

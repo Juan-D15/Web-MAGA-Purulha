@@ -465,6 +465,25 @@ function isFromGestionesAction() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
+  // Limpiar sesión offline residual si el usuario no está autenticado en el servidor
+  // Esto asegura que después de un logout, no se restaure una sesión offline
+  const djangoContext = document.getElementById('djangoContextData');
+  const isAuthenticated = djangoContext && djangoContext.getAttribute('data-user-authenticated') === 'true';
+  if (!isAuthenticated) {
+    // Si no hay autenticación del servidor, limpiar sesión offline
+    if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
+      window.OfflineAuth.clearActiveSession();
+    }
+    // Limpiar también cualquier dato de usuario residual
+    try {
+      localStorage.removeItem('userInfo');
+      sessionStorage.removeItem('userInfo');
+      localStorage.removeItem('magaOfflineActiveSession');
+    } catch (e) {
+      // Ignorar errores de localStorage
+    }
+  }
+  
   // Detectar la página de origen al cargar
   detectOriginPage();
   resetRecoveryFlow();

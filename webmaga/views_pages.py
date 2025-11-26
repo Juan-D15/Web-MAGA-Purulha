@@ -292,9 +292,46 @@ def logout_view(request):
         except Usuario.DoesNotExist:
             pass
 
+    # Guardar el session_key antes de hacer logout para poder eliminarlo
+    session_key = request.session.session_key
+    
+    # Hacer logout (esto limpia el usuario de la sesión)
     auth_logout(request)
+    
+    # Eliminar explícitamente la sesión de la base de datos si existe
+    if session_key:
+        from django.contrib.sessions.models import Session
+        try:
+            Session.objects.filter(session_key=session_key).delete()
+        except Exception:
+            pass
+    
+    # Crear respuesta de redirección a la página principal con parámetro para forzar recarga
+    # Esto asegura que se recargue completamente la página y se limpie cualquier estado residual
+    from django.http import HttpResponseRedirect
+    from django.urls import reverse
+    import time
+    # Redirigir a la página principal con parámetros para forzar recarga completa
+    index_url = reverse('webmaga:index')
+    response = HttpResponseRedirect(f'{index_url}?logout=1&_={int(time.time())}')
+    
+    # Eliminar explícitamente la cookie de sesión
+    # Esto es crítico para asegurar que la sesión se cierre completamente
+    from django.conf import settings
+    cookie_kwargs = {
+        'path': getattr(settings, 'SESSION_COOKIE_PATH', '/'),
+    }
+    # Solo agregar domain si está configurado (None significa no establecerlo)
+    if hasattr(settings, 'SESSION_COOKIE_DOMAIN') and settings.SESSION_COOKIE_DOMAIN:
+        cookie_kwargs['domain'] = settings.SESSION_COOKIE_DOMAIN
+    
+    response.delete_cookie(
+        getattr(settings, 'SESSION_COOKIE_NAME', 'sessionid'),
+        **cookie_kwargs
+    )
+    
     messages.info(request, 'Has cerrado sesión exitosamente.')
-    return redirect('webmaga:login')
+    return response
 
 
 @solo_administrador

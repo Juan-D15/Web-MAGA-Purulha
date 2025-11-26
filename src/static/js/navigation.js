@@ -795,6 +795,19 @@
         navUserIcon.classList.remove('active');
         
         if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+          // Limpiar sesión offline del localStorage antes de redirigir
+          if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
+            window.OfflineAuth.clearActiveSession();
+          }
+          // Limpiar también cualquier dato de usuario en localStorage/sessionStorage
+          try {
+            localStorage.removeItem('userInfo');
+            sessionStorage.removeItem('userInfo');
+            localStorage.removeItem('magaOfflineActiveSession');
+          } catch (e) {
+            // Ignorar errores de localStorage
+          }
+          
           // Usar la URL de Django si está disponible
           const logoutUrl = window.DJANGO_URLS?.logout || '/logout/';
           window.location.href = logoutUrl;
@@ -871,6 +884,19 @@
         if (window.closeDrawer) window.closeDrawer();
         
         if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+          // Limpiar sesión offline del localStorage antes de redirigir
+          if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
+            window.OfflineAuth.clearActiveSession();
+          }
+          // Limpiar también cualquier dato de usuario en localStorage/sessionStorage
+          try {
+            localStorage.removeItem('userInfo');
+            sessionStorage.removeItem('userInfo');
+            localStorage.removeItem('magaOfflineActiveSession');
+          } catch (e) {
+            // Ignorar errores de localStorage
+          }
+          
           const logoutUrl = window.DJANGO_URLS?.logout || '/logout/';
           window.location.href = logoutUrl;
         }

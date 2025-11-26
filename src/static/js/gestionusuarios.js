@@ -31,10 +31,12 @@ let colaboradoresGestionFilterPuesto = '';
 
 let usuarioIdParaEliminar = null;
 let usuarioActivoParaEliminar = true; // Por defecto asumimos que está activo
+let usuarioIdParaActivar = null;
 let colaboradorIdParaEliminar = null;
 let colaboradorActivoParaEliminar = true; // Por defecto asumimos que está activo
 let deleteUsuarioBtnDefaultHTML = '';
 let deleteColaboradorBtnDefaultHTML = '';
+let activateUsuarioBtnDefaultHTML = '';
 
 // Contador de modales abiertos para gestionar la clase modal-open en el body
 let modalesAbiertos = 0;
@@ -829,6 +831,37 @@ function inicializarModalesEliminacion() {
         });
     }
     
+    // Modal de activación de usuario
+    const closeActivateUsuarioModal = document.getElementById('closeActivateUsuarioModal');
+    const cancelActivateUsuarioBtn = document.getElementById('cancelActivateUsuarioBtn');
+    const executeActivateUsuarioBtn = document.getElementById('executeActivateUsuarioBtn');
+    
+    if (closeActivateUsuarioModal) {
+        closeActivateUsuarioModal.addEventListener('click', cerrarModalActivarUsuario);
+    }
+    
+    if (cancelActivateUsuarioBtn) {
+        cancelActivateUsuarioBtn.addEventListener('click', cerrarModalActivarUsuario);
+    }
+
+    if (executeActivateUsuarioBtn && !executeActivateUsuarioBtn.dataset.listenerAdded) {
+        if (!activateUsuarioBtnDefaultHTML) {
+            activateUsuarioBtnDefaultHTML = executeActivateUsuarioBtn.innerHTML;
+        }
+        executeActivateUsuarioBtn.addEventListener('click', () => activarUsuario());
+        executeActivateUsuarioBtn.dataset.listenerAdded = 'true';
+    }
+    
+    // Cerrar modal al hacer clic fuera
+    const activateUsuarioModal = document.getElementById('activateUsuarioModal');
+    if (activateUsuarioModal) {
+        activateUsuarioModal.addEventListener('click', (e) => {
+            if (e.target === activateUsuarioModal) {
+                cerrarModalActivarUsuario();
+            }
+        });
+    }
+    
     // Modal de eliminación de colaborador
     const closeDeleteColaboradorModal = document.getElementById('closeDeleteColaboradorModal');
     const cancelDeleteColaboradorBtn = document.getElementById('cancelDeleteColaboradorBtn');
@@ -1061,13 +1094,22 @@ function mostrarUsuarios(usuarios) {
                         </svg>
                         Editar
                     </button>
-                    <button type="button" class="btn-delete-user" data-usuario-id="${usuario.id}" data-usuario-username="${usuario.username}" data-usuario-activo="${usuario.activo ? 'true' : 'false'}" style="flex: 1; padding: 8px 16px; background: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                    ${usuario.activo ? `
+                    <button type="button" class="btn-delete-user" data-usuario-id="${usuario.id}" data-usuario-username="${usuario.username}" data-usuario-activo="true" style="flex: 1; padding: 8px 16px; background: rgba(220, 53, 69, 0.1); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                         </svg>
                         Eliminar
                     </button>
+                    ` : `
+                    <button type="button" class="btn-activate-user" data-usuario-id="${usuario.id}" data-usuario-username="${usuario.username}" style="flex: 1; padding: 8px 16px; background: rgba(40, 167, 69, 0.1); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.3); border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Activar
+                    </button>
+                    `}
                 </div>
             </div>
         `;
@@ -1089,6 +1131,14 @@ function mostrarUsuarios(usuarios) {
             const usuarioUsername = e.currentTarget.getAttribute('data-usuario-username');
             const usuarioActivo = e.currentTarget.getAttribute('data-usuario-activo') === 'true';
             confirmarEliminarUsuario(usuarioId, usuarioUsername, usuarioActivo);
+        });
+    });
+    
+    usersList.querySelectorAll('.btn-activate-user').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const usuarioId = e.currentTarget.getAttribute('data-usuario-id');
+            const usuarioUsername = e.currentTarget.getAttribute('data-usuario-username');
+            confirmarActivarUsuario(usuarioId, usuarioUsername);
         });
     });
 }
@@ -2086,6 +2136,195 @@ function cerrarModalEliminarUsuario({ clearInputs = true } = {}) {
     resetDeleteUsuarioModalState({ clearInputs });
     usuarioIdParaEliminar = null;
     usuarioActivoParaEliminar = true; // Resetear a valor por defecto
+}
+
+// =====================================================
+// FUNCIONES PARA ACTIVAR USUARIO
+// =====================================================
+
+function confirmarActivarUsuario(usuarioId, usuarioUsername) {
+    const modal = document.getElementById('activateUsuarioModal');
+    const activateUsuarioName = document.getElementById('activateUsuarioName');
+    
+    if (!modal) {
+        mostrarMensaje('Modal de confirmación no encontrado', 'error');
+        return;
+    }
+
+    usuarioIdParaActivar = usuarioId;
+    
+    if (activateUsuarioName) {
+        activateUsuarioName.textContent = usuarioUsername || '';
+    }
+    
+    resetActivateUsuarioModalState();
+    abrirModal(modal);
+}
+
+async function activarUsuario(usuarioId = null) {
+    const targetUsuarioId = usuarioId ?? usuarioIdParaActivar;
+    if (!targetUsuarioId) {
+        mostrarMensaje('No se ha seleccionado un usuario para activar.', 'error');
+        return;
+    }
+
+    const activateUsuarioUsername = document.getElementById('activate_usuario_username');
+    const activateUsuarioPassword = document.getElementById('activate_usuario_password');
+    const activateUsuarioErrorMessage = document.getElementById('activateUsuarioErrorMessage');
+    const executeActivateUsuarioBtn = document.getElementById('executeActivateUsuarioBtn');
+    
+    if (!activateUsuarioUsername || !activateUsuarioPassword) {
+        mostrarMensaje('Error: Campos de confirmación no encontrados', 'error');
+        return;
+    }
+    
+    const username = activateUsuarioUsername.value.trim();
+    const password = activateUsuarioPassword.value;
+    
+    if (!username || !password) {
+        if (activateUsuarioErrorMessage) {
+            activateUsuarioErrorMessage.textContent = 'Usuario y contraseña son requeridos';
+            activateUsuarioErrorMessage.style.display = 'block';
+        }
+        return;
+    }
+    
+    if (executeActivateUsuarioBtn) {
+        executeActivateUsuarioBtn.disabled = true;
+        executeActivateUsuarioBtn.textContent = 'Verificando...';
+    }
+
+    // Verificar credenciales de administrador
+    try {
+        const verifyResponse = await fetch('/api/verificar-admin/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+            },
+            body: JSON.stringify({ username, password }),
+        });
+        
+        const verifyResult = await verifyResponse.json();
+        
+        if (!verifyResult.success) {
+            if (activateUsuarioErrorMessage) {
+                activateUsuarioErrorMessage.textContent = verifyResult.error || 'Credenciales incorrectas';
+                activateUsuarioErrorMessage.style.display = 'block';
+            }
+            restoreActivateUsuarioButton();
+            return;
+        }
+
+        if (executeActivateUsuarioBtn) {
+            executeActivateUsuarioBtn.textContent = 'Obteniendo datos...';
+        }
+
+        // Primero obtener los datos actuales del usuario
+        const getUserResponse = await fetch(API_URLS.obtenerUsuario(targetUsuarioId));
+        const getUserData = await getUserResponse.json();
+        
+        if (!getUserData.success) {
+            if (activateUsuarioErrorMessage) {
+                activateUsuarioErrorMessage.textContent = 'Error al obtener datos del usuario: ' + (getUserData.error || 'Error desconocido');
+                activateUsuarioErrorMessage.style.display = 'block';
+            }
+            restoreActivateUsuarioButton();
+            return;
+        }
+
+        const usuario = getUserData.usuario;
+
+        if (executeActivateUsuarioBtn) {
+            executeActivateUsuarioBtn.textContent = 'Activando...';
+        }
+
+        // Si las credenciales son correctas, proceder con la activación
+        // Enviar todos los campos requeridos junto con activo: true
+        const updateData = {
+            email: usuario.email,
+            rol: usuario.rol,
+            activo: true
+        };
+
+        // Agregar campos opcionales si existen
+        if (usuario.nombre) {
+            updateData.nombre = usuario.nombre;
+        }
+        if (usuario.telefono) {
+            updateData.telefono = usuario.telefono;
+        }
+        if (usuario.puesto_id) {
+            updateData.puesto_id = usuario.puesto_id;
+        }
+
+        const response = await fetch(API_URLS.actualizarUsuario(targetUsuarioId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+            },
+            body: JSON.stringify(updateData),
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            mostrarMensaje('Usuario activado exitosamente', 'success');
+            cerrarModalActivarUsuario();
+            await cargarUsuarios();
+            await cargarColaboradoresParaSelect(); // Actualizar lista de colaboradores
+        } else {
+            if (activateUsuarioErrorMessage) {
+                activateUsuarioErrorMessage.textContent = result.error || 'Error al activar usuario';
+                activateUsuarioErrorMessage.style.display = 'block';
+            }
+            restoreActivateUsuarioButton();
+        }
+    } catch (error) {
+        if (activateUsuarioErrorMessage) {
+            activateUsuarioErrorMessage.textContent = 'Error al activar usuario: ' + error.message;
+            activateUsuarioErrorMessage.style.display = 'block';
+        } else {
+            mostrarMensaje('Error al activar usuario: ' + error.message, 'error');
+        }
+        restoreActivateUsuarioButton();
+    }
+}
+
+function restoreActivateUsuarioButton() {
+    const executeActivateUsuarioBtn = document.getElementById('executeActivateUsuarioBtn');
+    if (!executeActivateUsuarioBtn) return;
+    executeActivateUsuarioBtn.disabled = false;
+    if (activateUsuarioBtnDefaultHTML) {
+        executeActivateUsuarioBtn.innerHTML = activateUsuarioBtnDefaultHTML;
+    } else {
+        executeActivateUsuarioBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;"><polyline points="20 6 9 17 4 12"></polyline></svg>Activar Usuario';
+    }
+}
+
+function resetActivateUsuarioModalState({ clearInputs = true } = {}) {
+    const errorMessage = document.getElementById('activateUsuarioErrorMessage');
+    if (errorMessage) {
+        errorMessage.style.display = 'none';
+        errorMessage.textContent = '';
+    }
+    
+    if (clearInputs) {
+        const usernameInput = document.getElementById('activate_usuario_username');
+        const passwordInput = document.getElementById('activate_usuario_password');
+        if (usernameInput) usernameInput.value = '';
+        if (passwordInput) passwordInput.value = '';
+    }
+    
+    restoreActivateUsuarioButton();
+}
+
+function cerrarModalActivarUsuario({ clearInputs = true } = {}) {
+    const modal = document.getElementById('activateUsuarioModal');
+    if (modal) cerrarModal(modal);
+    resetActivateUsuarioModalState({ clearInputs });
+    usuarioIdParaActivar = null;
 }
 
 // =====================================================

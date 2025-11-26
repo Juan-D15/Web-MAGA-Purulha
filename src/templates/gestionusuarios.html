@@ -247,6 +247,52 @@
     </div>
   </div>
 
+  <!-- Modal de Confirmación de Activación de Usuario -->
+  <div id="activateUsuarioModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">✅ Activar Usuario</h3>
+        <button class="modal-close" id="closeActivateUsuarioModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-primary); margin-bottom: 1.5rem; font-size: 1rem;">
+          Estás a punto de activar el usuario: <strong id="activateUsuarioName"></strong>
+        </p>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.95rem;">
+          Esta acción requiere autorización de administrador. Por favor, ingresa tus credenciales:
+        </p>
+        
+        <form id="confirmActivateUsuarioForm">
+          <div class="form-group">
+            <label for="activate_usuario_username" class="form-label">Usuario *</label>
+            <input type="text" id="activate_usuario_username" class="form-input" placeholder="Tu usuario" required autocomplete="username">
+          </div>
+          
+          <div class="form-group">
+            <label for="activate_usuario_password" class="form-label">Contraseña *</label>
+            <input type="password" id="activate_usuario_password" class="form-input" placeholder="Tu contraseña" required autocomplete="current-password">
+          </div>
+          
+          <div id="activateUsuarioErrorMessage" style="display: none; color: var(--danger-color); padding: 0.75rem; background: rgba(244, 67, 54, 0.1); border-radius: 6px; margin-top: 1rem; font-size: 0.9rem;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelActivateUsuarioBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="executeActivateUsuarioBtn" class="btn-success" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Activar Usuario
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal de Edición de Usuario -->
   <div id="editUsuarioModal" class="modal" style="display: none;">
     <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
@@ -818,6 +864,25 @@
       background: linear-gradient(135deg, #c82333 0%, #dc3545 100%);
       box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
       transform: translateY(-2px);
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+      border: none;
+    }
+    
+    .btn-success:hover {
+      background: linear-gradient(135deg, #20c997 0%, #28a745 100%);
+      box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+      transform: translateY(-2px);
+    }
+    
+    .btn-activate-user:hover {
+      background: rgba(40, 167, 69, 0.2) !important;
+      border-color: #28a745 !important;
+      transform: translateY(-1px);
     }
   </style>
 {% endblock %}

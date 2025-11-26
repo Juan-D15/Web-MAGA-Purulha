@@ -1572,6 +1572,49 @@
   // Verificar si el usuario está autenticado antes de inicializar el calendario
   var isUserAuthenticated = {% if user.is_authenticated %}true{% else %}false{% endif %};
   
+  // Limpiar sesiones residuales después de logout
+  // Esto asegura que cualquier sesión offline o datos residuales se eliminen completamente
+  (function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('logout') === '1') {
+      console.log('[Logout] Limpiando sesiones residuales...');
+      
+      // Limpiar sesión offline del localStorage
+      if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
+        window.OfflineAuth.clearActiveSession();
+      }
+      
+      // Limpiar cualquier dato de usuario residual
+      try {
+        localStorage.removeItem('userInfo');
+        sessionStorage.removeItem('userInfo');
+        localStorage.removeItem('magaOfflineActiveSession');
+        // Limpiar también otros datos relacionados con sesión
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('magaOffline') || key.startsWith('WEBMAGA_'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      } catch (e) {
+        console.warn('[Logout] Error al limpiar localStorage:', e);
+      }
+      
+      // Limpiar parámetros de la URL para evitar que se ejecute de nuevo
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+      
+      // Si el usuario no está autenticado, redirigir al login después de limpiar
+      if (!isUserAuthenticated) {
+        setTimeout(() => {
+          window.location.href = '/login/';
+        }, 100);
+      }
+    }
+  })();
+  
   // Cargar información del usuario actual
   var CURRENT_USER = null;
   var USER_API = (window.DJANGO_URLS && window.DJANGO_URLS.usuario) || '/api/usuario/';
