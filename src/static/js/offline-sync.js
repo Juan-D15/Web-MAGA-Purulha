@@ -502,6 +502,9 @@
       // Para requests GET cuando hay conexión, intentar hacer fetch normalmente
       // Pero capturar errores de red y devolver respuesta JSON válida
       return originalFetch(input, init).catch(error => {
+        // Detectar si es un error de bloqueador de anuncios
+        const isAdBlockerError = error.message && error.message.includes('ERR_BLOCKED_BY_ADBLOCKER');
+        
         // Si el fetch falla (incluso si navigator.onLine es true, puede haber problemas de red)
         // y es un GET, retornar una respuesta JSON válida
         if (!isMutation) {
@@ -510,26 +513,67 @@
             (error.message.includes('Failed to fetch') || 
              error.message.includes('NetworkError') ||
              error.message.includes('ERR_INTERNET_DISCONNECTED') ||
-             error.message.includes('ERR_NETWORK_CHANGED'));
+             error.message.includes('ERR_NETWORK_CHANGED') ||
+             error.message.includes('ERR_BLOCKED_BY_ADBLOCKER'));
+          
+          // Si es un error de bloqueador, mostrar advertencia una sola vez
+          if (isAdBlockerError && !window.adBlockerWarningShown) {
+            console.warn('⚠️ [ADBLOCKER] Un bloqueador de anuncios puede estar bloqueando recursos. Si experimentas problemas, considera desactivarlo temporalmente para este sitio.');
+            window.adBlockerWarningShown = true;
+          }
           
           if (isNetworkError) {
             // Mostrar banner si no está visible
-            if (navigator.onLine) {
+            if (navigator.onLine && !isAdBlockerError) {
               showBanner('Sin conexión a Internet');
             }
           }
           
           return new Response(JSON.stringify({ 
             success: false, 
-            error: isNetworkError ? 'Sin conexión' : 'Error de conexión',
-            offline: isNetworkError,
+            error: isAdBlockerError ? 'Recurso bloqueado por bloqueador de anuncios' : (isNetworkError ? 'Sin conexión' : 'Error de conexión'),
+            offline: isNetworkError && !isAdBlockerError,
+            blocked: isAdBlockerError,
             data: null
           }), {
-            status: 503,
-            statusText: 'Service Unavailable',
+            status: isAdBlockerError ? 403 : 503,
+            statusText: isAdBlockerError ? 'Forbidden' : 'Service Unavailable',
             headers: { 'Content-Type': 'application/json' }
           });
         }
+        
+        // Para mutaciones, si es error de bloqueador, guardar en cola igual que si fuera offline
+        if (isAdBlockerError && isMutation) {
+          console.warn('⚠️ [ADBLOCKER] Solicitud bloqueada por bloqueador de anuncios, guardando en cola para reintentar:', method, url);
+          const requestData = {
+            id: uuid(),
+            url,
+            method,
+            headers: initData.headers,
+            body: initData.body,
+            credentials: initData.credentials,
+            createdAt: new Date().toISOString(),
+          };
+          enqueue(requestData);
+          updateSyncStatus();
+          return new Response(
+            JSON.stringify({
+              success: true,
+              offline: true,
+              blocked: true,
+              queue_id: requestData.id,
+              message: 'Solicitud bloqueada. Se reintentará automáticamente.',
+            }),
+            {
+              status: 202,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Offline-Queued': 'true',
+              },
+            }
+          );
+        }
+        
         throw error;
       });
     }
@@ -1195,8 +1239,13 @@
       // Sincronizar regiones
       try {
         const regionesResponse = await fetch('/api/regiones/').catch((error) => {
-          // Si el fetch falla (error de red, 502, 503, etc.), retornar null
-          // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
+          // Si el fetch falla (error de red, 502, 503, bloqueador, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline, el servidor no está disponible, o hay bloqueador
+          const isAdBlockerError = error.message && error.message.includes('ERR_BLOCKED_BY_ADBLOCKER');
+          if (isAdBlockerError && !window.adBlockerWarningShown) {
+            console.warn('⚠️ [ADBLOCKER] Un bloqueador de anuncios puede estar bloqueando recursos. Si experimentas problemas, considera desactivarlo temporalmente para este sitio.');
+            window.adBlockerWarningShown = true;
+          }
           return null;
         });
         
@@ -1245,8 +1294,13 @@
       // Sincronizar personal/colaboradores
       try {
         const personalResponse = await fetch('/api/personal/').catch((error) => {
-          // Si el fetch falla (error de red, 502, 503, etc.), retornar null
-          // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
+          // Si el fetch falla (error de red, 502, 503, bloqueador, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline, el servidor no está disponible, o hay bloqueador
+          const isAdBlockerError = error.message && error.message.includes('ERR_BLOCKED_BY_ADBLOCKER');
+          if (isAdBlockerError && !window.adBlockerWarningShown) {
+            console.warn('⚠️ [ADBLOCKER] Un bloqueador de anuncios puede estar bloqueando recursos. Si experimentas problemas, considera desactivarlo temporalmente para este sitio.');
+            window.adBlockerWarningShown = true;
+          }
           return null;
         });
         
