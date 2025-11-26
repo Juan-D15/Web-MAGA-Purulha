@@ -135,12 +135,177 @@ function initializeAddView() {
         asegurarDatosRegionesComunidades();
         loadProyectos();
         setupCatalogSearch(); // Configurar buscador de catálogo
+        setupInputValidation(); // Configurar validación de entrada
     }, 100);
     
     // Limpiar selección de proyectos
     selectedProjects.clear();
     updateProjectsChecklist();
     updateSelectedProjectsCount();
+}
+
+function setupInputValidation() {
+    // Validación para campos de solo letras (Nombre, Apellido, Jefe de Familia, Representante Legal, Persona de Contacto)
+    const letrasOnlyFields = [
+        'benef_ind_nombre',
+        'benef_ind_apellido',
+        'benef_fam_jefe',
+        'benef_inst_representante',
+        'benef_otro_contacto'
+    ];
+    
+    letrasOnlyFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            // Prevenir entrada de números y caracteres especiales
+            field.addEventListener('keypress', function(e) {
+                const char = String.fromCharCode(e.which);
+                // Permitir letras (incluyendo acentos y ñ), espacios y teclas de control
+                if (!/^[a-zA-ZÁÉÍÓÚáéíóúÑñ\s]$/.test(char) && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                }
+            });
+            
+            // Validar al pegar texto
+            field.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+                // Filtrar solo letras y espacios
+                const filtered = pastedText.replace(/[^a-zA-ZÁÉÍÓÚáéíóúÑñ\s]/g, '');
+                this.value = filtered;
+            });
+            
+            // Validar al escribir (input event)
+            field.addEventListener('input', function() {
+                // Remover cualquier carácter que no sea letra o espacio
+                this.value = this.value.replace(/[^a-zA-ZÁÉÍÓÚáéíóúÑñ\s]/g, '');
+            });
+        }
+    });
+    
+    // Validación para campos de solo números (DPI, Teléfono)
+    const numerosOnlyFields = [
+        'benef_ind_dpi',
+        'benef_fam_dpi',
+        'benef_inst_dpi_rep',
+        'benef_ind_telefono',
+        'benef_fam_telefono',
+        'benef_inst_telefono',
+        'benef_otro_telefono'
+    ];
+    
+    numerosOnlyFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            // Prevenir entrada de letras y caracteres especiales
+            field.addEventListener('keypress', function(e) {
+                const char = String.fromCharCode(e.which);
+                // Permitir solo números y teclas de control
+                if (!/^[0-9]$/.test(char) && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                }
+            });
+            
+            // Validar al pegar texto
+            field.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+                // Filtrar solo números
+                const filtered = pastedText.replace(/[^0-9]/g, '');
+                this.value = filtered;
+            });
+            
+            // Validar al escribir (input event)
+            field.addEventListener('input', function() {
+                // Remover cualquier carácter que no sea número
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+        }
+    });
+    
+    // Validación para campo de Edad (ya es type="number", pero agregamos validación adicional)
+    const edadField = document.getElementById('benef_ind_edad');
+    if (edadField) {
+        // Prevenir entrada de caracteres no numéricos
+        edadField.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which);
+            // Permitir solo números, punto decimal (para casos especiales), y teclas de control
+            if (!/^[0-9.]$/.test(char) && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+            }
+        });
+        
+        // Validar al pegar texto
+        edadField.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+            // Filtrar solo números
+            const filtered = pastedText.replace(/[^0-9]/g, '');
+            this.value = filtered;
+        });
+        
+        // Validar al escribir (input event) - asegurar que sea solo números enteros
+        edadField.addEventListener('input', function() {
+            // Remover cualquier carácter que no sea número
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    }
+    
+    // Validación para Número de Miembros (ya es type="number")
+    const miembrosField = document.getElementById('benef_fam_miembros');
+    if (miembrosField) {
+        // Prevenir entrada de caracteres no numéricos
+        miembrosField.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which);
+            // Permitir solo números y teclas de control
+            if (!/^[0-9]$/.test(char) && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+            }
+        });
+        
+        // Validar al pegar texto
+        miembrosField.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+            // Filtrar solo números
+            const filtered = pastedText.replace(/[^0-9]/g, '');
+            this.value = filtered;
+        });
+        
+        // Validar al escribir (input event)
+        miembrosField.addEventListener('input', function() {
+            // Remover cualquier carácter que no sea número
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    }
+    
+    // Validación para Número de Beneficiarios Directos (Institución)
+    const numBeneficiariosField = document.getElementById('benef_inst_num_beneficiarios');
+    if (numBeneficiariosField) {
+        // Prevenir entrada de caracteres no numéricos
+        numBeneficiariosField.addEventListener('keypress', function(e) {
+            const char = String.fromCharCode(e.which);
+            // Permitir solo números y teclas de control
+            if (!/^[0-9]$/.test(char) && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+            }
+        });
+        
+        // Validar al pegar texto
+        numBeneficiariosField.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+            // Filtrar solo números
+            const filtered = pastedText.replace(/[^0-9]/g, '');
+            this.value = filtered;
+        });
+        
+        // Validar al escribir (input event)
+        numBeneficiariosField.addEventListener('input', function() {
+            // Remover cualquier carácter que no sea número
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    }
 }
 
 // Inicialización
