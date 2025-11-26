@@ -8603,6 +8603,15 @@ def api_actualizar_usuario(request, usuario_id):
         password_confirm = data.get('password_confirm') or ''
         rol = (data.get('rol') or '').strip()
         puesto_id = (data.get('puesto_id') or '').strip()
+        activo = data.get('activo')
+        
+        # Procesar activo: puede venir como boolean o None
+        # Si viene None, mantener el valor actual; si viene boolean, actualizarlo
+        if activo is not None:
+            activo = bool(activo)
+        else:
+            # Si no se proporciona, mantener el valor actual
+            activo = usuario.activo
         
         # Validaciones
         if not email:
@@ -8683,6 +8692,7 @@ def api_actualizar_usuario(request, usuario_id):
         usuario.telefono = telefono if telefono else None
         usuario.rol = rol
         usuario.puesto = puesto  # None para admin, valor para personal
+        usuario.activo = activo  # Actualizar estado activo/inactivo
         
         # Actualizar contraseña si se proporciona
         if password:
@@ -8799,28 +8809,62 @@ def api_actualizar_evidencia_cambio(request, evento_id, cambio_id, evidencia_id)
 @solo_administrador
 @require_http_methods(["POST"])
 def api_eliminar_usuario(request, usuario_id):
-    """API: Eliminar (desactivar) un usuario"""
+    """API: Eliminar (desactivar) un usuario o eliminar permanentemente si ya está inactivo"""
     try:
         usuario = Usuario.objects.get(id=usuario_id)
         
-        # Verificar si tiene colaborador vinculado
-        try:
-            colaborador = Colaborador.objects.get(usuario=usuario)
-            # Desvincular colaborador
-            colaborador.usuario = None
-            colaborador.es_personal_fijo = False
-            colaborador.save()
-        except Colaborador.DoesNotExist:
-            pass
+        # Obtener parámetro para eliminar permanentemente
+        import json
+        body_data = {}
+        if request.body:
+            try:
+                body_data = json.loads(request.body)
+            except json.JSONDecodeError:
+                pass
         
-        # Desactivar usuario en lugar de eliminarlo
-        usuario.activo = False
-        usuario.save()
+        eliminar_permanentemente = body_data.get('eliminar_permanentemente', False)
         
-        return JsonResponse({
-            'success': True,
-            'message': 'Usuario eliminado exitosamente'
-        })
+        # Si el usuario ya está inactivo, eliminar permanentemente de la BD
+        # Si el usuario está activo, solo desactivarlo (soft delete)
+        # Verificación de seguridad: solo eliminar permanentemente si realmente está inactivo
+        if not usuario.activo:
+            # Verificar si tiene colaborador vinculado
+            try:
+                colaborador = Colaborador.objects.get(usuario=usuario)
+                # Desvincular colaborador antes de eliminar
+                colaborador.usuario = None
+                colaborador.es_personal_fijo = False
+                colaborador.save()
+            except Colaborador.DoesNotExist:
+                pass
+            
+            # Eliminar permanentemente de la base de datos
+            usuario.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Usuario eliminado permanentemente de la base de datos'
+            })
+        else:
+            # Si está activo, solo desactivar (soft delete)
+            # Verificar si tiene colaborador vinculado
+            try:
+                colaborador = Colaborador.objects.get(usuario=usuario)
+                # Desvincular colaborador
+                colaborador.usuario = None
+                colaborador.es_personal_fijo = False
+                colaborador.save()
+            except Colaborador.DoesNotExist:
+                pass
+            
+            # Desactivar usuario en lugar de eliminarlo
+            usuario.activo = False
+            usuario.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Usuario desactivado exitosamente'
+            })
         
     except Usuario.DoesNotExist:
         return JsonResponse({
@@ -9059,7 +9103,7 @@ def api_actualizar_colaborador(request, colaborador_id):
 @solo_administrador
 @require_http_methods(["POST"])
 def api_eliminar_colaborador(request, colaborador_id):
-    """API: Eliminar (desactivar) un colaborador"""
+    """API: Eliminar (desactivar) un colaborador o eliminar permanentemente si ya está inactivo"""
     try:
         colaborador = Colaborador.objects.get(id=colaborador_id)
         
@@ -9070,14 +9114,36 @@ def api_eliminar_colaborador(request, colaborador_id):
                 'error': 'No se puede eliminar un colaborador que tiene usuario asignado. Primero elimine el usuario.'
             }, status=400)
         
-        # Desactivar colaborador en lugar de eliminarlo
-        colaborador.activo = False
-        colaborador.save()
+        # Obtener parámetro para eliminar permanentemente
+        import json
+        body_data = {}
+        if request.body:
+            try:
+                body_data = json.loads(request.body)
+            except json.JSONDecodeError:
+                pass
         
-        return JsonResponse({
-            'success': True,
-            'message': 'Colaborador eliminado exitosamente'
-        })
+        eliminar_permanentemente = body_data.get('eliminar_permanentemente', False)
+        
+        # Si el colaborador ya está inactivo, eliminar permanentemente de la BD
+        # Si el colaborador está activo, solo desactivarlo (soft delete)
+        if not colaborador.activo:
+            # Eliminar permanentemente de la base de datos
+            colaborador.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Colaborador eliminado permanentemente de la base de datos'
+            })
+        else:
+            # Si está activo, solo desactivar (soft delete)
+            colaborador.activo = False
+            colaborador.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Colaborador desactivado exitosamente'
+            })
         
     except Colaborador.DoesNotExist:
         return JsonResponse({
