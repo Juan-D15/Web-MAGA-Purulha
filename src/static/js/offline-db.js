@@ -212,7 +212,10 @@ class OfflineDB {
         'proyecto de ayuda': 'proyectos-ayuda',
         'proyectos de ayuda': 'proyectos-ayuda',
         'proyecto ayuda': 'proyectos-ayuda',
-        'proyectos-ayuda': 'proyectos-ayuda'
+        'proyectos-ayuda': 'proyectos-ayuda',
+        // Agregar variaciones comunes que pueden venir de la inferencia
+        'proyecto': 'proyectos-ayuda', // Si solo dice "proyecto"
+        'ayuda': 'proyectos-ayuda' // Si solo dice "ayuda"
       };
       
       // Función auxiliar para inferir categoría desde el nombre (definida fuera del filter para reutilización)
@@ -318,7 +321,9 @@ class OfflineDB {
         
         // Si el tipo del proyecto es un nombre del servidor (ej: "capacitación"), convertirlo a clave de categoría
         if (tipoToCategoryKey[proyectoTipoNormalizado]) {
+          const categoryKeyAnterior = proyectoTipoNormalizado;
           proyectoTipoNormalizado = tipoToCategoryKey[proyectoTipoNormalizado];
+          console.log(`🔄 Proyecto ${p.id} (${p.nombre || p.name}) - Tipo convertido: "${categoryKeyAnterior}" → "${proyectoTipoNormalizado}"`);
         }
         
         // Verificar coincidencia exacta (esto funciona si categoryKey está guardado correctamente)
