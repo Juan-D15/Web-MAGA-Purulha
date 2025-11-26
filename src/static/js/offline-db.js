@@ -227,11 +227,16 @@ class OfflineDB {
           return 'Capacitación';
         } else if (nombreLower.includes('entrega') || nombreLower.includes('donación') || nombreLower.includes('donacion') ||
                    nombreLower.includes('donar') || nombreLower.includes('regalo') || nombreLower.includes('obsequio') ||
-                   nombreLower.includes('distribución') || nombreLower.includes('distribucion') || nombreLower.includes('reparto')) {
+                   nombreLower.includes('distribución') || nombreLower.includes('distribucion') || nombreLower.includes('reparto') ||
+                   nombreLower.includes('materiales') || nombreLower.includes('material')) {
           return 'Entrega';
         } else if (nombreLower.includes('proyecto') || nombreLower.includes('ayuda') || nombreLower.includes('asistencia') ||
                    nombreLower.includes('apoyo') || nombreLower.includes('beneficio') || nombreLower.includes('social') ||
-                   nombreLower.includes('comunidad') || nombreLower.includes('desarrollo') || nombreLower.includes('mejora')) {
+                   nombreLower.includes('comunidad') || nombreLower.includes('desarrollo') || nombreLower.includes('mejora') ||
+                   nombreLower.includes('sistema') || nombreLower.includes('riego') || nombreLower.includes('infraestructura') ||
+                   nombreLower.includes('construcción') || nombreLower.includes('construccion') || nombreLower.includes('instalación') ||
+                   nombreLower.includes('instalacion') || nombreLower.includes('equipamiento') || nombreLower.includes('tecnología') ||
+                   nombreLower.includes('tecnologia')) {
           return 'Proyecto de Ayuda';
         }
         return null;
@@ -272,10 +277,19 @@ class OfflineDB {
           const tipoInferido = inferirCategoriaDesdeNombre(nombreProyecto);
           if (tipoInferido) {
             proyectoTipo = tipoInferido;
+            console.log(`✅ Proyecto ${p.id} (${nombreProyecto}) - Tipo inferido desde nombre: "${tipoInferido}"`);
             // Si se infirió correctamente, también actualizar el categoryKey en el proyecto (solo en memoria para este filtrado)
             // Esto no guarda en IndexedDB, solo ayuda con el filtrado
           } else {
-            // No se puede inferir, excluir de categorías específicas
+            // No se puede inferir desde el nombre
+            // Si el tipo solicitado es "proyectos-ayuda", incluir proyectos sin tipo como fallback
+            // (muchos proyectos pueden ser de ayuda pero no tener palabras clave obvias)
+            if (tipoNormalizadoSolicitado === 'proyectos-ayuda') {
+              console.log(`✅ Proyecto ${p.id} (${nombreProyecto}) - Incluido en "proyectos-ayuda" como fallback (sin tipo)`);
+              return true;
+            }
+            // Para otras categorías, excluir si no se puede inferir
+            console.log(`❌ Proyecto ${p.id} (${nombreProyecto}) excluido: No se puede inferir tipo desde nombre y no es fallback`);
             return false;
           }
         }
