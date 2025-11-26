@@ -323,6 +323,7 @@ class OfflineDB {
         
         // Verificar coincidencia exacta (esto funciona si categoryKey está guardado correctamente)
         if (proyectoTipoNormalizado === tipoNormalizadoSolicitado) {
+          console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por coincidencia exacta: "${proyectoTipoNormalizado}" === "${tipoNormalizadoSolicitado}"`);
           return true;
         }
         
