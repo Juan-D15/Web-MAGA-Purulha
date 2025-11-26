@@ -502,6 +502,9 @@
       // Para requests GET cuando hay conexión, intentar hacer fetch normalmente
       // Pero capturar errores de red y devolver respuesta JSON válida
       return originalFetch(input, init).catch(error => {
+        // Detectar si es un error de bloqueador de anuncios
+        const isAdBlockerError = error.message && error.message.includes('ERR_BLOCKED_BY_ADBLOCKER');
+        
         // Si el fetch falla (incluso si navigator.onLine es true, puede haber problemas de red)
         // y es un GET, retornar una respuesta JSON válida
         if (!isMutation) {
@@ -510,26 +513,67 @@
             (error.message.includes('Failed to fetch') || 
              error.message.includes('NetworkError') ||
              error.message.includes('ERR_INTERNET_DISCONNECTED') ||
-             error.message.includes('ERR_NETWORK_CHANGED'));
+             error.message.includes('ERR_NETWORK_CHANGED') ||
+             error.message.includes('ERR_BLOCKED_BY_ADBLOCKER'));
+          
+          // Si es un error de bloqueador, mostrar advertencia una sola vez
+          if (isAdBlockerError && !window.adBlockerWarningShown) {
+            console.warn('⚠️ [ADBLOCKER] Un bloqueador de anuncios puede estar bloqueando recursos. Si experimentas problemas, considera desactivarlo temporalmente para este sitio.');
+            window.adBlockerWarningShown = true;
+          }
           
           if (isNetworkError) {
             // Mostrar banner si no está visible
-            if (navigator.onLine) {
+            if (navigator.onLine && !isAdBlockerError) {
               showBanner('Sin conexión a Internet');
             }
           }
           
           return new Response(JSON.stringify({ 
             success: false, 
-            error: isNetworkError ? 'Sin conexión' : 'Error de conexión',
-            offline: isNetworkError,
+            error: isAdBlockerError ? 'Recurso bloqueado por bloqueador de anuncios' : (isNetworkError ? 'Sin conexión' : 'Error de conexión'),
+            offline: isNetworkError && !isAdBlockerError,
+            blocked: isAdBlockerError,
             data: null
           }), {
-            status: 503,
-            statusText: 'Service Unavailable',
+            status: isAdBlockerError ? 403 : 503,
+            statusText: isAdBlockerError ? 'Forbidden' : 'Service Unavailable',
             headers: { 'Content-Type': 'application/json' }
           });
         }
+        
+        // Para mutaciones, si es error de bloqueador, guardar en cola igual que si fuera offline
+        if (isAdBlockerError && isMutation) {
+          console.warn('⚠️ [ADBLOCKER] Solicitud bloqueada por bloqueador de anuncios, guardando en cola para reintentar:', method, url);
+          const requestData = {
+            id: uuid(),
+            url,
+            method,
+            headers: initData.headers,
+            body: initData.body,
+            credentials: initData.credentials,
+            createdAt: new Date().toISOString(),
+          };
+          enqueue(requestData);
+          updateSyncStatus();
+          return new Response(
+            JSON.stringify({
+              success: true,
+              offline: true,
+              blocked: true,
+              queue_id: requestData.id,
+              message: 'Solicitud bloqueada. Se reintentará automáticamente.',
+            }),
+            {
+              status: 202,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Offline-Queued': 'true',
+              },
+            }
+          );
+        }
+        
         throw error;
       });
     }
@@ -1026,14 +1070,16 @@
                   headers: {
                     'Accept': 'application/json',
                   }
-                }).catch(() => {
-                  // Si el fetch falla, retornar null para que se maneje en el catch
+                }).catch((error) => {
+                  // Si el fetch falla (error de red, 502, 503, etc.), retornar null para que se maneje en el catch
+                  // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
                   return null;
                 });
                 
-                // Si es 403 o null, el usuario no tiene permisos para ver este evento, ignorar silenciosamente
-                if (!detalleResponse || detalleResponse.status === 403) {
-                  // No mostrar error, es esperado cuando no hay permisos
+                // Si es 403, 502, 503, o null, ignorar silenciosamente
+                if (!detalleResponse || detalleResponse.status === 403 || 
+                    detalleResponse.status === 502 || detalleResponse.status === 503) {
+                  // No mostrar error, es esperado cuando no hay permisos o el servidor no está disponible
                   continue;
                 }
                 
@@ -1143,7 +1189,18 @@
 
       // Sincronizar comunidades
       try {
-        const comunidadesResponse = await fetch('/api/comunidades/');
+        const comunidadesResponse = await fetch('/api/comunidades/').catch((error) => {
+          // Si el fetch falla (error de red, 502, 503, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline o el servidor no está disponible
+          return null;
+        });
+        
+        // Si la respuesta es null o tiene error 502/503, saltar silenciosamente
+        if (!comunidadesResponse || comunidadesResponse.status === 502 || comunidadesResponse.status === 503) {
+          // No mostrar error, es esperado cuando el servidor no está disponible
+          return;
+        }
+        
         if (comunidadesResponse.ok) {
           // Verificar Content-Type antes de parsear JSON
           const contentType = comunidadesResponse.headers.get('content-type');
@@ -1181,7 +1238,23 @@
 
       // Sincronizar regiones
       try {
-        const regionesResponse = await fetch('/api/regiones/');
+        const regionesResponse = await fetch('/api/regiones/').catch((error) => {
+          // Si el fetch falla (error de red, 502, 503, bloqueador, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline, el servidor no está disponible, o hay bloqueador
+          const isAdBlockerError = error.message && error.message.includes('ERR_BLOCKED_BY_ADBLOCKER');
+          if (isAdBlockerError && !window.adBlockerWarningShown) {
+            console.warn('⚠️ [ADBLOCKER] Un bloqueador de anuncios puede estar bloqueando recursos. Si experimentas problemas, considera desactivarlo temporalmente para este sitio.');
+            window.adBlockerWarningShown = true;
+          }
+          return null;
+        });
+        
+        // Si la respuesta es null o tiene error 502/503, saltar silenciosamente
+        if (!regionesResponse || regionesResponse.status === 502 || regionesResponse.status === 503) {
+          // No mostrar error, es esperado cuando el servidor no está disponible
+          return;
+        }
+        
         if (regionesResponse.ok) {
           // Verificar Content-Type antes de parsear JSON
           const contentType = regionesResponse.headers.get('content-type');
@@ -1220,7 +1293,23 @@
 
       // Sincronizar personal/colaboradores
       try {
-        const personalResponse = await fetch('/api/personal/');
+        const personalResponse = await fetch('/api/personal/').catch((error) => {
+          // Si el fetch falla (error de red, 502, 503, bloqueador, etc.), retornar null
+          // No mostrar error en consola, es esperado cuando está offline, el servidor no está disponible, o hay bloqueador
+          const isAdBlockerError = error.message && error.message.includes('ERR_BLOCKED_BY_ADBLOCKER');
+          if (isAdBlockerError && !window.adBlockerWarningShown) {
+            console.warn('⚠️ [ADBLOCKER] Un bloqueador de anuncios puede estar bloqueando recursos. Si experimentas problemas, considera desactivarlo temporalmente para este sitio.');
+            window.adBlockerWarningShown = true;
+          }
+          return null;
+        });
+        
+        // Si la respuesta es null o tiene error 502/503, saltar silenciosamente
+        if (!personalResponse || personalResponse.status === 502 || personalResponse.status === 503) {
+          // No mostrar error, es esperado cuando el servidor no está disponible
+          return;
+        }
+        
         if (personalResponse.ok) {
           // Verificar Content-Type antes de parsear JSON
           const contentType = personalResponse.headers.get('content-type');
@@ -1441,22 +1530,34 @@
     // Verificar si está offline (navigator.onLine puede no ser confiable, también verificar si hay errores de red)
     const isOffline = !navigator.onLine;
     
+    console.log('🔍 [OFFLINE-SYNC] checkAndShowOfflineBanner - isOffline:', isOffline, 'navigator.onLine:', navigator.onLine);
+    
     if (isOffline) {
-      console.log('⚠️ Verificando estado offline - Mostrando banner');
+      console.log('⚠️ [OFFLINE-SYNC] Estado offline detectado - Intentando mostrar banner');
       const banner = getBannerElement();
+      console.log('🔍 [OFFLINE-SYNC] Banner encontrado:', !!banner);
+      
       if (banner) {
+        console.log('✅ [OFFLINE-SYNC] Mostrando banner offline');
         showBanner('Sin conexión a Internet. Los cambios se guardarán localmente.');
         updateSyncStatus();
       } else {
+        console.warn('⚠️ [OFFLINE-SYNC] Banner no encontrado, reintentando en 500ms...');
         // Si el banner no existe todavía, intentar de nuevo después de un breve delay
         setTimeout(() => {
           const bannerRetry = getBannerElement();
+          console.log('🔍 [OFFLINE-SYNC] Reintento - Banner encontrado:', !!bannerRetry);
           if (bannerRetry && !navigator.onLine) {
+            console.log('✅ [OFFLINE-SYNC] Mostrando banner offline (reintento)');
             showBanner('Sin conexión a Internet. Los cambios se guardarán localmente.');
             updateSyncStatus();
+          } else if (!bannerRetry) {
+            console.error('❌ [OFFLINE-SYNC] Banner no encontrado después del reintento. Verifica que el elemento #offlineBanner exista en el DOM.');
           }
         }, 500);
       }
+    } else {
+      console.log('✅ [OFFLINE-SYNC] Estado online detectado');
     }
   }
 
@@ -1469,9 +1570,15 @@
   });
 
   window.addEventListener('offline', () => {
-    console.log('⚠️ Conexión perdida - Modo offline activado');
+    console.log('⚠️ [OFFLINE-SYNC] Evento "offline" detectado - Modo offline activado');
+    console.log('🔍 [OFFLINE-SYNC] navigator.onLine:', navigator.onLine);
     showBanner('Sin conexión a Internet. Los cambios se guardarán localmente.');
     updateSyncStatus();
+    
+    // Verificar también después de un breve delay para asegurar que el banner se muestre
+    setTimeout(() => {
+      checkAndShowOfflineBanner();
+    }, 100);
   });
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -1587,13 +1694,20 @@
   // Verificar estado offline inmediatamente si el DOM ya está listo
   // Esto asegura que el banner se muestre incluso si la página se carga offline
   function initOfflineCheck() {
+    console.log('🔍 [OFFLINE-SYNC] Inicializando verificación offline...');
+    console.log('🔍 [OFFLINE-SYNC] navigator.onLine:', navigator.onLine);
+    console.log('🔍 [OFFLINE-SYNC] document.readyState:', document.readyState);
+    
     // Verificar múltiples veces para asegurar que el banner se muestre
     checkAndShowOfflineBanner();
     
     // Verificar después de que el DOM esté completamente cargado
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(checkAndShowOfflineBanner, 100);
+        console.log('🔍 [OFFLINE-SYNC] DOM cargado, verificando offline...');
+        setTimeout(() => {
+          checkAndShowOfflineBanner();
+        }, 100);
       });
     } else {
       // DOM ya está listo, verificar después de un breve delay

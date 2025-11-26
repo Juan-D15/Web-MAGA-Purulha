@@ -212,28 +212,47 @@ class OfflineDB {
         'proyecto de ayuda': 'proyectos-ayuda',
         'proyectos de ayuda': 'proyectos-ayuda',
         'proyecto ayuda': 'proyectos-ayuda',
-        'proyectos-ayuda': 'proyectos-ayuda'
+        'proyectos-ayuda': 'proyectos-ayuda',
+        // Agregar variaciones comunes que pueden venir de la inferencia
+        'proyecto': 'proyectos-ayuda', // Si solo dice "proyecto"
+        'ayuda': 'proyectos-ayuda', // Si solo dice "ayuda"
+        // Variaciones con mayúsculas/minúsculas que pueden venir de la inferencia
+        'proyecto de ayuda': 'proyectos-ayuda',
+        'Proyecto de Ayuda': 'proyectos-ayuda',
+        'PROYECTO DE AYUDA': 'proyectos-ayuda'
       };
       
       // Función auxiliar para inferir categoría desde el nombre (definida fuera del filter para reutilización)
       const inferirCategoriaDesdeNombre = (nombre) => {
         if (!nombre) return null;
-        const nombreLower = nombre.toLowerCase();
+        // Normalizar el nombre: trim para quitar espacios al inicio/final y convertir a minúsculas
+        const nombreLower = String(nombre).trim().toLowerCase();
+        console.log(`🔍 [INFERENCIA] Analizando nombre: "${nombre}" (normalizado: "${nombreLower}")`);
+        
         // Palabras clave más amplias para mejor inferencia
         if (nombreLower.includes('capacit') || nombreLower.includes('curso') || nombreLower.includes('taller') || 
             nombreLower.includes('enseñanza') || nombreLower.includes('enseñar') || nombreLower.includes('aprendizaje') ||
             nombreLower.includes('formación') || nombreLower.includes('formacion') || nombreLower.includes('educación') ||
             nombreLower.includes('educacion') || nombreLower.includes('seminario') || nombreLower.includes('workshop')) {
+          console.log(`✅ [INFERENCIA] "${nombre}" → "Capacitación"`);
           return 'Capacitación';
         } else if (nombreLower.includes('entrega') || nombreLower.includes('donación') || nombreLower.includes('donacion') ||
                    nombreLower.includes('donar') || nombreLower.includes('regalo') || nombreLower.includes('obsequio') ||
-                   nombreLower.includes('distribución') || nombreLower.includes('distribucion') || nombreLower.includes('reparto')) {
+                   nombreLower.includes('distribución') || nombreLower.includes('distribucion') || nombreLower.includes('reparto') ||
+                   nombreLower.includes('materiales') || nombreLower.includes('material')) {
+          console.log(`✅ [INFERENCIA] "${nombre}" → "Entrega"`);
           return 'Entrega';
         } else if (nombreLower.includes('proyecto') || nombreLower.includes('ayuda') || nombreLower.includes('asistencia') ||
                    nombreLower.includes('apoyo') || nombreLower.includes('beneficio') || nombreLower.includes('social') ||
-                   nombreLower.includes('comunidad') || nombreLower.includes('desarrollo') || nombreLower.includes('mejora')) {
+                   nombreLower.includes('comunidad') || nombreLower.includes('desarrollo') || nombreLower.includes('mejora') ||
+                   nombreLower.includes('sistema') || nombreLower.includes('riego') || nombreLower.includes('infraestructura') ||
+                   nombreLower.includes('construcción') || nombreLower.includes('construccion') || nombreLower.includes('instalación') ||
+                   nombreLower.includes('instalacion') || nombreLower.includes('equipamiento') || nombreLower.includes('tecnología') ||
+                   nombreLower.includes('tecnologia') || nombreLower.includes('miniriego') || nombreLower.includes('mini-riego')) {
+          console.log(`✅ [INFERENCIA] "${nombre}" → "Proyecto de Ayuda"`);
           return 'Proyecto de Ayuda';
         }
+        console.log(`❌ [INFERENCIA] "${nombre}" → No se pudo inferir`);
         return null;
       };
       
@@ -247,9 +266,11 @@ class OfflineDB {
         if (categoryKeyNormalizado && categoryKeyNormalizado !== 'sin-tipo' && categoryKeyNormalizado !== 'sin tipo') {
           // Si categoryKey es válido y coincide, incluir
           if (categoryKeyNormalizado === tipoNormalizadoSolicitado) {
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por categoryKey: ${categoryKeyNormalizado}`);
             return true;
           } else {
             // Si categoryKey existe pero no coincide, excluir
+            console.log(`❌ Proyecto ${p.id} (${p.nombre || p.name}) excluido: categoryKey "${categoryKeyNormalizado}" no coincide con "${tipoNormalizadoSolicitado}"`);
             return false;
           }
         }
@@ -270,10 +291,19 @@ class OfflineDB {
           const tipoInferido = inferirCategoriaDesdeNombre(nombreProyecto);
           if (tipoInferido) {
             proyectoTipo = tipoInferido;
+            console.log(`✅ Proyecto ${p.id} (${nombreProyecto}) - Tipo inferido desde nombre: "${tipoInferido}"`);
             // Si se infirió correctamente, también actualizar el categoryKey en el proyecto (solo en memoria para este filtrado)
             // Esto no guarda en IndexedDB, solo ayuda con el filtrado
           } else {
-            // No se puede inferir, excluir de categorías específicas
+            // No se puede inferir desde el nombre
+            // Si el tipo solicitado es "proyectos-ayuda", incluir proyectos sin tipo como fallback
+            // (muchos proyectos pueden ser de ayuda pero no tener palabras clave obvias)
+            if (tipoNormalizadoSolicitado === 'proyectos-ayuda') {
+              console.log(`✅ Proyecto ${p.id} (${nombreProyecto}) - Incluido en "proyectos-ayuda" como fallback (sin tipo)`);
+              return true;
+            }
+            // Para otras categorías, excluir si no se puede inferir
+            console.log(`❌ Proyecto ${p.id} (${nombreProyecto}) excluido: No se puede inferir tipo desde nombre y no es fallback`);
             return false;
           }
         }
@@ -302,11 +332,14 @@ class OfflineDB {
         
         // Si el tipo del proyecto es un nombre del servidor (ej: "capacitación"), convertirlo a clave de categoría
         if (tipoToCategoryKey[proyectoTipoNormalizado]) {
+          const categoryKeyAnterior = proyectoTipoNormalizado;
           proyectoTipoNormalizado = tipoToCategoryKey[proyectoTipoNormalizado];
+          console.log(`🔄 Proyecto ${p.id} (${p.nombre || p.name}) - Tipo convertido: "${categoryKeyAnterior}" → "${proyectoTipoNormalizado}"`);
         }
         
         // Verificar coincidencia exacta (esto funciona si categoryKey está guardado correctamente)
         if (proyectoTipoNormalizado === tipoNormalizadoSolicitado) {
+          console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por coincidencia exacta: "${proyectoTipoNormalizado}" === "${tipoNormalizadoSolicitado}"`);
           return true;
         }
         
@@ -330,36 +363,53 @@ class OfflineDB {
           // Para "Capacitación" -> "capacitaciones"
           if (tipoNormalizadoSolicitado === 'capacitaciones' && (proyectoTipoLower.includes('capacit'))) {
             coincide = true;
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por palabra clave "capacit"`);
           }
           // Para "Entrega" -> "entregas"
           else if (tipoNormalizadoSolicitado === 'entregas' && (proyectoTipoLower.includes('entreg'))) {
             coincide = true;
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por palabra clave "entreg"`);
           }
           // Para "Proyecto de Ayuda" -> "proyectos-ayuda"
           else if (tipoNormalizadoSolicitado === 'proyectos-ayuda' && (proyectoTipoLower.includes('proyecto') || proyectoTipoLower.includes('ayuda'))) {
             coincide = true;
+            console.log(`✅ Proyecto ${p.id} (${p.nombre || p.name}) incluido por palabra clave "proyecto/ayuda"`);
           }
+        }
+        
+        if (!coincide) {
+          console.log(`❌ Proyecto ${p.id} (${p.nombre || p.name}) excluido: tipo "${proyectoTipoOriginal}" no coincide con "${tipoNormalizadoSolicitado}"`);
+          console.log(`   Detalles: tipo="${p.tipo || 'N/A'}", type="${p.type || 'N/A'}", categoryKey="${p.categoryKey || 'N/A'}"`);
         }
         
         return coincide;
       });
       
-      console.log(`🔍 getAllProyectos: Proyectos filtrados para tipo "${tipo}": ${filtrados.length}`);
+      console.log(`🔍 getAllProyectos: Proyectos filtrados para tipo "${tipo}": ${filtrados.length} de ${all.length} totales`);
+      
+      // Mostrar detalles de TODOS los proyectos para debugging
+      if (all.length > 0) {
+        console.log(`📋 Detalles de TODOS los proyectos en IndexedDB:`);
+        all.forEach((p, index) => {
+          const estaIncluido = filtrados.some(f => f.id === p.id);
+          console.log(`  ${estaIncluido ? '✅' : '❌'} Proyecto ${index + 1}/${all.length}:`, {
+            id: p.id,
+            nombre: p.nombre || p.name,
+            tipo: p.tipo || 'N/A',
+            type: p.type || 'N/A',
+            categoryKey: p.categoryKey || 'N/A',
+            category: p.category || 'N/A',
+            incluido: estaIncluido
+          });
+        });
+      }
+      
       if (filtrados.length === 0 && all.length > 0) {
         // Mostrar qué tipos tienen los proyectos para debugging
         const tiposEncontrados = [...new Set(all.map(p => 
           p.tipo || p.type || p.categoryKey || p.category || 'sin-tipo'
         ))];
         console.log(`ℹ️ Tipos disponibles en IndexedDB:`, tiposEncontrados);
-        // Mostrar detalles de los primeros 3 proyectos para debugging
-        console.log(`🔍 Detalles de los primeros 3 proyectos:`, all.slice(0, 3).map(p => ({
-          id: p.id,
-          nombre: p.nombre || p.name,
-          tipo: p.tipo || 'N/A',
-          type: p.type || 'N/A',
-          categoryKey: p.categoryKey || 'N/A',
-          category: p.category || 'N/A'
-        })));
       }
       
       return filtrados;
@@ -497,30 +547,48 @@ const offlineDB = new OfflineDB();
 
 // Inicializar cuando el DOM esté listo
 if (typeof window !== 'undefined') {
-  // Inicializar inmediatamente si es posible
-  offlineDB.init().catch(error => {
-    console.error('❌ Error al inicializar IndexedDB:', error);
-  });
-
-  // También inicializar cuando el DOM esté listo (por si acaso)
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        await offlineDB.init();
-        console.log('✅ IndexedDB inicializado correctamente');
-      } catch (error) {
-        console.error('❌ Error al inicializar IndexedDB:', error);
-      }
-    });
+  console.log('🔍 [OFFLINE-DB] Inicializando IndexedDB...');
+  console.log('🔍 [OFFLINE-DB] document.readyState:', document.readyState);
+  console.log('🔍 [OFFLINE-DB] indexedDB disponible:', !!window.indexedDB);
+  
+  // Verificar que IndexedDB esté disponible
+  if (!window.indexedDB) {
+    console.error('❌ [OFFLINE-DB] IndexedDB no está disponible en este navegador');
   } else {
-    // DOM ya está listo
-    offlineDB.init().catch(error => {
-      console.error('❌ Error al inicializar IndexedDB:', error);
+    // Inicializar inmediatamente si es posible
+    offlineDB.init().then(() => {
+      console.log('✅ [OFFLINE-DB] IndexedDB inicializado correctamente (inmediato)');
+      window.OfflineDB = offlineDB;
+    }).catch(error => {
+      console.error('❌ [OFFLINE-DB] Error al inicializar IndexedDB (inmediato):', error);
     });
-  }
 
-  // Exponer globalmente
-  window.OfflineDB = offlineDB;
+    // También inicializar cuando el DOM esté listo (por si acaso)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', async () => {
+        console.log('🔍 [OFFLINE-DB] DOM cargado, inicializando IndexedDB...');
+        try {
+          await offlineDB.init();
+          console.log('✅ [OFFLINE-DB] IndexedDB inicializado correctamente (DOMContentLoaded)');
+          window.OfflineDB = offlineDB;
+        } catch (error) {
+          console.error('❌ [OFFLINE-DB] Error al inicializar IndexedDB (DOMContentLoaded):', error);
+        }
+      });
+    } else {
+      // DOM ya está listo
+      console.log('🔍 [OFFLINE-DB] DOM ya está listo, inicializando IndexedDB...');
+      offlineDB.init().then(() => {
+        console.log('✅ [OFFLINE-DB] IndexedDB inicializado correctamente (DOM listo)');
+        window.OfflineDB = offlineDB;
+      }).catch(error => {
+        console.error('❌ [OFFLINE-DB] Error al inicializar IndexedDB (DOM listo):', error);
+      });
+    }
+
+    // Exponer globalmente inmediatamente (aunque aún no esté inicializado)
+    window.OfflineDB = offlineDB;
+  }
 }
 
 // Exportar para uso en otros módulos (si se usa módulos)
