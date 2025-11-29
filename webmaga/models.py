@@ -380,8 +380,16 @@ class BeneficiarioIndividual(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     beneficiario = models.OneToOneField(Beneficiario, on_delete=models.CASCADE, related_name='individual', db_column='beneficiario_id')
-    nombre = models.CharField(max_length=150)
-    apellido = models.CharField(max_length=150)
+    nombre = models.CharField(max_length=150, blank=True, null=True)
+    apellido = models.CharField(max_length=150, blank=True, null=True)
+    # Nuevos campos para nombres y apellidos
+    primer_nombre = models.CharField(max_length=150, blank=True, null=True)
+    segundo_nombre = models.CharField(max_length=150, blank=True, null=True)
+    tercer_nombre = models.CharField(max_length=150, blank=True, null=True)
+    primer_apellido = models.CharField(max_length=150, blank=True, null=True)
+    segundo_apellido = models.CharField(max_length=150, blank=True, null=True)
+    apellido_casada = models.CharField(max_length=150, blank=True, null=True)
+    comunidad_linguistica = models.CharField(max_length=100, blank=True, null=True)
     dpi = models.CharField(max_length=20, unique=True, blank=True, null=True)
     fecha_nacimiento = models.DateField(blank=True, null=True)
     genero = models.CharField(max_length=20, choices=GENERO_CHOICES, blank=True, null=True)
@@ -395,7 +403,79 @@ class BeneficiarioIndividual(models.Model):
         verbose_name_plural = 'Beneficiarios Individuales'
     
     def __str__(self):
-        return f"{self.nombre} {self.apellido}"
+        nombre_completo = f"{self.primer_nombre or self.nombre or ''} {self.primer_apellido or self.apellido or ''}".strip()
+        return nombre_completo or f"Beneficiario {self.id}"
+
+
+class BeneficiarioFoto(models.Model):
+    """Fotos de beneficiarios individuales"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    beneficiario_individual = models.OneToOneField(
+        BeneficiarioIndividual,
+        on_delete=models.CASCADE,
+        related_name='foto',
+        db_column='beneficiario_individual_id'
+    )
+    archivo_nombre = models.CharField(max_length=255)
+    archivo_tipo = models.CharField(max_length=100, blank=True, null=True)
+    archivo_tamanio = models.BigIntegerField(blank=True, null=True)
+    url_almacenamiento = models.TextField()
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'beneficiario_fotos'
+        verbose_name = 'Foto de Beneficiario'
+        verbose_name_plural = 'Fotos de Beneficiarios'
+    
+    def __str__(self):
+        return f"Foto de {self.beneficiario_individual}"
+
+
+class BeneficiarioAtributoTipo(models.Model):
+    """Tipos de atributos que se pueden asignar a beneficiarios individuales"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    codigo = models.CharField(max_length=50, unique=True)
+    nombre = models.CharField(max_length=100)
+    descripcion = models.TextField(blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    creado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='atributos_tipos_creados', db_column='creado_por')
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'beneficiario_atributos_tipos'
+        verbose_name = 'Tipo de Atributo de Beneficiario'
+        verbose_name_plural = 'Tipos de Atributos de Beneficiarios'
+        ordering = ['nombre']
+    
+    def __str__(self):
+        return self.nombre
+
+
+class BeneficiarioAtributo(models.Model):
+    """Atributos asignados a beneficiarios individuales"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    beneficiario_individual = models.ForeignKey(BeneficiarioIndividual, on_delete=models.CASCADE, related_name='atributos', db_column='beneficiario_individual_id')
+    atributo_tipo = models.ForeignKey(BeneficiarioAtributoTipo, on_delete=models.RESTRICT, related_name='valores', db_column='atributo_tipo_id')
+    valor = models.TextField()
+    descripcion = models.TextField(blank=True, null=True)
+    creado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name='atributos_creados', db_column='creado_por')
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'beneficiario_atributos'
+        verbose_name = 'Atributo de Beneficiario'
+        verbose_name_plural = 'Atributos de Beneficiarios'
+        unique_together = [['beneficiario_individual', 'atributo_tipo', 'valor']]
+        ordering = ['atributo_tipo__nombre', 'valor']
+    
+    def __str__(self):
+        return f"{self.beneficiario_individual} - {self.atributo_tipo.nombre}: {self.valor}"
 
 
 class BeneficiarioFamilia(models.Model):

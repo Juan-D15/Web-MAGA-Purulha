@@ -15,7 +15,8 @@ let selectedProjects = new Set();
 let filters = {
     tipoBeneficiario: ['individual', 'familia', 'institución', 'otro'],
     comunidad: [],
-    evento: []
+    evento: [],
+    soloConHabilidades: false
 };
 let allComunidades = [];
 let selectedComunidadId = null; // ID de la comunidad seleccionada
@@ -144,11 +145,245 @@ function initializeAddView() {
     updateSelectedProjectsCount();
 }
 
+// Función para separar nombres (máximo 3)
+function separarNombres(nombresTexto) {
+    const nombres = nombresTexto.trim().split(/\s+/).filter(n => n.length > 0);
+    return {
+        primer_nombre: nombres[0] || '',
+        segundo_nombre: nombres[1] || null,
+        tercer_nombre: nombres[2] || null
+    };
+}
+
+// Función para separar apellidos (máximo 2)
+function separarApellidos(apellidosTexto) {
+    const apellidos = apellidosTexto.trim().split(/\s+/).filter(a => a.length > 0);
+    return {
+        primer_apellido: apellidos[0] || '',
+        segundo_apellido: apellidos[1] || null
+    };
+}
+
+// Función para validar y limitar palabras en un campo
+function limitarPalabras(campo, maxPalabras) {
+    campo.addEventListener('input', function() {
+        const palabras = this.value.trim().split(/\s+/).filter(p => p.length > 0);
+        if (palabras.length > maxPalabras) {
+            this.value = palabras.slice(0, maxPalabras).join(' ');
+        }
+    });
+}
+
+// Función para validar DPI existente
+let dpiValidationTimeout = null;
+let beneficiarioExistente = null;
+let dpiValidando = false;
+let editandoBeneficiarioId = null; // ID del beneficiario que se está editando
+
+async function validarDPIExistente(dpi, mostrarLoading = true) {
+    if (!dpi || dpi.length !== 13) {
+        beneficiarioExistente = null;
+        resetDPIStatus();
+        return;
+    }
+    
+    // Si estamos editando un beneficiario, verificar si el DPI pertenece al mismo
+    if (editandoBeneficiarioId) {
+        try {
+            const response = await fetch(`/api/beneficiarios/buscar-por-dpi/?dpi=${dpi}`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.existe && data.beneficiario && data.beneficiario.id === editandoBeneficiarioId) {
+                    // Es el mismo beneficiario, no mostrar advertencia
+                    beneficiarioExistente = null;
+                    mostrarDPISuccess();
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Error al validar DPI:', error);
+        }
+    }
+    
+    // Mostrar loading
+    if (mostrarLoading) {
+        mostrarDPILoading();
+    }
+    
+    try {
+        const response = await fetch(`/api/beneficiarios/buscar-por-dpi/?dpi=${dpi}`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.existe) {
+                // Si estamos editando y es el mismo beneficiario, no mostrar advertencia
+                if (editandoBeneficiarioId && data.beneficiario && data.beneficiario.id === editandoBeneficiarioId) {
+                    beneficiarioExistente = null;
+                    mostrarDPISuccess();
+                } else {
+                    beneficiarioExistente = data.beneficiario;
+                    mostrarAdvertenciaDPI(data.beneficiario);
+                }
+            } else {
+                beneficiarioExistente = null;
+                mostrarDPISuccess();
+            }
+        } else {
+            beneficiarioExistente = null;
+            resetDPIStatus();
+        }
+    } catch (error) {
+        console.error('Error al validar DPI:', error);
+        beneficiarioExistente = null;
+        resetDPIStatus();
+    } finally {
+        if (mostrarLoading) {
+            ocultarDPILoading();
+        }
+    }
+}
+
+function mostrarDPILoading() {
+    const dpiInput = document.getElementById('benef_ind_dpi');
+    const statusIcon = document.getElementById('benef_ind_dpi_status');
+    const loadingIcon = document.getElementById('benef_ind_dpi_warning');
+    const successIcon = document.getElementById('benef_ind_dpi_success');
+    const loadingSpinner = document.getElementById('benef_ind_dpi_loading');
+    const message = document.getElementById('benef_ind_dpi_message');
+    
+    if (statusIcon) statusIcon.style.display = 'none';
+    if (loadingIcon) loadingIcon.style.display = 'none';
+    if (successIcon) successIcon.style.display = 'none';
+    if (loadingSpinner) loadingSpinner.style.display = 'block';
+    if (message) {
+        message.textContent = 'Verificando DPI...';
+        message.style.color = '#007bff';
+    }
+    if (dpiInput) {
+        dpiInput.style.borderColor = '#007bff';
+        dpiInput.style.backgroundColor = 'rgba(0, 123, 255, 0.05)';
+    }
+}
+
+function ocultarDPILoading() {
+    const loadingSpinner = document.getElementById('benef_ind_dpi_loading');
+    if (loadingSpinner) loadingSpinner.style.display = 'none';
+}
+
+function mostrarDPISuccess() {
+    const dpiInput = document.getElementById('benef_ind_dpi');
+    const statusIcon = document.getElementById('benef_ind_dpi_status');
+    const successIcon = document.getElementById('benef_ind_dpi_success');
+    const warning = document.getElementById('benef_ind_dpi_warning');
+    const infoDiv = document.getElementById('benef_ind_dpi_existente_info');
+    const message = document.getElementById('benef_ind_dpi_message');
+    
+    if (dpiInput) {
+        dpiInput.style.borderColor = '#28a745';
+        dpiInput.style.backgroundColor = 'rgba(40, 167, 69, 0.05)';
+    }
+    
+    if (statusIcon) statusIcon.style.display = 'block';
+    if (successIcon) successIcon.style.display = 'block';
+    if (warning) warning.style.display = 'none';
+    if (infoDiv) infoDiv.style.display = 'none';
+    
+    if (message) {
+        message.textContent = '✓ DPI válido y disponible';
+        message.style.color = '#28a745';
+    }
+}
+
+function mostrarAdvertenciaDPI(beneficiario) {
+    const dpiInput = document.getElementById('benef_ind_dpi');
+    const statusIcon = document.getElementById('benef_ind_dpi_status');
+    const warningIcon = document.getElementById('benef_ind_dpi_warning');
+    const successIcon = document.getElementById('benef_ind_dpi_success');
+    const infoDiv = document.getElementById('benef_ind_dpi_existente_info');
+    const datosDiv = document.getElementById('benef_ind_dpi_existente_datos');
+    const message = document.getElementById('benef_ind_dpi_message');
+    
+    if (dpiInput) {
+        dpiInput.style.borderColor = '#dc3545';
+        dpiInput.style.backgroundColor = 'rgba(220, 53, 69, 0.05)';
+    }
+    
+    if (statusIcon) statusIcon.style.display = 'block';
+    if (warningIcon) warningIcon.style.display = 'block';
+    if (successIcon) successIcon.style.display = 'none';
+    if (infoDiv) infoDiv.style.display = 'block';
+    
+    if (message) {
+        message.textContent = '⚠ Este DPI ya existe en el sistema';
+        message.style.color = '#dc3545';
+    }
+    
+    if (datosDiv && beneficiario) {
+        const nombreCompleto = beneficiario.primer_nombre || beneficiario.nombre || '';
+        const apellidoCompleto = beneficiario.primer_apellido || beneficiario.apellido || '';
+        const comunidad = beneficiario.comunidad_nombre || 'N/A';
+        const fechaCreacion = beneficiario.creado_en ? new Date(beneficiario.creado_en).toLocaleDateString('es-GT') : 'N/A';
+        const fechaActualizacion = beneficiario.actualizado_en ? new Date(beneficiario.actualizado_en).toLocaleDateString('es-GT') : 'N/A';
+        
+        datosDiv.innerHTML = `
+            <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                <div style="margin-bottom: 6px;"><strong style="color: #ffffff;">Nombre:</strong> <span style="color: #b8c5d1;">${nombreCompleto} ${apellidoCompleto}</span></div>
+                <div style="margin-bottom: 6px;"><strong style="color: #ffffff;">Comunidad:</strong> <span style="color: #b8c5d1;">${comunidad}</span></div>
+                <div style="margin-bottom: 6px;"><strong style="color: #ffffff;">Fecha de registro:</strong> <span style="color: #b8c5d1;">${fechaCreacion}</span></div>
+                <div style="margin-bottom: 6px;"><strong style="color: #ffffff;">Última actualización:</strong> <span style="color: #b8c5d1;">${fechaActualizacion}</span></div>
+                ${beneficiario.telefono ? `<div><strong style="color: #ffffff;">Teléfono:</strong> <span style="color: #b8c5d1;">${beneficiario.telefono}</span></div>` : ''}
+            </div>
+        `;
+    }
+}
+
+function resetDPIStatus() {
+    const dpiInput = document.getElementById('benef_ind_dpi');
+    const statusIcon = document.getElementById('benef_ind_dpi_status');
+    const warningIcon = document.getElementById('benef_ind_dpi_warning');
+    const successIcon = document.getElementById('benef_ind_dpi_success');
+    const infoDiv = document.getElementById('benef_ind_dpi_existente_info');
+    const message = document.getElementById('benef_ind_dpi_message');
+    
+    if (dpiInput) {
+        dpiInput.style.borderColor = '';
+        dpiInput.style.backgroundColor = '';
+    }
+    
+    if (statusIcon) statusIcon.style.display = 'none';
+    if (warningIcon) warningIcon.style.display = 'none';
+    if (successIcon) successIcon.style.display = 'none';
+    if (infoDiv) infoDiv.style.display = 'none';
+    
+    if (message) {
+        message.textContent = 'Debe tener exactamente 13 números. Se verificará automáticamente al salir del campo.';
+        message.style.color = '#6c757d';
+    }
+    
+    beneficiarioExistente = null;
+}
+
+function ocultarAdvertenciaDPI() {
+    resetDPIStatus();
+}
+
 function setupInputValidation() {
-    // Validación para campos de solo letras (Nombre, Apellido, Jefe de Familia, Representante Legal, Persona de Contacto)
+    // Validación para campos de solo letras (Nombre, Apellido, Apellido de Casada, Jefe de Familia, Representante Legal, Persona de Contacto)
     const letrasOnlyFields = [
         'benef_ind_nombre',
         'benef_ind_apellido',
+        'benef_ind_apellido_casada',
         'benef_fam_jefe',
         'benef_inst_representante',
         'benef_otro_contacto'
@@ -180,8 +415,128 @@ function setupInputValidation() {
                 // Remover cualquier carácter que no sea letra o espacio
                 this.value = this.value.replace(/[^a-zA-ZÁÉÍÓÚáéíóúÑñ\s]/g, '');
             });
+            
+            // Limitar palabras según el campo
+            if (fieldId === 'benef_ind_nombre') {
+                limitarPalabras(field, 3); // Máximo 3 nombres
+            } else if (fieldId === 'benef_ind_apellido') {
+                limitarPalabras(field, 2); // Máximo 2 apellidos
+            } else if (fieldId === 'benef_ind_apellido_casada') {
+                limitarPalabras(field, 3); // Máximo 3 palabras
+            }
         }
     });
+    
+    // Validación de DPI con verificación en tiempo real
+    const dpiField = document.getElementById('benef_ind_dpi');
+    if (dpiField && !dpiField.hasAttribute('data-dpi-listener-attached')) {
+        dpiField.setAttribute('data-dpi-listener-attached', 'true');
+        
+        // Validación en tiempo real mientras el usuario escribe
+        dpiField.addEventListener('input', function() {
+            const dpi = this.value.trim();
+            // Limpiar timeout anterior
+            if (dpiValidationTimeout) {
+                clearTimeout(dpiValidationTimeout);
+            }
+            
+            // Si el DPI está completo (13 dígitos), validar automáticamente después de un breve delay
+            if (dpi.length === 13) {
+                // Validar automáticamente después de 500ms de inactividad
+                dpiValidationTimeout = setTimeout(() => {
+                    validarDPIExistente(dpi, true);
+                }, 500);
+            } else if (dpi.length > 0 && dpi.length < 13) {
+                // DPI incompleto - mostrar mensaje informativo
+                resetDPIStatus();
+                const message = document.getElementById('benef_ind_dpi_message');
+                if (message) {
+                    message.textContent = `Ingresando DPI... (${dpi.length}/13 dígitos)`;
+                    message.style.color = '#6c757d';
+                }
+            } else if (dpi.length === 0) {
+                // Campo vacío - limpiar estado
+                resetDPIStatus();
+            } else if (dpi.length > 13) {
+                // DPI demasiado largo - mostrar error
+                resetDPIStatus();
+                const message = document.getElementById('benef_ind_dpi_message');
+                if (message) {
+                    message.textContent = '⚠ El DPI no puede tener más de 13 números';
+                    message.style.color = '#ffc107';
+                }
+            }
+        });
+        
+        // También validar cuando el usuario sale del campo (blur) como respaldo
+        dpiField.addEventListener('blur', function() {
+            const dpi = this.value.trim();
+            // Limpiar timeout de input si existe
+            if (dpiValidationTimeout) {
+                clearTimeout(dpiValidationTimeout);
+            }
+            
+            if (dpi.length === 13) {
+                validarDPIExistente(dpi, true);
+            } else if (dpi.length > 0 && dpi.length !== 13) {
+                // DPI incompleto
+                const message = document.getElementById('benef_ind_dpi_message');
+                if (message) {
+                    message.textContent = '⚠ El DPI debe tener exactamente 13 números';
+                    message.style.color = '#ffc107';
+                }
+                resetDPIStatus();
+            } else {
+                resetDPIStatus();
+            }
+        });
+    }
+    
+    // Mostrar advertencia al hacer clic en el ícono de advertencia
+    const warningIcon = document.getElementById('benef_ind_dpi_warning');
+    if (warningIcon) {
+        warningIcon.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (beneficiarioExistente) {
+                // Scroll suave hacia la información del beneficiario
+                const infoDiv = document.getElementById('benef_ind_dpi_existente_info');
+                if (infoDiv) {
+                    infoDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    // Resaltar brevemente
+                    infoDiv.style.animation = 'pulse 0.5s ease-in-out';
+                    setTimeout(() => {
+                        infoDiv.style.animation = '';
+                    }, 500);
+                }
+            }
+        });
+    }
+    
+    // Manejar checkbox de actualizar fecha
+    const actualizarFechaCheck = document.getElementById('benef_ind_actualizar_fecha_check');
+    const fechaActualizacionContainer = document.getElementById('benef_ind_fecha_actualizacion_container');
+    if (actualizarFechaCheck && fechaActualizacionContainer) {
+        actualizarFechaCheck.addEventListener('change', function() {
+            fechaActualizacionContainer.style.display = this.checked ? 'block' : 'none';
+            if (this.checked) {
+                // Establecer fecha actual por defecto
+                const fechaInput = document.getElementById('benef_ind_fecha_actualizacion');
+                if (fechaInput && !fechaInput.value) {
+                    const hoy = new Date().toISOString().split('T')[0];
+                    fechaInput.value = hoy;
+                }
+            }
+        });
+    }
+    
+    // Manejar botón "Actualizar Fecha"
+    const btnActualizarFecha = document.getElementById('benef_ind_btn_actualizar_fecha');
+    if (btnActualizarFecha) {
+        btnActualizarFecha.addEventListener('click', async function() {
+            await actualizarSoloFechaBeneficiario();
+        });
+    }
     
     // Validación para campos de solo números (DPI, Teléfono)
     const numerosOnlyFields = [
@@ -583,6 +938,71 @@ function initializeBeneficiaryForm() {
     
     // Cargar regiones
     loadRegiones();
+    
+    // Inicializar modales de edición
+    inicializarModalesEdicion();
+    inicializarModalAgregarProyecto();
+    inicializarModalAgregarAtributo();
+}
+
+// Función para inicializar modales de edición
+function inicializarModalesEdicion() {
+    const modal = document.getElementById('editBeneficiaryOptionsModal');
+    const closeBtn = document.getElementById('closeEditOptionsModal');
+    const btnEditInfo = document.getElementById('btnEditInfoBeneficiario');
+    const btnAddToProject = document.getElementById('btnAddToProjectBeneficiario');
+    
+    // Cerrar modal
+    if (closeBtn) {
+        closeBtn.addEventListener('click', cerrarOpcionesEdicion);
+    }
+    
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                cerrarOpcionesEdicion();
+            }
+        });
+    }
+    
+    // Botón editar información
+    if (btnEditInfo) {
+        btnEditInfo.addEventListener('click', async function() {
+            const beneficiarioId = beneficiarioEditando;
+            if (beneficiarioId) {
+                cerrarOpcionesEdicion();
+                // Cambiar a la vista de agregar beneficiario
+                showView('addBeneficiaryView');
+                // Esperar un poco para que la vista se muestre
+                setTimeout(async () => {
+                    await cargarDatosBeneficiarioParaEditar(beneficiarioId);
+                }, 100);
+            }
+        });
+    }
+    
+    // Botón agregar a proyecto
+    if (btnAddToProject) {
+        btnAddToProject.addEventListener('click', function() {
+            const beneficiarioId = beneficiarioEditando;
+            if (beneficiarioId) {
+                cerrarOpcionesEdicion();
+                mostrarModalAgregarProyecto(beneficiarioId);
+            }
+        });
+    }
+    
+    // Botón agregar atributo
+    const btnAddAtributo = document.getElementById('btnAddAtributoBeneficiario');
+    if (btnAddAtributo) {
+        btnAddAtributo.addEventListener('click', function() {
+            const beneficiarioId = beneficiarioEditando;
+            if (beneficiarioId) {
+                cerrarOpcionesEdicion();
+                abrirModalAgregarAtributo(beneficiarioId);
+            }
+        });
+    }
 }
 
 function setBeneficiaryMode(mode) {
@@ -670,12 +1090,47 @@ function resetBeneficiaryForm() {
     if (projectSection) projectSection.style.display = 'none';
     const addToProjectCheckbox = document.getElementById('addToProjectCheckbox');
     if (addToProjectCheckbox) addToProjectCheckbox.checked = false;
+    const projectFechaAgregacion = document.getElementById('projectFechaAgregacion');
+    if (projectFechaAgregacion) projectFechaAgregacion.value = '';
+    const projectFechaAgregacionContainer = document.getElementById('projectFechaAgregacionContainer');
+    if (projectFechaAgregacionContainer) projectFechaAgregacionContainer.style.display = 'none';
+    
+    // Limpiar advertencia de DPI y estados
+    resetDPIStatus();
+    beneficiarioExistente = null;
+    editandoBeneficiarioId = null;
+    
+    // Remover atributo de listener del DPI para que se reconfigure
+    const dpiField = document.getElementById('benef_ind_dpi');
+    if (dpiField) {
+        dpiField.removeAttribute('data-dpi-listener-attached');
+    }
+    const actualizarFechaCheck = document.getElementById('benef_ind_actualizar_fecha_check');
+    if (actualizarFechaCheck) actualizarFechaCheck.checked = false;
+    const fechaActualizacionContainer = document.getElementById('benef_ind_fecha_actualizacion_container');
+    if (fechaActualizacionContainer) fechaActualizacionContainer.style.display = 'none';
+    const fechaActualizacion = document.getElementById('benef_ind_fecha_actualizacion');
+    if (fechaActualizacion) fechaActualizacion.value = '';
+    
+    // Limpiar estilos de campos autocompletados (amarillo)
+    const camposAutocompletados = document.querySelectorAll('[style*="rgba(255, 255, 255, 0.25)"]');
+    camposAutocompletados.forEach(campo => {
+        campo.style.backgroundColor = '';
+    });
     
     // Limpiar checklist de proyectos
     const projectsChecklist = document.getElementById('projectsChecklist');
     if (projectsChecklist) {
         projectsChecklist.innerHTML = '';
     }
+    
+    // Limpiar foto
+    const fotoInput = document.getElementById('benef_ind_foto');
+    const fotoPreview = document.getElementById('benef_ind_foto_preview');
+    const fotoPreviewImg = document.getElementById('benef_ind_foto_preview_img');
+    if (fotoInput) fotoInput.value = '';
+    if (fotoPreview) fotoPreview.style.display = 'none';
+    if (fotoPreviewImg) fotoPreviewImg.src = '';
 }
 
 async function loadRegiones() {
@@ -1333,6 +1788,12 @@ function updateSelectedProjectsCount() {
         const count = selectedProjects.size;
         container.innerHTML = `<span class="selected-count">${count} proyecto${count !== 1 ? 's' : ''} seleccionado${count !== 1 ? 's' : ''}</span>`;
     }
+    
+    // Mostrar/ocultar campo de fecha de agregación al proyecto
+    const fechaContainer = document.getElementById('projectFechaAgregacionContainer');
+    if (fechaContainer) {
+        fechaContainer.style.display = selectedProjects.size > 0 ? 'block' : 'none';
+    }
 }
 
 function updateProjectsChecklist() {
@@ -1405,6 +1866,9 @@ async function handleSaveBeneficiary() {
         return;
     }
     
+    // Verificar si estamos editando (si hay un beneficiario cargado para editar)
+    const esModoEdicion = editandoBeneficiarioId !== null;
+    
     // Verificar si se está usando importación desde Excel
     const useExcelImport = document.getElementById('useExcelImportCheckbox');
     const isExcelMode = useExcelImport && useExcelImport.checked;
@@ -1459,22 +1923,102 @@ async function handleSaveBeneficiary() {
     
     // Validar y obtener datos según tipo
     if (tipo === 'individual') {
-        const nombre = document.getElementById('benef_ind_nombre').value.trim();
-        const apellido = document.getElementById('benef_ind_apellido').value.trim();
+        const nombreTexto = document.getElementById('benef_ind_nombre').value.trim();
+        const apellidoTexto = document.getElementById('benef_ind_apellido').value.trim();
         const genero = document.getElementById('benef_ind_genero').value;
         
-        if (!nombre || !apellido || !genero) {
+        // Separar nombres y apellidos
+        const nombres = separarNombres(nombreTexto);
+        const apellidos = separarApellidos(apellidoTexto);
+        
+        // Validar que al menos primer nombre y primer apellido existan
+        if (!nombres.primer_nombre || !apellidos.primer_apellido || !genero) {
             mostrarMensaje('error', 'Por favor completa todos los campos requeridos para beneficiario individual');
             return;
         }
         
-        beneficiarioData.nombre = nombre;
-        beneficiarioData.apellido = apellido;
-        beneficiarioData.dpi = document.getElementById('benef_ind_dpi').value.trim();
-        beneficiarioData.fecha_nacimiento = document.getElementById('benef_ind_fecha_nac').value;
-        beneficiarioData.edad = document.getElementById('benef_ind_edad').value;
+        // Validar límite de nombres (máximo 3)
+        const nombresArray = nombreTexto.split(/\s+/).filter(n => n.length > 0);
+        if (nombresArray.length > 3) {
+            mostrarMensaje('error', 'El campo nombre solo puede contener máximo 3 nombres separados por espacios');
+            return;
+        }
+        
+        // Validar límite de apellidos (máximo 2)
+        const apellidosArray = apellidoTexto.split(/\s+/).filter(a => a.length > 0);
+        if (apellidosArray.length > 2) {
+            mostrarMensaje('error', 'El campo apellido solo puede contener máximo 2 apellidos separados por espacios');
+            return;
+        }
+        
+        // Agregar nombres separados
+        beneficiarioData.primer_nombre = nombres.primer_nombre;
+        beneficiarioData.segundo_nombre = nombres.segundo_nombre;
+        beneficiarioData.tercer_nombre = nombres.tercer_nombre;
+        
+        // Agregar apellidos separados
+        beneficiarioData.primer_apellido = apellidos.primer_apellido;
+        beneficiarioData.segundo_apellido = apellidos.segundo_apellido;
+        
+        // Mantener compatibilidad con campos antiguos
+        beneficiarioData.nombre = nombres.primer_nombre;
+        beneficiarioData.apellido = apellidos.primer_apellido;
+        
+        // Apellido de casada
+        const apellidoCasadaTexto = document.getElementById('benef_ind_apellido_casada').value.trim();
+        if (apellidoCasadaTexto) {
+            const palabrasCasada = apellidoCasadaTexto.split(/\s+/).filter(p => p.length > 0);
+            if (palabrasCasada.length > 3) {
+                mostrarMensaje('error', 'El apellido de casada solo puede contener máximo 3 palabras separadas por espacios');
+                return;
+            }
+            beneficiarioData.apellido_casada = apellidoCasadaTexto;
+        }
+        
+        // DPI
+        const dpi = document.getElementById('benef_ind_dpi').value.trim();
+        beneficiarioData.dpi = dpi || null;
+        
+        // Si el DPI existe, actualizar el beneficiario existente en lugar de crear uno nuevo
+        if (beneficiarioExistente && dpi && dpi.length === 13) {
+            // Marcar que se debe actualizar el beneficiario existente
+            beneficiarioData.actualizar_beneficiario_existente = true;
+            beneficiarioData.beneficiario_existente_id = beneficiarioExistente.id;
+            
+            // Si hay fecha de actualización seleccionada, incluirla
+            const actualizarFechaCheck = document.getElementById('benef_ind_actualizar_fecha_check');
+            if (actualizarFechaCheck && actualizarFechaCheck.checked) {
+                const fechaActualizacion = document.getElementById('benef_ind_fecha_actualizacion').value;
+                if (fechaActualizacion) {
+                    beneficiarioData.actualizar_fecha_existente = true;
+                    beneficiarioData.fecha_actualizacion = fechaActualizacion;
+                }
+            }
+        }
+        
+        // Comunidad lingüística
+        const comunidadLinguistica = document.getElementById('benef_ind_comunidad_linguistica').value;
+        if (comunidadLinguistica) {
+            beneficiarioData.comunidad_linguistica = comunidadLinguistica;
+        }
+        
+        // Fecha de registro
+        const fechaRegistro = document.getElementById('benef_ind_fecha_registro').value;
+        if (fechaRegistro) {
+            beneficiarioData.fecha_registro = fechaRegistro;
+        }
+        
+        // Foto (solo si hay archivo seleccionado)
+        const fotoInput = document.getElementById('benef_ind_foto');
+        if (fotoInput && fotoInput.files && fotoInput.files.length > 0) {
+            beneficiarioData.foto_file = fotoInput.files[0];
+        }
+        
+        // Otros campos
+        beneficiarioData.fecha_nacimiento = document.getElementById('benef_ind_fecha_nac').value || null;
+        beneficiarioData.edad = document.getElementById('benef_ind_edad').value || null;
         beneficiarioData.genero = genero;
-        beneficiarioData.telefono = document.getElementById('benef_ind_telefono').value.trim();
+        beneficiarioData.telefono = document.getElementById('benef_ind_telefono').value.trim() || null;
     } else if (tipo === 'familia') {
         const nombreFamilia = document.getElementById('benef_fam_nombre').value.trim();
         const jefeFamilia = document.getElementById('benef_fam_jefe').value.trim();
@@ -1535,17 +2079,59 @@ async function handleSaveBeneficiary() {
         // Agregar proyectos seleccionados a los datos
         if (selectedProjects.size > 0) {
             beneficiarioData.proyecto_ids = Array.from(selectedProjects);
+            // Agregar fecha de agregación al proyecto si se especificó
+            const fechaAgregacion = document.getElementById('projectFechaAgregacion');
+            if (fechaAgregacion && fechaAgregacion.value) {
+                beneficiarioData.fecha_agregacion_proyecto = fechaAgregacion.value;
+            }
         }
         
         console.log('Enviando datos del beneficiario:', beneficiarioData);
         
-        const response = await fetch('/api/beneficiarios/crear/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify(beneficiarioData)
+        // Determinar endpoint y método según si estamos editando o creando
+        let endpoint, method;
+        if (esModoEdicion && editandoBeneficiarioId) {
+            // Modo edición
+            endpoint = `/api/beneficiarios/actualizar/${editandoBeneficiarioId}/`;
+            method = 'PUT';
+            beneficiarioData.beneficiario_existente_id = editandoBeneficiarioId;
+        } else if (beneficiarioData.actualizar_beneficiario_existente && beneficiarioData.beneficiario_existente_id) {
+            // DPI existente - actualizar
+            endpoint = `/api/beneficiarios/actualizar/${beneficiarioData.beneficiario_existente_id}/`;
+            method = 'PUT';
+        } else {
+            // Crear nuevo
+            endpoint = '/api/beneficiarios/crear/';
+            method = 'POST';
+        }
+        
+        // Preparar FormData si hay foto
+        let requestBody;
+        let headers = {
+            'X-CSRFToken': getCookie('csrftoken')
+        };
+        
+        if (beneficiarioData.foto_file) {
+            // Usar FormData para enviar archivo
+            const formData = new FormData();
+            formData.append('foto', beneficiarioData.foto_file);
+            delete beneficiarioData.foto_file; // Remover del objeto JSON
+            
+            // Agregar todos los demás campos como JSON string
+            formData.append('data', JSON.stringify(beneficiarioData));
+            
+            requestBody = formData;
+            // No establecer Content-Type, el navegador lo hará automáticamente con el boundary
+        } else {
+            // Enviar como JSON normal
+            headers['Content-Type'] = 'application/json';
+            requestBody = JSON.stringify(beneficiarioData);
+        }
+        
+        const response = await fetch(endpoint, {
+            method: method,
+            headers: headers,
+            body: requestBody
         });
         
         const data = await response.json();
@@ -1556,10 +2142,14 @@ async function handleSaveBeneficiary() {
         }
         
         if (data.success) {
-            mostrarMensaje('success', data.message || 'Beneficiario guardado exitosamente');
+            const mensaje = (esModoEdicion || beneficiarioData.actualizar_beneficiario_existente)
+                ? (data.message || 'Beneficiario actualizado exitosamente')
+                : (data.message || 'Beneficiario guardado exitosamente');
+            mostrarMensaje('success', mensaje);
             
             // Limpiar formulario usando la función de reset
             resetBeneficiaryForm();
+            editandoBeneficiarioId = null;
             
             // Volver a vista principal
             setTimeout(() => {
@@ -1584,6 +2174,76 @@ async function handleSaveBeneficiary() {
                 </svg>
                 Guardar Beneficiario
             `;
+        }
+    }
+}
+
+// Función para actualizar solo la fecha de actualización del beneficiario
+async function actualizarSoloFechaBeneficiario() {
+    if (!beneficiarioExistente) {
+        mostrarMensaje('error', 'No hay un beneficiario existente para actualizar');
+        return;
+    }
+    
+    const fechaActualizacion = document.getElementById('benef_ind_fecha_actualizacion').value;
+    if (!fechaActualizacion) {
+        mostrarMensaje('error', 'Por favor selecciona una fecha de actualización');
+        return;
+    }
+    
+    const btnActualizarFecha = document.getElementById('benef_ind_btn_actualizar_fecha');
+    const btnOriginalHTML = btnActualizarFecha ? btnActualizarFecha.innerHTML : '';
+    
+    try {
+        if (btnActualizarFecha) {
+            btnActualizarFecha.disabled = true;
+            btnActualizarFecha.innerHTML = '<div class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #ffffff; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; display: inline-block; margin-right: 6px;"></div> Actualizando...';
+        }
+        
+        const response = await fetch(`/api/beneficiarios/actualizar-fecha/${beneficiarioExistente.id}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                fecha_actualizacion: fechaActualizacion
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || `Error HTTP: ${response.status}`);
+        }
+        
+        if (data.success) {
+            mostrarMensaje('success', data.message || 'Fecha de actualización guardada exitosamente');
+            
+            // Limpiar el campo de fecha
+            const fechaInput = document.getElementById('benef_ind_fecha_actualizacion');
+            if (fechaInput) fechaInput.value = '';
+            
+            // Actualizar la información mostrada del beneficiario
+            if (data.fecha_actualizada) {
+                beneficiarioExistente.actualizado_en = data.fecha_actualizada;
+                // Refrescar la visualización si es necesario
+                if (document.getElementById('benef_ind_dpi_existente_info').style.display !== 'none') {
+                    mostrarAdvertenciaDPI(beneficiarioExistente);
+                }
+            }
+        } else {
+            const errorMsg = data.error || data.message || 'Error al actualizar la fecha';
+            mostrarMensaje('error', errorMsg);
+        }
+    } catch (error) {
+        console.error('Error al actualizar fecha:', error);
+        const errorMsg = error.message || 'Error al actualizar la fecha. Por favor, intenta nuevamente.';
+        mostrarMensaje('error', errorMsg);
+    } finally {
+        if (btnActualizarFecha) {
+            btnActualizarFecha.disabled = false;
+            btnActualizarFecha.innerHTML = btnOriginalHTML;
         }
     }
 }
@@ -2475,7 +3135,7 @@ async function buscarBeneficiariosExistentes() {
         if (Array.isArray(data)) {
             renderBeneficiariosBusqueda(data);
             if (statusEl) {
-                statusEl.textContent = `${data.length} beneficiario(s) encontrado(s)`;
+                statusEl.textContent = 'beneficiarios del sistema';
             }
         } else {
             if (statusEl) {
@@ -2492,6 +3152,33 @@ async function buscarBeneficiariosExistentes() {
     }
 }
 
+// Función para formatear nombre completo en mayúsculas
+function formatearNombreCompleto(beneficiario) {
+    const detalles = beneficiario.detalles || {};
+    const tipo = (beneficiario.tipo || '').toLowerCase();
+    
+    if (tipo === 'individual') {
+        const nombres = [
+            detalles.primer_nombre || detalles.nombre || '',
+            detalles.segundo_nombre || '',
+            detalles.tercer_nombre || ''
+        ].filter(n => n).join(' ');
+        
+        const apellidos = [
+            detalles.primer_apellido || detalles.apellido || '',
+            detalles.segundo_apellido || ''
+        ].filter(a => a).join(' ');
+        
+        return `${nombres} ${apellidos}`.trim().toUpperCase();
+    } else if (tipo === 'familia') {
+        return (detalles.nombre_familia || beneficiario.nombre || 'Sin nombre').toUpperCase();
+    } else if (tipo === 'institución') {
+        return (detalles.nombre_institucion || beneficiario.nombre || 'Sin nombre').toUpperCase();
+    }
+    
+    return (beneficiario.nombre || beneficiario.display_name || 'Sin nombre').toUpperCase();
+}
+
 function renderBeneficiariosBusqueda(beneficiarios) {
     const resultsContainer = document.getElementById('benef_search_results');
     if (!resultsContainer) return;
@@ -2505,7 +3192,7 @@ function renderBeneficiariosBusqueda(beneficiarios) {
     }
     
     resultsContainer.innerHTML = beneficiarios.map(b => {
-        const nombre = b.nombre || b.display_name || 'Sin nombre';
+        const nombreCompleto = formatearNombreCompleto(b);
         const tipo = (b.tipo || '').toLowerCase();
         const tipoLabel = tipo.charAt(0).toUpperCase() + tipo.slice(1);
         const detalles = b.detalles || {};
@@ -2521,12 +3208,9 @@ function renderBeneficiariosBusqueda(beneficiarios) {
         }
         
         return `
-            <div class="beneficiary-item" style="cursor: pointer; padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s;" 
-                 onclick="seleccionarBeneficiarioExistente('${b.id}')"
-                 onmouseover="this.style.background='rgba(255,255,255,0.05)'; this.style.borderColor='rgba(255,255,255,0.2)';"
-                 onmouseout="this.style.background='rgba(255,255,255,0.03)'; this.style.borderColor='rgba(255,255,255,0.1)';">
+            <div class="beneficiary-item" style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s;">
                 <div class="beneficiary-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h4 class="beneficiary-name" style="margin: 0; color: #ffffff; font-size: 16px; font-weight: 600;">${nombre}</h4>
+                    <h4 class="beneficiary-name" style="margin: 0; color: #ffffff; font-size: 16px; font-weight: 600; text-transform: uppercase;">${nombreCompleto}</h4>
                     <span class="beneficiary-type" style="padding: 4px 12px; background: rgba(0, 123, 255, 0.2); border-radius: 12px; font-size: 12px; color: #007bff; font-weight: 500;">${tipoLabel}</span>
                 </div>
                 <div style="color: #b8c5d1; font-size: 14px; margin-top: 4px;">
@@ -2534,9 +3218,640 @@ function renderBeneficiariosBusqueda(beneficiarios) {
                     ${b.region_nombre ? ` • ${b.region_nombre}` : ''}
                 </div>
                 ${infoAdicional ? `<div style="color: #6c757d; font-size: 12px; margin-top: 4px;">${infoAdicional}</div>` : ''}
+                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                    <button type="button" class="btn-edit-beneficiario" data-id="${b.id}" style="flex: 1; padding: 8px 12px; background: rgba(0, 123, 255, 0.2); border: 1px solid rgba(0, 123, 255, 0.3); border-radius: 6px; color: #007bff; cursor: pointer; font-weight: 500; font-size: 0.9rem; transition: all 0.2s;" 
+                            onmouseover="this.style.background='rgba(0, 123, 255, 0.3)';"
+                            onmouseout="this.style.background='rgba(0, 123, 255, 0.2)';">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        Editar
+                    </button>
+                </div>
             </div>
         `;
     }).join('');
+    
+    // Agregar event listeners a los botones de editar
+    resultsContainer.querySelectorAll('.btn-edit-beneficiario').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const beneficiarioId = this.getAttribute('data-id');
+            mostrarOpcionesEdicion(beneficiarioId);
+        });
+    });
+}
+
+// Variable para almacenar el beneficiario que se está editando
+let beneficiarioEditando = null;
+
+// Función para mostrar opciones de edición
+function mostrarOpcionesEdicion(beneficiarioId) {
+    beneficiarioEditando = beneficiarioId;
+    const modal = document.getElementById('editBeneficiaryOptionsModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+    }
+}
+
+// Función para cerrar modal de opciones
+function cerrarOpcionesEdicion() {
+    const modal = document.getElementById('editBeneficiaryOptionsModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 300);
+    }
+    beneficiarioEditando = null;
+}
+
+// Función para cargar datos del beneficiario y autocompletar formulario
+async function cargarDatosBeneficiarioParaEditar(beneficiarioId) {
+    if (!beneficiarioId || beneficiarioId === 'null' || beneficiarioId === 'undefined') {
+        console.error('Error: ID de beneficiario inválido:', beneficiarioId);
+        mostrarMensaje('error', 'Error: ID de beneficiario inválido');
+        return;
+    }
+    
+    try {
+        const url = `/api/beneficiario/${beneficiarioId}/detalle/`;
+        if (!url || url.includes('null') || url.includes('undefined')) {
+            throw new Error('URL inválida para cargar datos del beneficiario');
+        }
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('Error al cargar datos del beneficiario');
+        }
+        
+        const data = await response.json();
+        if (!data.success || !data.beneficiario) {
+            throw new Error('No se pudieron obtener los datos del beneficiario');
+        }
+        
+        const beneficiario = data.beneficiario;
+        const detalles = beneficiario.detalles || {};
+        
+        // Establecer que estamos editando
+        editandoBeneficiarioId = beneficiarioId;
+        
+        // Cambiar a modo de edición (ocultar sección de buscar existente, mostrar formulario)
+        setBeneficiaryMode('nuevo');
+        document.getElementById('benef_existente_section').style.display = 'none';
+        document.getElementById('benef_nuevo_section').style.display = 'block';
+        
+        // Ocultar opción de Excel
+        const excelToggleSection = document.getElementById('excel_toggle_section');
+        if (excelToggleSection) excelToggleSection.style.display = 'none';
+        const excelImportSection = document.getElementById('excel_import_section');
+        if (excelImportSection) excelImportSection.style.display = 'none';
+        
+        // Establecer tipo de beneficiario
+        const tipoSelect = document.getElementById('benef_tipo');
+        if (tipoSelect) {
+            tipoSelect.value = beneficiario.tipo || 'individual';
+            tipoSelect.dispatchEvent(new Event('change'));
+        }
+        
+        // Esperar un poco para que se muestren los campos
+        setTimeout(async () => {
+            if (beneficiario.tipo === 'individual') {
+                // Autocompletar campos de individual
+                const nombreCompleto = [
+                    detalles.primer_nombre || detalles.nombre || '',
+                    detalles.segundo_nombre || '',
+                    detalles.tercer_nombre || ''
+                ].filter(n => n).join(' ');
+                
+                const apellidoCompleto = [
+                    detalles.primer_apellido || detalles.apellido || '',
+                    detalles.segundo_apellido || ''
+                ].filter(a => a).join(' ');
+                
+                const nombreField = document.getElementById('benef_ind_nombre');
+                const apellidoField = document.getElementById('benef_ind_apellido');
+                const apellidoCasadaField = document.getElementById('benef_ind_apellido_casada');
+                const dpiField = document.getElementById('benef_ind_dpi');
+                const comunidadLinguisticaField = document.getElementById('benef_ind_comunidad_linguistica');
+                const fechaRegistroField = document.getElementById('benef_ind_fecha_registro');
+                const fechaNacField = document.getElementById('benef_ind_fecha_nac');
+                const edadField = document.getElementById('benef_ind_edad');
+                const generoField = document.getElementById('benef_ind_genero');
+                const telefonoField = document.getElementById('benef_ind_telefono');
+                
+                if (nombreField && nombreCompleto) {
+                    nombreField.value = nombreCompleto;
+                    nombreField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (apellidoField && apellidoCompleto) {
+                    apellidoField.value = apellidoCompleto;
+                    apellidoField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (apellidoCasadaField && detalles.apellido_casada) {
+                    apellidoCasadaField.value = detalles.apellido_casada;
+                    apellidoCasadaField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (dpiField && detalles.dpi) {
+                    dpiField.value = detalles.dpi;
+                    dpiField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                    // No validar DPI si estamos editando el mismo beneficiario
+                    // El DPI ya existe y es el mismo, no mostrar advertencia
+                }
+                if (comunidadLinguisticaField && detalles.comunidad_linguistica) {
+                    comunidadLinguisticaField.value = detalles.comunidad_linguistica;
+                    comunidadLinguisticaField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (fechaRegistroField && beneficiario.creado_en) {
+                    const fecha = new Date(beneficiario.creado_en);
+                    fechaRegistroField.value = fecha.toISOString().split('T')[0];
+                    fechaRegistroField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (fechaNacField && detalles.fecha_nacimiento) {
+                    fechaNacField.value = detalles.fecha_nacimiento;
+                    fechaNacField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (edadField && detalles.edad) {
+                    edadField.value = detalles.edad;
+                    edadField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (generoField && detalles.genero) {
+                    generoField.value = detalles.genero;
+                    generoField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                if (telefonoField && detalles.telefono) {
+                    telefonoField.value = detalles.telefono;
+                    telefonoField.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                }
+                
+                // Establecer región y comunidad (primero región, luego comunidad)
+                // Asegurar que las regiones estén cargadas
+                await asegurarDatosRegionesComunidades();
+                
+                if (beneficiario.region_id) {
+                    const regionSelect = document.getElementById('benef_region_select');
+                    if (regionSelect) {
+                        // Asegurar que el select esté poblado
+                        if (regionSelect.options.length <= 1) {
+                            populateRegionSelect();
+                        }
+                        
+                        // Establecer la región
+                        regionSelect.value = beneficiario.region_id;
+                        
+                        // Cargar comunidades de esa región y luego seleccionar la comunidad
+                        if (beneficiario.comunidad_id) {
+                            // Usar setTimeout para asegurar que el evento de cambio de región se procese
+                            setTimeout(() => {
+                                renderBeneficiaryCommunityOptions(beneficiario.region_id, beneficiario.comunidad_id);
+                                
+                                // Asegurar que la comunidad esté seleccionada después de renderizar
+                                setTimeout(() => {
+                                    const comunidadSelect = document.getElementById('benef_comunidad_select');
+                                    if (comunidadSelect) {
+                                        comunidadSelect.value = beneficiario.comunidad_id;
+                                        comunidadSelect.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                                        // Disparar evento change para notificar la selección
+                                        const changeEvent = new Event('change', { bubbles: true });
+                                        comunidadSelect.dispatchEvent(changeEvent);
+                                    }
+                                }, 100);
+                            }, 100);
+                        } else {
+                            // Si no hay comunidad, solo cargar las comunidades de la región
+                            renderBeneficiaryCommunityOptions(beneficiario.region_id, '');
+                        }
+                        
+                        // Disparar evento change para actualizar comunidades
+                        const changeEvent = new Event('change', { bubbles: true });
+                        regionSelect.dispatchEvent(changeEvent);
+                        regionSelect.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                    }
+                } else if (beneficiario.comunidad_id) {
+                    // Si solo hay comunidad_id pero no region_id, buscar la región de la comunidad
+                    const comunidad = allComunidades.find(c => c.id === beneficiario.comunidad_id);
+                    if (comunidad && comunidad.region_id) {
+                        const regionSelect = document.getElementById('benef_region_select');
+                        if (regionSelect) {
+                            if (regionSelect.options.length <= 1) {
+                                populateRegionSelect();
+                            }
+                            regionSelect.value = comunidad.region_id;
+                            regionSelect.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                            
+                            setTimeout(() => {
+                                renderBeneficiaryCommunityOptions(comunidad.region_id, beneficiario.comunidad_id);
+                                
+                                setTimeout(() => {
+                                    const comunidadSelect = document.getElementById('benef_comunidad_select');
+                                    if (comunidadSelect) {
+                                        comunidadSelect.value = beneficiario.comunidad_id;
+                                        comunidadSelect.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                                        const changeEvent = new Event('change', { bubbles: true });
+                                        comunidadSelect.dispatchEvent(changeEvent);
+                                    }
+                                }, 100);
+                            }, 100);
+                            
+                            const changeEvent = new Event('change', { bubbles: true });
+                            regionSelect.dispatchEvent(changeEvent);
+                        }
+                    }
+                }
+            }
+            
+            // Cambiar texto del botón de guardar
+            const saveBtn = document.getElementById('saveBeneficiaryBtn');
+            if (saveBtn) {
+                saveBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Editar Beneficiario
+                `;
+            }
+            
+            // Configurar validación de entrada (especialmente para DPI)
+            setupInputValidation();
+            
+            // Cargar proyectos asociados al beneficiario
+            if (beneficiario.proyectos && beneficiario.proyectos.length > 0) {
+                // Cargar proyectos disponibles primero
+                await loadProyectos();
+                
+                // Esperar un poco para que se carguen los proyectos
+                setTimeout(() => {
+                    // Marcar el checkbox de agregar a proyecto
+                    const addToProjectCheckbox = document.getElementById('addToProjectCheckbox');
+                    const projectSection = document.getElementById('projectSelectionSection');
+                    if (addToProjectCheckbox && projectSection) {
+                        addToProjectCheckbox.checked = true;
+                        projectSection.style.display = 'block';
+                    }
+                    
+                    // Limpiar selección anterior
+                    selectedProjects.clear();
+                    
+                    // Marcar los proyectos ya asociados
+                    beneficiario.proyectos.forEach(proyecto => {
+                        selectedProjects.add(proyecto.id);
+                    });
+                    
+                    // Actualizar el checklist
+                    updateProjectsChecklist();
+                    updateSelectedProjectsCount();
+                }, 300);
+            } else {
+                // Si no hay proyectos asociados, asegurarse de que la sección esté oculta
+                const addToProjectCheckbox = document.getElementById('addToProjectCheckbox');
+                const projectSection = document.getElementById('projectSelectionSection');
+                if (addToProjectCheckbox && projectSection) {
+                    addToProjectCheckbox.checked = false;
+                    projectSection.style.display = 'none';
+                }
+                selectedProjects.clear();
+                updateSelectedProjectsCount();
+            }
+            
+            // Scroll al formulario
+            const formContainer = document.getElementById('benef_nuevo_section');
+            if (formContainer) {
+                formContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 300);
+        
+        cerrarOpcionesEdicion();
+        
+    } catch (error) {
+        console.error('Error al cargar beneficiario:', error);
+        mostrarMensaje('error', 'Error al cargar los datos del beneficiario');
+    }
+}
+
+// Función para inicializar modal de agregar a proyecto
+let beneficiarioParaProyecto = null;
+let proyectosParaAgregar = new Set();
+
+function inicializarModalAgregarProyecto() {
+    const modal = document.getElementById('addToProjectModal');
+    const closeBtn = document.getElementById('closeAddToProjectModal');
+    const cancelBtn = document.getElementById('cancelAddToProjectBtn');
+    const saveBtn = document.getElementById('saveAddToProjectBtn');
+    const searchInput = document.getElementById('addToProjectSearchInput');
+    const searchClearBtn = document.getElementById('addToProjectSearchClearBtn');
+    
+    // Cerrar modal
+    function cerrarModal() {
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                proyectosParaAgregar.clear();
+                proyectosYaAsociados.clear();
+                beneficiarioParaProyecto = null;
+                if (searchInput) searchInput.value = '';
+                if (searchClearBtn) searchClearBtn.style.display = 'none';
+                updateAddToProjectChecklist();
+            }, 300);
+        }
+    }
+    
+    if (closeBtn) closeBtn.addEventListener('click', cerrarModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', cerrarModal);
+    
+    // Guardar
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async function() {
+            await guardarBeneficiarioAProyecto();
+        });
+    }
+    
+    // Buscador de proyectos
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            if (query) {
+                if (searchClearBtn) searchClearBtn.style.display = 'block';
+                filterAddToProjectChecklist(query);
+            } else {
+                if (searchClearBtn) searchClearBtn.style.display = 'none';
+                updateAddToProjectChecklist();
+            }
+        });
+    }
+    
+    if (searchClearBtn) {
+        searchClearBtn.addEventListener('click', function() {
+            if (searchInput) searchInput.value = '';
+            this.style.display = 'none';
+            updateAddToProjectChecklist();
+        });
+    }
+    
+    // Cargar proyectos al abrir
+    if (modal) {
+        const observer = new MutationObserver(function(mutations) {
+            if (modal.style.display === 'flex') {
+                loadProyectosParaAgregar();
+            }
+        });
+        observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+    }
+}
+
+// Función para mostrar modal de agregar a proyecto
+function mostrarModalAgregarProyecto(beneficiarioId) {
+    beneficiarioParaProyecto = beneficiarioId;
+    const modal = document.getElementById('addToProjectModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+        loadProyectosParaAgregar();
+    }
+    cerrarOpcionesEdicion();
+}
+
+// Variable para almacenar proyectos ya asociados al beneficiario
+let proyectosYaAsociados = new Set();
+
+// Función para cargar proyectos disponibles para agregar
+async function loadProyectosParaAgregar() {
+    if (!beneficiarioParaProyecto) return;
+    
+    try {
+        // Cargar proyectos disponibles para el usuario
+        const response = await fetch('/api/proyectos/usuario/');
+        if (!response.ok) {
+            throw new Error('Error al cargar proyectos');
+        }
+        
+        const data = await response.json();
+        if (data.success && data.proyectos) {
+            proyectosData = data.proyectos;
+            
+            // Cargar proyectos ya asociados al beneficiario
+            try {
+                const detalleResponse = await fetch(`/api/beneficiario/${beneficiarioParaProyecto}/detalle/`);
+                if (detalleResponse.ok) {
+                    const detalleData = await detalleResponse.json();
+                    if (detalleData.success && detalleData.beneficiario && detalleData.beneficiario.proyectos) {
+                        proyectosYaAsociados.clear();
+                        detalleData.beneficiario.proyectos.forEach(proyecto => {
+                            proyectosYaAsociados.add(proyecto.id);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error al cargar proyectos asociados:', error);
+            }
+            
+            updateAddToProjectChecklist();
+        }
+    } catch (error) {
+        console.error('Error al cargar proyectos:', error);
+        mostrarMensaje('error', 'Error al cargar proyectos');
+    }
+}
+
+// Función para actualizar checklist de proyectos
+function updateAddToProjectChecklist() {
+    const checklist = document.getElementById('addToProjectChecklist');
+    if (!checklist || !proyectosData) return;
+    
+    if (proyectosData.length === 0) {
+        checklist.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;">No hay proyectos disponibles</div>';
+        return;
+    }
+    
+    checklist.innerHTML = proyectosData.map(proyecto => {
+        const isSelected = proyectosParaAgregar.has(proyecto.id);
+        const yaAsociado = proyectosYaAsociados.has(proyecto.id);
+        const isChecked = isSelected || yaAsociado;
+        const isDisabled = yaAsociado; // Deshabilitar si ya está asociado
+        
+        return `
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; transition: background 0.2s; ${isChecked ? 'background: rgba(0, 123, 255, 0.1);' : ''} ${isDisabled ? 'opacity: 0.6;' : ''}"
+                   onmouseover="this.style.background='${isDisabled ? 'rgba(0, 123, 255, 0.1)' : 'rgba(255,255,255,0.05)'}'"
+                   onmouseout="this.style.background='${isChecked ? 'rgba(0, 123, 255, 0.1)' : 'transparent'}'">
+                <input type="checkbox" value="${proyecto.id}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}
+                       style="width: 18px; height: 18px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'};"
+                       onchange="toggleProyectoParaAgregar('${proyecto.id}', this.checked)">
+                <span style="color: #ffffff; flex: 1;">
+                    ${proyecto.nombre || 'Sin nombre'}
+                    ${yaAsociado ? '<span style="color: #28a745; font-size: 0.85rem; margin-left: 8px;">(Ya asociado)</span>' : ''}
+                </span>
+            </label>
+        `;
+    }).join('');
+    
+    updateAddToProjectSelectedCount();
+    
+    // Mostrar/ocultar campo de fecha según si hay proyectos seleccionados (solo los nuevos, no los ya asociados)
+    const fechaContainer = document.getElementById('addToProjectFechaContainer');
+    if (fechaContainer) {
+        fechaContainer.style.display = proyectosParaAgregar.size > 0 ? 'block' : 'none';
+    }
+}
+
+// Función para toggle de proyecto (necesita ser global para el onclick)
+window.toggleProyectoParaAgregar = function(proyectoId, checked) {
+    // No permitir desmarcar proyectos ya asociados
+    if (proyectosYaAsociados.has(proyectoId)) {
+        return;
+    }
+    
+    if (checked) {
+        proyectosParaAgregar.add(proyectoId);
+    } else {
+        proyectosParaAgregar.delete(proyectoId);
+    }
+    updateAddToProjectSelectedCount();
+    
+    // Mostrar/ocultar campo de fecha
+    const fechaContainer = document.getElementById('addToProjectFechaContainer');
+    if (fechaContainer) {
+        fechaContainer.style.display = proyectosParaAgregar.size > 0 ? 'block' : 'none';
+    }
+}
+
+// Función para actualizar contador
+function updateAddToProjectSelectedCount() {
+    const container = document.getElementById('addToProjectSelectedContainer');
+    if (container) {
+        const countNuevos = proyectosParaAgregar.size;
+        const countAsociados = proyectosYaAsociados.size;
+        const countSpan = container.querySelector('.selected-count');
+        if (countSpan) {
+            if (countAsociados > 0 && countNuevos > 0) {
+                countSpan.textContent = `${countNuevos} proyecto(s) nuevo(s) seleccionado(s) | ${countAsociados} ya asociado(s)`;
+            } else if (countAsociados > 0) {
+                countSpan.textContent = `${countAsociados} proyecto(s) ya asociado(s)`;
+            } else {
+                countSpan.textContent = `${countNuevos} proyecto(s) seleccionado(s)`;
+            }
+        }
+    }
+}
+
+// Función para filtrar proyectos
+function filterAddToProjectChecklist(query) {
+    const checklist = document.getElementById('addToProjectChecklist');
+    if (!checklist || !proyectosData) return;
+    
+    const filtered = proyectosData.filter(p => 
+        (p.nombre || '').toLowerCase().includes(query)
+    );
+    
+    checklist.innerHTML = filtered.map(proyecto => {
+        const isSelected = proyectosParaAgregar.has(proyecto.id);
+        const yaAsociado = proyectosYaAsociados.has(proyecto.id);
+        const isChecked = isSelected || yaAsociado;
+        const isDisabled = yaAsociado;
+        
+        return `
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; transition: background 0.2s; ${isChecked ? 'background: rgba(0, 123, 255, 0.1);' : ''} ${isDisabled ? 'opacity: 0.6;' : ''}"
+                   onmouseover="this.style.background='${isDisabled ? 'rgba(0, 123, 255, 0.1)' : 'rgba(255,255,255,0.05)'}'"
+                   onmouseout="this.style.background='${isChecked ? 'rgba(0, 123, 255, 0.1)' : 'transparent'}'">
+                <input type="checkbox" value="${proyecto.id}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}
+                       style="width: 18px; height: 18px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'};"
+                       onchange="toggleProyectoParaAgregar('${proyecto.id}', this.checked)">
+                <span style="color: #ffffff; flex: 1;">
+                    ${proyecto.nombre || 'Sin nombre'}
+                    ${yaAsociado ? '<span style="color: #28a745; font-size: 0.85rem; margin-left: 8px;">(Ya asociado)</span>' : ''}
+                </span>
+            </label>
+        `;
+    }).join('');
+}
+
+// Función para guardar beneficiario a proyecto
+async function guardarBeneficiarioAProyecto() {
+    if (!beneficiarioParaProyecto) {
+        mostrarMensaje('error', 'No hay beneficiario seleccionado');
+        return;
+    }
+    
+    // Filtrar solo proyectos nuevos (no los ya asociados)
+    const proyectosNuevos = Array.from(proyectosParaAgregar).filter(p => !proyectosYaAsociados.has(p));
+    
+    if (proyectosNuevos.length === 0) {
+        mostrarMensaje('info', 'No hay proyectos nuevos para agregar. El beneficiario ya está asociado a los proyectos seleccionados.');
+        return;
+    }
+    
+    const fechaAgregacion = document.getElementById('addToProjectFechaAgregacion');
+    const fechaAgregacionValue = fechaAgregacion ? fechaAgregacion.value : null;
+    const saveBtn = document.getElementById('saveAddToProjectBtn');
+    const btnOriginalHTML = saveBtn ? saveBtn.innerHTML : '';
+    
+    try {
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<div class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #ffffff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;"></div> Guardando...';
+        }
+        
+        // Agregar beneficiario a cada proyecto nuevo
+        for (const proyectoId of proyectosNuevos) {
+            const response = await fetch(`/api/beneficiario/${beneficiarioParaProyecto}/agregar-proyectos/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    proyecto_ids: [proyectoId],
+                    fecha_agregacion: fechaAgregacionValue || null
+                })
+            });
+            
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Error al agregar beneficiario al proyecto');
+            }
+        }
+        
+        mostrarMensaje('success', `Beneficiario agregado exitosamente a ${proyectosNuevos.length} proyecto(s) nuevo(s)`);
+        
+        // Recargar proyectos asociados
+        await loadProyectosParaAgregar();
+        
+        // Cerrar modal después de un breve delay
+        setTimeout(() => {
+            const modal = document.getElementById('addToProjectModal');
+            if (modal) {
+                modal.classList.remove('show');
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    proyectosParaAgregar.clear();
+                    beneficiarioParaProyecto = null;
+                    if (fechaAgregacion) fechaAgregacion.value = '';
+                    const fechaContainer = document.getElementById('addToProjectFechaContainer');
+                    if (fechaContainer) fechaContainer.style.display = 'none';
+                }, 300);
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Error al agregar beneficiario a proyecto:', error);
+        mostrarMensaje('error', error.message || 'Error al agregar beneficiario a proyecto');
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = btnOriginalHTML;
+        }
+    }
+}
+
+function seleccionarBeneficiarioExistente(beneficiarioId) {
+    // Esta función ya no se usa, pero la mantenemos por compatibilidad
+    mostrarOpcionesEdicion(beneficiarioId);
 }
 
 function seleccionarBeneficiarioExistente(beneficiarioId) {
@@ -2586,6 +3901,15 @@ function initializeListado() {
             updateTipoFilter();
         });
     });
+    
+    // Checkbox de solo con habilidades
+    const filterSoloConHabilidades = document.getElementById('filterSoloConHabilidades');
+    if (filterSoloConHabilidades) {
+        filterSoloConHabilidades.addEventListener('change', function() {
+            filters.soloConHabilidades = this.checked;
+            applyFiltersAndSort();
+        });
+    }
     
     // Buscador de comunidad - Usar el mismo sistema de catálogo que en agregar beneficiario
     // Asegurar que los datos estén cargados antes de configurar el buscador
@@ -2867,6 +4191,14 @@ function applyFiltersAndSort() {
         });
     }
     
+    // Filtrar solo beneficiarios con habilidades
+    if (filters.soloConHabilidades) {
+        filtered = filtered.filter(b => {
+            const atributos = b.atributos || [];
+            return atributos.length > 0;
+        });
+    }
+    
     // Buscar por nombre, DPI o teléfono
     if (searchQuery) {
         const query = searchQuery.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -2887,6 +4219,36 @@ function applyFiltersAndSort() {
             const nameA = (a.nombre || a.display_name || '').toLowerCase();
             const nameB = (b.nombre || b.display_name || '').toLowerCase();
             return nameA.localeCompare(nameB);
+        });
+    } else if (sortOrder === 'habilidades') {
+        // Ordenar por habilidades: primero los que tienen habilidades, agrupados por tipo de habilidad
+        filtered.sort((a, b) => {
+            const atributosA = a.atributos || [];
+            const atributosB = b.atributos || [];
+            
+            // Si uno tiene habilidades y el otro no, el que tiene habilidades va primero
+            if (atributosA.length > 0 && atributosB.length === 0) return -1;
+            if (atributosA.length === 0 && atributosB.length > 0) return 1;
+            
+            // Si ambos tienen habilidades, agrupar por tipo de habilidad
+            if (atributosA.length > 0 && atributosB.length > 0) {
+                // Obtener el primer tipo de habilidad de cada uno
+                const tipoA = atributosA[0]?.tipo_nombre || '';
+                const tipoB = atributosB[0]?.tipo_nombre || '';
+                const comparacionTipo = tipoA.localeCompare(tipoB);
+                
+                // Si tienen el mismo tipo, ordenar por valor
+                if (comparacionTipo === 0) {
+                    const valorA = atributosA[0]?.valor || '';
+                    const valorB = atributosB[0]?.valor || '';
+                    return valorA.localeCompare(valorB);
+                }
+                
+                return comparacionTipo;
+            }
+            
+            // Si ninguno tiene habilidades, mantener orden original
+            return 0;
         });
     }
     
@@ -2924,6 +4286,8 @@ function renderBeneficiariosList(beneficiarios) {
             // Si falla, renderizar simple
             renderSimpleList(beneficiarios);
         });
+    } else if (sortOrder === 'habilidades') {
+        renderGroupedByHabilidades(beneficiarios);
     } else {
         renderSimpleList(beneficiarios);
     }
@@ -2938,10 +4302,40 @@ function renderSimpleList(beneficiarios) {
     // Agregar event listeners para abrir modal de detalles
     container.querySelectorAll('.beneficiary-item').forEach(item => {
         item.style.cursor = 'pointer';
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(e) {
+            // No abrir modal si se hace clic en los botones
+            if (e.target.closest('.btn-edit-beneficiario-listado') || e.target.closest('.btn-ver-info-beneficiario-listado')) {
+                return;
+            }
             const beneficiarioId = this.getAttribute('data-beneficiario-id');
             if (beneficiarioId) {
                 openBeneficiaryDetailsModal(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de editar
+    container.querySelectorAll('.btn-edit-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const beneficiarioId = this.getAttribute('data-id');
+            if (beneficiarioId) {
+                mostrarOpcionesEdicion(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de ver información
+    container.querySelectorAll('.btn-ver-info-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            const beneficiarioId = this.getAttribute('data-id');
+            console.log('Botón Ver Información clickeado, beneficiarioId:', beneficiarioId);
+            if (beneficiarioId) {
+                openBeneficiaryDetailsModal(beneficiarioId);
+            } else {
+                console.error('No se encontró beneficiarioId en el botón');
             }
         });
     });
@@ -2975,10 +4369,152 @@ function renderGroupedByComunidad(beneficiarios) {
     // Agregar event listeners para abrir modal de detalles
     container.querySelectorAll('.beneficiary-item').forEach(item => {
         item.style.cursor = 'pointer';
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(e) {
+            // No abrir modal si se hace clic en los botones
+            if (e.target.closest('.btn-edit-beneficiario-listado') || e.target.closest('.btn-ver-info-beneficiario-listado')) {
+                return;
+            }
             const beneficiarioId = this.getAttribute('data-beneficiario-id');
             if (beneficiarioId) {
                 openBeneficiaryDetailsModal(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de editar
+    container.querySelectorAll('.btn-edit-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const beneficiarioId = this.getAttribute('data-id');
+            if (beneficiarioId) {
+                mostrarOpcionesEdicion(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de ver información
+    container.querySelectorAll('.btn-ver-info-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            const beneficiarioId = this.getAttribute('data-id');
+            console.log('Botón Ver Información clickeado, beneficiarioId:', beneficiarioId);
+            if (beneficiarioId) {
+                openBeneficiaryDetailsModal(beneficiarioId);
+            } else {
+                console.error('No se encontró beneficiarioId en el botón');
+            }
+        });
+    });
+}
+
+function renderGroupedByHabilidades(beneficiarios) {
+    const container = document.getElementById('beneficiariesList');
+    if (!container) return;
+    
+    // Agrupar por habilidades
+    const grouped = {};
+    const sinHabilidades = [];
+    
+    beneficiarios.forEach(b => {
+        const atributos = b.atributos || [];
+        
+        if (atributos.length === 0) {
+            sinHabilidades.push(b);
+        } else {
+            // Agrupar por tipo de habilidad
+            atributos.forEach(attr => {
+                const tipoHabilidad = attr.tipo_nombre || 'Sin tipo';
+                const valorHabilidad = attr.valor || 'Sin valor';
+                const key = `${tipoHabilidad} - ${valorHabilidad}`;
+                
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        tipo: tipoHabilidad,
+                        valor: valorHabilidad,
+                        beneficiarios: []
+                    };
+                }
+                
+                // Evitar duplicados
+                if (!grouped[key].beneficiarios.find(bb => bb.id === b.id)) {
+                    grouped[key].beneficiarios.push(b);
+                }
+            });
+        }
+    });
+    
+    // Construir HTML
+    let html = '';
+    
+    // Mostrar grupos de habilidades ordenados
+    Object.keys(grouped).sort().forEach(key => {
+        const group = grouped[key];
+        html += `
+            <div class="habilidad-group" style="margin-bottom: 24px;">
+                <h3 class="habilidad-group-title" style="padding: 12px 16px; background: rgba(255, 193, 7, 0.15); border-left: 4px solid #ffc107; border-radius: 4px; margin-bottom: 12px; color: #ffc107; font-size: 1.1rem; font-weight: 600;">
+                    ${group.tipo}: ${group.valor} <span style="color: #b8c5d1; font-size: 0.9rem; font-weight: 400;">(${group.beneficiarios.length} beneficiario${group.beneficiarios.length !== 1 ? 's' : ''})</span>
+                </h3>
+                <div style="display: grid; gap: 12px;">
+                    ${group.beneficiarios.map(b => createBeneficiaryCard(b)).join('')}
+                </div>
+            </div>
+        `;
+    });
+    
+    // Mostrar beneficiarios sin habilidades al final
+    if (sinHabilidades.length > 0) {
+        html += `
+            <div class="habilidad-group" style="margin-bottom: 24px;">
+                <h3 class="habilidad-group-title" style="padding: 12px 16px; background: rgba(108, 117, 125, 0.15); border-left: 4px solid #6c757d; border-radius: 4px; margin-bottom: 12px; color: #6c757d; font-size: 1.1rem; font-weight: 600;">
+                    Sin Habilidades Especiales <span style="color: #b8c5d1; font-size: 0.9rem; font-weight: 400;">(${sinHabilidades.length} beneficiario${sinHabilidades.length !== 1 ? 's' : ''})</span>
+                </h3>
+                <div style="display: grid; gap: 12px;">
+                    ${sinHabilidades.map(b => createBeneficiaryCard(b)).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+    
+    // Agregar event listeners para abrir modal de detalles
+    container.querySelectorAll('.beneficiary-item').forEach(item => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', function(e) {
+            // No abrir modal si se hace clic en los botones
+            if (e.target.closest('.btn-edit-beneficiario-listado') || e.target.closest('.btn-ver-info-beneficiario-listado')) {
+                return;
+            }
+            const beneficiarioId = this.getAttribute('data-beneficiario-id');
+            if (beneficiarioId) {
+                openBeneficiaryDetailsModal(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de editar
+    container.querySelectorAll('.btn-edit-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const beneficiarioId = this.getAttribute('data-id');
+            if (beneficiarioId) {
+                mostrarOpcionesEdicion(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de ver información
+    container.querySelectorAll('.btn-ver-info-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            const beneficiarioId = this.getAttribute('data-id');
+            console.log('Botón Ver Información clickeado, beneficiarioId:', beneficiarioId);
+            if (beneficiarioId) {
+                openBeneficiaryDetailsModal(beneficiarioId);
+            } else {
+                console.error('No se encontró beneficiarioId en el botón');
             }
         });
     });
@@ -3027,10 +4563,40 @@ async function renderGroupedByActividad(beneficiarios) {
     // Agregar event listeners para abrir modal de detalles
     container.querySelectorAll('.beneficiary-item').forEach(item => {
         item.style.cursor = 'pointer';
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(e) {
+            // No abrir modal si se hace clic en los botones
+            if (e.target.closest('.btn-edit-beneficiario-listado') || e.target.closest('.btn-ver-info-beneficiario-listado')) {
+                return;
+            }
             const beneficiarioId = this.getAttribute('data-beneficiario-id');
             if (beneficiarioId) {
                 openBeneficiaryDetailsModal(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de editar
+    container.querySelectorAll('.btn-edit-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const beneficiarioId = this.getAttribute('data-id');
+            if (beneficiarioId) {
+                mostrarOpcionesEdicion(beneficiarioId);
+            }
+        });
+    });
+    
+    // Agregar event listeners para botones de ver información
+    container.querySelectorAll('.btn-ver-info-beneficiario-listado').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            const beneficiarioId = this.getAttribute('data-id');
+            console.log('Botón Ver Información clickeado, beneficiarioId:', beneficiarioId);
+            if (beneficiarioId) {
+                openBeneficiaryDetailsModal(beneficiarioId);
+            } else {
+                console.error('No se encontró beneficiarioId en el botón');
             }
         });
     });
@@ -3104,6 +4670,10 @@ function createBeneficiaryCard(beneficiario) {
         ? proyectos.map(p => `<span class="project-tag">${p.nombre || p}</span>`).join('')
         : '<span style="color: #6c757d;">Sin proyectos vinculados</span>';
     
+    // Obtener atributos si existen
+    const atributos = beneficiario.atributos || [];
+    const tieneAtributos = atributos.length > 0;
+    
     return `
         <div class="beneficiary-item" data-beneficiario-id="${beneficiario.id}">
             <div class="beneficiary-header">
@@ -3117,6 +4687,25 @@ function createBeneficiaryCard(beneficiario) {
                     </div>
                 `).join('')}
             </div>
+            ${tieneAtributos ? `
+            <div class="beneficiary-attributes" style="margin-top: 12px; padding: 12px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3);">
+                <p style="margin: 0 0 8px 0; font-size: 0.85rem; color: #ffc107; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                        <path d="M2 17l10 5 10-5"></path>
+                        <path d="M2 12l10 5 10-5"></path>
+                    </svg>
+                    Características Especiales:
+                </p>
+                <div class="beneficiary-attributes-list" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    ${atributos.map(attr => `
+                        <span class="attribute-tag" style="padding: 4px 10px; background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 12px; font-size: 0.8rem; color: #ffc107; font-weight: 500;">
+                            <strong>${attr.tipo_nombre}:</strong> ${attr.valor}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
             ${proyectos.length > 0 ? `
             <div class="beneficiary-projects">
                 <p style="margin: 0 0 5px 0; font-size: 0.85rem; color: #6c757d;">Proyectos vinculados:</p>
@@ -3125,17 +4714,314 @@ function createBeneficiaryCard(beneficiario) {
                 </div>
             </div>
             ` : ''}
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button type="button" class="btn-ver-info-beneficiario-listado" data-id="${beneficiario.id}" style="flex: 1; padding: 8px 12px; background: rgba(40, 167, 69, 0.2); border: 1px solid rgba(40, 167, 69, 0.3); border-radius: 6px; color: #28a745; cursor: pointer; font-weight: 500; font-size: 0.9rem; transition: all 0.2s;" 
+                        onmouseover="this.style.background='rgba(40, 167, 69, 0.3)';"
+                        onmouseout="this.style.background='rgba(40, 167, 69, 0.2)';">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    Ver Información
+                </button>
+                <button type="button" class="btn-edit-beneficiario-listado" data-id="${beneficiario.id}" style="flex: 1; padding: 8px 12px; background: rgba(0, 123, 255, 0.2); border: 1px solid rgba(0, 123, 255, 0.3); border-radius: 6px; color: #007bff; cursor: pointer; font-weight: 500; font-size: 0.9rem; transition: all 0.2s;" 
+                        onmouseover="this.style.background='rgba(0, 123, 255, 0.3)';"
+                        onmouseout="this.style.background='rgba(0, 123, 255, 0.2)';">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Editar
+                </button>
+            </div>
         </div>
     `;
 }
 
+// Función para abrir modal de agregar atributo
+async function abrirModalAgregarAtributo(beneficiarioId) {
+    if (!beneficiarioId || beneficiarioId === 'null' || beneficiarioId === 'undefined') {
+        console.error('Error: ID de beneficiario inválido:', beneficiarioId);
+        mostrarMensaje('error', 'Error: ID de beneficiario inválido');
+        return;
+    }
+    
+    const modal = document.getElementById('addAtributoModal');
+    if (!modal) {
+        console.error('Error: Modal de agregar atributo no encontrado');
+        return;
+    }
+    
+    // Guardar el ID del beneficiario en el modal
+    modal.setAttribute('data-beneficiario-id', beneficiarioId);
+    
+    // Mostrar modal
+    modal.style.display = 'flex';
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+    
+    // Cargar tipos de atributos
+    await cargarTiposAtributos();
+    
+    // Cargar atributos existentes del beneficiario
+    await cargarAtributosBeneficiario(beneficiarioId);
+}
+
+// Función para cargar tipos de atributos
+async function cargarTiposAtributos() {
+    const select = document.getElementById('atributoTipoSelect');
+    if (!select) return;
+    
+    try {
+        const response = await fetch('/api/atributos/tipos/');
+        if (!response.ok) {
+            throw new Error('Error al cargar tipos de atributos');
+        }
+        
+        const data = await response.json();
+        if (data.success && data.tipos) {
+            select.innerHTML = '<option value="">Seleccione un tipo...</option>';
+            data.tipos.forEach(tipo => {
+                const option = document.createElement('option');
+                option.value = tipo.id;
+                option.textContent = tipo.nombre;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error cargando tipos de atributos:', error);
+        mostrarMensaje('error', 'Error al cargar tipos de atributos');
+    }
+}
+
+// Función para cargar atributos existentes del beneficiario
+async function cargarAtributosBeneficiario(beneficiarioId) {
+    if (!beneficiarioId || beneficiarioId === 'null' || beneficiarioId === 'undefined') {
+        console.error('Error: ID de beneficiario inválido para cargar atributos:', beneficiarioId);
+        const container = document.getElementById('atributosExistentesList');
+        if (container) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545; width: 100%;">Error: ID de beneficiario inválido</div>';
+        }
+        return;
+    }
+    
+    const container = document.getElementById('atributosExistentesList');
+    if (!container) return;
+    
+    try {
+        const url = `/api/beneficiario/${beneficiarioId}/atributos/`;
+        if (!url || url.includes('null') || url.includes('undefined')) {
+            throw new Error('URL inválida para cargar atributos');
+        }
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('Error al cargar atributos');
+        }
+        
+        const data = await response.json();
+        if (data.success && data.atributos) {
+            if (data.atributos.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d; width: 100%;">Este beneficiario no tiene atributos asignados aún</div>';
+            } else {
+                container.innerHTML = data.atributos.map(attr => `
+                    <div class="attribute-tag-existing" style="padding: 8px 12px; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.85rem; color: #ffc107; display: flex; align-items: center; gap: 8px;">
+                        <strong>${attr.tipo_nombre}:</strong> ${attr.valor}
+                        <button type="button" class="btn-eliminar-atributo" data-id="${attr.id}" style="background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.4); border-radius: 4px; color: #dc3545; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; margin-left: 4px;" title="Eliminar">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                `).join('');
+                
+                // Agregar event listeners para botones de eliminar
+                container.querySelectorAll('.btn-eliminar-atributo').forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                        e.stopPropagation();
+                        const atributoId = this.getAttribute('data-id');
+                        if (atributoId && confirm('¿Estás seguro de que deseas eliminar este atributo?')) {
+                            await eliminarAtributo(atributoId, beneficiarioId);
+                        }
+                    });
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error cargando atributos:', error);
+        container.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545; width: 100%;">Error al cargar atributos</div>';
+    }
+}
+
+// Función para eliminar atributo
+async function eliminarAtributo(atributoId, beneficiarioId) {
+    try {
+        const response = await fetch(`/api/atributos/${atributoId}/eliminar/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Error al eliminar atributo');
+        }
+        
+        const data = await response.json();
+        if (data.success) {
+            mostrarMensaje('success', 'Atributo eliminado exitosamente');
+            // Recargar atributos
+            await cargarAtributosBeneficiario(beneficiarioId);
+        } else {
+            mostrarMensaje('error', data.error || 'Error al eliminar atributo');
+        }
+    } catch (error) {
+        console.error('Error eliminando atributo:', error);
+        mostrarMensaje('error', 'Error al eliminar atributo');
+    }
+}
+
+// Inicializar modal de agregar atributo
+function inicializarModalAgregarAtributo() {
+    const modal = document.getElementById('addAtributoModal');
+    const closeBtn = document.getElementById('closeAddAtributoModal');
+    const cancelBtn = document.getElementById('cancelAddAtributoBtn');
+    const saveBtn = document.getElementById('saveAddAtributoBtn');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', cerrarModalAgregarAtributo);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', cerrarModalAgregarAtributo);
+    }
+    
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                cerrarModalAgregarAtributo();
+            }
+        });
+    }
+    
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async function() {
+            const beneficiarioId = modal.getAttribute('data-beneficiario-id');
+            if (!beneficiarioId || beneficiarioId === 'null' || beneficiarioId === 'undefined') {
+                mostrarMensaje('error', 'Error: No se encontró el beneficiario o ID inválido');
+                return;
+            }
+            
+            const tipoSelect = document.getElementById('atributoTipoSelect');
+            const valorInput = document.getElementById('atributoValor');
+            const descripcionInput = document.getElementById('atributoDescripcion');
+            
+            if (!tipoSelect || !valorInput) {
+                mostrarMensaje('error', 'Error: Campos no encontrados');
+                return;
+            }
+            
+            const tipoId = tipoSelect.value;
+            const valor = valorInput.value.trim();
+            const descripcion = descripcionInput ? descripcionInput.value.trim() : '';
+            
+            if (!tipoId || !valor) {
+                mostrarMensaje('error', 'Por favor completa todos los campos obligatorios');
+                return;
+            }
+            
+            // Deshabilitar botón mientras se guarda
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = 'Guardando...';
+            
+            try {
+                const url = `/api/beneficiario/${beneficiarioId}/atributos/agregar/`;
+                if (!url || url.includes('null') || url.includes('undefined')) {
+                    throw new Error('URL inválida para agregar atributo');
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        atributo_tipo_id: tipoId,
+                        valor: valor,
+                        descripcion: descripcion || null
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Error al agregar atributo');
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    mostrarMensaje('success', 'Atributo agregado exitosamente');
+                    
+                    // Limpiar formulario
+                    if (tipoSelect) tipoSelect.value = '';
+                    if (valorInput) valorInput.value = '';
+                    if (descripcionInput) descripcionInput.value = '';
+                    
+                    // Recargar atributos
+                    await cargarAtributosBeneficiario(beneficiarioId);
+                    
+                    // Recargar listado de beneficiarios si estamos en esa vista
+                    if (currentView === 'listBeneficiariesView') {
+                        await loadBeneficiariosList();
+                    }
+                } else {
+                    mostrarMensaje('error', data.error || 'Error al agregar atributo');
+                }
+            } catch (error) {
+                console.error('Error agregando atributo:', error);
+                mostrarMensaje('error', error.message || 'Error al agregar atributo');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = 'Agregar Atributo';
+            }
+        });
+    }
+}
+
+function cerrarModalAgregarAtributo() {
+    const modal = document.getElementById('addAtributoModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            // Limpiar formulario
+            const form = document.getElementById('addAtributoForm');
+            if (form) form.reset();
+        }, 300);
+    }
+}
+
 async function openBeneficiaryDetailsModal(beneficiarioId) {
+    console.log('openBeneficiaryDetailsModal llamado con ID:', beneficiarioId);
     const modal = document.getElementById('beneficiaryDetailsModal');
     const content = document.getElementById('beneficiaryDetailsContent');
     
-    if (!modal || !content) return;
+    if (!modal || !content) {
+        console.error('Modal o contenido no encontrado. Modal:', modal, 'Content:', content);
+        return;
+    }
     
+    console.log('Abriendo modal...');
+    // Mostrar modal
     modal.style.display = 'flex';
+    setTimeout(() => {
+        if (modal) {
+            modal.classList.add('show');
+        }
+    }, 10);
+    
     content.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #6c757d;">
             <div class="spinner" style="border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
@@ -3154,22 +5040,93 @@ async function openBeneficiaryDetailsModal(beneficiarioId) {
             const b = data.beneficiario;
             const detalles = b.detalles || {};
             const proyectos = b.proyectos || [];
+            const atributos = b.atributos || [];
+            const foto_url = b.foto_url || null;
             
             let nombre = b.nombre || 'Sin nombre';
             const tipo = (b.tipo || '').toLowerCase();
             
+            // Foto del beneficiario (solo para individuales)
+            let fotoHTML = '';
+            if (tipo === 'individual') {
+                fotoHTML = `
+                    <div class="detail-section">
+                        <h4 class="section-title">Foto del Beneficiario</h4>
+                        <div style="text-align: center; margin: 20px 0;">
+                            ${foto_url ? `
+                                <div id="fotoActualContainer" style="margin-bottom: 20px;">
+                                    <img id="fotoActualImg" src="${foto_url}" alt="Foto del beneficiario" style="max-width: 300px; max-height: 300px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 4px 8px rgba(0,0,0,0.2); margin-bottom: 12px;">
+                                    <div>
+                                        <button type="button" id="btnEliminarFoto" class="btn-danger" style="padding: 8px 16px; background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; color: #dc3545; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;" 
+                                                onmouseover="this.style.background='rgba(220, 53, 69, 0.3)';"
+                                                onmouseout="this.style.background='rgba(220, 53, 69, 0.2)';">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                            </svg>
+                                            Eliminar Foto
+                                        </button>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div id="fotoActualContainer" style="display: none; margin-bottom: 20px;">
+                                    <img id="fotoActualImg" src="" alt="Foto del beneficiario" style="max-width: 300px; max-height: 300px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 4px 8px rgba(0,0,0,0.2); margin-bottom: 12px;">
+                                    <div>
+                                        <button type="button" id="btnEliminarFoto" class="btn-danger" style="padding: 8px 16px; background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; color: #dc3545; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;">
+                                            Eliminar Foto
+                                        </button>
+                                    </div>
+                                </div>
+                            `}
+                            <div style="margin-top: 20px;">
+                                <label for="fotoInputModal" style="display: block; margin-bottom: 8px; color: rgba(255,255,255,0.9); font-weight: 500;">${foto_url ? 'Cambiar Foto' : 'Subir Foto'}</label>
+                                <input type="file" id="fotoInputModal" accept="image/jpeg,image/png,image/gif,image/webp" style="padding: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #ffffff; width: 100%; max-width: 400px; margin: 0 auto; display: block;">
+                                <small style="display: block; margin-top: 8px; color: #6c757d; text-align: center;">Solo imágenes (JPEG, PNG, GIF, WEBP). Tamaño máximo: 5MB</small>
+                                <div id="fotoPreviewModal" style="margin-top: 12px; display: none;">
+                                    <img id="fotoPreviewImgModal" src="" alt="Vista previa" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.1); margin: 0 auto; display: block;">
+                                </div>
+                                <button type="button" id="btnSubirFoto" style="margin-top: 12px; padding: 10px 20px; background: rgba(40, 167, 69, 0.2); border: 1px solid rgba(40, 167, 69, 0.3); border-radius: 6px; color: #28a745; cursor: pointer; font-weight: 500; font-size: 0.9rem; transition: all 0.2s; display: none;"
+                                        onmouseover="this.style.background='rgba(40, 167, 69, 0.3)';"
+                                        onmouseout="this.style.background='rgba(40, 167, 69, 0.2)';">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
+                                    Subir Foto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
             let detallesHTML = '';
             if (tipo === 'individual') {
+                const nombres = [
+                    detalles.primer_nombre || '',
+                    detalles.segundo_nombre || '',
+                    detalles.tercer_nombre || ''
+                ].filter(n => n).join(' ');
+                const apellidos = [
+                    detalles.primer_apellido || '',
+                    detalles.segundo_apellido || ''
+                ].filter(a => a).join(' ');
+                const apellidoCasada = detalles.apellido_casada || '';
+                
                 detallesHTML = `
                     <div class="detail-section">
                         <h4 class="section-title">Información Personal</h4>
                         <div class="detail-grid">
-                            <div class="detail-item"><strong>Nombre:</strong> <span>${detalles.nombre || ''}</span></div>
-                            <div class="detail-item"><strong>Apellido:</strong> <span>${detalles.apellido || ''}</span></div>
+                            <div class="detail-item"><strong>Nombre(s):</strong> <span>${nombres || detalles.nombre || 'N/A'}</span></div>
+                            <div class="detail-item"><strong>Apellido(s):</strong> <span>${apellidos || detalles.apellido || 'N/A'}</span></div>
+                            ${apellidoCasada ? `<div class="detail-item"><strong>Apellido de Casada:</strong> <span>${apellidoCasada}</span></div>` : ''}
                             <div class="detail-item"><strong>DPI:</strong> <span>${detalles.dpi || 'N/A'}</span></div>
                             <div class="detail-item"><strong>Teléfono:</strong> <span>${detalles.telefono || 'N/A'}</span></div>
                             <div class="detail-item"><strong>Género:</strong> <span>${detalles.genero || 'N/A'}</span></div>
                             ${detalles.fecha_nacimiento ? `<div class="detail-item"><strong>Fecha de Nacimiento:</strong> <span>${new Date(detalles.fecha_nacimiento).toLocaleDateString('es-GT')}</span></div>` : ''}
+                            ${detalles.fecha_registro ? `<div class="detail-item"><strong>Fecha de Registro:</strong> <span>${new Date(detalles.fecha_registro).toLocaleDateString('es-GT')}</span></div>` : ''}
+                            ${detalles.comunidad_linguistica ? `<div class="detail-item"><strong>Comunidad Lingüística:</strong> <span>${detalles.comunidad_linguistica}</span></div>` : ''}
                         </div>
                     </div>
                 `;
@@ -3217,28 +5174,73 @@ async function openBeneficiaryDetailsModal(beneficiarioId) {
                 }
             }
             
+            // Atributos (solo para individuales)
+            let atributosHTML = '';
+            if (tipo === 'individual' && atributos.length > 0) {
+                atributosHTML = `
+                    <div class="detail-section">
+                        <h4 class="section-title">Habilidades y Características Especiales</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;">
+                            ${atributos.map(attr => `
+                                <div style="padding: 8px 12px; background: rgba(255, 193, 7, 0.15); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; font-size: 0.9rem; color: #ffc107;">
+                                    <strong>${attr.tipo_nombre}:</strong> ${attr.valor}
+                                    ${attr.descripcion ? `<br><small style="color: rgba(255,255,255,0.7);">${attr.descripcion}</small>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Proyectos con más detalles
+            let proyectosHTML = '';
+            if (proyectos.length > 0) {
+                proyectosHTML = `
+                    <div class="detail-section">
+                        <h4 class="section-title">Proyectos Vinculados (${proyectos.length})</h4>
+                        <div style="display: grid; gap: 16px; margin-top: 12px;">
+                            ${proyectos.map(p => `
+                                <div style="padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                                    <h5 style="margin: 0 0 8px 0; color: #ffffff; font-size: 1rem; font-weight: 600;">${p.nombre || 'Sin nombre'}</h5>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; font-size: 0.9rem; color: rgba(255,255,255,0.8);">
+                                        ${p.tipo ? `<div><strong>Tipo:</strong> ${p.tipo}</div>` : ''}
+                                        ${p.fecha ? `<div><strong>Fecha del Proyecto:</strong> ${new Date(p.fecha).toLocaleDateString('es-GT')}</div>` : ''}
+                                        ${p.comunidad ? `<div><strong>Comunidad:</strong> ${p.comunidad}</div>` : ''}
+                                        ${p.fecha_agregacion ? `<div><strong>Agregado al Proyecto:</strong> ${new Date(p.fecha_agregacion).toLocaleDateString('es-GT')}</div>` : ''}
+                                    </div>
+                                    ${p.descripcion ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); font-size: 0.85rem;">${p.descripcion}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                proyectosHTML = '<div class="detail-section"><p style="color: #6c757d;">Este beneficiario no está vinculado a ningún proyecto.</p></div>';
+            }
+            
             content.innerHTML = `
+                ${fotoHTML}
                 <div class="detail-section">
                     <h4 class="section-title">Información General</h4>
                     <div class="detail-grid">
                         <div class="detail-item"><strong>Tipo:</strong> <span>${b.tipo_display || tipo}</span></div>
                         <div class="detail-item"><strong>Comunidad:</strong> <span>${b.comunidad_nombre || 'N/A'}</span></div>
+                        ${b.comunidad_codigo ? `<div class="detail-item"><strong>Código de Comunidad:</strong> <span>${b.comunidad_codigo}</span></div>` : ''}
                         ${b.region_nombre ? `<div class="detail-item"><strong>Región:</strong> <span>${b.region_nombre}</span></div>` : ''}
-                        ${b.creado_en ? `<div class="detail-item"><strong>Creado:</strong> <span>${new Date(b.creado_en).toLocaleString('es-GT')}</span></div>` : ''}
+                        ${b.region_sede ? `<div class="detail-item"><strong>Sede Regional:</strong> <span>${b.region_sede}</span></div>` : ''}
+                        ${b.creado_en ? `<div class="detail-item"><strong>Fecha de Registro en Sistema:</strong> <span>${new Date(b.creado_en).toLocaleString('es-GT')}</span></div>` : ''}
+                        ${b.actualizado_en ? `<div class="detail-item"><strong>Última Actualización:</strong> <span>${new Date(b.actualizado_en).toLocaleString('es-GT')}</span></div>` : ''}
                     </div>
                 </div>
                 ${detallesHTML}
-                ${proyectos.length > 0 ? `
-                <div class="detail-section">
-                    <h4 class="section-title">Proyectos Vinculados (${proyectos.length})</h4>
-                    <ul class="project-list-detail">
-                        ${proyectos.map(p => `
-                            <li>${p.nombre}${p.fecha ? ` - ${new Date(p.fecha).toLocaleDateString('es-GT')}` : ''}${p.tipo ? ` (${p.tipo})` : ''}</li>
-                        `).join('')}
-                    </ul>
-                </div>
-                ` : '<div class="detail-section"><p style="color: #6c757d;">Este beneficiario no está vinculado a ningún proyecto.</p></div>'}
+                ${atributosHTML}
+                ${proyectosHTML}
             `;
+            
+            // Configurar event listeners para la foto (solo para individuales)
+            if (tipo === 'individual') {
+                setupFotoModalHandlers(beneficiarioId);
+            }
         } else {
             content.innerHTML = `
                 <div style="text-align: center; padding: 40px; color: #dc3545;">
@@ -3259,7 +5261,164 @@ async function openBeneficiaryDetailsModal(beneficiarioId) {
 function closeBeneficiaryDetailsModal() {
     const modal = document.getElementById('beneficiaryDetailsModal');
     if (modal) {
-        modal.style.display = 'none';
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 300);
+    }
+}
+
+function setupFotoModalHandlers(beneficiarioId) {
+    const fotoInput = document.getElementById('fotoInputModal');
+    const fotoPreview = document.getElementById('fotoPreviewModal');
+    const fotoPreviewImg = document.getElementById('fotoPreviewImgModal');
+    const btnSubirFoto = document.getElementById('btnSubirFoto');
+    const btnEliminarFoto = document.getElementById('btnEliminarFoto');
+    const fotoActualContainer = document.getElementById('fotoActualContainer');
+    const fotoActualImg = document.getElementById('fotoActualImg');
+    
+    if (!fotoInput || !btnSubirFoto) return;
+    
+    // Preview cuando se selecciona una foto
+    fotoInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Validar tipo
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                mostrarMensaje('error', 'Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP)');
+                e.target.value = '';
+                return;
+            }
+            
+            // Validar tamaño (5MB)
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                mostrarMensaje('error', 'El archivo es demasiado grande. El tamaño máximo es 5MB');
+                e.target.value = '';
+                return;
+            }
+            
+            // Mostrar preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (fotoPreviewImg) fotoPreviewImg.src = e.target.result;
+                if (fotoPreview) fotoPreview.style.display = 'block';
+                if (btnSubirFoto) btnSubirFoto.style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    // Subir foto
+    btnSubirFoto.addEventListener('click', async function() {
+        const file = fotoInput.files[0];
+        if (!file) {
+            mostrarMensaje('error', 'Por favor selecciona una imagen');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('foto', file);
+        
+        btnSubirFoto.disabled = true;
+        btnSubirFoto.innerHTML = '<div class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #28a745; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;"></div> Subiendo...';
+        
+        try {
+            const response = await fetch(`/api/beneficiario/${beneficiarioId}/foto/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                mostrarMensaje('success', 'Foto subida exitosamente');
+                
+                // Actualizar imagen actual
+                if (fotoActualImg && data.foto_url) {
+                    fotoActualImg.src = data.foto_url;
+                }
+                if (fotoActualContainer) {
+                    fotoActualContainer.style.display = 'block';
+                }
+                
+                // Limpiar preview y input
+                if (fotoInput) fotoInput.value = '';
+                if (fotoPreview) fotoPreview.style.display = 'none';
+                if (btnSubirFoto) btnSubirFoto.style.display = 'none';
+            } else {
+                mostrarMensaje('error', data.error || 'Error al subir la foto');
+            }
+        } catch (error) {
+            console.error('Error al subir foto:', error);
+            mostrarMensaje('error', 'Error al subir la foto');
+        } finally {
+            btnSubirFoto.disabled = false;
+            btnSubirFoto.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Subir Foto
+            `;
+        }
+    });
+    
+    // Eliminar foto
+    if (btnEliminarFoto) {
+        btnEliminarFoto.addEventListener('click', async function() {
+            if (!confirm('¿Estás seguro de que deseas eliminar la foto del beneficiario?')) {
+                return;
+            }
+            
+            btnEliminarFoto.disabled = true;
+            btnEliminarFoto.innerHTML = 'Eliminando...';
+            
+            try {
+                const response = await fetch(`/api/beneficiario/${beneficiarioId}/foto/eliminar/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    mostrarMensaje('success', 'Foto eliminada exitosamente');
+                    
+                    // Ocultar imagen actual
+                    if (fotoActualContainer) {
+                        fotoActualContainer.style.display = 'none';
+                    }
+                    
+                    // Cambiar texto del input
+                    const label = fotoInput.previousElementSibling;
+                    if (label && label.tagName === 'LABEL') {
+                        label.textContent = 'Subir Foto';
+                    }
+                } else {
+                    mostrarMensaje('error', data.error || 'Error al eliminar la foto');
+                }
+            } catch (error) {
+                console.error('Error al eliminar foto:', error);
+                mostrarMensaje('error', 'Error al eliminar la foto');
+            } finally {
+                btnEliminarFoto.disabled = false;
+                btnEliminarFoto.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    Eliminar Foto
+                `;
+            }
+        });
     }
 }
 
@@ -3363,16 +5522,76 @@ function removeComunidadFilter(comunidadId) {
 }
 
 function resetFilters() {
+    // Resetear filtros
     filters = {
         tipoBeneficiario: ['individual', 'familia', 'institución', 'otro'],
         comunidad: [],
-        evento: []
+        evento: [],
+        soloConHabilidades: false
+    };
+    
+    // Resetear checkboxes de tipo
+    const filterTipoCheckboxes = document.querySelectorAll('#filterTipoBeneficiario input[type="checkbox"]');
+    filterTipoCheckboxes.forEach(cb => {
+        cb.checked = true;
+    });
+    
+    // Resetear checkbox de solo con habilidades
+    const filterSoloConHabilidades = document.getElementById('filterSoloConHabilidades');
+    if (filterSoloConHabilidades) {
+        filterSoloConHabilidades.checked = false;
+    }
+    
+    // Resetear otros filtros
+    filters.comunidad = [];
+    filters.evento = [];
+    
+    // Limpiar tags de comunidades
+    const comunidadesTags = document.getElementById('selectedComunidadesTags');
+    if (comunidadesTags) {
+        comunidadesTags.innerHTML = '';
+    }
+    
+    // Limpiar tags de eventos
+    const eventosTags = document.getElementById('selectedEventosListadoTags');
+    if (eventosTags) {
+        eventosTags.innerHTML = '';
+    }
+    
+    // Limpiar búsqueda de comunidad
+    const searchComunidad = document.getElementById('searchComunidadListado');
+    if (searchComunidad) {
+        searchComunidad.value = '';
+    }
+    
+    // Limpiar búsqueda de evento
+    const searchEvento = document.getElementById('searchEventoListado');
+    if (searchEvento) {
+        searchEvento.value = '';
+    }
+    
+    // Aplicar filtros
+    applyFiltersAndSort();
+}
+
+function resetFiltersOld() {
+    filters = {
+        tipoBeneficiario: ['individual', 'familia', 'institución', 'otro'],
+        comunidad: [],
+        evento: [],
+        soloConHabilidades: false
     };
     
     // Resetear checkboxes
     document.querySelectorAll('#filterTipoBeneficiario input[type="checkbox"]').forEach(cb => {
         cb.checked = true;
     });
+    
+    // Resetear checkbox de solo con habilidades
+    const filterSoloConHabilidades = document.getElementById('filterSoloConHabilidades');
+    if (filterSoloConHabilidades) {
+        filterSoloConHabilidades.checked = false;
+    }
     
     // Resetear inputs
     const searchComunidad = document.getElementById('searchComunidadListado');

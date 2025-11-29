@@ -9,11 +9,10 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.db import transaction, IntegrityError
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta, time as dt_time
 from django.contrib.auth import authenticate, login as auth_login
 import os
 import json
-from datetime import datetime, timedelta
 import uuid
 import hashlib
 import random
@@ -28,7 +27,8 @@ from .models import (
     ActividadBeneficiario, ActividadComunidad, ActividadPortada, TarjetaDato, Evidencia, ActividadCambio,
     EventoCambioColaborador, ActividadArchivo, EventosGaleria, CambioEvidencia, EventosEvidenciasCambios,
     RegionGaleria, RegionArchivo, ComunidadGaleria, ComunidadArchivo, ComunidadAutoridad,
-    PasswordResetCode, UsuarioFotoPerfil, SesionOffline
+    PasswordResetCode, UsuarioFotoPerfil, SesionOffline,
+    BeneficiarioAtributo, BeneficiarioAtributoTipo, BeneficiarioFoto
 )
 from .decorators import (
     solo_administrador,
@@ -2662,6 +2662,21 @@ def api_listar_beneficiarios_completo(request):
                     'tipo': ab.actividad.tipo.nombre if ab.actividad.tipo else None
                 })
             
+            # Obtener atributos si es beneficiario individual
+            atributos = []
+            if hasattr(ben, 'individual') and ben.individual:
+                atributos_objs = BeneficiarioAtributo.objects.filter(
+                    beneficiario_individual=ben.individual
+                ).select_related('atributo_tipo').order_by('atributo_tipo__nombre', 'valor')
+                atributos = [{
+                    'id': str(attr.id),
+                    'tipo_id': str(attr.atributo_tipo.id),
+                    'tipo_nombre': attr.atributo_tipo.nombre,
+                    'tipo_codigo': attr.atributo_tipo.codigo,
+                    'valor': attr.valor,
+                    'descripcion': attr.descripcion or ''
+                } for attr in atributos_objs]
+            
             beneficiarios_list.append({
                 'id': str(ben.id),
                 'nombre': nombre_display,
@@ -2673,6 +2688,7 @@ def api_listar_beneficiarios_completo(request):
                 'region_nombre': ben.comunidad.region.nombre if ben.comunidad and ben.comunidad.region else None,
                 'detalles': detalles,
                 'proyectos': proyectos,
+                'atributos': atributos,
                 'creado_en': ben.creado_en.isoformat() if ben.creado_en else None,
                 'actualizado_en': ben.actualizado_en.isoformat() if ben.actualizado_en else None
             })
@@ -2802,7 +2818,21 @@ def api_crear_beneficiario(request):
                 'error': 'Usuario no autenticado'
             }, status=401)
         
-        data = _parse_request_data(request)
+        # Manejar FormData si hay foto
+        foto_file = None
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            # Es FormData, extraer foto y datos JSON
+            foto_file = request.FILES.get('foto')
+            data_str = request.POST.get('data', '{}')
+            try:
+                import json
+                data = json.loads(data_str)
+            except:
+                data = {}
+        else:
+            # Es JSON normal
+            data = _parse_request_data(request)
+        
         tipo = data.get('tipo')
         comunidad_id = data.get('comunidad_id')
         
@@ -2832,6 +2862,90 @@ def api_crear_beneficiario(request):
             }, status=400)
         
         with transaction.atomic():
+            # Manejar actualización de fecha si el DPI existe (solo para individual)
+            if tipo == 'individual' and data.get('actualizar_fecha_existente') and data.get('beneficiario_existente_id'):
+                try:
+                    beneficiario_existente = Beneficiario.objects.get(id=data.get('beneficiario_existente_id'))
+                    if data.get('fecha_actualizacion'):
+                        # Actualizar fecha de actualización usando SQL directo para evitar auto_now
+                        from django.utils.dateparse import parse_date
+                        fecha_actualizacion = parse_date(data.get('fecha_actualizacion'))
+                        if fecha_actualizacion:
+                            from django.utils import timezone
+                            fecha_actualizacion_dt = timezone.make_aware(
+                                datetime.combine(fecha_actualizacion, dt_time.min)
+                            )
+                            
+                            # Actualizar el campo actualizado_en
+                            # Nota: Esto permite múltiples actualizaciones, cada una sobrescribe la anterior
+                            # Para estadísticas, se puede consultar la bitácora de transacciones
+                            Beneficiario.objects.filter(id=beneficiario_existente.id).update(
+                                actualizado_en=fecha_actualizacion_dt
+                            )
+                            
+                            # Registrar en bitácora para historial de actualizaciones
+                            try:
+                                with connection.cursor() as cursor:
+                                    cursor.execute("""
+                                        INSERT INTO bitacora_transacciones (
+                                            usuario_id, accion, tabla_afectada, registro_id,
+                                            datos_anteriores, datos_nuevos, resultado, creado_en
+                                        ) VALUES (
+                                            %s, 'ACTUALIZAR_FECHA', 'beneficiarios', %s,
+                                            %s, %s, 'exitoso', %s
+                                        )
+                                    """, [
+                                        str(usuario_maga.id) if usuario_maga else None,
+                                        str(beneficiario_existente.id),
+                                        json.dumps({'actualizado_en': str(beneficiario_existente.actualizado_en)}),
+                                        json.dumps({'actualizado_en': fecha_actualizacion_dt.isoformat()}),
+                                        fecha_actualizacion_dt
+                                    ])
+                            except Exception as e:
+                                # Si falla la bitácora, no es crítico, continuar
+                                print(f"Error al registrar en bitácora: {e}")
+                            
+                            # Agregar a proyectos si se especificaron
+                            proyecto_ids = data.get('proyecto_ids', [])
+                            if proyecto_ids:
+                                actividades = Actividad.objects.filter(
+                                    id__in=proyecto_ids,
+                                    eliminado_en__isnull=True
+                                )
+                                
+                                is_admin = usuario_maga.rol == 'admin'
+                                colaborador_usuario_id = None
+                                if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                                    colaborador_usuario_id = str(usuario_maga.colaborador.id)
+                                
+                                for actividad in actividades:
+                                    if is_admin:
+                                        ActividadBeneficiario.objects.get_or_create(
+                                            actividad=actividad,
+                                            beneficiario=beneficiario_existente
+                                        )
+                                    elif colaborador_usuario_id:
+                                        if ActividadPersonal.objects.filter(
+                                            actividad=actividad,
+                                            colaborador_id=colaborador_usuario_id
+                                        ).exists():
+                                            ActividadBeneficiario.objects.get_or_create(
+                                                actividad=actividad,
+                                                beneficiario=beneficiario_existente
+                                            )
+                            
+                            return JsonResponse({
+                                'success': True,
+                                'message': f'Fecha de actualización del beneficiario actualizada exitosamente a {fecha_actualizacion.strftime("%d/%m/%Y")}. Esta fecha quedará registrada para estadísticas.',
+                                'beneficiario_id': str(beneficiario_existente.id),
+                                'fecha_actualizada': fecha_actualizacion_dt.isoformat()
+                            })
+                except Beneficiario.DoesNotExist:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Beneficiario no encontrado'
+                    }, status=404)
+            
             # Crear beneficiario principal
             beneficiario = Beneficiario.objects.create(
                 tipo=tipo_beneficiario,
@@ -2841,15 +2955,126 @@ def api_crear_beneficiario(request):
             
             # Crear datos específicos según el tipo
             if tipo == 'individual':
-                BeneficiarioIndividual.objects.create(
-                    beneficiario=beneficiario,
-                    nombre=data.get('nombre', ''),
-                    apellido=data.get('apellido', ''),
-                    dpi=data.get('dpi') or None,
-                    fecha_nacimiento=data.get('fecha_nacimiento') or None,
-                    genero=data.get('genero') or None,
-                    telefono=data.get('telefono') or None
-                )
+                
+                # Crear nuevo beneficiario individual con los nuevos campos
+                individual_data = {
+                    'beneficiario': beneficiario,
+                    'nombre': data.get('nombre', ''),
+                    'apellido': data.get('apellido', ''),
+                    'dpi': data.get('dpi') or None,
+                    'fecha_nacimiento': data.get('fecha_nacimiento') or None,
+                    'genero': data.get('genero') or None,
+                    'telefono': data.get('telefono') or None
+                }
+                
+                # Agregar nuevos campos si existen
+                if data.get('primer_nombre'):
+                    individual_data['primer_nombre'] = data.get('primer_nombre')
+                if data.get('segundo_nombre'):
+                    individual_data['segundo_nombre'] = data.get('segundo_nombre')
+                if data.get('tercer_nombre'):
+                    individual_data['tercer_nombre'] = data.get('tercer_nombre')
+                if data.get('primer_apellido'):
+                    individual_data['primer_apellido'] = data.get('primer_apellido')
+                if data.get('segundo_apellido'):
+                    individual_data['segundo_apellido'] = data.get('segundo_apellido')
+                if data.get('apellido_casada'):
+                    individual_data['apellido_casada'] = data.get('apellido_casada')
+                if data.get('comunidad_linguistica'):
+                    individual_data['comunidad_linguistica'] = data.get('comunidad_linguistica')
+                
+                # Usar SQL directo para insertar con los nuevos campos
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO beneficiarios_individuales (
+                            beneficiario_id, nombre, apellido, 
+                            primer_nombre, segundo_nombre, tercer_nombre,
+                            primer_apellido, segundo_apellido, apellido_casada,
+                            dpi, fecha_nacimiento, genero, telefono, comunidad_linguistica
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                    """, [
+                        str(beneficiario.id),
+                        individual_data.get('nombre', ''),
+                        individual_data.get('apellido', ''),
+                        individual_data.get('primer_nombre', ''),
+                        individual_data.get('segundo_nombre'),
+                        individual_data.get('tercer_nombre'),
+                        individual_data.get('primer_apellido', ''),
+                        individual_data.get('segundo_apellido'),
+                        individual_data.get('apellido_casada'),
+                        individual_data.get('dpi'),
+                        individual_data.get('fecha_nacimiento'),
+                        individual_data.get('genero'),
+                        individual_data.get('telefono'),
+                        individual_data.get('comunidad_linguistica')
+                    ])
+                
+                # Si hay fecha de registro, actualizar beneficiario principal
+                if data.get('fecha_registro'):
+                    from django.utils.dateparse import parse_date
+                    fecha_registro = parse_date(data.get('fecha_registro'))
+                    if fecha_registro:
+                        from django.utils import timezone
+                        fecha_registro_dt = timezone.make_aware(
+                            datetime.combine(fecha_registro, dt_time.min)
+                        )
+                        Beneficiario.objects.filter(id=beneficiario.id).update(
+                            creado_en=fecha_registro_dt
+                        )
+                
+                # Subir foto si se proporcionó (solo para individuales)
+                if foto_file and tipo == 'individual':
+                    try:
+                        # Obtener el beneficiario individual recién creado
+                        beneficiario_individual = BeneficiarioIndividual.objects.get(beneficiario=beneficiario)
+                        
+                        # Validar tipo de archivo
+                        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+                        if foto_file.content_type not in allowed_types:
+                            raise ValueError('Tipo de archivo no permitido')
+                        
+                        # Comprimir si está habilitado
+                        if getattr(settings, 'COMPRESS_IMAGES', True):
+                            from .image_compression import compress_if_needed, get_compression_settings
+                            compression_settings = get_compression_settings('profile')
+                            foto_file = compress_if_needed(foto_file, **compression_settings)
+                        
+                        # Validar tamaño (5MB)
+                        max_size = 5 * 1024 * 1024
+                        if foto_file.size > max_size:
+                            raise ValueError('El archivo es demasiado grande')
+                        
+                        # Crear directorio si no existe
+                        perfiles_dir = os.path.join(settings.MEDIA_ROOT, 'perfiles_img')
+                        os.makedirs(perfiles_dir, exist_ok=True)
+                        
+                        # Generar nombre único
+                        import uuid
+                        file_extension = os.path.splitext(foto_file.name)[1]
+                        unique_filename = f"{uuid.uuid4()}{file_extension}"
+                        file_path = os.path.join(perfiles_dir, unique_filename)
+                        
+                        # Guardar archivo
+                        with open(file_path, 'wb+') as destination:
+                            for chunk in foto_file.chunks():
+                                destination.write(chunk)
+                        
+                        # Construir URL relativa
+                        relative_url = os.path.join('perfiles_img', unique_filename).replace('\\', '/')
+                        
+                        # Crear registro en BD
+                        BeneficiarioFoto.objects.create(
+                            beneficiario_individual=beneficiario_individual,
+                            archivo_nombre=foto_file.name,
+                            archivo_tipo=foto_file.content_type,
+                            archivo_tamanio=foto_file.size,
+                            url_almacenamiento=relative_url
+                        )
+                    except Exception as e:
+                        # Si falla la subida de foto, no es crítico, continuar
+                        print(f"Error al subir foto: {e}")
             elif tipo == 'familia':
                 BeneficiarioFamilia.objects.create(
                     beneficiario=beneficiario,
@@ -2896,24 +3121,44 @@ def api_crear_beneficiario(request):
                 if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
                     colaborador_usuario_id = str(usuario_maga.colaborador.id)
                 
+                # Obtener fecha de agregación al proyecto si se proporciona
+                fecha_agregacion_proyecto = data.get('fecha_agregacion_proyecto')
+                fecha_agregacion_dt = None
+                if fecha_agregacion_proyecto:
+                    from django.utils.dateparse import parse_date
+                    from django.utils import timezone
+                    fecha_parsed = parse_date(fecha_agregacion_proyecto)
+                    if fecha_parsed:
+                        fecha_agregacion_dt = timezone.make_aware(
+                            datetime.combine(fecha_parsed, dt_time.min)
+                        )
+                
                 for actividad in actividades:
                     # Verificar que el usuario tenga acceso a esta actividad
+                    puede_agregar = False
                     if is_admin:
-                        # Admin puede agregar a cualquier proyecto
-                        ActividadBeneficiario.objects.get_or_create(
+                        puede_agregar = True
+                    elif colaborador_usuario_id:
+                        puede_agregar = ActividadPersonal.objects.filter(
+                            actividad=actividad,
+                            colaborador_id=colaborador_usuario_id
+                        ).exists()
+                    
+                    if puede_agregar:
+                        # Usar get_or_create y luego actualizar fecha si se proporciona
+                        actividad_benef, creado = ActividadBeneficiario.objects.get_or_create(
                             actividad=actividad,
                             beneficiario=beneficiario
                         )
-                    elif colaborador_usuario_id:
-                        # Verificar que el colaborador esté asignado a esta actividad
-                        if ActividadPersonal.objects.filter(
-                            actividad=actividad,
-                            colaborador_id=colaborador_usuario_id
-                        ).exists():
-                            ActividadBeneficiario.objects.get_or_create(
-                                actividad=actividad,
-                                beneficiario=beneficiario
-                            )
+                        
+                        # Si se proporciona fecha de agregación, actualizarla usando SQL directo
+                        if fecha_agregacion_dt and (creado or actividad_benef):
+                            with connection.cursor() as cursor:
+                                cursor.execute("""
+                                    UPDATE actividad_beneficiarios 
+                                    SET creado_en = %s 
+                                    WHERE id = %s
+                                """, [fecha_agregacion_dt, str(actividad_benef.id)])
         
         return JsonResponse({
             'success': True,
@@ -2927,6 +3172,404 @@ def api_crear_beneficiario(request):
         return JsonResponse({
             'success': False,
             'error': f'Error al crear beneficiario: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_buscar_beneficiario_por_dpi(request):
+    """API: Buscar beneficiario individual por DPI"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'existe': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        dpi = request.GET.get('dpi', '').strip()
+        if not dpi or len(dpi) != 13:
+            return JsonResponse({
+                'existe': False,
+                'error': 'DPI inválido'
+            }, status=400)
+        
+        # Buscar beneficiario individual por DPI
+        try:
+            individual = BeneficiarioIndividual.objects.select_related(
+                'beneficiario',
+                'beneficiario__comunidad'
+            ).get(dpi=dpi)
+            
+            beneficiario = individual.beneficiario
+            comunidad = beneficiario.comunidad
+            
+            # Construir nombre completo
+            nombre_completo = ''
+            if hasattr(individual, 'primer_nombre') and individual.primer_nombre:
+                nombre_completo = individual.primer_nombre
+                if hasattr(individual, 'segundo_nombre') and individual.segundo_nombre:
+                    nombre_completo += ' ' + individual.segundo_nombre
+                if hasattr(individual, 'tercer_nombre') and individual.tercer_nombre:
+                    nombre_completo += ' ' + individual.tercer_nombre
+            else:
+                nombre_completo = individual.nombre or ''
+            
+            apellido_completo = ''
+            if hasattr(individual, 'primer_apellido') and individual.primer_apellido:
+                apellido_completo = individual.primer_apellido
+                if hasattr(individual, 'segundo_apellido') and individual.segundo_apellido:
+                    apellido_completo += ' ' + individual.segundo_apellido
+            else:
+                apellido_completo = individual.apellido or ''
+            
+            return JsonResponse({
+                'existe': True,
+                'beneficiario': {
+                    'id': str(beneficiario.id),
+                    'primer_nombre': getattr(individual, 'primer_nombre', individual.nombre) or '',
+                    'nombre': individual.nombre or '',
+                    'primer_apellido': getattr(individual, 'primer_apellido', individual.apellido) or '',
+                    'apellido': individual.apellido or '',
+                    'dpi': individual.dpi or '',
+                    'telefono': individual.telefono or '',
+                    'comunidad_nombre': comunidad.nombre if comunidad else 'N/A',
+                    'comunidad_id': str(comunidad.id) if comunidad else None,
+                    'creado_en': beneficiario.creado_en.isoformat() if beneficiario.creado_en else None,
+                    'actualizado_en': beneficiario.actualizado_en.isoformat() if beneficiario.actualizado_en else None
+                }
+            })
+        except BeneficiarioIndividual.DoesNotExist:
+            return JsonResponse({
+                'existe': False,
+                'beneficiario': None
+            })
+        except BeneficiarioIndividual.MultipleObjectsReturned:
+            # Si hay múltiples, tomar el primero
+            individual = BeneficiarioIndividual.objects.select_related(
+                'beneficiario',
+                'beneficiario__comunidad'
+            ).filter(dpi=dpi).first()
+            
+            if individual:
+                beneficiario = individual.beneficiario
+                comunidad = beneficiario.comunidad
+                return JsonResponse({
+                    'existe': True,
+                    'beneficiario': {
+                        'id': str(beneficiario.id),
+                        'primer_nombre': getattr(individual, 'primer_nombre', individual.nombre) or '',
+                        'nombre': individual.nombre or '',
+                        'primer_apellido': getattr(individual, 'primer_apellido', individual.apellido) or '',
+                        'apellido': individual.apellido or '',
+                        'dpi': individual.dpi or '',
+                        'telefono': individual.telefono or '',
+                        'comunidad_nombre': comunidad.nombre if comunidad else 'N/A',
+                        'comunidad_id': str(comunidad.id) if comunidad else None,
+                        'creado_en': beneficiario.creado_en.isoformat() if beneficiario.creado_en else None,
+                        'actualizado_en': beneficiario.actualizado_en.isoformat() if beneficiario.actualizado_en else None
+                    }
+                })
+            else:
+                return JsonResponse({
+                    'existe': False,
+                    'beneficiario': None
+                })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'existe': False,
+            'error': f'Error al buscar beneficiario: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_actualizar_fecha_beneficiario(request, beneficiario_id):
+    """API: Actualizar solo la fecha de actualización de un beneficiario existente"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        data = _parse_request_data(request)
+        fecha_actualizacion = data.get('fecha_actualizacion')
+        
+        if not fecha_actualizacion:
+            return JsonResponse({
+                'success': False,
+                'error': 'Fecha de actualización es requerida'
+            }, status=400)
+        
+        try:
+            beneficiario = Beneficiario.objects.get(id=beneficiario_id)
+        except Beneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        # Parsear fecha
+        from django.utils.dateparse import parse_date
+        fecha = parse_date(fecha_actualizacion)
+        if not fecha:
+            return JsonResponse({
+                'success': False,
+                'error': 'Fecha inválida'
+            }, status=400)
+        
+        from django.utils import timezone
+        fecha_dt = timezone.make_aware(
+            datetime.combine(fecha, dt_time.min)
+        )
+        
+        # Actualizar fecha
+        Beneficiario.objects.filter(id=beneficiario.id).update(
+            actualizado_en=fecha_dt
+        )
+        
+        # Registrar en bitácora para historial
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO bitacora_transacciones (
+                        usuario_id, accion, tabla_afectada, registro_id,
+                        datos_anteriores, datos_nuevos, resultado, creado_en
+                    ) VALUES (
+                        %s, 'ACTUALIZAR_FECHA', 'beneficiarios', %s,
+                        %s, %s, 'exitoso', %s
+                    )
+                """, [
+                    str(usuario_maga.id) if usuario_maga else None,
+                    str(beneficiario.id),
+                    json.dumps({'actualizado_en': str(beneficiario.actualizado_en)}),
+                    json.dumps({'actualizado_en': fecha_dt.isoformat()}),
+                    fecha_dt
+                ])
+        except Exception as e:
+            print(f"Error al registrar en bitácora: {e}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Fecha de actualización actualizada exitosamente a {fecha.strftime("%d/%m/%Y")}',
+            'fecha_actualizada': fecha_dt.isoformat()
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar fecha: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["PUT"])
+def api_actualizar_beneficiario(request, beneficiario_id):
+    """API: Actualizar un beneficiario existente (cuando el DPI ya existe)"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        data = _parse_request_data(request)
+        tipo = data.get('tipo')
+        
+        if not tipo:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tipo de beneficiario es requerido'
+            }, status=400)
+        
+        try:
+            beneficiario = Beneficiario.objects.get(id=beneficiario_id)
+        except Beneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        # Actualizar comunidad si se proporciona
+        comunidad_id = data.get('comunidad_id')
+        if comunidad_id:
+            try:
+                comunidad = Comunidad.objects.get(id=comunidad_id, activo=True)
+                beneficiario.comunidad = comunidad
+            except Comunidad.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Comunidad no encontrada'
+                }, status=404)
+        
+        beneficiario.save()
+        
+        # Actualizar datos específicos según el tipo
+        if tipo == 'individual':
+            try:
+                individual = BeneficiarioIndividual.objects.get(beneficiario=beneficiario)
+                
+                # Actualizar campos usando SQL directo para los nuevos campos
+                with connection.cursor() as cursor:
+                    update_fields = []
+                    update_values = []
+                    
+                    # Campos básicos
+                    if data.get('primer_nombre'):
+                        update_fields.append('primer_nombre = %s')
+                        update_values.append(data.get('primer_nombre'))
+                    if data.get('segundo_nombre') is not None:
+                        update_fields.append('segundo_nombre = %s')
+                        update_values.append(data.get('segundo_nombre'))
+                    if data.get('tercer_nombre') is not None:
+                        update_fields.append('tercer_nombre = %s')
+                        update_values.append(data.get('tercer_nombre'))
+                    if data.get('primer_apellido'):
+                        update_fields.append('primer_apellido = %s')
+                        update_values.append(data.get('primer_apellido'))
+                    if data.get('segundo_apellido') is not None:
+                        update_fields.append('segundo_apellido = %s')
+                        update_values.append(data.get('segundo_apellido'))
+                    if data.get('apellido_casada') is not None:
+                        update_fields.append('apellido_casada = %s')
+                        update_values.append(data.get('apellido_casada'))
+                    if data.get('comunidad_linguistica'):
+                        update_fields.append('comunidad_linguistica = %s')
+                        update_values.append(data.get('comunidad_linguistica'))
+                    if data.get('dpi') is not None:
+                        update_fields.append('dpi = %s')
+                        update_values.append(data.get('dpi'))
+                    if data.get('fecha_nacimiento'):
+                        update_fields.append('fecha_nacimiento = %s')
+                        update_values.append(data.get('fecha_nacimiento'))
+                    if data.get('genero'):
+                        update_fields.append('genero = %s')
+                        update_values.append(data.get('genero'))
+                    if data.get('telefono') is not None:
+                        update_fields.append('telefono = %s')
+                        update_values.append(data.get('telefono'))
+                    
+                    # Mantener compatibilidad con campos antiguos
+                    if data.get('nombre'):
+                        update_fields.append('nombre = %s')
+                        update_values.append(data.get('nombre'))
+                    if data.get('apellido'):
+                        update_fields.append('apellido = %s')
+                        update_values.append(data.get('apellido'))
+                    
+                    # Siempre actualizar actualizado_en
+                    update_fields.append('actualizado_en = CURRENT_TIMESTAMP')
+                    
+                    if update_fields:
+                        update_values.append(str(individual.id))
+                        cursor.execute(f"""
+                            UPDATE beneficiarios_individuales
+                            SET {', '.join(update_fields)}
+                            WHERE id = %s
+                        """, update_values)
+                
+                # Si hay fecha de actualización específica, actualizarla
+                if data.get('actualizar_fecha_existente') and data.get('fecha_actualizacion'):
+                    from django.utils.dateparse import parse_date
+                    fecha_actualizacion = parse_date(data.get('fecha_actualizacion'))
+                    if fecha_actualizacion:
+                        from django.utils import timezone
+                        fecha_actualizacion_dt = timezone.make_aware(
+                            datetime.combine(fecha_actualizacion, dt_time.min)
+                        )
+                        Beneficiario.objects.filter(id=beneficiario.id).update(
+                            actualizado_en=fecha_actualizacion_dt
+                        )
+                        
+                        # Registrar en bitácora
+                        try:
+                            with connection.cursor() as cursor:
+                                cursor.execute("""
+                                    INSERT INTO bitacora_transacciones (
+                                        usuario_id, accion, tabla_afectada, registro_id,
+                                        datos_anteriores, datos_nuevos, resultado, creado_en
+                                    ) VALUES (
+                                        %s, 'ACTUALIZAR_FECHA', 'beneficiarios', %s,
+                                        %s, %s, 'exitoso', %s
+                                    )
+                                """, [
+                                    str(usuario_maga.id) if usuario_maga else None,
+                                    str(beneficiario.id),
+                                    json.dumps({'actualizado_en': str(beneficiario.actualizado_en)}),
+                                    json.dumps({'actualizado_en': fecha_actualizacion_dt.isoformat()}),
+                                    fecha_actualizacion_dt
+                                ])
+                        except Exception as e:
+                            print(f"Error al registrar en bitácora: {e}")
+                
+                # Si hay fecha de registro, actualizar beneficiario principal
+                if data.get('fecha_registro'):
+                    from django.utils.dateparse import parse_date
+                    fecha_registro = parse_date(data.get('fecha_registro'))
+                    if fecha_registro:
+                        from django.utils import timezone
+                        fecha_registro_dt = timezone.make_aware(
+                            datetime.combine(fecha_registro, dt_time.min)
+                        )
+                        Beneficiario.objects.filter(id=beneficiario.id).update(
+                            creado_en=fecha_registro_dt
+                        )
+                
+            except BeneficiarioIndividual.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Beneficiario individual no encontrado'
+                }, status=404)
+        
+        # Agregar a proyectos si se especificaron
+        proyecto_ids = data.get('proyecto_ids', [])
+        if proyecto_ids:
+            actividades = Actividad.objects.filter(
+                id__in=proyecto_ids,
+                eliminado_en__isnull=True
+            )
+            
+            is_admin = usuario_maga.rol == 'admin'
+            colaborador_usuario_id = None
+            if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+                colaborador_usuario_id = str(usuario_maga.colaborador.id)
+            
+            for actividad in actividades:
+                if is_admin:
+                    ActividadBeneficiario.objects.get_or_create(
+                        actividad=actividad,
+                        beneficiario=beneficiario
+                    )
+                elif colaborador_usuario_id:
+                    if ActividadPersonal.objects.filter(
+                        actividad=actividad,
+                        colaborador_id=colaborador_usuario_id
+                    ).exists():
+                        ActividadBeneficiario.objects.get_or_create(
+                            actividad=actividad,
+                            beneficiario=beneficiario
+                        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Beneficiario actualizado exitosamente',
+            'beneficiario_id': str(beneficiario.id)
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al actualizar beneficiario: {str(e)}'
         }, status=500)
 
 
@@ -2953,12 +3596,25 @@ def api_agregar_beneficiario_proyectos(request, beneficiario_id):
         
         data = _parse_request_data(request)
         proyecto_ids = data.get('proyecto_ids', [])
+        fecha_agregacion = data.get('fecha_agregacion')
         
         if not proyecto_ids:
             return JsonResponse({
                 'success': False,
                 'error': 'No se proporcionaron proyectos'
             }, status=400)
+        
+        # Procesar fecha de agregación si se proporciona
+        fecha_agregacion_dt = None
+        if fecha_agregacion:
+            from django.utils.dateparse import parse_date
+            from django.utils import timezone
+            from datetime import datetime
+            fecha_parsed = parse_date(fecha_agregacion)
+            if fecha_parsed:
+                fecha_agregacion_dt = timezone.make_aware(
+                    datetime.combine(fecha_parsed, dt_time.min)
+                )
         
         # Verificar permisos
         is_admin = usuario_maga.rol == 'admin'
@@ -2987,10 +3643,22 @@ def api_agregar_beneficiario_proyectos(request, beneficiario_id):
                     ).exists()
                 
                 if puede_agregar:
-                    _, creado = ActividadBeneficiario.objects.get_or_create(
+                    # Usar get_or_create y luego actualizar fecha si se proporciona
+                    actividad_benef, creado = ActividadBeneficiario.objects.get_or_create(
                         actividad=actividad,
                         beneficiario=beneficiario
                     )
+                    
+                    # Si se proporciona fecha de agregación, actualizarla usando SQL directo
+                    if fecha_agregacion_dt and (creado or actividad_benef):
+                        from django.db import connection
+                        with connection.cursor() as cursor:
+                            cursor.execute("""
+                                UPDATE actividad_beneficiarios 
+                                SET creado_en = %s 
+                                WHERE id = %s
+                            """, [fecha_agregacion_dt, str(actividad_benef.id)])
+                    
                     if creado:
                         agregados += 1
                 else:
@@ -3028,7 +3696,7 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
         ).prefetch_related(
             'individual', 'familia', 'institucion',
             Prefetch(
-                'actividad_beneficiarios',
+                'actividades',
                 queryset=ActividadBeneficiario.objects.select_related('actividad', 'actividad__tipo').filter(
                     actividad__eliminado_en__isnull=True
                 ),
@@ -3044,16 +3712,48 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
         
         nombre_display, info_adicional, detalles, tipo_envio = obtener_detalle_beneficiario(beneficiario)
         
-        # Obtener proyectos/actividades vinculadas
+        # Obtener proyectos/actividades vinculadas con más detalles
         proyectos = []
-        for ab in beneficiario.actividades_prefetch:
-            proyectos.append({
-                'id': str(ab.actividad.id),
-                'nombre': ab.actividad.nombre,
-                'fecha': ab.actividad.fecha.isoformat() if ab.actividad.fecha else None,
-                'tipo': ab.actividad.tipo.nombre if ab.actividad.tipo else None,
-                'comunidad': ab.actividad.comunidad.nombre if ab.actividad.comunidad else None
-            })
+        if hasattr(beneficiario, 'actividades_prefetch'):
+            for ab in beneficiario.actividades_prefetch:
+                actividad = ab.actividad
+                proyectos.append({
+                    'id': str(actividad.id),
+                    'nombre': actividad.nombre,
+                    'fecha': actividad.fecha.isoformat() if actividad.fecha else None,
+                    'tipo': actividad.tipo.nombre if actividad.tipo else None,
+                    'comunidad': actividad.comunidad.nombre if actividad.comunidad else None,
+                    'comunidad_id': str(actividad.comunidad.id) if actividad.comunidad else None,
+                    'descripcion': actividad.descripcion or '',
+                    'fecha_agregacion': ab.creado_en.isoformat() if ab.creado_en else None,
+                    'creado_en': actividad.creado_en.isoformat() if actividad.creado_en else None
+                })
+        
+        # Obtener atributos si es beneficiario individual
+        atributos = []
+        foto_url = None
+        if hasattr(beneficiario, 'individual') and beneficiario.individual:
+            # Atributos
+            atributos_objs = BeneficiarioAtributo.objects.filter(
+                beneficiario_individual=beneficiario.individual
+            ).select_related('atributo_tipo').order_by('atributo_tipo__nombre', 'valor')
+            atributos = [{
+                'id': str(attr.id),
+                'tipo_id': str(attr.atributo_tipo.id),
+                'tipo_nombre': attr.atributo_tipo.nombre,
+                'tipo_codigo': attr.atributo_tipo.codigo,
+                'valor': attr.valor,
+                'descripcion': attr.descripcion or ''
+            } for attr in atributos_objs]
+            
+            # Foto
+            try:
+                foto = BeneficiarioFoto.objects.get(beneficiario_individual=beneficiario.individual)
+                foto_url = foto.url_almacenamiento
+                if foto_url and not foto_url.startswith('/media/'):
+                    foto_url = f"/media/{foto_url.lstrip('/')}"
+            except BeneficiarioFoto.DoesNotExist:
+                foto_url = None
         
         return JsonResponse({
             'success': True,
@@ -3064,10 +3764,14 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
                 'tipo_display': tipo_envio.title() if tipo_envio else '',
                 'comunidad_id': str(beneficiario.comunidad_id) if beneficiario.comunidad_id else None,
                 'comunidad_nombre': beneficiario.comunidad.nombre if beneficiario.comunidad else None,
+                'comunidad_codigo': beneficiario.comunidad.codigo if beneficiario.comunidad else None,
                 'region_id': str(beneficiario.comunidad.region_id) if beneficiario.comunidad and beneficiario.comunidad.region_id else None,
                 'region_nombre': beneficiario.comunidad.region.nombre if beneficiario.comunidad and beneficiario.comunidad.region else None,
+                'region_sede': beneficiario.comunidad.region.comunidad_sede if beneficiario.comunidad and beneficiario.comunidad.region and beneficiario.comunidad.region.comunidad_sede else None,
                 'detalles': detalles,
                 'proyectos': proyectos,
+                'atributos': atributos,
+                'foto_url': foto_url,
                 'creado_en': beneficiario.creado_en.isoformat() if beneficiario.creado_en else None,
                 'actualizado_en': beneficiario.actualizado_en.isoformat() if beneficiario.actualizado_en else None
             }
@@ -3079,6 +3783,485 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
         return JsonResponse({
             'success': False,
             'error': f'Error al obtener detalles: {str(e)}'
+        }, status=500)
+
+
+def separar_nombres_apellidos(nombre_completo, max_palabras=3):
+    """Separa un nombre completo en palabras, máximo max_palabras"""
+    if not nombre_completo:
+        return [''] * max_palabras
+    
+    palabras = nombre_completo.strip().split()
+    resultado = [''] * max_palabras
+    
+    for i in range(min(len(palabras), max_palabras)):
+        resultado[i] = palabras[i]
+    
+    return resultado
+
+
+# =====================================================
+# API ENDPOINTS PARA ATRIBUTOS DE BENEFICIARIOS
+# =====================================================
+
+@login_required
+@require_http_methods(["GET"])
+def api_listar_tipos_atributos(request):
+    """API: Listar tipos de atributos disponibles"""
+    try:
+        tipos = BeneficiarioAtributoTipo.objects.filter(activo=True).order_by('nombre')
+        tipos_list = [{
+            'id': str(tipo.id),
+            'codigo': tipo.codigo,
+            'nombre': tipo.nombre,
+            'descripcion': tipo.descripcion or ''
+        } for tipo in tipos]
+        
+        return JsonResponse({
+            'success': True,
+            'tipos': tipos_list
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al listar tipos de atributos: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_obtener_atributos_beneficiario(request, beneficiario_id):
+    """API: Obtener atributos de un beneficiario individual"""
+    try:
+        beneficiario = Beneficiario.objects.filter(id=beneficiario_id, activo=True).first()
+        if not beneficiario:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        if not hasattr(beneficiario, 'individual'):
+            return JsonResponse({
+                'success': False,
+                'error': 'Este beneficiario no es individual'
+            }, status=400)
+        
+        atributos = BeneficiarioAtributo.objects.filter(
+            beneficiario_individual=beneficiario.individual
+        ).select_related('atributo_tipo').order_by('atributo_tipo__nombre', 'valor')
+        
+        atributos_list = [{
+            'id': str(attr.id),
+            'tipo_id': str(attr.atributo_tipo.id),
+            'tipo_nombre': attr.atributo_tipo.nombre,
+            'tipo_codigo': attr.atributo_tipo.codigo,
+            'valor': attr.valor,
+            'descripcion': attr.descripcion or '',
+            'creado_en': attr.creado_en.isoformat() if attr.creado_en else None
+        } for attr in atributos]
+        
+        return JsonResponse({
+            'success': True,
+            'atributos': atributos_list
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener atributos: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_agregar_atributo_beneficiario(request, beneficiario_id):
+    """API: Agregar atributo a un beneficiario individual"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        beneficiario = Beneficiario.objects.filter(id=beneficiario_id, activo=True).first()
+        if not beneficiario:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        if not hasattr(beneficiario, 'individual'):
+            return JsonResponse({
+                'success': False,
+                'error': 'Este beneficiario no es individual'
+            }, status=400)
+        
+        data = _parse_request_data(request)
+        atributo_tipo_id = data.get('atributo_tipo_id')
+        valor = data.get('valor', '').strip()
+        descripcion = data.get('descripcion', '').strip()
+        
+        if not atributo_tipo_id or not valor:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tipo de atributo y valor son obligatorios'
+            }, status=400)
+        
+        try:
+            atributo_tipo = BeneficiarioAtributoTipo.objects.get(id=atributo_tipo_id, activo=True)
+        except BeneficiarioAtributoTipo.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tipo de atributo no encontrado'
+            }, status=404)
+        
+        # Verificar si ya existe (evitar duplicados)
+        existe = BeneficiarioAtributo.objects.filter(
+            beneficiario_individual=beneficiario.individual,
+            atributo_tipo=atributo_tipo,
+            valor=valor
+        ).exists()
+        
+        if existe:
+            return JsonResponse({
+                'success': False,
+                'error': 'Este atributo ya existe para este beneficiario'
+            }, status=400)
+        
+        # Crear atributo
+        atributo = BeneficiarioAtributo.objects.create(
+            beneficiario_individual=beneficiario.individual,
+            atributo_tipo=atributo_tipo,
+            valor=valor,
+            descripcion=descripcion if descripcion else None,
+            creado_por=usuario_maga
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Atributo agregado exitosamente',
+            'atributo': {
+                'id': str(atributo.id),
+                'tipo_id': str(atributo_tipo.id),
+                'tipo_nombre': atributo_tipo.nombre,
+                'tipo_codigo': atributo_tipo.codigo,
+                'valor': atributo.valor,
+                'descripcion': atributo.descripcion or '',
+                'creado_en': atributo.creado_en.isoformat() if atributo.creado_en else None
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al agregar atributo: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def api_eliminar_atributo_beneficiario(request, atributo_id):
+    """API: Eliminar atributo de un beneficiario"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        try:
+            atributo = BeneficiarioAtributo.objects.get(id=atributo_id)
+        except BeneficiarioAtributo.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Atributo no encontrado'
+            }, status=404)
+        
+        atributo.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Atributo eliminado exitosamente'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al eliminar atributo: {str(e)}'
+        }, status=500)
+
+
+# =====================================================
+# API ENDPOINTS PARA FOTOS DE BENEFICIARIOS
+# =====================================================
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def api_foto_beneficiario(request, beneficiario_id):
+    """API: Obtener o subir/actualizar foto de un beneficiario individual"""
+    # Asegurar que uuid esté disponible en el scope local
+    import uuid as uuid_module
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Verificar que el beneficiario existe y es individual
+        try:
+            beneficiario = Beneficiario.objects.get(id=beneficiario_id, activo=True)
+        except Beneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        # Obtener el BeneficiarioIndividual usando el beneficiario_id directamente
+        try:
+            # Usar beneficiario_id directamente para evitar problemas de relación
+            beneficiario_individual = BeneficiarioIndividual.objects.get(beneficiario_id=beneficiario.id)
+        except BeneficiarioIndividual.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Este beneficiario no es individual o no tiene registro en beneficiarios_individuales'
+            }, status=400)
+        
+        # Verificar que el beneficiario_individual tiene un ID válido
+        if not beneficiario_individual.id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Error: BeneficiarioIndividual no tiene un ID válido'
+            }, status=500)
+        
+        # Verificar que el registro realmente existe en la base de datos usando una consulta directa
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id FROM beneficiarios_individuales WHERE id = %s",
+                [str(beneficiario_individual.id)]
+            )
+            if not cursor.fetchone():
+                import traceback
+                traceback.print_exc()
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Error: El BeneficiarioIndividual con ID {beneficiario_individual.id} no existe en la base de datos. Beneficiario ID: {beneficiario.id}'
+                }, status=500)
+        
+        if request.method == 'GET':
+            # Obtener foto de beneficiario
+            try:
+                foto = BeneficiarioFoto.objects.get(beneficiario_individual=beneficiario_individual)
+                foto_url = foto.url_almacenamiento
+                
+                # Verificar si el archivo existe físicamente
+                if foto_url:
+                    file_path = _normalizar_ruta_media(foto_url)
+                    if file_path and os.path.exists(file_path):
+                        # Construir URL relativa para el frontend
+                        if foto_url.startswith(str(settings.MEDIA_ROOT)):
+                            foto_url = foto_url.replace(str(settings.MEDIA_ROOT), '').replace('\\', '/').lstrip('/')
+                            foto_url = f"/media/{foto_url}"
+                        elif not foto_url.startswith('/media/'):
+                            foto_url = f"/media/{foto_url.lstrip('/')}"
+                
+                return JsonResponse({
+                    'success': True,
+                    'foto_url': foto_url,
+                    'archivo_nombre': foto.archivo_nombre
+                })
+            except BeneficiarioFoto.DoesNotExist:
+                return JsonResponse({
+                    'success': True,
+                    'foto_url': None,
+                    'archivo_nombre': None
+                })
+        
+        elif request.method == 'POST':
+            # Subir/actualizar foto de beneficiario
+            foto = request.FILES.get('foto')
+            if not foto:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No se proporcionó ningún archivo'
+                }, status=400)
+            
+            # Validar tipo de archivo
+            allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+            if foto.content_type not in allowed_types:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, GIF, WEBP)'
+                }, status=400)
+            
+            # Comprimir imagen si está habilitado
+            if getattr(settings, 'COMPRESS_IMAGES', True):
+                from .image_compression import compress_if_needed, get_compression_settings
+                compression_settings = get_compression_settings('profile')
+                foto = compress_if_needed(foto, **compression_settings)
+            
+            # Validar tamaño (5MB máximo)
+            max_size = 5 * 1024 * 1024  # 5MB
+            if foto.size > max_size:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El archivo es demasiado grande. El tamaño máximo es 5MB'
+                }, status=400)
+            
+            # Crear directorio si no existe
+            perfiles_dir = os.path.join(settings.MEDIA_ROOT, 'perfiles_img')
+            os.makedirs(perfiles_dir, exist_ok=True)
+            
+            # Generar nombre único para el archivo
+            file_extension = os.path.splitext(foto.name)[1]
+            unique_filename = f"{uuid_module.uuid4()}{file_extension}"
+            file_path = os.path.join(perfiles_dir, unique_filename)
+            
+            # Guardar archivo
+            with open(file_path, 'wb+') as destination:
+                for chunk in foto.chunks():
+                    destination.write(chunk)
+            
+            # Construir URL relativa
+            relative_url = os.path.join('perfiles_img', unique_filename).replace('\\', '/')
+            
+            # Verificar que el beneficiario_individual realmente existe en la BD usando SQL directo
+            from django.db import connection
+            with connection.cursor() as cursor:
+                # Obtener el ID real del beneficiario_individual desde la BD
+                cursor.execute(
+                    "SELECT id FROM beneficiarios_individuales WHERE beneficiario_id = %s",
+                    [str(beneficiario.id)]
+                )
+                row = cursor.fetchone()
+                if not row:
+                    import traceback
+                    traceback.print_exc()
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Error: No se encontró BeneficiarioIndividual para el beneficiario {beneficiario.id} en la base de datos'
+                    }, status=500)
+                
+                beneficiario_individual_id_real = row[0]
+                
+                # Eliminar foto anterior si existe (usando SQL directo)
+                cursor.execute(
+                    "SELECT id, url_almacenamiento FROM beneficiario_fotos WHERE beneficiario_individual_id = %s",
+                    [str(beneficiario_individual_id_real)]
+                )
+                foto_anterior_row = cursor.fetchone()
+                if foto_anterior_row:
+                    foto_anterior_url = foto_anterior_row[1]
+                    if foto_anterior_url:
+                        _eliminar_archivo_media(foto_anterior_url)
+                    cursor.execute(
+                        "DELETE FROM beneficiario_fotos WHERE beneficiario_individual_id = %s",
+                        [str(beneficiario_individual_id_real)]
+                    )
+                
+                # Crear registro en BD usando SQL directo con el ID correcto
+                foto_id = uuid_module.uuid4()
+                
+                cursor.execute("""
+                    INSERT INTO beneficiario_fotos (
+                        id, beneficiario_individual_id, archivo_nombre, 
+                        archivo_tipo, archivo_tamanio, url_almacenamiento,
+                        creado_en, actualizado_en
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    )
+                """, [
+                    str(foto_id),
+                    str(beneficiario_individual_id_real),
+                    foto.name,
+                    foto.content_type,
+                    foto.size,
+                    relative_url
+                ])
+            
+            foto_url = f"/media/{relative_url}"
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Foto subida exitosamente',
+                'foto_url': foto_url,
+                'archivo_nombre': foto.name
+            })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al procesar foto: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def api_eliminar_foto_beneficiario(request, beneficiario_id):
+    """API: Eliminar foto de un beneficiario individual"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        # Verificar que el beneficiario existe y es individual
+        try:
+            beneficiario = Beneficiario.objects.get(id=beneficiario_id, activo=True)
+        except Beneficiario.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Beneficiario no encontrado'
+            }, status=404)
+        
+        # Verificar que es beneficiario individual y obtener el registro
+        try:
+            beneficiario_individual = BeneficiarioIndividual.objects.get(beneficiario=beneficiario)
+        except BeneficiarioIndividual.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Este beneficiario no es individual'
+            }, status=400)
+        
+        try:
+            foto = BeneficiarioFoto.objects.get(beneficiario_individual=beneficiario_individual)
+            
+            # Eliminar archivo físico
+            if foto.url_almacenamiento:
+                _eliminar_archivo_media(foto.url_almacenamiento)
+            
+            # Eliminar registro de BD
+            foto.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Foto eliminada exitosamente'
+            })
+        except BeneficiarioFoto.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'No hay foto para eliminar'
+            }, status=404)
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al eliminar foto: {str(e)}'
         }, status=500)
 
 
@@ -3112,7 +4295,11 @@ def api_importar_beneficiarios_excel(request):
         sheet = workbook.active
         
         # Validar encabezados esperados (primera fila)
-        expected_headers = ['tipo', 'comunidad', 'nombre', 'apellido', 'dpi', 'fecha de nacimiento', 'edad', 'genero', 'telefono']
+        expected_headers = [
+            'tipo', 'comunidad', 'primer nombre', 'segundo nombre', 'tercer nombre',
+            'primer apellido', 'segundo apellido', 'apellido de casada', 'idioma',
+            'dpi', 'fecha de nacimiento', 'edad', 'genero', 'telefono'
+        ]
         headers = []
         for cell in sheet[1]:
             headers.append(str(cell.value).lower().strip() if cell.value else '')
@@ -3121,7 +4308,15 @@ def api_importar_beneficiarios_excel(request):
         headers_normalized = [h.lower().strip() for h in headers]
         expected_normalized = [h.lower().strip() for h in expected_headers]
         
-        if headers_normalized != expected_normalized:
+        # Verificar que tenemos al menos los encabezados mínimos requeridos
+        if len(headers_normalized) < len(expected_normalized):
+            return JsonResponse({
+                'success': False,
+                'error': f'El archivo Excel debe tener {len(expected_normalized)} columnas. Encabezados encontrados: {headers}'
+            }, status=400)
+        
+        # Verificar que los primeros encabezados coincidan
+        if headers_normalized[:len(expected_normalized)] != expected_normalized:
             return JsonResponse({
                 'success': False,
                 'error': f'Los encabezados del Excel no coinciden con la plantilla esperada. Encabezados encontrados: {headers}'
@@ -3181,18 +4376,36 @@ def api_importar_beneficiarios_excel(request):
                     resultados['total_procesados'] += 1
                     
                     try:
-                        # Extraer valores de las celdas
-                        valores = [cell.value for cell in row[:9]]  # Solo las primeras 9 columnas
+                        # Extraer valores de las celdas (ahora 14 columnas)
+                        valores = [cell.value for cell in row[:14]]
                         
                         tipo_val = str(valores[0]).strip().lower() if valores[0] else ''
                         comunidad_nombre = str(valores[1]).strip() if valores[1] else ''
-                        nombre = str(valores[2]).strip() if valores[2] else ''
-                        apellido = str(valores[3]).strip() if valores[3] else ''
-                        dpi_val = str(valores[4]).strip() if valores[4] else ''
-                        fecha_nac_str = valores[5]
-                        edad_val = valores[6]
-                        genero_val = str(valores[7]).strip().lower() if valores[7] else ''
-                        telefono_val = str(valores[8]).strip() if valores[8] else ''
+                        primer_nombre = str(valores[2]).strip() if valores[2] else ''
+                        segundo_nombre = str(valores[3]).strip() if valores[3] else ''
+                        tercer_nombre = str(valores[4]).strip() if valores[4] else ''
+                        primer_apellido = str(valores[5]).strip() if valores[5] else ''
+                        segundo_apellido = str(valores[6]).strip() if valores[6] else ''
+                        apellido_casada = str(valores[7]).strip() if valores[7] else ''
+                        idioma = str(valores[8]).strip() if valores[8] else ''
+                        dpi_val = str(valores[9]).strip() if valores[9] else ''
+                        fecha_nac_str = valores[10]
+                        edad_val = valores[11]
+                        genero_val = str(valores[12]).strip().lower() if valores[12] else ''
+                        telefono_val = str(valores[13]).strip() if valores[13] else ''
+                        
+                        # Construir nombre y apellido completos para validación y retrocompatibilidad
+                        nombre = primer_nombre
+                        if segundo_nombre:
+                            nombre += ' ' + segundo_nombre
+                        if tercer_nombre:
+                            nombre += ' ' + tercer_nombre
+                        nombre = nombre.strip()
+                        
+                        apellido = primer_apellido
+                        if segundo_apellido:
+                            apellido += ' ' + segundo_apellido
+                        apellido = apellido.strip()
                         
                         # Validar tipo (debe ser "individual")
                         if tipo_val != 'individual':
@@ -3298,6 +4511,23 @@ def api_importar_beneficiarios_excel(request):
                             # Si tiene teléfono pero no es válido, se guarda como está pero se registra advertencia
                             pass
                         
+                        # Normalizar idioma/comunidad lingüística
+                        comunidad_linguistica = None
+                        if idioma:
+                            idioma_lower = idioma.lower().strip()
+                            # Mapear valores comunes a los valores esperados
+                            if idioma_lower in ['poqomchi', 'poqomchi\'', 'poqomchi\'', 'pocomchi', 'pocomchi\'']:
+                                comunidad_linguistica = 'POQOMCHI\''
+                            elif idioma_lower in ['qeqchi', 'qeqchi\'', 'q\'eqchi', 'q\'eqchi\'', 'kekchi', 'kekchi\'']:
+                                comunidad_linguistica = 'Q\'EQCHI\''
+                            elif idioma_lower in ['achi', 'achi\'', 'achí']:
+                                comunidad_linguistica = 'ACHI\''
+                            elif idioma_lower in ['español', 'espanol', 'espaniol', 'castellano']:
+                                comunidad_linguistica = 'Español'
+                            else:
+                                # Si no coincide, guardar el valor tal cual
+                                comunidad_linguistica = idioma.strip()
+                        
                         # Verificar si el DPI ya existe (para actualizar en vez de crear)
                         beneficiario_existente = None
                         beneficiario_individual_existente = None
@@ -3321,6 +4551,14 @@ def api_importar_beneficiarios_excel(request):
                             'tipo': 'individual',
                             'comunidad_id': str(comunidad_obj.id),
                             'comunidad_nombre': comunidad_obj.nombre,
+                            'primer_nombre': primer_nombre,
+                            'segundo_nombre': segundo_nombre if segundo_nombre else None,
+                            'tercer_nombre': tercer_nombre if tercer_nombre else None,
+                            'primer_apellido': primer_apellido,
+                            'segundo_apellido': segundo_apellido if segundo_apellido else None,
+                            'apellido_casada': apellido_casada if apellido_casada else None,
+                            'comunidad_linguistica': comunidad_linguistica,
+                            # Mantener nombre y apellido para retrocompatibilidad
                             'nombre': nombre,
                             'apellido': apellido,
                             'dpi': dpi_normalizado or None,
@@ -3434,8 +4672,28 @@ def api_guardar_beneficiarios_general(request):
             for benef_data in beneficiarios_pendientes:
                 try:
                     comunidad_id = benef_data.get('comunidad_id')
-                    nombre = benef_data.get('nombre')
-                    apellido = benef_data.get('apellido')
+                    # Nuevos campos
+                    primer_nombre = benef_data.get('primer_nombre', '').strip()
+                    segundo_nombre = benef_data.get('segundo_nombre', '').strip() if benef_data.get('segundo_nombre') else None
+                    tercer_nombre = benef_data.get('tercer_nombre', '').strip() if benef_data.get('tercer_nombre') else None
+                    primer_apellido = benef_data.get('primer_apellido', '').strip()
+                    segundo_apellido = benef_data.get('segundo_apellido', '').strip() if benef_data.get('segundo_apellido') else None
+                    apellido_casada = benef_data.get('apellido_casada', '').strip() if benef_data.get('apellido_casada') else None
+                    comunidad_linguistica = benef_data.get('comunidad_linguistica') if benef_data.get('comunidad_linguistica') else None
+                    # Campos retrocompatibles
+                    nombre = benef_data.get('nombre', '').strip()
+                    apellido = benef_data.get('apellido', '').strip()
+                    # Si no vienen los nuevos campos, usar los antiguos
+                    if not primer_nombre and nombre:
+                        nombres_separados = separar_nombres_apellidos(nombre, 3)
+                        primer_nombre = nombres_separados[0]
+                        segundo_nombre = nombres_separados[1] if nombres_separados[1] else None
+                        tercer_nombre = nombres_separados[2] if nombres_separados[2] else None
+                    if not primer_apellido and apellido:
+                        apellidos_separados = separar_nombres_apellidos(apellido, 2)
+                        primer_apellido = apellidos_separados[0]
+                        segundo_apellido = apellidos_separados[1] if apellidos_separados[1] else None
+                    
                     dpi = benef_data.get('dpi')
                     fecha_nacimiento = benef_data.get('fecha_nacimiento')
                     genero = benef_data.get('genero')
@@ -3444,7 +4702,7 @@ def api_guardar_beneficiarios_general(request):
                     beneficiario_existente_id = benef_data.get('beneficiario_existente_id')
                     
                     # Validar campos obligatorios
-                    if not nombre or not apellido or not comunidad_id:
+                    if not primer_nombre or not primer_apellido or not comunidad_id:
                         resultados['errores'].append({
                             'error': 'Faltan campos obligatorios',
                             'datos': benef_data
@@ -3481,8 +4739,22 @@ def api_guardar_beneficiarios_general(request):
                             beneficiario.save()
                             
                             beneficiario_individual = beneficiario.individual
-                            beneficiario_individual.nombre = nombre
-                            beneficiario_individual.apellido = apellido
+                            # Actualizar campos nuevos
+                            beneficiario_individual.primer_nombre = primer_nombre
+                            if segundo_nombre:
+                                beneficiario_individual.segundo_nombre = segundo_nombre
+                            if tercer_nombre:
+                                beneficiario_individual.tercer_nombre = tercer_nombre
+                            beneficiario_individual.primer_apellido = primer_apellido
+                            if segundo_apellido:
+                                beneficiario_individual.segundo_apellido = segundo_apellido
+                            if apellido_casada:
+                                beneficiario_individual.apellido_casada = apellido_casada
+                            if comunidad_linguistica:
+                                beneficiario_individual.comunidad_linguistica = comunidad_linguistica
+                            # Mantener campos antiguos para retrocompatibilidad
+                            beneficiario_individual.nombre = nombre if nombre else primer_nombre
+                            beneficiario_individual.apellido = apellido if apellido else primer_apellido
                             if fecha_nac:
                                 beneficiario_individual.fecha_nacimiento = fecha_nac
                             if genero:
@@ -3509,8 +4781,16 @@ def api_guardar_beneficiarios_general(request):
                         
                         BeneficiarioIndividual.objects.create(
                             beneficiario=beneficiario,
-                            nombre=nombre,
-                            apellido=apellido,
+                            primer_nombre=primer_nombre,
+                            segundo_nombre=segundo_nombre,
+                            tercer_nombre=tercer_nombre,
+                            primer_apellido=primer_apellido,
+                            segundo_apellido=segundo_apellido,
+                            apellido_casada=apellido_casada,
+                            comunidad_linguistica=comunidad_linguistica,
+                            # Mantener campos antiguos para retrocompatibilidad
+                            nombre=nombre if nombre else primer_nombre,
+                            apellido=apellido if apellido else primer_apellido,
                             dpi=dpi,
                             fecha_nacimiento=fecha_nac,
                             genero=genero,
@@ -3604,8 +4884,28 @@ def api_guardar_beneficiarios_pendientes(request):
             for benef_data in beneficiarios_pendientes:
                 try:
                     comunidad_id = benef_data.get('comunidad_id')
-                    nombre = benef_data.get('nombre')
-                    apellido = benef_data.get('apellido')
+                    # Nuevos campos
+                    primer_nombre = benef_data.get('primer_nombre', '').strip()
+                    segundo_nombre = benef_data.get('segundo_nombre', '').strip() if benef_data.get('segundo_nombre') else None
+                    tercer_nombre = benef_data.get('tercer_nombre', '').strip() if benef_data.get('tercer_nombre') else None
+                    primer_apellido = benef_data.get('primer_apellido', '').strip()
+                    segundo_apellido = benef_data.get('segundo_apellido', '').strip() if benef_data.get('segundo_apellido') else None
+                    apellido_casada = benef_data.get('apellido_casada', '').strip() if benef_data.get('apellido_casada') else None
+                    comunidad_linguistica = benef_data.get('comunidad_linguistica') if benef_data.get('comunidad_linguistica') else None
+                    # Campos retrocompatibles
+                    nombre = benef_data.get('nombre', '').strip()
+                    apellido = benef_data.get('apellido', '').strip()
+                    # Si no vienen los nuevos campos, usar los antiguos
+                    if not primer_nombre and nombre:
+                        nombres_separados = separar_nombres_apellidos(nombre, 3)
+                        primer_nombre = nombres_separados[0]
+                        segundo_nombre = nombres_separados[1] if nombres_separados[1] else None
+                        tercer_nombre = nombres_separados[2] if nombres_separados[2] else None
+                    if not primer_apellido and apellido:
+                        apellidos_separados = separar_nombres_apellidos(apellido, 2)
+                        primer_apellido = apellidos_separados[0]
+                        segundo_apellido = apellidos_separados[1] if apellidos_separados[1] else None
+                    
                     dpi = benef_data.get('dpi')
                     fecha_nacimiento = benef_data.get('fecha_nacimiento')
                     genero = benef_data.get('genero')
@@ -3614,7 +4914,7 @@ def api_guardar_beneficiarios_pendientes(request):
                     beneficiario_existente_id = benef_data.get('beneficiario_existente_id')
                     
                     # Validar campos obligatorios
-                    if not nombre or not apellido or not comunidad_id:
+                    if not primer_nombre or not primer_apellido or not comunidad_id:
                         resultados['errores'].append({
                             'error': 'Faltan campos obligatorios',
                             'datos': benef_data
@@ -3651,8 +4951,22 @@ def api_guardar_beneficiarios_pendientes(request):
                             beneficiario.save()
                             
                             beneficiario_individual = beneficiario.individual
-                            beneficiario_individual.nombre = nombre
-                            beneficiario_individual.apellido = apellido
+                            # Actualizar campos nuevos
+                            beneficiario_individual.primer_nombre = primer_nombre
+                            if segundo_nombre:
+                                beneficiario_individual.segundo_nombre = segundo_nombre
+                            if tercer_nombre:
+                                beneficiario_individual.tercer_nombre = tercer_nombre
+                            beneficiario_individual.primer_apellido = primer_apellido
+                            if segundo_apellido:
+                                beneficiario_individual.segundo_apellido = segundo_apellido
+                            if apellido_casada:
+                                beneficiario_individual.apellido_casada = apellido_casada
+                            if comunidad_linguistica:
+                                beneficiario_individual.comunidad_linguistica = comunidad_linguistica
+                            # Mantener campos antiguos para retrocompatibilidad
+                            beneficiario_individual.nombre = nombre if nombre else primer_nombre
+                            beneficiario_individual.apellido = apellido if apellido else primer_apellido
                             if fecha_nac:
                                 beneficiario_individual.fecha_nacimiento = fecha_nac
                             if genero:
@@ -3687,8 +5001,16 @@ def api_guardar_beneficiarios_pendientes(request):
                         
                         BeneficiarioIndividual.objects.create(
                             beneficiario=beneficiario,
-                            nombre=nombre,
-                            apellido=apellido,
+                            primer_nombre=primer_nombre,
+                            segundo_nombre=segundo_nombre,
+                            tercer_nombre=tercer_nombre,
+                            primer_apellido=primer_apellido,
+                            segundo_apellido=segundo_apellido,
+                            apellido_casada=apellido_casada,
+                            comunidad_linguistica=comunidad_linguistica,
+                            # Mantener campos antiguos para retrocompatibilidad
+                            nombre=nombre if nombre else primer_nombre,
+                            apellido=apellido if apellido else primer_apellido,
                             dpi=dpi,
                             fecha_nacimiento=fecha_nac,
                             genero=genero,
@@ -3744,7 +5066,11 @@ def api_descargar_plantilla_beneficiarios(request):
         ws.title = "Beneficiarios Individuales"
         
         # Definir encabezados
-        headers = ['tipo', 'comunidad', 'nombre', 'apellido', 'dpi', 'fecha de nacimiento', 'edad', 'genero', 'telefono']
+        headers = [
+            'tipo', 'comunidad', 'primer nombre', 'segundo nombre', 'tercer nombre',
+            'primer apellido', 'segundo apellido', 'apellido de casada', 'idioma',
+            'dpi', 'fecha de nacimiento', 'edad', 'genero', 'telefono'
+        ]
         
         # Estilo para encabezados
         header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
@@ -3760,12 +5086,16 @@ def api_descargar_plantilla_beneficiarios(request):
             cell.alignment = header_alignment
         
         # Ajustar ancho de columnas
-        column_widths = [12, 25, 20, 20, 15, 18, 8, 12, 12]
+        column_widths = [12, 25, 18, 18, 18, 18, 18, 18, 15, 15, 18, 8, 12, 12]
         for col_num, width in enumerate(column_widths, 1):
             ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = width
         
         # Agregar fila de ejemplo
-        ejemplo = ['individual', 'Ejemplo Comunidad', 'Juan', 'Pérez García', '1234567890101', '1990-01-15', '34', 'masculino', '55123456']
+        ejemplo = [
+            'individual', 'Ejemplo Comunidad', 'Juan', 'Carlos', 'Pablo',
+            'Pérez', 'García', '', 'Español',
+            '1234567890101', '1990-01-15', '34', 'masculino', '55123456'
+        ]
         for col_num, valor in enumerate(ejemplo, 1):
             cell = ws.cell(row=2, column=col_num)
             cell.value = valor
@@ -11873,7 +13203,6 @@ def api_generar_reporte(request, report_type):
                 fecha_fin = timezone.now().date()
             elif periodo == 'rango' and fecha_inicio and fecha_fin:
                 try:
-                    from datetime import datetime
                     fecha_inicio = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
                     fecha_fin = datetime.strptime(fecha_fin, '%Y-%m-%d').date()
                 except:

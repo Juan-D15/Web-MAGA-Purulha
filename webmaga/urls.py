@@ -83,10 +83,21 @@ urlpatterns = [
     path('api/beneficiario/<uuid:beneficiario_id>/proyectos/', views.api_beneficiario_proyectos, name='api-beneficiario-proyectos'),
     path('api/beneficiario/<uuid:beneficiario_id>/agregar-proyectos/', views.api_agregar_beneficiario_proyectos, name='api-agregar-beneficiario-proyectos'),
     path('api/beneficiarios/crear/', views.api_crear_beneficiario, name='api-crear-beneficiario'),
+    path('api/beneficiarios/buscar-por-dpi/', views.api_buscar_beneficiario_por_dpi, name='api-buscar-beneficiario-por-dpi'),
+    path('api/beneficiarios/actualizar/<uuid:beneficiario_id>/', views.api_actualizar_beneficiario, name='api-actualizar-beneficiario'),
+    path('api/beneficiarios/actualizar-fecha/<uuid:beneficiario_id>/', views.api_actualizar_fecha_beneficiario, name='api-actualizar-fecha-beneficiario'),
     path('api/proyectos/usuario/', views.api_proyectos_usuario, name='api-proyectos-usuario'),
     path('api/beneficiarios/importar-excel/', views.api_importar_beneficiarios_excel, name='api-importar-beneficiarios-excel'),
     path('api/beneficiarios/guardar-pendientes/', views.api_guardar_beneficiarios_pendientes, name='api-guardar-beneficiarios-pendientes'),
     path('api/beneficiarios/guardar-general/', views.api_guardar_beneficiarios_general, name='api-guardar-beneficiarios-general'),
+    # Endpoints para atributos de beneficiarios
+    path('api/atributos/tipos/', views.api_listar_tipos_atributos, name='api-listar-tipos-atributos'),
+    path('api/beneficiario/<uuid:beneficiario_id>/atributos/', views.api_obtener_atributos_beneficiario, name='api-obtener-atributos-beneficiario'),
+    path('api/beneficiario/<uuid:beneficiario_id>/atributos/agregar/', views.api_agregar_atributo_beneficiario, name='api-agregar-atributo-beneficiario'),
+    path('api/atributos/<uuid:atributo_id>/eliminar/', views.api_eliminar_atributo_beneficiario, name='api-eliminar-atributo-beneficiario'),
+    # Endpoints para fotos de beneficiarios
+    path('api/beneficiario/<uuid:beneficiario_id>/foto/', views.api_foto_beneficiario, name='api-foto-beneficiario'),
+    path('api/beneficiario/<uuid:beneficiario_id>/foto/eliminar/', views.api_eliminar_foto_beneficiario, name='api-eliminar-foto-beneficiario'),
     path('api/beneficiarios/descargar-plantilla/', views.api_descargar_plantilla_beneficiarios, name='api-descargar-plantilla-beneficiarios'),
     path('api/verificar-admin/', views.api_verificar_admin, name='api-verificar-admin'),
     

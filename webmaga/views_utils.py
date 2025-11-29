@@ -68,15 +68,33 @@ def obtener_detalle_beneficiario(beneficiario):
 
     if hasattr(beneficiario, 'individual'):
         ind = beneficiario.individual
-        nombre_display = f"{ind.nombre} {ind.apellido}".strip()
-        info_adicional = ind.dpi or ''
+        # Construir nombre completo usando nuevos campos si existen (usar getattr para seguridad)
+        primer_nombre = getattr(ind, 'primer_nombre', None) or getattr(ind, 'nombre', None) or ''
+        segundo_nombre = getattr(ind, 'segundo_nombre', None) or ''
+        tercer_nombre = getattr(ind, 'tercer_nombre', None) or ''
+        primer_apellido = getattr(ind, 'primer_apellido', None) or getattr(ind, 'apellido', None) or ''
+        segundo_apellido = getattr(ind, 'segundo_apellido', None) or ''
+        
+        nombres = [n for n in [primer_nombre, segundo_nombre, tercer_nombre] if n]
+        apellidos = [a for a in [primer_apellido, segundo_apellido] if a]
+        nombre_completo = ' '.join(nombres) + (' ' + ' '.join(apellidos) if apellidos else '')
+        nombre_display = nombre_completo.strip() or f"{getattr(ind, 'nombre', '')} {getattr(ind, 'apellido', '')}".strip()
+        info_adicional = getattr(ind, 'dpi', None) or ''
         detalles = {
-            'nombre': ind.nombre,
-            'apellido': ind.apellido,
-            'dpi': ind.dpi or '',
-            'fecha_nacimiento': str(ind.fecha_nacimiento) if ind.fecha_nacimiento else '',
-            'genero': ind.genero or '',
-            'telefono': ind.telefono or '',
+            'nombre': getattr(ind, 'nombre', '') or '',
+            'apellido': getattr(ind, 'apellido', '') or '',
+            'primer_nombre': primer_nombre,
+            'segundo_nombre': segundo_nombre,
+            'tercer_nombre': tercer_nombre,
+            'primer_apellido': primer_apellido,
+            'segundo_apellido': segundo_apellido,
+            'apellido_casada': getattr(ind, 'apellido_casada', None) or '',
+            'comunidad_linguistica': getattr(ind, 'comunidad_linguistica', None) or '',
+            'dpi': getattr(ind, 'dpi', None) or '',
+            'fecha_nacimiento': str(getattr(ind, 'fecha_nacimiento', None)) if getattr(ind, 'fecha_nacimiento', None) else '',
+            'edad': getattr(ind, 'edad', None) if hasattr(ind, 'edad') and getattr(ind, 'edad', None) else '',
+            'genero': getattr(ind, 'genero', None) or '',
+            'telefono': getattr(ind, 'telefono', None) or '',
             'display_name': nombre_display,
         }
     elif hasattr(beneficiario, 'familia'):

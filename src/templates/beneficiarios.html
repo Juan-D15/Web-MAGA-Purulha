@@ -135,19 +135,99 @@
               <!-- Campos para Individual -->
               <div id="campos_individual" style="display: none;">
                 <div class="form-group">
-                  <label for="benef_ind_nombre" class="form-label">Nombre *</label>
-                  <input type="text" id="benef_ind_nombre" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Juan" required>
-                  <small style="color: #6c757d;">Solo letras y espacios</small>
+                  <label for="benef_ind_nombre" class="form-label">Nombre(s) *</label>
+                  <input type="text" id="benef_ind_nombre" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Mario Leonel Pablo" required>
+                  <small style="color: #6c757d;">Ingrese hasta 3 nombres separados por espacios. Ej: "Mario Leonel Pablo"</small>
                 </div>
                 <div class="form-group">
-                  <label for="benef_ind_apellido" class="form-label">Apellido *</label>
+                  <label for="benef_ind_apellido" class="form-label">Apellido(s) *</label>
                   <input type="text" id="benef_ind_apellido" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: Pérez García" required>
-                  <small style="color: #6c757d;">Solo letras y espacios</small>
+                  <small style="color: #6c757d;">Ingrese hasta 2 apellidos separados por espacios. Ej: "Pérez García"</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_apellido_casada" class="form-label">Apellido de Casada</label>
+                  <input type="text" id="benef_ind_apellido_casada" class="form-input" pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+" placeholder="Ej: López de Pérez">
+                  <small style="color: #6c757d;">Opcional. Máximo 3 palabras separadas por espacios</small>
                 </div>
                 <div class="form-group">
                   <label for="benef_ind_dpi" class="form-label">DPI</label>
-                  <input type="text" id="benef_ind_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 1234567890101">
-                  <small style="color: #6c757d;">Debe tener exactamente 13 números</small>
+                  <div style="position: relative;">
+                    <input type="text" id="benef_ind_dpi" class="form-input" maxlength="13" pattern="[0-9]{13}" placeholder="Ej: 1234567890101" style="padding-right: 40px; transition: all 0.3s ease;">
+                    <span id="benef_ind_dpi_status" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: none; pointer-events: none;">
+                      <!-- Ícono de éxito (verde) -->
+                      <span id="benef_ind_dpi_success" style="display: none; color: #28a745;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                      </span>
+                      <!-- Ícono de advertencia (rojo) -->
+                      <span id="benef_ind_dpi_warning" style="display: none; color: #dc3545; cursor: pointer;" title="Ver detalles del beneficiario existente">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                      </span>
+                    </span>
+                    <div id="benef_ind_dpi_loading" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: none;">
+                      <div class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #007bff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite;"></div>
+                    </div>
+                  </div>
+                  <small id="benef_ind_dpi_message" style="color: #6c757d;">Debe tener exactamente 13 números. Se verificará automáticamente al salir del campo.</small>
+                  <div id="benef_ind_dpi_existente_info" style="display: none; margin-top: 12px; padding: 16px; background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #dc3545;">
+                        <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                      <strong style="color: #dc3545;">Ya existe un beneficiario con este DPI</strong>
+                    </div>
+                    <div id="benef_ind_dpi_existente_datos" style="color: #b8c5d1; font-size: 0.9rem; margin-bottom: 12px; line-height: 1.6;"></div>
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(220, 53, 69, 0.3);">
+                      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer;">
+                        <input type="checkbox" id="benef_ind_actualizar_fecha_check" style="width: 18px; height: 18px; cursor: pointer;">
+                        <span style="color: #ffffff; font-weight: 500;">Actualizar fecha de actualización del beneficiario</span>
+                      </label>
+                      <small style="color: #b8c5d1; display: block; margin-left: 26px; margin-bottom: 8px; font-size: 0.85rem;">Permite registrar múltiples fechas para estadísticas y comparaciones.</small>
+                      <div id="benef_ind_fecha_actualizacion_container" style="display: none; margin-top: 8px; margin-left: 26px;">
+                        <label for="benef_ind_fecha_actualizacion" class="form-label" style="font-size: 0.9rem; margin-bottom: 4px; display: block;">Fecha de actualización:</label>
+                        <input type="date" id="benef_ind_fecha_actualizacion" class="form-input" style="max-width: 250px;">
+                        <small style="color: #6c757d; display: block; margin-top: 4px;">Esta fecha se guardará en el registro del beneficiario existente. Puede agregar múltiples fechas.</small>
+                        <button type="button" id="benef_ind_btn_actualizar_fecha" class="btn-primary" style="margin-top: 12px; padding: 8px 16px; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px;">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                          Actualizar Fecha
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_comunidad_linguistica" class="form-label">Comunidad Lingüística</label>
+                  <select id="benef_ind_comunidad_linguistica" class="form-select">
+                    <option value="">Seleccione (opcional)</option>
+                    <option value="Español">Español</option>
+                    <option value="Qeqchi">Qeqchi</option>
+                    <option value="Pocomchi">Pocomchi</option>
+                    <option value="Achi">Achi</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                  <small style="color: #6c757d;">Seleccione la comunidad lingüística del beneficiario (opcional)</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_fecha_registro" class="form-label">Fecha de Registro</label>
+                  <input type="date" id="benef_ind_fecha_registro" class="form-input">
+                  <small style="color: #6c757d;">Fecha en la cual quedará registrado en el sistema (opcional, por defecto fecha actual)</small>
+                </div>
+                <div class="form-group">
+                  <label for="benef_ind_foto" class="form-label">Foto del Beneficiario</label>
+                  <input type="file" id="benef_ind_foto" class="form-input" accept="image/jpeg,image/png,image/gif,image/webp" style="padding: 8px;">
+                  <small style="color: #6c757d;">Solo imágenes (JPEG, PNG, GIF, WEBP). Tamaño máximo: 5MB</small>
+                  <div id="benef_ind_foto_preview" style="margin-top: 12px; display: none;">
+                    <img id="benef_ind_foto_preview_img" src="" alt="Vista previa" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.1);">
+                    <button type="button" id="benef_ind_foto_eliminar" style="margin-top: 8px; padding: 6px 12px; background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 6px; color: #dc3545; cursor: pointer; font-size: 0.85rem;">
+                      Eliminar Foto
+                    </button>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="benef_ind_fecha_nac" class="form-label">
@@ -410,6 +490,11 @@
                     </div>
                     <small style="color: #6c757d; margin-top: 8px; display: block;">Solo se muestran los proyectos a los que tienes acceso</small>
                   </div>
+                  <div class="form-group" id="projectFechaAgregacionContainer" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <label for="projectFechaAgregacion" class="form-label">Fecha de Agregación al Proyecto</label>
+                    <input type="date" id="projectFechaAgregacion" class="form-input">
+                    <small style="color: #6c757d; display: block; margin-top: 4px;">Fecha en que el beneficiario fue agregado a este proyecto (opcional, por defecto fecha actual)</small>
+                  </div>
                 </div>
               </div>
 
@@ -547,6 +632,16 @@
                   <div class="filter-checkboxes" id="filterEventosListado" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
               </div>
+              
+              <div class="filter-group filter-group-full">
+                <label class="filter-label">Opciones Especiales</label>
+                <div class="filter-checkboxes">
+                  <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-radius: 4px; transition: background 0.2s;">
+                    <input type="checkbox" id="filterSoloConHabilidades" style="width: 18px; height: 18px; cursor: pointer;">
+                    <span style="color: #ffffff; font-size: 14px;">Mostrar solo beneficiarios con habilidades</span>
+                  </label>
+                </div>
+              </div>
             </div>
             <div class="filters-actions">
               <button class="btn-secondary" id="resetFiltersBtn">Limpiar Filtros</button>
@@ -581,6 +676,7 @@
               <option value="alfabetico">Alfabético</option>
               <option value="comunidad">Por Comunidad</option>
               <option value="actividad">Por Actividad</option>
+              <option value="habilidades">Por Habilidades</option>
             </select>
           </div>
         </div>
@@ -623,6 +719,106 @@
       </div>
       <div class="modal-footer">
         <button type="button" id="closeBeneficiaryDetailsBtn" class="btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Opciones de Edición de Beneficiario -->
+  <div id="editBeneficiaryOptionsModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Opciones de Edición</h3>
+        <button class="modal-close" id="closeEditOptionsModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <div style="display: grid; gap: 16px;">
+          <button type="button" id="btnEditInfoBeneficiario" class="btn-primary" style="width: 100%; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 1rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            Editar Información del Beneficiario
+          </button>
+          <button type="button" id="btnAddToProjectBeneficiario" class="btn-secondary" style="width: 100%; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 1rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              <line x1="12" y1="11" x2="12" y2="17"></line>
+              <line x1="9" y1="14" x2="15" y2="14"></line>
+            </svg>
+            Agregar Beneficiario a un Proyecto Existente o Modificar Fecha
+          </button>
+          <button type="button" id="btnAddAtributoBeneficiario" class="btn-secondary" style="width: 100%; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 1rem; background: rgba(255, 193, 7, 0.2); border-color: rgba(255, 193, 7, 0.4); color: #ffc107;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+              <path d="M2 17l10 5 10-5"></path>
+              <path d="M2 12l10 5 10-5"></path>
+            </svg>
+            Agregar Atributo a Beneficiario
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Beneficiario a Proyecto -->
+  <div id="addToProjectModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Beneficiario a Proyecto</h3>
+        <button class="modal-close" id="closeAddToProjectModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <form id="addToProjectForm">
+          <div class="form-group">
+            <label for="addToProjectSearchInput" class="form-label">Buscar Proyecto</label>
+            <div class="beneficiaries-search-container">
+              <div class="beneficiaries-search-wrapper">
+                <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" id="addToProjectSearchInput" class="beneficiaries-search-input" placeholder="Buscar proyecto por nombre..." autocomplete="off">
+                <button type="button" id="addToProjectSearchClearBtn" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Proyectos Disponibles</label>
+            <div id="addToProjectChecklist" style="max-height: 300px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.03);">
+              <div style="text-align: center; padding: 20px; color: #6c757d;">
+                <p>Cargando proyectos...</p>
+              </div>
+            </div>
+            <div id="addToProjectSelectedContainer" style="margin-top: 12px; padding: 10px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3);">
+              <span class="selected-count" style="color: #007bff; font-weight: 600; font-size: 0.9rem;">0 proyectos seleccionados</span>
+            </div>
+            <small style="color: #6c757d; margin-top: 8px; display: block;">Solo se muestran los proyectos a los que tienes acceso</small>
+          </div>
+          <div class="form-group" id="addToProjectFechaContainer" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <label for="addToProjectFechaAgregacion" class="form-label">Fecha de Agregación al Proyecto</label>
+            <input type="date" id="addToProjectFechaAgregacion" class="form-input">
+            <small style="color: #6c757d; display: block; margin-top: 4px;">Fecha en que el beneficiario fue agregado a este proyecto (opcional, por defecto fecha actual)</small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button" id="cancelAddToProjectBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveAddToProjectBtn" class="btn-primary">Agregar a Proyecto</button>
       </div>
     </div>
   </div>
@@ -711,6 +907,54 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Agregar Atributo a Beneficiario -->
+  <div id="addAtributoModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Atributo/Habilidad</h3>
+        <button class="modal-close" id="closeAddAtributoModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <form id="addAtributoForm">
+          <div class="form-group">
+            <label for="atributoTipoSelect" class="form-label">Tipo de Atributo *</label>
+            <select id="atributoTipoSelect" class="form-select" required>
+              <option value="">Seleccione un tipo...</option>
+            </select>
+            <small style="color: #6c757d; display: block; margin-top: 4px;">Si no existe el tipo que necesitas, contacta al administrador</small>
+          </div>
+          <div class="form-group">
+            <label for="atributoValor" class="form-label">Valor/Habilidad *</label>
+            <input type="text" id="atributoValor" class="form-input" placeholder="Ej: Agricultura, Construcción, Carpintería..." required>
+            <small style="color: #6c757d; display: block; margin-top: 4px;">Describe la habilidad o característica especial</small>
+          </div>
+          <div class="form-group">
+            <label for="atributoDescripcion" class="form-label">Descripción (Opcional)</label>
+            <textarea id="atributoDescripcion" class="form-input" rows="3" placeholder="Información adicional sobre esta habilidad..."></textarea>
+          </div>
+        </form>
+        <div id="atributosExistentesContainer" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+          <p style="margin: 0 0 12px 0; font-size: 0.9rem; color: #b8c5d1; font-weight: 600;">Atributos actuales:</p>
+          <div id="atributosExistentesList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <div style="text-align: center; padding: 20px; color: #6c757d; width: 100%;">
+              <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+              <p style="margin: 8px 0 0 0;">Cargando atributos...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button" id="cancelAddAtributoBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="saveAddAtributoBtn" class="btn-primary">Agregar Atributo</button>
       </div>
     </div>
   </div>
