@@ -64,31 +64,49 @@ for carpeta in carpetas:
 }
 
 # Ejecutar migraciones con manejo de errores mejorado
+# Desactivar set -e temporalmente para manejar errores de migraciones
+set +e
 echo "Ejecutando migraciones..."
 MIGRATE_LOG="/tmp/migrate.log"
-if python manage.py migrate --noinput 2>&1 | tee "$MIGRATE_LOG"; then
+python manage.py migrate --noinput 2>&1 | tee "$MIGRATE_LOG"
+MIGRATE_EXIT_CODE=${PIPESTATUS[0]}
+
+if [ $MIGRATE_EXIT_CODE -eq 0 ]; then
     echo "✅ Migraciones completadas exitosamente"
 else
-    MIGRATE_ERROR=$?
-    echo "⚠️ Error en migraciones (código: $MIGRATE_ERROR)"
+    echo "⚠️ Error en migraciones (código: $MIGRATE_EXIT_CODE)"
     echo "Revisando si hay tablas duplicadas..."
     
     # Verificar si el error es por tabla duplicada
-    if grep -q "already exists" "$MIGRATE_LOG" 2>/dev/null; then
+    if grep -q "already exists" "$MIGRATE_LOG" 2>/dev/null || grep -q "DuplicateTable" "$MIGRATE_LOG" 2>/dev/null; then
         echo "⚠️ Detectado error de tabla duplicada"
         echo "Intentando marcar migraciones como aplicadas (fake) para tablas existentes..."
         
-        # Intentar aplicar migraciones con --fake-initial para tablas que ya existen
-        if python manage.py migrate --fake-initial --noinput 2>&1 | tee -a "$MIGRATE_LOG"; then
-            echo "✅ Migraciones con --fake-initial completadas"
+        # Intentar marcar la migración 0010 como aplicada si la tabla ya existe
+        echo "Marcando migración 0010 como aplicada (fake)..."
+        python manage.py migrate webmaga 0010 --fake --noinput 2>&1 | tee -a "$MIGRATE_LOG"
+        FAKE_EXIT_CODE=${PIPESTATUS[0]}
+        
+        if [ $FAKE_EXIT_CODE -eq 0 ]; then
+            echo "✅ Migración 0010 marcada como aplicada"
         else
-            echo "⚠️ --fake-initial también falló, intentando marcar migración específica como fake..."
-            # Marcar la migración 0010 como aplicada si la tabla ya existe
-            python manage.py migrate webmaga 0010 --fake --noinput 2>&1 | tee -a "$MIGRATE_LOG" || echo "⚠️ No se pudo marcar como fake, continuando..."
+            echo "⚠️ No se pudo marcar migración 0010 como fake, intentando --fake-initial..."
+            python manage.py migrate --fake-initial --noinput 2>&1 | tee -a "$MIGRATE_LOG"
+            FAKE_INITIAL_EXIT_CODE=${PIPESTATUS[0]}
+            
+            if [ $FAKE_INITIAL_EXIT_CODE -eq 0 ]; then
+                echo "✅ Migraciones con --fake-initial completadas"
+            else
+                echo "⚠️ --fake-initial también falló"
+            fi
         fi
         
         # Intentar migraciones normales de nuevo
-        if python manage.py migrate --noinput 2>&1 | tee -a "$MIGRATE_LOG"; then
+        echo "Reintentando migraciones normales..."
+        python manage.py migrate --noinput 2>&1 | tee -a "$MIGRATE_LOG"
+        RETRY_EXIT_CODE=${PIPESTATUS[0]}
+        
+        if [ $RETRY_EXIT_CODE -eq 0 ]; then
             echo "✅ Migraciones completadas después de corrección"
         else
             echo "❌ ERROR: Las migraciones fallaron después de intentar corregir"
@@ -101,6 +119,9 @@ else
         echo "⚠️ Continuando con el inicio de la aplicación de todos modos..."
     fi
 fi
+
+# Reactivar set -e para el resto del script
+set -e
 
 # Obtener puerto de variable de entorno o usar 8000 por defecto
 PORT=${PORT:-8000}
