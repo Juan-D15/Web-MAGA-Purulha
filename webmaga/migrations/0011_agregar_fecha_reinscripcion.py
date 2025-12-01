@@ -3,6 +3,38 @@
 from django.db import migrations, models
 
 
+def add_fecha_reinscripcion_if_not_exists(apps, schema_editor):
+    """Agrega la columna fecha_reinscripcion solo si no existe"""
+    with schema_editor.connection.cursor() as cursor:
+        # Verificar si la columna existe
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'actividad_beneficiarios'
+                AND column_name = 'fecha_reinscripcion'
+            );
+        """)
+        
+        columna_existe = cursor.fetchone()[0]
+        
+        # Agregar columna solo si no existe
+        if not columna_existe:
+            cursor.execute("""
+                ALTER TABLE actividad_beneficiarios 
+                ADD COLUMN fecha_reinscripcion TIMESTAMPTZ NULL;
+            """)
+
+
+def remove_fecha_reinscripcion(apps, schema_editor):
+    """Elimina la columna fecha_reinscripcion si existe"""
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("""
+            ALTER TABLE actividad_beneficiarios 
+            DROP COLUMN IF EXISTS fecha_reinscripcion;
+        """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,10 +42,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='actividadbeneficiario',
-            name='fecha_reinscripcion',
-            field=models.DateTimeField(blank=True, help_text='Fecha en que el beneficiario fue reinscrito/actualizado en este proyecto', null=True),
+        # Usar RunPython para fecha_reinscripcion (idempotente)
+        migrations.RunPython(
+            add_fecha_reinscripcion_if_not_exists,
+            remove_fecha_reinscripcion,
         ),
         migrations.AddField(
             model_name='beneficiarioindividual',

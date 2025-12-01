@@ -126,43 +126,6 @@ except Exception as e:
     # No salir con error, continuar de todos modos
 " 2>&1
 
-# Verificar si fecha_reinscripcion ya existe en actividad_beneficiarios
-echo "Verificando columna fecha_reinscripcion..."
-COLUMNA_EXISTE=$(python -c "
-import os
-import sys
-
-try:
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-    import django
-    django.setup()
-    
-    from django.db import connection
-    
-    # Verificar si la columna fecha_reinscripcion existe
-    with connection.cursor() as cursor:
-        cursor.execute('''
-            SELECT EXISTS (
-                SELECT FROM information_schema.columns 
-                WHERE table_schema = 'public' 
-                AND table_name = 'actividad_beneficiarios'
-                AND column_name = 'fecha_reinscripcion'
-            );
-        ''')
-        columna_existe = cursor.fetchone()[0]
-        print('1' if columna_existe else '0')
-except Exception as e:
-    print('0')
-    sys.exit(0)
-" 2>/dev/null)
-
-if [ "$COLUMNA_EXISTE" = "1" ]; then
-    echo "⚠️ Columna fecha_reinscripcion ya existe, marcando migración 0011 como fake..."
-    python manage.py migrate webmaga 0011_agregar_fecha_reinscripcion --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar 0011 como fake (puede que ya esté aplicada)"
-else
-    echo "✅ Columna fecha_reinscripcion no existe, migraciones normales procederán"
-fi
-
 echo "Ejecutando migraciones..."
 python manage.py migrate --noinput 2>&1
 MIGRATE_EXIT_CODE=$?
@@ -172,10 +135,9 @@ if [ $MIGRATE_EXIT_CODE -eq 0 ]; then
 else
     echo "⚠️ Error en migraciones (código: $MIGRATE_EXIT_CODE)"
     
-    # Si falló, intentar marcar las migraciones problemáticas como fake directamente
-    echo "Intentando marcar migraciones problemáticas como fake como fallback..."
-    python manage.py migrate webmaga 0010 --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar 0010 como fake"
-    python manage.py migrate webmaga 0011_agregar_fecha_reinscripcion --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar 0011 como fake"
+    # Si falló, intentar marcar la migración 0010 como fake directamente
+    echo "Intentando marcar migración 0010 como fake como fallback..."
+    python manage.py migrate webmaga 0010 --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar como fake"
     
     # Intentar migraciones de nuevo
     echo "Reintentando migraciones..."
