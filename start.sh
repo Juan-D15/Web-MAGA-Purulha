@@ -63,9 +63,59 @@ for carpeta in carpetas:
     echo "✅ Carpetas creadas con fallback"
 }
 
-# Ejecutar migraciones
-python manage.py migrate
+# Ejecutar migraciones con manejo de errores mejorado
+echo "Ejecutando migraciones..."
+MIGRATE_LOG="/tmp/migrate.log"
+if python manage.py migrate --noinput 2>&1 | tee "$MIGRATE_LOG"; then
+    echo "✅ Migraciones completadas exitosamente"
+else
+    MIGRATE_ERROR=$?
+    echo "⚠️ Error en migraciones (código: $MIGRATE_ERROR)"
+    echo "Revisando si hay tablas duplicadas..."
+    
+    # Verificar si el error es por tabla duplicada
+    if grep -q "already exists" "$MIGRATE_LOG" 2>/dev/null; then
+        echo "⚠️ Detectado error de tabla duplicada"
+        echo "Intentando marcar migraciones como aplicadas (fake) para tablas existentes..."
+        
+        # Intentar aplicar migraciones con --fake-initial para tablas que ya existen
+        if python manage.py migrate --fake-initial --noinput 2>&1 | tee -a "$MIGRATE_LOG"; then
+            echo "✅ Migraciones con --fake-initial completadas"
+        else
+            echo "⚠️ --fake-initial también falló, intentando marcar migración específica como fake..."
+            # Marcar la migración 0010 como aplicada si la tabla ya existe
+            python manage.py migrate webmaga 0010 --fake --noinput 2>&1 | tee -a "$MIGRATE_LOG" || echo "⚠️ No se pudo marcar como fake, continuando..."
+        fi
+        
+        # Intentar migraciones normales de nuevo
+        if python manage.py migrate --noinput 2>&1 | tee -a "$MIGRATE_LOG"; then
+            echo "✅ Migraciones completadas después de corrección"
+        else
+            echo "❌ ERROR: Las migraciones fallaron después de intentar corregir"
+            echo "Revisa los logs en $MIGRATE_LOG"
+            echo "⚠️ Continuando con el inicio de la aplicación de todos modos..."
+        fi
+    else
+        echo "❌ ERROR: Las migraciones fallaron por otra razón"
+        echo "Revisa los logs en $MIGRATE_LOG"
+        echo "⚠️ Continuando con el inicio de la aplicación de todos modos..."
+    fi
+fi
 
-# Iniciar Gunicorn
-exec gunicorn config.wsgi
+# Obtener puerto de variable de entorno o usar 8000 por defecto
+PORT=${PORT:-8000}
+HOST=${HOST:-0.0.0.0}
+WORKERS=${WORKERS:-4}
+
+echo "Iniciando Gunicorn en $HOST:$PORT con $WORKERS workers..."
+
+# Iniciar Gunicorn con configuración explícita
+exec gunicorn config.wsgi:application \
+    --bind $HOST:$PORT \
+    --workers $WORKERS \
+    --timeout 120 \
+    --keep-alive 5 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info
 
