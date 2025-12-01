@@ -64,62 +64,91 @@ for carpeta in carpetas:
 }
 
 # Ejecutar migraciones con manejo de errores mejorado
+# Desactivar set -e temporalmente para manejar errores
+set +e
+
 # Verificar y corregir migraciones problemáticas ANTES de ejecutar
 echo "Verificando estado de migraciones..."
 python -c "
 import os
 import sys
-import django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-django.setup()
-
-from django.db import connection
-from django.db.migrations.recorder import MigrationRecorder
-
-# Verificar si la tabla beneficiario_atributos_tipos existe
-with connection.cursor() as cursor:
-    cursor.execute('''
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'beneficiario_atributos_tipos'
-        );
-    ''')
-    tabla_existe = cursor.fetchone()[0]
+try:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    import django
+    django.setup()
     
-    if tabla_existe:
-        print('⚠️ Tabla beneficiario_atributos_tipos ya existe en la base de datos')
+    from django.db import connection
+    from django.db.migrations.recorder import MigrationRecorder
+    
+    # Verificar si la tabla beneficiario_atributos_tipos existe
+    with connection.cursor() as cursor:
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'beneficiario_atributos_tipos'
+            );
+        ''')
+        tabla_existe = cursor.fetchone()[0]
         
-        # Verificar si la migración 0010 está registrada
-        recorder = MigrationRecorder(connection)
-        migraciones_aplicadas = recorder.applied_migrations()
-        migracion_0010 = ('webmaga', '0010_alter_actividad_options_and_more')
-        
-        if migracion_0010 not in migraciones_aplicadas:
-            print('⚠️ Migración 0010 no está registrada, marcándola como aplicada (fake)...')
-            try:
-                recorder.record_applied('webmaga', '0010_alter_actividad_options_and_more')
-                print('✅ Migración 0010 marcada como aplicada exitosamente')
-            except Exception as e:
-                print(f'⚠️ Error al marcar migración: {e}')
+        if tabla_existe:
+            print('⚠️ Tabla beneficiario_atributos_tipos ya existe en la base de datos', file=sys.stderr)
+            print('⚠️ Tabla beneficiario_atributos_tipos ya existe en la base de datos')
+            
+            # Verificar si la migración 0010 está registrada
+            recorder = MigrationRecorder(connection)
+            migraciones_aplicadas = recorder.applied_migrations()
+            migracion_0010 = ('webmaga', '0010_alter_actividad_options_and_more')
+            
+            if migracion_0010 not in migraciones_aplicadas:
+                print('⚠️ Migración 0010 no está registrada, marcándola como aplicada (fake)...', file=sys.stderr)
+                print('⚠️ Migración 0010 no está registrada, marcándola como aplicada (fake)...')
+                try:
+                    recorder.record_applied('webmaga', '0010_alter_actividad_options_and_more')
+                    print('✅ Migración 0010 marcada como aplicada exitosamente', file=sys.stderr)
+                    print('✅ Migración 0010 marcada como aplicada exitosamente')
+                except Exception as e:
+                    print(f'⚠️ Error al marcar migración: {e}', file=sys.stderr)
+                    print(f'⚠️ Error al marcar migración: {e}')
+                    sys.exit(1)
+            else:
+                print('✅ Migración 0010 ya está registrada', file=sys.stderr)
+                print('✅ Migración 0010 ya está registrada')
         else:
-            print('✅ Migración 0010 ya está registrada')
-    else:
-        print('✅ Tabla beneficiario_atributos_tipos no existe, migraciones normales procederán')
-"
+            print('✅ Tabla beneficiario_atributos_tipos no existe, migraciones normales procederán', file=sys.stderr)
+            print('✅ Tabla beneficiario_atributos_tipos no existe, migraciones normales procederán')
+except Exception as e:
+    print(f'⚠️ Error en verificación de migraciones: {e}', file=sys.stderr)
+    print(f'⚠️ Error en verificación de migraciones: {e}')
+    import traceback
+    traceback.print_exc()
+    # No salir con error, continuar de todos modos
+" 2>&1
 
-# Desactivar set -e temporalmente para manejar errores de migraciones
-set +e
 echo "Ejecutando migraciones..."
-python manage.py migrate --noinput
+python manage.py migrate --noinput 2>&1
 MIGRATE_EXIT_CODE=$?
 
 if [ $MIGRATE_EXIT_CODE -eq 0 ]; then
     echo "✅ Migraciones completadas exitosamente"
 else
     echo "⚠️ Error en migraciones (código: $MIGRATE_EXIT_CODE)"
-    echo "⚠️ Continuando con el inicio de la aplicación de todos modos..."
+    
+    # Si falló, intentar marcar la migración 0010 como fake directamente
+    echo "Intentando marcar migración 0010 como fake como fallback..."
+    python manage.py migrate webmaga 0010 --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar como fake"
+    
+    # Intentar migraciones de nuevo
+    echo "Reintentando migraciones..."
+    python manage.py migrate --noinput 2>&1
+    RETRY_EXIT_CODE=$?
+    
+    if [ $RETRY_EXIT_CODE -eq 0 ]; then
+        echo "✅ Migraciones completadas después de corrección"
+    else
+        echo "⚠️ Las migraciones aún fallan, pero continuando con el inicio de la aplicación..."
+    fi
 fi
 
 # Reactivar set -e para el resto del script
