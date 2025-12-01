@@ -469,7 +469,17 @@ document.addEventListener('DOMContentLoaded', function() {
   // Esto asegura que después de un logout, no se restaure una sesión offline
   const djangoContext = document.getElementById('djangoContextData');
   const isAuthenticated = djangoContext && djangoContext.getAttribute('data-user-authenticated') === 'true';
-  if (!isAuthenticated) {
+  
+  // Verificar si venimos de un logout
+  const urlParams = new URLSearchParams(window.location.search);
+  const isLogout = urlParams.get('logout') === '1';
+  
+  if (!isAuthenticated || isLogout) {
+    // Limpiar cache del Service Worker si venimos de logout
+    if (isLogout && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+    }
+    
     // Si no hay autenticación del servidor, limpiar sesión offline
     if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
       window.OfflineAuth.clearActiveSession();
@@ -479,8 +489,25 @@ document.addEventListener('DOMContentLoaded', function() {
       localStorage.removeItem('userInfo');
       sessionStorage.removeItem('userInfo');
       localStorage.removeItem('magaOfflineActiveSession');
+      // Limpiar también otros datos relacionados con sesión
+      if (isLogout) {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('magaOffline') || key.startsWith('WEBMAGA_'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      }
     } catch (e) {
       // Ignorar errores de localStorage
+    }
+    
+    // Limpiar parámetros de la URL después de procesar logout
+    if (isLogout) {
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
     }
   }
   

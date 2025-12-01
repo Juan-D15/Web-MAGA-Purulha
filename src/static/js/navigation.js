@@ -795,6 +795,11 @@
         navUserIcon.classList.remove('active');
         
         if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+          // Limpiar cache del Service Worker antes de redirigir
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+          }
+          
           // Limpiar sesión offline del localStorage antes de redirigir
           if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
             window.OfflineAuth.clearActiveSession();
@@ -804,13 +809,24 @@
             localStorage.removeItem('userInfo');
             sessionStorage.removeItem('userInfo');
             localStorage.removeItem('magaOfflineActiveSession');
+            // Limpiar también otros datos relacionados con sesión
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && (key.startsWith('magaOffline') || key.startsWith('WEBMAGA_'))) {
+                keysToRemove.push(key);
+              }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
           } catch (e) {
             // Ignorar errores de localStorage
           }
           
           // Usar la URL de Django si está disponible
           const logoutUrl = window.DJANGO_URLS?.logout || '/logout/';
-          window.location.href = logoutUrl;
+          // Agregar timestamp para forzar recarga completa
+          const separator = logoutUrl.includes('?') ? '&' : '?';
+          window.location.href = `${logoutUrl}${separator}_t=${Date.now()}`;
         }
       });
     }
@@ -884,6 +900,11 @@
         if (window.closeDrawer) window.closeDrawer();
         
         if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+          // Limpiar cache del Service Worker antes de redirigir
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+          }
+          
           // Limpiar sesión offline del localStorage antes de redirigir
           if (window.OfflineAuth && window.OfflineAuth.clearActiveSession) {
             window.OfflineAuth.clearActiveSession();
@@ -893,12 +914,23 @@
             localStorage.removeItem('userInfo');
             sessionStorage.removeItem('userInfo');
             localStorage.removeItem('magaOfflineActiveSession');
+            // Limpiar también otros datos relacionados con sesión
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && (key.startsWith('magaOffline') || key.startsWith('WEBMAGA_'))) {
+                keysToRemove.push(key);
+              }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
           } catch (e) {
             // Ignorar errores de localStorage
           }
           
           const logoutUrl = window.DJANGO_URLS?.logout || '/logout/';
-          window.location.href = logoutUrl;
+          // Agregar timestamp para forzar recarga completa
+          const separator = logoutUrl.includes('?') ? '&' : '?';
+          window.location.href = `${logoutUrl}${separator}_t=${Date.now()}`;
         }
       });
     }

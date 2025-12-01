@@ -65,6 +65,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'webmaga.middleware.NoCacheMiddleware',  # Agregar headers de no-cache para páginas autenticadas
 ]
 
 ROOT_URLCONF = 'config.urls'

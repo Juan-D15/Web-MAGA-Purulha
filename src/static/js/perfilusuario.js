@@ -392,6 +392,11 @@ function setupEventListeners() {
             const targetUrl = `${loginBase}?${params.toString()}`;
 
             try {
+                // Limpiar cache del Service Worker antes de hacer logout
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+                }
+                
                 await fetch(logoutUrl, {
                     method: 'POST',
                     headers: {

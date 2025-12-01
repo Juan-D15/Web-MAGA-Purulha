@@ -306,14 +306,14 @@ def logout_view(request):
         except Exception:
             pass
     
-    # Crear respuesta de redirección a la página principal con parámetro para forzar recarga
+    # Crear respuesta de redirección a la página de login con parámetro para forzar recarga
     # Esto asegura que se recargue completamente la página y se limpie cualquier estado residual
     from django.http import HttpResponseRedirect
     from django.urls import reverse
     import time
-    # Redirigir a la página principal con parámetros para forzar recarga completa
-    index_url = reverse('webmaga:index')
-    response = HttpResponseRedirect(f'{index_url}?logout=1&_={int(time.time())}')
+    # Redirigir a la página de login con parámetros para forzar recarga completa
+    login_url = reverse('webmaga:login')
+    response = HttpResponseRedirect(f'{login_url}?logout=1&_={int(time.time())}')
     
     # Eliminar explícitamente la cookie de sesión
     # Esto es crítico para asegurar que la sesión se cierre completamente
