@@ -64,60 +64,62 @@ for carpeta in carpetas:
 }
 
 # Ejecutar migraciones con manejo de errores mejorado
+# Verificar y corregir migraciones problemáticas ANTES de ejecutar
+echo "Verificando estado de migraciones..."
+python -c "
+import os
+import sys
+import django
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
+
+from django.db import connection
+from django.db.migrations.recorder import MigrationRecorder
+
+# Verificar si la tabla beneficiario_atributos_tipos existe
+with connection.cursor() as cursor:
+    cursor.execute('''
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'beneficiario_atributos_tipos'
+        );
+    ''')
+    tabla_existe = cursor.fetchone()[0]
+    
+    if tabla_existe:
+        print('⚠️ Tabla beneficiario_atributos_tipos ya existe en la base de datos')
+        
+        # Verificar si la migración 0010 está registrada
+        recorder = MigrationRecorder(connection)
+        migraciones_aplicadas = recorder.applied_migrations()
+        migracion_0010 = ('webmaga', '0010_alter_actividad_options_and_more')
+        
+        if migracion_0010 not in migraciones_aplicadas:
+            print('⚠️ Migración 0010 no está registrada, marcándola como aplicada (fake)...')
+            try:
+                recorder.record_applied('webmaga', '0010_alter_actividad_options_and_more')
+                print('✅ Migración 0010 marcada como aplicada exitosamente')
+            except Exception as e:
+                print(f'⚠️ Error al marcar migración: {e}')
+        else:
+            print('✅ Migración 0010 ya está registrada')
+    else:
+        print('✅ Tabla beneficiario_atributos_tipos no existe, migraciones normales procederán')
+"
+
 # Desactivar set -e temporalmente para manejar errores de migraciones
 set +e
 echo "Ejecutando migraciones..."
-MIGRATE_LOG="/tmp/migrate.log"
-python manage.py migrate --noinput 2>&1 | tee "$MIGRATE_LOG"
-MIGRATE_EXIT_CODE=${PIPESTATUS[0]}
+python manage.py migrate --noinput
+MIGRATE_EXIT_CODE=$?
 
 if [ $MIGRATE_EXIT_CODE -eq 0 ]; then
     echo "✅ Migraciones completadas exitosamente"
 else
     echo "⚠️ Error en migraciones (código: $MIGRATE_EXIT_CODE)"
-    echo "Revisando si hay tablas duplicadas..."
-    
-    # Verificar si el error es por tabla duplicada
-    if grep -q "already exists" "$MIGRATE_LOG" 2>/dev/null || grep -q "DuplicateTable" "$MIGRATE_LOG" 2>/dev/null; then
-        echo "⚠️ Detectado error de tabla duplicada"
-        echo "Intentando marcar migraciones como aplicadas (fake) para tablas existentes..."
-        
-        # Intentar marcar la migración 0010 como aplicada si la tabla ya existe
-        echo "Marcando migración 0010 como aplicada (fake)..."
-        python manage.py migrate webmaga 0010 --fake --noinput 2>&1 | tee -a "$MIGRATE_LOG"
-        FAKE_EXIT_CODE=${PIPESTATUS[0]}
-        
-        if [ $FAKE_EXIT_CODE -eq 0 ]; then
-            echo "✅ Migración 0010 marcada como aplicada"
-        else
-            echo "⚠️ No se pudo marcar migración 0010 como fake, intentando --fake-initial..."
-            python manage.py migrate --fake-initial --noinput 2>&1 | tee -a "$MIGRATE_LOG"
-            FAKE_INITIAL_EXIT_CODE=${PIPESTATUS[0]}
-            
-            if [ $FAKE_INITIAL_EXIT_CODE -eq 0 ]; then
-                echo "✅ Migraciones con --fake-initial completadas"
-            else
-                echo "⚠️ --fake-initial también falló"
-            fi
-        fi
-        
-        # Intentar migraciones normales de nuevo
-        echo "Reintentando migraciones normales..."
-        python manage.py migrate --noinput 2>&1 | tee -a "$MIGRATE_LOG"
-        RETRY_EXIT_CODE=${PIPESTATUS[0]}
-        
-        if [ $RETRY_EXIT_CODE -eq 0 ]; then
-            echo "✅ Migraciones completadas después de corrección"
-        else
-            echo "❌ ERROR: Las migraciones fallaron después de intentar corregir"
-            echo "Revisa los logs en $MIGRATE_LOG"
-            echo "⚠️ Continuando con el inicio de la aplicación de todos modos..."
-        fi
-    else
-        echo "❌ ERROR: Las migraciones fallaron por otra razón"
-        echo "Revisa los logs en $MIGRATE_LOG"
-        echo "⚠️ Continuando con el inicio de la aplicación de todos modos..."
-    fi
+    echo "⚠️ Continuando con el inicio de la aplicación de todos modos..."
 fi
 
 # Reactivar set -e para el resto del script
