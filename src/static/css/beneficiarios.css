@@ -75,10 +75,16 @@
 /* Tarjetas principales */
 .main-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 32px;
-  max-width: 900px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  max-width: 1400px;
   margin: 0 auto;
+}
+
+@media (max-width: 1200px) {
+  .main-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .main-card {
@@ -873,6 +879,7 @@
 @media (max-width: 768px) {
   .main-cards {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .list-controls {
@@ -1015,5 +1022,611 @@
 .empty-state-description {
   font-size: 15px;
   color: var(--text-muted);
+}
+
+/* ======================================
+   COMPARACIONES Y REPORTES
+   ====================================== */
+
+/* Vista de comparaciones y reportes */
+.comparisons-reports-view {
+  animation: slideInFromLeft 0.4s ease-out;
+}
+
+.comparison-form-view,
+.comparison-results-view,
+.statistics-reports-view {
+  animation: slideInFromLeft 0.4s ease-out;
+}
+
+/* Grupos de comparación */
+.comparison-group {
+  position: relative;
+}
+
+.remove-comparison-group-btn {
+  transition: var(--transition);
+}
+
+.remove-comparison-group-btn:hover {
+  background: rgba(220, 53, 69, 0.3) !important;
+  border-color: rgba(220, 53, 69, 0.5) !important;
+}
+
+/* Resultados de comparación */
+.comparison-results-view {
+  padding-bottom: 40px;
+}
+
+.comparison-results-section {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 24px;
+  margin-bottom: 32px;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-medium);
+}
+
+.comparison-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.comparison-results-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.comparison-results-toggle {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.comparison-results-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--primary-color);
+  color: var(--text-primary);
+}
+
+.comparison-columns-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+/* Clase para ocultar sección sin romper el grid - mantener estructura del grid */
+.comparison-section-hidden {
+  max-height: 0;
+  overflow: hidden;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease;
+  pointer-events: none;
+}
+
+/* Mantener el grid visible incluso cuando está oculto - forzar estructura */
+.comparison-columns-container.comparison-section-hidden {
+  display: grid !important;
+  grid-template-columns: inherit !important;
+  min-height: 0;
+  gap: 0 !important;
+}
+
+/* Asegurar que las columnas mantengan su estructura cuando el contenedor está oculto */
+.comparison-columns-container.comparison-section-hidden .comparison-column {
+  max-height: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+
+/* Forzar columnas en desktop - mantener layout de columnas */
+@media (min-width: 1200px) {
+  .comparison-columns-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  /* Para 3 columnas */
+  .comparison-columns-container.comparison-3-columns {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  /* Para 4 columnas */
+  .comparison-columns-container.comparison-4-columns {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  /* Mantener grid incluso cuando está oculto */
+  .comparison-columns-container.comparison-section-hidden {
+    display: grid;
+    grid-template-columns: inherit;
+  }
+}
+
+.comparison-column {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.comparison-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.comparison-column-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.comparison-column-count {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: rgba(0, 123, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.comparison-column-search {
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.comparison-column-search input {
+  width: 100%;
+  padding: 10px 16px;
+  padding-left: 40px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.comparison-column-search input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.comparison-beneficiaries-list {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.comparison-beneficiaries-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.comparison-beneficiaries-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.comparison-beneficiaries-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.comparison-beneficiaries-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Checklist de proyectos por grupo */
+#comparison_group_0_project_checklist,
+[id^="comparison_group_"][id$="_project_checklist"] {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+#comparison_group_0_project_container,
+[id^="comparison_group_"][id$="_project_container"] {
+  position: relative;
+}
+
+/* Radio buttons en checklist de proyectos */
+#comparison_group_0_project_checklist input[type="radio"],
+[id^="comparison_group_"][id$="_project_checklist"] input[type="radio"] {
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+#comparison_group_0_project_checklist label:hover,
+[id^="comparison_group_"][id$="_project_checklist"] label:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.comparison-column-search input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.comparison-beneficiary-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 12px;
+  margin-bottom: 10px;
+  transition: var(--transition);
+}
+
+.comparison-beneficiary-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--primary-color);
+}
+
+.comparison-beneficiary-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+}
+
+.comparison-beneficiary-dpi {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 4px 0;
+}
+
+.comparison-beneficiary-comunidad {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Responsive: Fuentes más pequeñas para mejor lectura en móviles */
+@media (max-width: 768px) {
+  .comparison-beneficiary-name {
+    font-size: 0.8rem;
+    margin: 0 0 4px 0;
+  }
+  
+  .comparison-beneficiary-dpi {
+    font-size: 0.75rem;
+    margin: 0 0 3px 0;
+  }
+  
+  .comparison-beneficiary-comunidad {
+    font-size: 0.75rem;
+  }
+  
+  .comparison-beneficiary-item {
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  
+  .comparison-column-title {
+    font-size: 0.95rem;
+  }
+  
+  .comparison-column-count {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+  }
+  
+  .comparison-column-search input {
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    padding-left: 36px;
+  }
+}
+
+/* Sección de beneficiarios repetentes */
+.comparison-repetentes-section {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.comparison-repetentes-section .comparison-results-title {
+  color: #ffc107;
+}
+
+/* Sección de beneficiarios ausentes */
+.comparison-ausentes-section {
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.comparison-ausentes-section .comparison-results-title {
+  color: #dc3545;
+}
+
+/* Estadísticas y reportes */
+.stats-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  transition: var(--transition);
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-heavy);
+  border-color: var(--primary-color);
+}
+
+.stat-chart-card {
+  transition: var(--transition);
+}
+
+.stat-chart-card:hover {
+  box-shadow: var(--shadow-medium);
+}
+
+/* Gráficos minimalistas */
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.chart-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.chart-bar-label {
+  min-width: 120px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.chart-bar-fill {
+  flex: 1;
+  height: 24px;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 12px;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.chart-pie {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.chart-pie-visual {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--primary-color) 0deg 120deg,
+    var(--success-color) 120deg 240deg,
+    var(--warning-color) 240deg 360deg
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.chart-pie-center {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--background-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.chart-legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+/* Lista de top comunidades */
+.top-comunidades-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.top-comunidad-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  transition: var(--transition);
+}
+
+.top-comunidad-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--primary-color);
+}
+
+.top-comunidad-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.top-comunidad-count {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-left: 12px;
+}
+
+.top-comunidad-rank {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-right: 12px;
+}
+
+/* Ajustes para campos de comparación en desktop */
+.comparison-group .form-group > div[style*="grid-template-columns: 1fr 1fr 2fr"] {
+  grid-template-columns: 1fr 1fr 2fr;
+}
+
+@media (max-width: 1400px) {
+  .comparison-group .form-group > div[style*="grid-template-columns: 1fr 1fr 2fr"] {
+    grid-template-columns: 1fr 1fr 1.5fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .comparison-group .form-group > div[style*="grid-template-columns: 1fr 1fr 2fr"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .comparison-columns-container {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-results-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .comparison-group .form-group > div[style*="grid-template-columns: 1fr 1fr 2fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Ajustes para gráficos en responsive */
+  .stats-charts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  
+  .stat-chart-card {
+    padding: 16px !important;
+    overflow-x: hidden;
+    max-width: 100%;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  
+  .stat-chart-card h3 {
+    font-size: 1rem !important;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  /* Asegurar que los gráficos no se desborden */
+  #genderDistributionChart,
+  #topComunidadesChart,
+  #habilidadesList {
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  
+  /* Ajustar padding y márgenes en responsive */
+  .stat-chart-card > div {
+    max-width: 100%;
+    overflow-x: hidden;
+    width: 100%;
+  }
+  
+  /* Ajustar elementos dentro de los gráficos */
+  #genderDistributionChart > div,
+  #topComunidadesChart > div {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* Ajustar elementos de distribución por género */
+  #genderDistributionChart .loading-state,
+  #topComunidadesChart .loading-state {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 

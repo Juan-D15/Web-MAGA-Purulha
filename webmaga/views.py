@@ -2655,10 +2655,15 @@ def api_listar_beneficiarios_completo(request):
             # Obtener proyectos/actividades vinculadas
             proyectos = []
             for ab in ben.actividades_prefetch:
+                # Usar fecha_reinscripcion si existe (más reciente), sino usar creado_en
+                fecha_asociacion = ab.fecha_reinscripcion if ab.fecha_reinscripcion else ab.creado_en
                 proyectos.append({
                     'id': str(ab.actividad.id),
                     'nombre': ab.actividad.nombre,
                     'fecha': ab.actividad.fecha.isoformat() if ab.actividad.fecha else None,
+                    'fecha_agregacion': ab.creado_en.isoformat() if ab.creado_en else None,  # Fecha original en que el beneficiario fue añadido al proyecto
+                    'fecha_reinscripcion': ab.fecha_reinscripcion.isoformat() if ab.fecha_reinscripcion else None,  # Fecha de reinscripción/actualización
+                    'fecha_asociacion': fecha_asociacion.isoformat() if fecha_asociacion else None,  # Fecha más reciente (reinscripción o creación)
                     'tipo': ab.actividad.tipo.nombre if ab.actividad.tipo else None
                 })
             
@@ -2704,6 +2709,139 @@ def api_listar_beneficiarios_completo(request):
         return JsonResponse({
             'success': False,
             'error': f'Error al listar beneficiarios: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_beneficiarios_estadisticas(request):
+    """API: Obtener estadísticas generales de beneficiarios"""
+    try:
+        usuario_maga = get_usuario_maga(request.user)
+        if not usuario_maga:
+            return JsonResponse({
+                'success': False,
+                'error': 'Usuario no autenticado'
+            }, status=401)
+        
+        from django.db.models import Count, Q, F
+        from collections import Counter
+        
+        # Total de beneficiarios
+        total_beneficiarios = Beneficiario.objects.filter(activo=True).count()
+        
+        # Beneficiarios con proyectos (al menos 1)
+        beneficiarios_con_proyectos = Beneficiario.objects.filter(
+            activo=True,
+            actividades__actividad__eliminado_en__isnull=True
+        ).distinct().count()
+        
+        # Beneficiarios con múltiples proyectos (más de 1)
+        beneficiarios_multiples = Beneficiario.objects.filter(
+            activo=True,
+            actividades__actividad__eliminado_en__isnull=True
+        ).annotate(
+            num_proyectos=Count('actividades', filter=Q(actividades__actividad__eliminado_en__isnull=True), distinct=True)
+        ).filter(num_proyectos__gt=1).count()
+        
+        # Beneficiarios con un solo proyecto
+        beneficiarios_un_solo = Beneficiario.objects.filter(
+            activo=True,
+            actividades__actividad__eliminado_en__isnull=True
+        ).annotate(
+            num_proyectos=Count('actividades', filter=Q(actividades__actividad__eliminado_en__isnull=True), distinct=True)
+        ).filter(num_proyectos=1).count()
+        
+        # Distribución por género (solo beneficiarios individuales)
+        beneficiarios_individuales = BeneficiarioIndividual.objects.filter(
+            beneficiario__activo=True
+        ).select_related('beneficiario')
+        
+        genero_dist = Counter()
+        for bi in beneficiarios_individuales:
+            genero = bi.genero or 'otro'
+            genero_dist[genero] += 1
+        
+        distribucion_genero = {
+            'masculino': genero_dist.get('masculino', 0),
+            'femenino': genero_dist.get('femenino', 0),
+            'otro': genero_dist.get('otro', 0)
+        }
+        
+        # Comunidades alcanzadas (comunidades con beneficiarios que tienen proyectos)
+        comunidades_alcanzadas = Beneficiario.objects.filter(
+            activo=True,
+            actividades__actividad__eliminado_en__isnull=True,
+            comunidad__isnull=False
+        ).values('comunidad_id', 'comunidad__nombre').distinct().count()
+        
+        # Top 5 comunidades con más beneficiarios
+        top_comunidades = Beneficiario.objects.filter(
+            activo=True,
+            actividades__actividad__eliminado_en__isnull=True,
+            comunidad__isnull=False
+        ).values(
+            'comunidad_id',
+            'comunidad__nombre'
+        ).annotate(
+            total_beneficiarios=Count('id', distinct=True)
+        ).order_by('-total_beneficiarios')[:5]
+        
+        top_comunidades_list = [
+            {
+                'id': str(item['comunidad_id']),
+                'nombre': item['comunidad__nombre'],
+                'total': item['total_beneficiarios']
+            }
+            for item in top_comunidades
+        ]
+        
+        # Beneficiarios con habilidades (atributos)
+        beneficiarios_con_habilidades = BeneficiarioIndividual.objects.filter(
+            beneficiario__activo=True,
+            atributos__isnull=False
+        ).distinct().count()
+        
+        # Listado de habilidades con conteo
+        habilidades_stats = BeneficiarioAtributo.objects.filter(
+            beneficiario_individual__beneficiario__activo=True
+        ).values(
+            'atributo_tipo__nombre',
+            'valor'
+        ).annotate(
+            total=Count('beneficiario_individual', distinct=True)
+        ).order_by('-total', 'atributo_tipo__nombre', 'valor')
+        
+        habilidades_list = [
+            {
+                'tipo': item['atributo_tipo__nombre'],
+                'valor': item['valor'],
+                'total': item['total']
+            }
+            for item in habilidades_stats
+        ]
+        
+        return JsonResponse({
+            'success': True,
+            'estadisticas': {
+                'total_beneficiarios': total_beneficiarios,
+                'beneficiarios_alcanzados': beneficiarios_con_proyectos,
+                'beneficiarios_multiples_proyectos': beneficiarios_multiples,
+                'beneficiarios_un_solo_proyecto': beneficiarios_un_solo,
+                'comunidades_alcanzadas': comunidades_alcanzadas,
+                'distribucion_genero': distribucion_genero,
+                'top_comunidades': top_comunidades_list,
+                'beneficiarios_con_habilidades': beneficiarios_con_habilidades,
+                'habilidades': habilidades_list
+            }
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': f'Error al obtener estadísticas: {str(e)}'
         }, status=500)
 
 
@@ -3643,24 +3781,45 @@ def api_agregar_beneficiario_proyectos(request, beneficiario_id):
                     ).exists()
                 
                 if puede_agregar:
-                    # Usar get_or_create y luego actualizar fecha si se proporciona
+                    # Usar get_or_create para obtener o crear la relación
                     actividad_benef, creado = ActividadBeneficiario.objects.get_or_create(
                         actividad=actividad,
                         beneficiario=beneficiario
                     )
                     
-                    # Si se proporciona fecha de agregación, actualizarla usando SQL directo
-                    if fecha_agregacion_dt and (creado or actividad_benef):
+                    # Si se proporciona fecha de agregación
+                    if fecha_agregacion_dt:
                         from django.db import connection
                         with connection.cursor() as cursor:
-                            cursor.execute("""
-                                UPDATE actividad_beneficiarios 
-                                SET creado_en = %s 
-                                WHERE id = %s
-                            """, [fecha_agregacion_dt, str(actividad_benef.id)])
+                            if creado:
+                                # Si es nuevo, establecer creado_en
+                                cursor.execute("""
+                                    UPDATE actividad_beneficiarios 
+                                    SET creado_en = %s 
+                                    WHERE id = %s
+                                """, [fecha_agregacion_dt, str(actividad_benef.id)])
+                            else:
+                                # Si ya existe, actualizar fecha_reinscripcion (mantener creado_en original)
+                                cursor.execute("""
+                                    UPDATE actividad_beneficiarios 
+                                    SET fecha_reinscripcion = %s 
+                                    WHERE id = %s
+                                """, [fecha_agregacion_dt, str(actividad_benef.id)])
                     
                     if creado:
                         agregados += 1
+                    else:
+                        # Si ya existía, se considera una actualización/reinscripción
+                        # Si no se proporcionó fecha, usar la fecha actual
+                        if not fecha_agregacion_dt:
+                            from django.utils import timezone
+                            from django.db import connection
+                            with connection.cursor() as cursor:
+                                cursor.execute("""
+                                    UPDATE actividad_beneficiarios 
+                                    SET fecha_reinscripcion = %s 
+                                    WHERE id = %s
+                                """, [timezone.now(), str(actividad_benef.id)])
                 else:
                     rechazados.append({
                         'id': str(actividad.id),
@@ -3717,6 +3876,8 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
         if hasattr(beneficiario, 'actividades_prefetch'):
             for ab in beneficiario.actividades_prefetch:
                 actividad = ab.actividad
+                # Usar fecha_reinscripcion si existe (más reciente), sino usar creado_en
+                fecha_asociacion = ab.fecha_reinscripcion if ab.fecha_reinscripcion else ab.creado_en
                 proyectos.append({
                     'id': str(actividad.id),
                     'nombre': actividad.nombre,
@@ -3725,7 +3886,9 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
                     'comunidad': actividad.comunidad.nombre if actividad.comunidad else None,
                     'comunidad_id': str(actividad.comunidad.id) if actividad.comunidad else None,
                     'descripcion': actividad.descripcion or '',
-                    'fecha_agregacion': ab.creado_en.isoformat() if ab.creado_en else None,
+                    'fecha_agregacion': ab.creado_en.isoformat() if ab.creado_en else None,  # Fecha original en que el beneficiario fue añadido al proyecto
+                    'fecha_reinscripcion': ab.fecha_reinscripcion.isoformat() if ab.fecha_reinscripcion else None,  # Fecha de reinscripción/actualización
+                    'fecha_asociacion': fecha_asociacion.isoformat() if fecha_asociacion else None,  # Fecha más reciente (reinscripción o creación)
                     'creado_en': actividad.creado_en.isoformat() if actividad.creado_en else None
                 })
         

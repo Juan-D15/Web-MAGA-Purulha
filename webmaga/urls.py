@@ -78,6 +78,7 @@ urlpatterns = [
     path('api/personal/', views.api_listar_personal, name='api-personal'),
     path('api/beneficiarios/', views.api_listar_beneficiarios, name='api-beneficiarios'),
     path('api/beneficiarios/completo/', views.api_listar_beneficiarios_completo, name='api-beneficiarios-completo'),
+    path('api/beneficiarios/estadisticas/', views.api_beneficiarios_estadisticas, name='api-beneficiarios-estadisticas'),
     path('api/beneficiario/<uuid:beneficiario_id>/', views.api_obtener_beneficiario, name='api-obtener-beneficiario'),
     path('api/beneficiario/<uuid:beneficiario_id>/detalle/', views.api_beneficiario_detalle_completo, name='api-beneficiario-detalle-completo'),
     path('api/beneficiario/<uuid:beneficiario_id>/proyectos/', views.api_beneficiario_proyectos, name='api-beneficiario-proyectos'),

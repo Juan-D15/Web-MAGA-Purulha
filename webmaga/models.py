@@ -627,6 +627,7 @@ class ActividadBeneficiario(models.Model):
     version = models.IntegerField(default=1)
     sincronizado = models.BooleanField(default=False)
     creado_en = models.DateTimeField(auto_now_add=True)
+    fecha_reinscripcion = models.DateTimeField(null=True, blank=True, help_text="Fecha en que el beneficiario fue reinscrito/actualizado en este proyecto")
     
     class Meta:
         db_table = 'actividad_beneficiarios'

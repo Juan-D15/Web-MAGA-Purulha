@@ -74,38 +74,66 @@ function mostrarMensaje(tipo, mensaje) {
 function showView(viewName) {
     console.log('showView llamado con:', viewName);
     
-    const mainView = document.getElementById('mainView');
-    const addView = document.getElementById('addBeneficiaryView');
-    const listView = document.getElementById('listBeneficiariesView');
+    // Obtener todas las vistas posibles
+    const allViews = [
+        'mainView',
+        'addBeneficiaryView',
+        'listBeneficiariesView',
+        'comparisonsReportsView',
+        'generateComparisonView',
+        'comparisonResultsView'
+    ];
     
-    console.log('Vistas encontradas:', {
-        mainView: !!mainView,
-        addView: !!addView,
-        listView: !!listView
+    // Ocultar todas las vistas primero
+    allViews.forEach(viewId => {
+        const viewElement = document.getElementById(viewId);
+        if (viewElement) {
+            viewElement.style.display = 'none';
+        }
     });
     
-    // Ocultar todas las vistas
-    if (mainView) mainView.style.display = 'none';
-    if (addView) addView.style.display = 'none';
-    if (listView) listView.style.display = 'none';
+    // Mostrar la vista seleccionada
+    const targetView = document.getElementById(viewName);
+    if (!targetView) {
+        console.error('Vista no encontrada:', viewName);
+        // Si no se encuentra la vista, mostrar la principal como fallback
+        const mainView = document.getElementById('mainView');
+        if (mainView) {
+            mainView.style.display = 'block';
+            mainView.style.animation = 'slideInFromRight 0.4s ease-out';
+            currentView = 'mainView';
+        }
+        return;
+    }
     
     // Mostrar la vista seleccionada con animación
-    if (viewName === 'mainView' && mainView) {
-        mainView.style.display = 'block';
-        mainView.style.animation = 'slideInFromRight 0.4s ease-out';
+    targetView.style.display = 'block';
+    
+    // Aplicar animación según el tipo de vista
+    if (viewName === 'mainView') {
+        targetView.style.animation = 'slideInFromRight 0.4s ease-out';
         console.log('Mostrando vista principal');
-    } else if (viewName === 'addBeneficiaryView' && addView) {
-        addView.style.display = 'block';
-        addView.style.animation = 'slideInFromLeft 0.4s ease-out';
-        console.log('Mostrando vista de agregar beneficiario');
-        initializeAddView();
-    } else if (viewName === 'listBeneficiariesView' && listView) {
-        listView.style.display = 'block';
-        listView.style.animation = 'slideInFromLeft 0.4s ease-out';
-        console.log('Mostrando vista de listado');
-        loadBeneficiariosList();
     } else {
-        console.error('Vista no encontrada o nombre incorrecto:', viewName);
+        targetView.style.animation = 'slideInFromLeft 0.4s ease-out';
+        
+        // Inicializar vistas específicas
+        if (viewName === 'addBeneficiaryView') {
+            console.log('Mostrando vista de agregar beneficiario');
+            setTimeout(() => initializeAddView(), 100);
+        } else if (viewName === 'listBeneficiariesView') {
+            console.log('Mostrando vista de listado');
+            setTimeout(() => loadBeneficiariosList(), 100);
+        } else if (viewName === 'comparisonsReportsView') {
+            console.log('Mostrando vista de comparaciones y reportes');
+        } else if (viewName === 'generateComparisonView') {
+            console.log('Mostrando vista de generar comparativa');
+            setTimeout(() => initializeComparisonForm(), 100);
+        } else if (viewName === 'comparisonResultsView') {
+            console.log('Mostrando resultados de comparativa');
+        } else if (viewName === 'mainView') {
+            // Cargar dashboard de estadísticas cuando se muestra la vista principal
+            setTimeout(() => loadStatisticsDashboard(), 100);
+        }
     }
     
     currentView = viewName;
@@ -667,6 +695,11 @@ function setupInputValidation() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Beneficiarios: Inicializando módulo...');
     
+    // Cargar estadísticas al iniciar la página
+    setTimeout(() => {
+        loadStatisticsDashboard();
+    }, 500);
+    
     // Botones de navegación principal
     const openAddBtn = document.getElementById('openAddBeneficiaryBtn');
     const openListBtn = document.getElementById('openListBeneficiariesBtn');
@@ -709,6 +742,70 @@ document.addEventListener('DOMContentLoaded', function() {
     if (backFromListBtn) {
         backFromListBtn.addEventListener('click', () => showView('mainView'));
     }
+
+    // Botones del módulo de comparaciones y reportes usando event delegation para mayor robustez
+    document.addEventListener('click', function(e) {
+        // Botón principal para abrir el módulo
+        if (e.target.closest('#openComparisonsReportsBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Click en Comparativas de Beneficiarios');
+            showView('generateComparisonView');
+            return;
+        }
+
+        // Botones de volver
+        if (e.target.closest('#backFromComparisonsReportsBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showView('mainView');
+            return;
+        }
+        
+        if (e.target.closest('#backFromComparisonFormBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showView('mainView');
+            return;
+        }
+
+        if (e.target.closest('#backFromComparisonFormBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showView('comparisonsReportsView');
+            return;
+        }
+
+        if (e.target.closest('#backFromComparisonResultsBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showView('generateComparisonView');
+            return;
+        }
+
+
+        // Botones de acción
+        if (e.target.closest('#generateComparisonBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleGenerateComparison();
+            return;
+        }
+
+        if (e.target.closest('#cancelComparisonBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            showView('comparisonsReportsView');
+            return;
+        }
+
+        if (e.target.closest('#generateReportBtn')) {
+            e.preventDefault();
+            e.stopPropagation();
+            mostrarMensaje('info', 'La funcionalidad de generar reporte estará disponible próximamente');
+            return;
+        }
+    });
     
     // Modal de detalles
     const closeModalBtn = document.getElementById('closeBeneficiaryDetailsModal');
@@ -1002,6 +1099,27 @@ function inicializarModalesEdicion() {
                 abrirModalAgregarAtributo(beneficiarioId);
             }
         });
+    }
+    
+    const btnReinscribirProyecto = document.getElementById('btnReinscribirProyecto');
+    if (btnReinscribirProyecto) {
+        btnReinscribirProyecto.addEventListener('click', function() {
+            const beneficiarioId = beneficiarioEditando;
+            if (beneficiarioId) {
+                cerrarOpcionesEdicion();
+                abrirModalReinscribirProyecto(beneficiarioId);
+            }
+        });
+    }
+    
+    // Cerrar modal de reinscripción
+    const closeReinscribirModal = document.getElementById('closeReinscribirProyectoModal');
+    const cancelReinscribirBtn = document.getElementById('cancelReinscribirProyectoBtn');
+    if (closeReinscribirModal) {
+        closeReinscribirModal.addEventListener('click', cerrarModalReinscribirProyecto);
+    }
+    if (cancelReinscribirBtn) {
+        cancelReinscribirBtn.addEventListener('click', cerrarModalReinscribirProyecto);
     }
 }
 
@@ -4739,6 +4857,369 @@ function createBeneficiaryCard(beneficiario) {
 }
 
 // Función para abrir modal de agregar atributo
+// Función para abrir modal de reinscripción a proyecto
+async function abrirModalReinscribirProyecto(beneficiarioId) {
+    if (!beneficiarioId || beneficiarioId === 'null' || beneficiarioId === 'undefined') {
+        console.error('Error: ID de beneficiario inválido:', beneficiarioId);
+        mostrarMensaje('error', 'Error: ID de beneficiario inválido');
+        return;
+    }
+    
+    const modal = document.getElementById('reinscribirProyectoModal');
+    if (!modal) {
+        console.error('Error: Modal de reinscripción no encontrado');
+        return;
+    }
+    
+    // Guardar el ID del beneficiario en el modal
+    modal.setAttribute('data-beneficiario-id', beneficiarioId);
+    
+    // Mostrar modal
+    modal.style.display = 'flex';
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+    
+    // Cargar proyectos asociados
+    await cargarProyectosAsociadosParaReinscripcion(beneficiarioId);
+}
+
+// Función para cerrar modal de reinscripción
+function cerrarModalReinscribirProyecto() {
+    const modal = document.getElementById('reinscribirProyectoModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            // Limpiar contenido
+            const content = document.getElementById('reinscribirProyectoContent');
+            if (content) {
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #6c757d;">
+                        <div class="spinner" style="border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                        <p>Cargando proyectos asociados...</p>
+                    </div>
+                `;
+            }
+        }, 300);
+    }
+}
+
+// Función para cargar proyectos asociados al beneficiario
+async function cargarProyectosAsociadosParaReinscripcion(beneficiarioId) {
+    const content = document.getElementById('reinscribirProyectoContent');
+    if (!content) return;
+    
+    try {
+        // Obtener datos del beneficiario con proyectos
+        const response = await fetch(`/api/beneficiario/${beneficiarioId}/detalle/`);
+        if (!response.ok) {
+            throw new Error('Error al cargar datos del beneficiario');
+        }
+        const data = await response.json();
+        
+        if (!data.success || !data.beneficiario) {
+            throw new Error('Formato de respuesta inválido');
+        }
+        
+        const beneficiario = data.beneficiario;
+        const proyectos = beneficiario.proyectos || [];
+        
+        if (proyectos.length === 0) {
+            content.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #6c757d;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 16px; opacity: 0.5;">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <p style="margin: 0; font-size: 1.1rem; color: #ffffff;">Este beneficiario no está asociado a ningún proyecto</p>
+                    <small style="display: block; margin-top: 8px;">Primero debe agregar el beneficiario a un proyecto</small>
+                </div>
+            `;
+            return;
+        }
+        
+        // Renderizar lista de proyectos
+        let html = `
+            <div style="margin-bottom: 20px;">
+                <p style="color: #b8c5d1; font-size: 0.9rem; margin: 0 0 16px 0;">Selecciona un proyecto para reinscribir al beneficiario en un año diferente:</p>
+            </div>
+            <div style="display: grid; gap: 12px;">
+        `;
+        
+        proyectos.forEach((proyecto, index) => {
+            const fechaAgregacion = proyecto.fecha_agregacion ? new Date(proyecto.fecha_agregacion) : null;
+            const fechaReinscripcion = proyecto.fecha_reinscripcion ? new Date(proyecto.fecha_reinscripcion) : null;
+            
+            // Obtener años ya usados (solo el año de inscripción original, no el año actual)
+            const añosUsados = new Set();
+            if (fechaAgregacion) {
+                añosUsados.add(fechaAgregacion.getFullYear()); // Solo prohibir el año de inscripción original
+            }
+            // No agregamos el año actual ni años de reinscripción previos como restricción
+            
+            html += `
+                <div class="proyecto-reinscripcion-item" style="padding: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+                    <div style="flex: 1;">
+                        <h4 style="color: #ffffff; font-size: 1rem; font-weight: 600; margin: 0 0 8px 0;">${proyecto.nombre}</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; color: #6c757d;">
+                            ${fechaAgregacion ? `<span>Inscrito: ${fechaAgregacion.getFullYear()}</span>` : ''}
+                            ${fechaReinscripcion ? `<span>Reinscrito: ${fechaReinscripcion.getFullYear()}</span>` : ''}
+                        </div>
+                    </div>
+                    <button type="button" class="btn-secondary btn-reinscribir-proyecto" 
+                            data-proyecto-id="${proyecto.id}" 
+                            data-proyecto-nombre="${proyecto.nombre.replace(/"/g, '&quot;')}"
+                            data-años-usados='${JSON.stringify(Array.from(añosUsados))}'
+                            style="padding: 10px 16px; font-size: 0.9rem; white-space: nowrap; background: rgba(0, 123, 255, 0.2); border-color: rgba(0, 123, 255, 0.4); color: #4dabf7;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                            <polyline points="7 3 7 8 15 8"></polyline>
+                        </svg>
+                        Reinscribir
+                    </button>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+        
+        content.innerHTML = html;
+        
+        // Agregar event listeners a los botones de reinscripción
+        document.querySelectorAll('.btn-reinscribir-proyecto').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const proyectoId = this.dataset.proyectoId;
+                const proyectoNombre = this.dataset.proyectoNombre;
+                const añosUsados = JSON.parse(this.dataset.añosUsados || '[]');
+                mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados);
+            });
+        });
+        
+    } catch (error) {
+        console.error('Error cargando proyectos asociados:', error);
+        content.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #dc3545;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 16px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <p style="margin: 0; font-size: 1.1rem; color: #dc3545;">Error al cargar proyectos asociados</p>
+                <small style="display: block; margin-top: 8px;">${error.message}</small>
+            </div>
+        `;
+    }
+}
+
+// Función para mostrar formulario de reinscripción
+function mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados) {
+    const content = document.getElementById('reinscribirProyectoContent');
+    if (!content) return;
+    
+    // Obtener año actual para establecer como valor por defecto
+    const añoActual = new Date().getFullYear();
+    const mesActual = String(new Date().getMonth() + 1).padStart(2, '10');
+    const díaActual = String(new Date().getDate()).padStart(2, '01');
+    
+    // Usar el año actual como valor por defecto (ya no está restringido)
+    const fechaPorDefecto = `${añoActual}-${mesActual}-${díaActual}`;
+    
+    // Construir mensaje de años no disponibles
+    let mensajeAñosNoDisponibles = '';
+    if (añosUsados.length > 0) {
+        mensajeAñosNoDisponibles = `Año no disponible: ${añosUsados.join(', ')} (año de inscripción original). Puedes reinscribir en cualquier otro año, incluyendo el año actual.`;
+    } else {
+        mensajeAñosNoDisponibles = 'Puedes reinscribir en cualquier año, incluyendo el año actual.';
+    }
+    
+    const html = `
+        <div style="margin-bottom: 20px;">
+            <button type="button" id="volverListaProyectosBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"></path>
+                </svg>
+                Volver a lista de proyectos
+            </button>
+            <h4 style="color: #ffffff; font-size: 1.1rem; font-weight: 600; margin: 0 0 8px 0;">Reinscribir en: ${proyectoNombre}</h4>
+            <p style="color: #6c757d; font-size: 0.9rem; margin: 0;">Selecciona la fecha de reinscripción. El año debe ser diferente al año de inscripción original.</p>
+        </div>
+        <form id="formReinscripcionProyecto">
+            <input type="hidden" id="reinscripcionProyectoId" value="${proyectoId}">
+            <div class="form-group">
+                <label for="reinscripcionFecha" class="form-label">Fecha de Reinscripción *</label>
+                <input type="date" id="reinscripcionFecha" class="form-input" value="${fechaPorDefecto}" required>
+                <small style="color: #6c757d; display: block; margin-top: 4px;">
+                    ${mensajeAñosNoDisponibles}
+                </small>
+            </div>
+            <div id="reinscripcionFechaError" style="display: none; padding: 12px; background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 8px; margin-top: 12px; color: #dc3545; font-size: 0.9rem;"></div>
+            <div class="form-actions" style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" id="cancelarReinscripcionBtn" class="btn-secondary">Cancelar</button>
+                <button type="button" id="guardarReinscripcionBtn" class="btn-primary">Guardar Reinscripción</button>
+            </div>
+        </form>
+    `;
+    
+    content.innerHTML = html;
+    
+    // Event listeners
+    const volverBtn = document.getElementById('volverListaProyectosBtn');
+    if (volverBtn) {
+        volverBtn.addEventListener('click', async () => {
+            const modal = document.getElementById('reinscribirProyectoModal');
+            const beneficiarioId = modal ? modal.getAttribute('data-beneficiario-id') : null;
+            if (beneficiarioId) {
+                await cargarProyectosAsociadosParaReinscripcion(beneficiarioId);
+            }
+        });
+    }
+    
+    const cancelarBtn = document.getElementById('cancelarReinscripcionBtn');
+    if (cancelarBtn) {
+        cancelarBtn.addEventListener('click', async () => {
+            const modal = document.getElementById('reinscribirProyectoModal');
+            const beneficiarioId = modal ? modal.getAttribute('data-beneficiario-id') : null;
+            if (beneficiarioId) {
+                await cargarProyectosAsociadosParaReinscripcion(beneficiarioId);
+            }
+        });
+    }
+    
+    const fechaInput = document.getElementById('reinscripcionFecha');
+    const errorDiv = document.getElementById('reinscripcionFechaError');
+    
+    if (fechaInput) {
+        fechaInput.addEventListener('change', function() {
+            validarFechaReinscripcion(this.value, añosUsados, errorDiv);
+        });
+    }
+    
+    const guardarBtn = document.getElementById('guardarReinscripcionBtn');
+    if (guardarBtn) {
+        guardarBtn.addEventListener('click', async function() {
+            const fecha = fechaInput.value;
+            if (!fecha) {
+                mostrarMensaje('error', 'Por favor selecciona una fecha');
+                return;
+            }
+            
+            if (!validarFechaReinscripcion(fecha, añosUsados, errorDiv)) {
+                return;
+            }
+            
+            await guardarReinscripcion(proyectoId, fecha);
+        });
+    }
+}
+
+// Función para validar fecha de reinscripción
+function validarFechaReinscripcion(fecha, añosUsados, errorDiv) {
+    if (!fecha) {
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+        }
+        return false;
+    }
+    
+    const fechaSeleccionada = new Date(fecha);
+    const añoSeleccionado = fechaSeleccionada.getFullYear();
+    
+    let error = null;
+    
+    // Solo validar que no sea el año de inscripción original
+    if (añosUsados.includes(añoSeleccionado)) {
+        error = `El año ${añoSeleccionado} es el año de inscripción original. No puedes reinscribir en el mismo año. Selecciona un año diferente.`;
+    }
+    
+    if (error && errorDiv) {
+        errorDiv.textContent = error;
+        errorDiv.style.display = 'block';
+        return false;
+    }
+    
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+    }
+    
+    return true;
+}
+
+// Función para guardar la reinscripción
+async function guardarReinscripcion(proyectoId, fecha) {
+    const modal = document.getElementById('reinscribirProyectoModal');
+    const beneficiarioId = modal ? modal.getAttribute('data-beneficiario-id') : null;
+    
+    if (!beneficiarioId) {
+        mostrarMensaje('error', 'Error: No se encontró el ID del beneficiario');
+        return;
+    }
+    
+    try {
+        mostrarMensaje('info', 'Guardando reinscripción...');
+        
+        const response = await fetch(`/api/beneficiario/${beneficiarioId}/agregar-proyectos/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                proyecto_ids: [proyectoId],
+                fecha_agregacion: fecha
+            })
+        });
+        
+        if (!response.ok) {
+            let errorMessage = 'Error al guardar la reinscripción';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                // Si no se puede parsear el JSON, usar el mensaje de estado
+                errorMessage = `Error ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        let data;
+        try {
+            data = await response.json();
+        } catch (e) {
+            throw new Error('Error al procesar la respuesta del servidor');
+        }
+        
+        if (data.success) {
+            mostrarMensaje('success', 'Reinscripción guardada exitosamente');
+            cerrarModalReinscribirProyecto();
+            
+            // Recargar datos del beneficiario si está en la vista de detalles
+            if (beneficiarioEditando === beneficiarioId) {
+                // Recargar detalles del beneficiario si la función existe
+                if (typeof mostrarDetallesBeneficiario === 'function') {
+                    setTimeout(() => {
+                        mostrarDetallesBeneficiario(beneficiarioId);
+                    }, 500);
+                }
+            }
+            
+            // Recargar listado de beneficiarios si está visible
+            if (currentView === 'listBeneficiariesView') {
+                setTimeout(() => {
+                    cargarBeneficiarios();
+                }, 500);
+            }
+        } else {
+            throw new Error(data.error || 'Error al guardar la reinscripción');
+        }
+        
+    } catch (error) {
+        console.error('Error guardando reinscripción:', error);
+        const errorMessage = error.message || 'Error desconocido al guardar la reinscripción';
+        mostrarMensaje('error', 'Error al guardar la reinscripción: ' + errorMessage);
+    }
+}
+
 async function abrirModalAgregarAtributo(beneficiarioId) {
     if (!beneficiarioId || beneficiarioId === 'null' || beneficiarioId === 'undefined') {
         console.error('Error: ID de beneficiario inválido:', beneficiarioId);
@@ -5689,6 +6170,1104 @@ function calcularEdadDesdeFecha(fechaNacimiento) {
         edad--;
     }
     return edad;
+}
+
+// ======================================
+// FUNCIONES PARA COMPARACIONES Y REPORTES
+// ======================================
+
+let comparisonGroups = []; // Array para almacenar los grupos de comparación
+
+// Inicializar formulario de comparación
+function initializeComparisonForm() {
+    comparisonGroups = [0]; // Inicializar con un grupo
+    populateYearsForComparison();
+    
+    // Cargar proyectos para todos los grupos existentes
+    const existingGroups = document.querySelectorAll('.comparison-group');
+    existingGroups.forEach(group => {
+        const groupIndex = parseInt(group.dataset.groupIndex);
+        loadProjectsForGroup(groupIndex);
+        setupGroupProjectSearch(groupIndex);
+    });
+    
+    // Configurar botón para agregar grupos
+    const addGroupBtn = document.getElementById('addComparisonGroupBtn');
+    if (addGroupBtn) {
+        addGroupBtn.addEventListener('click', addComparisonGroup);
+    }
+    
+    // Configurar botones de eliminar grupos
+    document.querySelectorAll('.remove-comparison-group-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const group = this.closest('.comparison-group');
+            if (group) {
+                const groupIndex = parseInt(group.dataset.groupIndex);
+                removeComparisonGroup(groupIndex);
+            }
+        });
+    });
+    
+    // Actualizar visibilidad inicial de botones de eliminar
+    updateRemoveButtonsVisibility();
+}
+
+// Poblar años en los selects
+function populateYearsForComparison() {
+    const currentYear = new Date().getFullYear();
+    const yearSelects = document.querySelectorAll('[id^="comparison_group_"][id$="_year"]');
+    
+    yearSelects.forEach(select => {
+        // Limpiar opciones existentes excepto "Todos los años"
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+        
+        // Agregar años desde 2020 hasta el año actual + 1
+        for (let year = 2020; year <= currentYear + 1; year++) {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            select.appendChild(option);
+        }
+    });
+}
+
+// Actualizar visibilidad de botones de eliminar
+function updateRemoveButtonsVisibility() {
+    const groups = document.querySelectorAll('.comparison-group');
+    const shouldShowRemove = groups.length > 1;
+    
+    groups.forEach(group => {
+        const removeBtn = group.querySelector('.remove-comparison-group-btn');
+        if (removeBtn) {
+            removeBtn.style.display = shouldShowRemove ? 'block' : 'none';
+        }
+    });
+}
+
+// Agregar nuevo grupo de comparación
+function addComparisonGroup() {
+    const container = document.getElementById('comparisonGroupsContainer');
+    if (!container) return;
+    
+    const newGroupIndex = comparisonGroups.length;
+    comparisonGroups.push(newGroupIndex);
+    
+    const groupHTML = `
+        <div class="comparison-group" data-group-index="${newGroupIndex}" style="margin-bottom: 24px; padding: 20px; background: rgba(255, 255, 255, 0.03); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                <h4 style="color: #ffffff; font-size: 1.1rem; font-weight: 600; margin: 0;">Grupo ${newGroupIndex + 1}</h4>
+                <button type="button" class="remove-comparison-group-btn" style="background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.3); color: #dc3545; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    Eliminar
+                </button>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Filtros del Grupo</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px;">
+                    <div>
+                        <label for="comparison_group_${newGroupIndex}_year" class="form-label" style="font-size: 0.85rem; margin-bottom: 4px;">Año *</label>
+                        <select id="comparison_group_${newGroupIndex}_year" class="form-select" required>
+                            <option value="">Seleccione un año</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="comparison_group_${newGroupIndex}_month" class="form-label" style="font-size: 0.85rem; margin-bottom: 4px;">Mes (opcional)</label>
+                        <select id="comparison_group_${newGroupIndex}_month" class="form-select">
+                            <option value="">Todos los meses</option>
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="comparison_group_${newGroupIndex}_project" class="form-label" style="font-size: 0.85rem; margin-bottom: 4px;">Proyecto (opcional)</label>
+                        <div id="comparison_group_${newGroupIndex}_project_container" style="position: relative;">
+                            <div class="beneficiaries-search-container" style="margin-bottom: 8px;">
+                                <div class="beneficiaries-search-wrapper">
+                                    <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <path d="m21 21-4.35-4.35"></path>
+                                    </svg>
+                                    <input type="text" id="comparison_group_${newGroupIndex}_project_search" class="beneficiaries-search-input" placeholder="Buscar proyecto..." autocomplete="off" style="font-size: 14px;">
+                                    <button type="button" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="comparison_group_${newGroupIndex}_project_checklist" style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; background: rgba(30, 39, 54, 0.98); backdrop-filter: blur(10px); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5); display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1000;">
+                                <div style="text-align: center; padding: 20px; color: #6c757d;">
+                                    <p>Cargando proyectos...</p>
+                                </div>
+                            </div>
+                            <div id="comparison_group_${newGroupIndex}_selected_project" style="margin-top: 8px; padding: 8px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3); display: none;">
+                                <span style="color: #007bff; font-weight: 600; font-size: 0.85rem;">Ningún proyecto seleccionado</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <small style="color: #6c757d; display: block; margin-top: 8px;">* El año es obligatorio. Si no selecciona proyecto, se buscarán todos los beneficiarios de la fecha.</small>
+            </div>
+
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', groupHTML);
+    
+    // Poblar años para el nuevo grupo
+    populateYearsForComparison();
+    
+    // Cargar proyectos para el nuevo grupo
+    loadProjectsForGroup(newGroupIndex);
+    
+    // Configurar buscador de proyectos para el nuevo grupo
+    setupGroupProjectSearch(newGroupIndex);
+    
+    // Configurar event listener para el botón de eliminar
+    const newGroup = container.querySelector(`[data-group-index="${newGroupIndex}"]`);
+    if (newGroup) {
+        const removeBtn = newGroup.querySelector('.remove-comparison-group-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function() {
+                removeComparisonGroup(newGroupIndex);
+            });
+        }
+    }
+    
+    // Actualizar visibilidad de botones de eliminar
+    updateRemoveButtonsVisibility();
+}
+
+// Eliminar grupo de comparación
+function removeComparisonGroup(groupIndex) {
+    if (comparisonGroups.length <= 1) {
+        mostrarMensaje('warning', 'Debe haber al menos un grupo de comparación');
+        return;
+    }
+    
+    const group = document.querySelector(`[data-group-index="${groupIndex}"]`);
+    if (group) {
+        group.remove();
+        comparisonGroups = comparisonGroups.filter(g => g !== groupIndex);
+        // Renumerar grupos restantes
+        updateGroupNumbers();
+        // Actualizar visibilidad de botones de eliminar
+        updateRemoveButtonsVisibility();
+    }
+}
+
+// Renumerar grupos
+function updateGroupNumbers() {
+    const groups = document.querySelectorAll('.comparison-group');
+    groups.forEach((group, index) => {
+        const title = group.querySelector('h4');
+        if (title) {
+            title.textContent = `Grupo ${index + 1}`;
+        }
+    });
+}
+
+// Variables para proyectos de comparación por grupo
+let comparisonProjectsDataByGroup = {}; // { groupIndex: [proyectos] }
+let selectedProjectsByGroup = {}; // { groupIndex: projectId }
+
+// Cargar proyectos para todos los grupos
+async function loadProjectsForAllGroups() {
+    const groups = document.querySelectorAll('.comparison-group');
+    for (const group of groups) {
+        const groupIndex = parseInt(group.dataset.groupIndex);
+        await loadProjectsForGroup(groupIndex);
+    }
+}
+
+// Cargar proyectos para un grupo específico
+async function loadProjectsForGroup(groupIndex) {
+    const checklist = document.getElementById(`comparison_group_${groupIndex}_project_checklist`);
+    if (!checklist) return;
+    
+    try {
+        checklist.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;"><p>Cargando proyectos...</p></div>';
+        
+        // Obtener proyectos accesibles al usuario
+        const response = await fetch('/api/proyectos/usuario/');
+        if (!response.ok) {
+            throw new Error('Error al cargar proyectos');
+        }
+        const data = await response.json();
+        
+        if (data.success && Array.isArray(data.proyectos)) {
+            comparisonProjectsDataByGroup[groupIndex] = data.proyectos.map(proyecto => ({
+                id: proyecto.id,
+                nombre: proyecto.nombre
+            }));
+            updateGroupProjectsChecklist(groupIndex);
+            updateGroupSelectedProject(groupIndex);
+        } else {
+            console.error('Formato de respuesta inesperado:', data);
+            comparisonProjectsDataByGroup[groupIndex] = [];
+            checklist.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;"><p>Error al cargar proyectos</p></div>';
+        }
+    } catch (error) {
+        console.error(`Error cargando proyectos para grupo ${groupIndex}:`, error);
+        comparisonProjectsDataByGroup[groupIndex] = [];
+        if (checklist) {
+            checklist.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;"><p>Error al cargar proyectos</p></div>';
+        }
+    }
+}
+
+// Actualizar checklist de proyectos para un grupo
+function updateGroupProjectsChecklist(groupIndex, filterQuery = '') {
+    const checklist = document.getElementById(`comparison_group_${groupIndex}_project_checklist`);
+    if (!checklist) return;
+    
+    const proyectos = comparisonProjectsDataByGroup[groupIndex] || [];
+    
+    if (proyectos.length === 0) {
+        checklist.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;"><p>No hay proyectos disponibles</p></div>';
+        return;
+    }
+    
+    // Filtrar si hay búsqueda
+    let proyectosFiltrados = proyectos;
+    if (filterQuery) {
+        const normalizedQuery = filterQuery.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        proyectosFiltrados = proyectos.filter(p => 
+            p.nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(normalizedQuery)
+        );
+    }
+    
+    if (proyectosFiltrados.length === 0) {
+        checklist.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;"><p>No se encontraron proyectos</p></div>';
+        return;
+    }
+    
+    const selectedProjectId = selectedProjectsByGroup[groupIndex] || null;
+    
+    checklist.innerHTML = proyectosFiltrados.map(proyecto => `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; cursor: pointer; border-radius: 6px; transition: background 0.2s;" 
+               onmouseover="this.style.background='rgba(255,255,255,0.05)'" 
+               onmouseout="this.style.background='transparent'">
+            <input type="radio" name="comparison_group_${groupIndex}_project" value="${proyecto.id}" 
+                   ${selectedProjectId === proyecto.id ? 'checked' : ''} 
+                   onchange="selectGroupProject(${groupIndex}, '${proyecto.id}', '${proyecto.nombre.replace(/'/g, "\\'")}')" 
+                   style="width: 18px; height: 18px; cursor: pointer;">
+            <span style="color: #ffffff; font-size: 14px;">${proyecto.nombre}</span>
+        </label>
+    `).join('');
+}
+
+// Seleccionar proyecto para un grupo (solo uno)
+function selectGroupProject(groupIndex, projectId, projectName) {
+    selectedProjectsByGroup[groupIndex] = projectId;
+    updateGroupSelectedProject(groupIndex, projectName);
+    // Ocultar checklist después de seleccionar
+    const checklist = document.getElementById(`comparison_group_${groupIndex}_project_checklist`);
+    if (checklist) {
+        checklist.style.display = 'none';
+    }
+    // Limpiar búsqueda
+    const searchInput = document.getElementById(`comparison_group_${groupIndex}_project_search`);
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    const clearBtn = searchInput?.closest('.beneficiaries-search-wrapper')?.querySelector('.beneficiaries-search-clear-btn');
+    if (clearBtn) {
+        clearBtn.style.display = 'none';
+    }
+}
+
+// Deseleccionar proyecto de un grupo
+function deselectGroupProject(groupIndex) {
+    delete selectedProjectsByGroup[groupIndex];
+    updateGroupSelectedProject(groupIndex);
+    // Desmarcar radio button
+    const radioButtons = document.querySelectorAll(`input[name="comparison_group_${groupIndex}_project"]`);
+    radioButtons.forEach(radio => radio.checked = false);
+}
+
+// Actualizar display del proyecto seleccionado para un grupo
+function updateGroupSelectedProject(groupIndex, projectName = null) {
+    const container = document.getElementById(`comparison_group_${groupIndex}_selected_project`);
+    if (!container) return;
+    
+    const selectedProjectId = selectedProjectsByGroup[groupIndex];
+    
+    if (selectedProjectId && projectName) {
+        container.style.display = 'block';
+        container.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="color: #007bff; font-weight: 600; font-size: 0.85rem;">${projectName}</span>
+                <button type="button" onclick="deselectGroupProject(${groupIndex})" style="background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.3); color: #dc3545; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        `;
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+// Configurar buscador de proyectos para un grupo
+function setupGroupProjectSearch(groupIndex) {
+    const searchInput = document.getElementById(`comparison_group_${groupIndex}_project_search`);
+    const clearBtn = searchInput?.closest('.beneficiaries-search-wrapper')?.querySelector('.beneficiaries-search-clear-btn');
+    const checklist = document.getElementById(`comparison_group_${groupIndex}_project_checklist`);
+    
+    if (searchInput) {
+        searchInput.addEventListener('focus', function() {
+            if (checklist) {
+                checklist.style.display = 'block';
+            }
+        });
+        
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            updateGroupProjectsChecklist(groupIndex, query);
+            
+            if (clearBtn) {
+                clearBtn.style.display = query ? 'flex' : 'none';
+            }
+        });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            if (searchInput) {
+                searchInput.value = '';
+                updateGroupProjectsChecklist(groupIndex, '');
+                this.style.display = 'none';
+            }
+        });
+    }
+    
+    // Cerrar checklist al hacer click fuera
+    document.addEventListener('click', function(e) {
+        const container = document.getElementById(`comparison_group_${groupIndex}_project_container`);
+        if (container && !container.contains(e.target) && checklist) {
+            checklist.style.display = 'none';
+        }
+    });
+}
+
+// Hacer funciones disponibles globalmente
+window.selectGroupProject = selectGroupProject;
+window.deselectGroupProject = deselectGroupProject;
+
+
+// Manejar generación de comparativa
+async function handleGenerateComparison() {
+    try {
+        // Validar que haya al menos un grupo
+        const groups = document.querySelectorAll('.comparison-group');
+        if (groups.length === 0) {
+            mostrarMensaje('error', 'Debe haber al menos un grupo de comparación');
+            return;
+        }
+
+        // Validar que cada grupo tenga un año seleccionado
+        let hasError = false;
+        for (const group of groups) {
+            const groupIndex = parseInt(group.dataset.groupIndex);
+            const yearSelect = document.getElementById(`comparison_group_${groupIndex}_year`);
+            if (!yearSelect || !yearSelect.value) {
+                mostrarMensaje('error', `El grupo ${groupIndex + 1} debe tener un año seleccionado`);
+                hasError = true;
+                break;
+            }
+        }
+        
+        if (hasError) return;
+
+        mostrarMensaje('info', 'Generando comparativa...');
+
+        // Obtener todos los beneficiarios
+        const response = await fetch('/api/beneficiarios/completo/');
+        if (!response.ok) {
+            throw new Error('Error al cargar beneficiarios');
+        }
+        const data = await response.json();
+        
+        if (!data.success || !Array.isArray(data.beneficiarios)) {
+            throw new Error('Formato de respuesta inválido');
+        }
+
+        const allBeneficiarios = data.beneficiarios;
+
+        // Procesar cada grupo
+        const groupsData = [];
+        for (let i = 0; i < groups.length; i++) {
+            const group = groups[i];
+            const groupIndex = parseInt(group.dataset.groupIndex);
+            
+            // Obtener filtros del grupo
+            const year = document.getElementById(`comparison_group_${groupIndex}_year`)?.value || '';
+            const month = document.getElementById(`comparison_group_${groupIndex}_month`)?.value || '';
+            const projectId = selectedProjectsByGroup[groupIndex] || null;
+            
+            // Filtrar beneficiarios según los criterios
+            let filtered = allBeneficiarios;
+            
+            // Si hay proyecto seleccionado, filtrar por beneficiarios de ese proyecto
+            if (projectId) {
+                filtered = filtered.filter(ben => {
+                    return ben.proyectos && ben.proyectos.some(p => p.id === projectId);
+                });
+            }
+            
+            // Filtrar por fechas
+            if (year || month) {
+                filtered = filtered.filter(ben => {
+                    // Si hay proyecto seleccionado, buscar en fechas de asociación y reinscripción
+                    if (projectId) {
+                        // Buscar el proyecto específico
+                        const proyectoBeneficiario = ben.proyectos?.find(p => p.id === projectId);
+                        if (!proyectoBeneficiario) return false;
+                        
+                        // Obtener ambas fechas: creación original y reinscripción
+                        const fechaAgregacion = proyectoBeneficiario.fecha_agregacion || proyectoBeneficiario.fecha;
+                        const fechaReinscripcion = proyectoBeneficiario.fecha_reinscripcion;
+                        
+                        // Lista de fechas a verificar (puede haber múltiples reinscripciones en el futuro)
+                        const fechasAVerificar = [];
+                        if (fechaAgregacion) fechasAVerificar.push(new Date(fechaAgregacion));
+                        if (fechaReinscripcion) fechasAVerificar.push(new Date(fechaReinscripcion));
+                        
+                        // Si no hay ninguna fecha, no puede coincidir
+                        if (fechasAVerificar.length === 0) return false;
+                        
+                        // Verificar si alguna de las fechas coincide con el filtro
+                        const fechaCoincide = fechasAVerificar.some(fecha => {
+                            const añoFecha = fecha.getFullYear();
+                            const mesFecha = fecha.getMonth() + 1;
+                            
+                            // Verificar año
+                            if (year && añoFecha !== parseInt(year)) return false;
+                            
+                            // Verificar mes (si se especificó)
+                            if (month && mesFecha !== parseInt(month)) return false;
+                            
+                            return true;
+                        });
+                        
+                        return fechaCoincide;
+                    } else {
+                        // Sin proyecto: usar fecha de creación del beneficiario en la base de datos
+                        const fechaBeneficiario = ben.creado_en || ben.actualizado_en;
+                        if (!fechaBeneficiario) return false;
+                        
+                        const fecha = new Date(fechaBeneficiario);
+                        const añoBeneficiario = fecha.getFullYear();
+                        const mesBeneficiario = fecha.getMonth() + 1;
+                        
+                        if (year && añoBeneficiario !== parseInt(year)) return false;
+                        if (month && mesBeneficiario !== parseInt(month)) return false;
+                        
+                        return true;
+                    }
+                });
+            }
+            
+            // Crear identificador único para cada beneficiario (usando DPI si existe, o ID)
+            const processed = filtered.map(ben => {
+                const dpi = ben.detalles?.dpi || ben.detalles?.dpi_jefe_familia || ben.detalles?.dpi_representante || null;
+                // Usar DPI como identificador único si existe, sino usar ID
+                const uniqueId = dpi || ben.id;
+                return {
+                    ...ben,
+                    uniqueId: uniqueId,
+                    dpi: dpi
+                };
+            });
+            
+            // Obtener nombre del proyecto si está seleccionado
+            const proyectoNombre = projectId 
+                ? (comparisonProjectsDataByGroup[groupIndex]?.find(p => p.id === projectId)?.nombre || 'Proyecto seleccionado')
+                : null;
+            
+            groupsData.push({
+                index: groupIndex,
+                label: `Grupo ${groupIndex + 1}`,
+                year: year,
+                month: month,
+                projectId: projectId,
+                proyectoNombre: proyectoNombre,
+                beneficiarios: processed
+            });
+        }
+
+        // Calcular beneficiarios repetentes y ausentes
+        const comparisonResults = calculateComparisonResults(groupsData);
+
+        // Mostrar resultados
+        displayComparisonResults(comparisonResults, groupsData);
+        
+        // Cambiar a la vista de resultados
+        showView('comparisonResultsView');
+        
+        mostrarMensaje('success', 'Comparativa generada exitosamente');
+    } catch (error) {
+        console.error('Error generando comparativa:', error);
+        mostrarMensaje('error', 'Error al generar la comparativa: ' + error.message);
+    }
+}
+
+// Calcular resultados de comparación
+function calculateComparisonResults(groupsData) {
+    if (groupsData.length === 0) return { repetentes: [], ausentes: [] };
+    
+    // Obtener todos los uniqueIds de cada grupo
+    const groupIds = groupsData.map(group => 
+        new Set(group.beneficiarios.map(b => b.uniqueId))
+    );
+    
+    // Beneficiarios repetentes: están en TODOS los grupos
+    const repetentesIds = new Set();
+    if (groupIds.length > 0) {
+        const firstGroupIds = groupIds[0];
+        for (const id of firstGroupIds) {
+            if (groupIds.every(groupSet => groupSet.has(id))) {
+                repetentesIds.add(id);
+            }
+        }
+    }
+    
+    // Obtener datos completos de repetentes (del primer grupo)
+    const repetentes = groupsData[0].beneficiarios.filter(b => repetentesIds.has(b.uniqueId));
+    
+    // Beneficiarios ausentes: por cada grupo, los que NO están en otros grupos
+    const ausentes = groupsData.map((group, groupIndex) => {
+        const otherGroupsIds = new Set();
+        groupIds.forEach((ids, idx) => {
+            if (idx !== groupIndex) {
+                ids.forEach(id => otherGroupsIds.add(id));
+            }
+        });
+        
+        return group.beneficiarios.filter(b => !otherGroupsIds.has(b.uniqueId));
+    });
+    
+    return { repetentes, ausentes };
+}
+
+// Mostrar resultados de comparación
+function displayComparisonResults(comparisonResults, groupsData) {
+    const container = document.getElementById('comparisonResultsContent');
+    if (!container) return;
+    
+    const { repetentes, ausentes } = comparisonResults;
+    
+    let html = '';
+    
+    // Sección 1: Listados generales por grupo
+    html += `
+        <div class="comparison-results-section">
+            <div class="comparison-results-header">
+                <h3 class="comparison-results-title">Listados Generales por Grupo</h3>
+                <button type="button" class="comparison-results-toggle" onclick="toggleComparisonSection('general')">
+                    <span>Ocultar</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </button>
+            </div>
+            <div id="generalSection" class="comparison-columns-container ${groupsData.length === 3 ? 'comparison-3-columns' : groupsData.length >= 4 ? 'comparison-4-columns' : ''}">
+    `;
+    
+    groupsData.forEach((group, index) => {
+        let label = `Grupo ${index + 1}`;
+        if (group.proyectoNombre) {
+            label += ` - ${group.proyectoNombre}`;
+        }
+        if (group.year) {
+            label += ` (${group.year}`;
+            if (group.month) {
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                label += `/${meses[parseInt(group.month) - 1]}`;
+            }
+            label += ')';
+        }
+        
+        html += `
+            <div class="comparison-column">
+                <div class="comparison-column-header">
+                    <h4 class="comparison-column-title">${label}</h4>
+                    <span class="comparison-column-count">${group.beneficiarios.length}</span>
+                </div>
+                <div class="comparison-column-search">
+                    <input type="text" class="form-input" placeholder="Buscar en este listado..." 
+                           onkeyup="filterComparisonList(this, 'general_${index}')" 
+                           style="width: 100%; padding: 10px 16px; padding-left: 40px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,255,255,0.05); color: #ffffff;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6c757d; pointer-events: none;">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                </div>
+                <div id="general_${index}_list" class="comparison-beneficiaries-list">
+        `;
+        
+        group.beneficiarios.forEach(ben => {
+            const dpi = ben.dpi || ben.detalles?.dpi || ben.detalles?.dpi_jefe_familia || ben.detalles?.dpi_representante || 'N/A';
+            const comunidad = ben.comunidad_nombre || 'N/A';
+            const nombre = ben.nombre || ben.detalles?.display_name || 'N/A';
+            const searchText = (nombre + ' ' + (dpi !== 'N/A' ? dpi : '') + ' ' + comunidad).toLowerCase();
+            html += `
+                <div class="comparison-beneficiary-item" data-search="${searchText}">
+                    <div class="comparison-beneficiary-name">${nombre}</div>
+                    <div class="comparison-beneficiary-dpi">DPI: ${dpi}</div>
+                    <div class="comparison-beneficiary-comunidad">Comunidad: ${comunidad}</div>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    // Sección 2: Beneficiarios repetentes
+    if (repetentes.length > 0) {
+        html += `
+            <div class="comparison-results-section comparison-repetentes-section">
+                <div class="comparison-results-header">
+                    <h3 class="comparison-results-title">Beneficiarios Repetentes</h3>
+                    <button type="button" class="comparison-results-toggle" onclick="toggleComparisonSection('repetentes')">
+                        <span>Ocultar</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                <div id="repetentesSection" class="comparison-columns-container">
+                    <div class="comparison-column" style="grid-column: 1 / -1;">
+                        <div class="comparison-column-header">
+                            <h4 class="comparison-column-title">Beneficiarios que aparecen en todos los grupos</h4>
+                            <span class="comparison-column-count">${repetentes.length}</span>
+                        </div>
+                        <div class="comparison-column-search">
+                            <input type="text" class="form-input" placeholder="Buscar en este listado..." 
+                                   onkeyup="filterComparisonList(this, 'repetentes')" 
+                                   style="width: 100%; padding: 10px 16px; padding-left: 40px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,255,255,0.05); color: #ffffff;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6c757d; pointer-events: none;">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <path d="m21 21-4.35-4.35"></path>
+                            </svg>
+                        </div>
+                        <div id="repetentes_list" class="comparison-beneficiaries-list">
+        `;
+        
+        repetentes.forEach(ben => {
+            const dpi = ben.dpi || ben.detalles?.dpi || ben.detalles?.dpi_jefe_familia || ben.detalles?.dpi_representante || 'N/A';
+            const comunidad = ben.comunidad_nombre || 'N/A';
+            const nombre = ben.nombre || ben.detalles?.display_name || 'N/A';
+            const searchText = (nombre + ' ' + (dpi !== 'N/A' ? dpi : '') + ' ' + comunidad).toLowerCase();
+            html += `
+                <div class="comparison-beneficiary-item" data-search="${searchText}">
+                    <div class="comparison-beneficiary-name">${nombre}</div>
+                    <div class="comparison-beneficiary-dpi">DPI: ${dpi}</div>
+                    <div class="comparison-beneficiary-comunidad">Comunidad: ${comunidad}</div>
+                </div>
+            `;
+        });
+        
+        html += `
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Sección 3: Beneficiarios ausentes
+    html += `
+        <div class="comparison-results-section comparison-ausentes-section">
+            <div class="comparison-results-header">
+                <h3 class="comparison-results-title">Beneficiarios Ausentes</h3>
+                <button type="button" class="comparison-results-toggle" onclick="toggleComparisonSection('ausentes')">
+                    <span>Ocultar</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </button>
+            </div>
+            <div id="ausentesSection" class="comparison-columns-container ${ausentes.length === 3 ? 'comparison-3-columns' : ausentes.length >= 4 ? 'comparison-4-columns' : ''}">
+    `;
+    
+    ausentes.forEach((grupoAusentes, index) => {
+        // Siempre mostrar el grupo, incluso si está vacío, para mantener el diseño de columnas
+        const group = groupsData[index];
+        let label = `Grupo ${index + 1}`;
+        if (group.proyectoNombre) {
+            label += ` - ${group.proyectoNombre}`;
+        }
+        if (group.year) {
+            label += ` (${group.year}`;
+            if (group.month) {
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                label += `/${meses[parseInt(group.month) - 1]}`;
+            }
+            label += ')';
+        }
+        label += ' (Solo en este grupo)';
+        
+        html += `
+            <div class="comparison-column">
+                <div class="comparison-column-header">
+                    <h4 class="comparison-column-title">${label}</h4>
+                    <span class="comparison-column-count">${grupoAusentes.length}</span>
+                </div>
+                <div class="comparison-column-search">
+                    <input type="text" class="form-input" placeholder="Buscar en este listado..." 
+                           onkeyup="filterComparisonList(this, 'ausentes_${index}')" 
+                           style="width: 100%; padding: 10px 16px; padding-left: 40px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(255,255,255,0.05); color: #ffffff;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6c757d; pointer-events: none;">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                </div>
+                <div id="ausentes_${index}_list" class="comparison-beneficiaries-list">
+        `;
+        
+        if (grupoAusentes.length === 0) {
+            html += `
+                <div style="text-align: center; padding: 40px 20px; color: #6c757d;">
+                    <p style="margin: 0;">No hay beneficiarios ausentes en este grupo</p>
+                    <small style="display: block; margin-top: 8px; font-size: 0.85rem;">Todos los beneficiarios de este grupo aparecen en otros grupos</small>
+                </div>
+            `;
+        } else {
+            grupoAusentes.forEach(ben => {
+                const dpi = ben.dpi || ben.detalles?.dpi || ben.detalles?.dpi_jefe_familia || ben.detalles?.dpi_representante || 'N/A';
+                const comunidad = ben.comunidad_nombre || 'N/A';
+                const nombre = ben.nombre || ben.detalles?.display_name || 'N/A';
+                const searchText = (nombre + ' ' + (dpi !== 'N/A' ? dpi : '') + ' ' + comunidad).toLowerCase();
+                html += `
+                    <div class="comparison-beneficiary-item" data-search="${searchText}">
+                        <div class="comparison-beneficiary-name">${nombre}</div>
+                        <div class="comparison-beneficiary-dpi">DPI: ${dpi}</div>
+                        <div class="comparison-beneficiary-comunidad">Comunidad: ${comunidad}</div>
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Toggle sección de comparación
+function toggleComparisonSection(sectionId) {
+    // Buscar el contenedor de la sección (el div con comparison-columns-container)
+    const section = document.getElementById(sectionId + 'Section');
+    const toggle = event.target.closest('.comparison-results-toggle');
+    
+    if (!section || !toggle) return;
+    
+    // Ocultar/mostrar el contenido pero mantener el contenedor del grid visible
+    const isHidden = section.classList.contains('comparison-section-hidden');
+    
+    if (isHidden) {
+        section.classList.remove('comparison-section-hidden');
+        toggle.querySelector('span').textContent = 'Ocultar';
+        toggle.querySelector('svg').style.transform = 'rotate(0deg)';
+    } else {
+        section.classList.add('comparison-section-hidden');
+        toggle.querySelector('span').textContent = 'Mostrar';
+        toggle.querySelector('svg').style.transform = 'rotate(180deg)';
+    }
+}
+
+// Filtrar listado de comparación
+function filterComparisonList(input, listId) {
+    const query = input.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const list = document.getElementById(listId + '_list');
+    if (!list) return;
+    
+    const items = list.querySelectorAll('.comparison-beneficiary-item');
+    items.forEach(item => {
+        const searchText = item.dataset.search || '';
+        const normalized = searchText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (normalized.includes(query)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Hacer funciones disponibles globalmente
+window.toggleComparisonSection = toggleComparisonSection;
+window.filterComparisonList = filterComparisonList;
+
+// Cargar dashboard de estadísticas
+async function loadStatisticsDashboard() {
+    console.log('Cargando estadísticas...');
+    
+    try {
+        const response = await fetch('/api/beneficiarios/estadisticas/');
+        if (!response.ok) {
+            throw new Error('Error al cargar estadísticas');
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.estadisticas) {
+            throw new Error('Formato de respuesta inválido');
+        }
+        
+        const stats = data.estadisticas;
+        
+        // Actualizar tarjetas de estadísticas
+        const statTotalEl = document.getElementById('statTotalBeneficiarios');
+        const statAlcanzadosEl = document.getElementById('statBeneficiariosAlcanzados');
+        const statMultiplesEl = document.getElementById('statMultiplesProyectos');
+        const statUnSoloEl = document.getElementById('statUnSoloProyecto');
+        const statComunidadesEl = document.getElementById('statComunidadesAlcanzadas');
+        
+        if (statTotalEl) statTotalEl.textContent = stats.total_beneficiarios || 0;
+        if (statAlcanzadosEl) statAlcanzadosEl.textContent = stats.beneficiarios_alcanzados || 0;
+        if (statMultiplesEl) statMultiplesEl.textContent = stats.beneficiarios_multiples_proyectos || 0;
+        if (statUnSoloEl) statUnSoloEl.textContent = stats.beneficiarios_un_solo_proyecto || 0;
+        if (statComunidadesEl) statComunidadesEl.textContent = stats.comunidades_alcanzadas || 0;
+        
+        // Actualizar beneficiarios con habilidades
+        const statHabilidadesEl = document.getElementById('statBeneficiariosConHabilidades');
+        if (statHabilidadesEl) {
+            statHabilidadesEl.textContent = stats.beneficiarios_con_habilidades || 0;
+        }
+        
+        // Renderizar listado de habilidades
+        if (stats.habilidades && Array.isArray(stats.habilidades) && stats.habilidades.length > 0) {
+            renderHabilidadesList(stats.habilidades);
+        } else {
+            const habilidadesListEl = document.getElementById('habilidadesList');
+            if (habilidadesListEl) {
+                habilidadesListEl.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">No hay habilidades registradas</p>';
+            }
+        }
+        
+        // Actualizar gráfico de distribución por género
+        if (stats.distribucion_genero) {
+            renderGenderDistributionChart(stats.distribucion_genero);
+        }
+        
+        // Actualizar top 5 comunidades
+        if (stats.top_comunidades && Array.isArray(stats.top_comunidades)) {
+            renderTopComunidadesChart(stats.top_comunidades);
+        }
+        
+        console.log('Estadísticas cargadas exitosamente');
+        
+    } catch (error) {
+        console.error('Error cargando estadísticas:', error);
+        // Mostrar valores por defecto en caso de error
+        const statTotalEl = document.getElementById('statTotalBeneficiarios');
+        const statAlcanzadosEl = document.getElementById('statBeneficiariosAlcanzados');
+        const statMultiplesEl = document.getElementById('statMultiplesProyectos');
+        const statUnSoloEl = document.getElementById('statUnSoloProyecto');
+        const statComunidadesEl = document.getElementById('statComunidadesAlcanzadas');
+        
+        if (statTotalEl) statTotalEl.textContent = '-';
+        if (statAlcanzadosEl) statAlcanzadosEl.textContent = '-';
+        if (statMultiplesEl) statMultiplesEl.textContent = '-';
+        if (statUnSoloEl) statUnSoloEl.textContent = '-';
+        if (statComunidadesEl) statComunidadesEl.textContent = '-';
+    }
+}
+
+// Función para renderizar gráfico de distribución por género
+function renderGenderDistributionChart(distribucion) {
+    const container = document.getElementById('genderDistributionChart');
+    if (!container) return;
+    
+    const total = distribucion.masculino + distribucion.femenino + distribucion.otro;
+    if (total === 0) {
+        container.innerHTML = '<p style="color: #6c757d;">No hay datos disponibles</p>';
+        return;
+    }
+    
+    const porcentajeMasculino = ((distribucion.masculino / total) * 100).toFixed(1);
+    const porcentajeFemenino = ((distribucion.femenino / total) * 100).toFixed(1);
+    const porcentajeOtro = ((distribucion.otro / total) * 100).toFixed(1);
+    
+    container.innerHTML = `
+        <div style="width: 100%; max-width: 100%; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; gap: 16px; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                    <div style="width: 16px; height: 16px; border-radius: 4px; background: #007bff; flex-shrink: 0;"></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                            <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem;">Masculino</span>
+                            <span style="color: #6c757d; font-size: 0.85rem; white-space: nowrap;">${distribucion.masculino} (${porcentajeMasculino}%)</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                            <div style="width: ${porcentajeMasculino}%; height: 100%; background: #007bff; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                    <div style="width: 16px; height: 16px; border-radius: 4px; background: #28a745; flex-shrink: 0;"></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                            <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem;">Femenino</span>
+                            <span style="color: #6c757d; font-size: 0.85rem; white-space: nowrap;">${distribucion.femenino} (${porcentajeFemenino}%)</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                            <div style="width: ${porcentajeFemenino}%; height: 100%; background: #28a745; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                    <div style="width: 16px; height: 16px; border-radius: 4px; background: #ffc107; flex-shrink: 0;"></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                            <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem;">Otro</span>
+                            <span style="color: #6c757d; font-size: 0.85rem; white-space: nowrap;">${distribucion.otro} (${porcentajeOtro}%)</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                            <div style="width: ${porcentajeOtro}%; height: 100%; background: #ffc107; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Función para renderizar top 5 comunidades
+function renderTopComunidadesChart(topComunidades) {
+    const container = document.getElementById('topComunidadesChart');
+    if (!container) return;
+    
+    if (!topComunidades || topComunidades.length === 0) {
+        container.innerHTML = '<p style="color: #6c757d;">No hay datos disponibles</p>';
+        return;
+    }
+    
+    const maxTotal = Math.max(...topComunidades.map(c => c.total));
+    
+    container.innerHTML = `
+        <div style="width: 100%; max-width: 100%; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                ${topComunidades.map((comunidad, index) => {
+                    const porcentaje = ((comunidad.total / maxTotal) * 100).toFixed(1);
+                    return `
+                        <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0, 123, 255, 0.2); display: flex; align-items: center; justify-content: center; color: #007bff; font-weight: 700; font-size: 0.9rem; flex-shrink: 0;">
+                                ${index + 1}
+                            </div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                                    <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem; word-break: break-word;">${comunidad.nombre}</span>
+                                    <span style="color: #007bff; font-weight: 700; font-size: 1rem; white-space: nowrap; flex-shrink: 0;">${comunidad.total}</span>
+                                </div>
+                                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                                    <div style="width: ${porcentaje}%; height: 100%; background: linear-gradient(90deg, #007bff, #0056b3); transition: width 0.5s ease;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// Función para renderizar listado de habilidades
+function renderHabilidadesList(habilidades) {
+    const container = document.getElementById('habilidadesList');
+    if (!container) return;
+    
+    if (!habilidades || habilidades.length === 0) {
+        container.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">No hay habilidades registradas</p>';
+        return;
+    }
+    
+    // Agrupar habilidades por tipo
+    const habilidadesPorTipo = {};
+    habilidades.forEach(habilidad => {
+        const tipo = habilidad.tipo || 'Sin tipo';
+        if (!habilidadesPorTipo[tipo]) {
+            habilidadesPorTipo[tipo] = [];
+        }
+        habilidadesPorTipo[tipo].push({
+            valor: habilidad.valor,
+            total: habilidad.total
+        });
+    });
+    
+    // Ordenar por total descendente dentro de cada tipo
+    Object.keys(habilidadesPorTipo).forEach(tipo => {
+        habilidadesPorTipo[tipo].sort((a, b) => b.total - a.total);
+    });
+    
+    let html = '<div style="display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 100%; box-sizing: border-box;">';
+    
+    Object.keys(habilidadesPorTipo).sort().forEach(tipo => {
+        const habilidadesTipo = habilidadesPorTipo[tipo];
+        const totalTipo = habilidadesTipo.reduce((sum, h) => sum + h.total, 0);
+        
+        html += `
+            <div style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px; width: 100%; max-width: 100%; box-sizing: border-box;">
+                <h4 style="color: #ffffff; font-size: 0.95rem; font-weight: 600; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ffc107; flex-shrink: 0;">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                        <path d="M2 17l10 5 10-5"></path>
+                        <path d="M2 12l10 5 10-5"></path>
+                    </svg>
+                    <span style="flex: 1; min-width: 0; word-break: break-word;">${tipo}</span>
+                    <span style="color: #6c757d; font-size: 0.85rem; font-weight: normal; white-space: nowrap; flex-shrink: 0;">${totalTipo} beneficiario(s)</span>
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+                    ${habilidadesTipo.map(habilidad => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; transition: all 0.2s; width: 100%; max-width: 100%; box-sizing: border-box; gap: 8px; min-width: 0;">
+                            <span style="color: #b8c5d1; font-size: 0.85rem; flex: 1; min-width: 0; word-break: break-word;">${habilidad.valor}</span>
+                            <span style="color: #ffc107; font-weight: 700; font-size: 0.9rem; background: rgba(255, 193, 7, 0.15); padding: 4px 12px; border-radius: 12px; min-width: 45px; text-align: center; flex-shrink: 0;">${habilidad.total}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
 }
 
 // Inicializar sincronización cuando se muestra el formulario individual

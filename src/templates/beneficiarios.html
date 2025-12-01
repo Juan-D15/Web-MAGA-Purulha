@@ -57,6 +57,26 @@
               </svg>
             </button>
           </div>
+
+          <div class="main-card" id="comparisonsReportsCard">
+            <div class="card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 3v18h18"></path>
+                <path d="M18 7l-5 5-4-4-3 3"></path>
+                <circle cx="7" cy="7" r="1.5"></circle>
+                <circle cx="12" cy="12" r="1.5"></circle>
+                <circle cx="17" cy="17" r="1.5"></circle>
+              </svg>
+            </div>
+            <h3 class="card-title">Comparativas de Beneficiarios</h3>
+            <p class="card-description">Compara beneficiarios entre diferentes proyectos, fechas o comunidades del sistema</p>
+            <button type="button" class="card-button" id="openComparisonsReportsBtn">
+              <span>Generar Comparativa</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Botón de Importar desde Excel -->
@@ -69,6 +89,149 @@
             </svg>
             <span>Importar Beneficiarios desde Excel</span>
           </button>
+        </div>
+
+        <!-- Sección de Estadísticas y Reportes -->
+        <div style="margin-top: 48px; padding-top: 48px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 32px;">
+            <div>
+              <h2 style="color: #ffffff; font-size: 1.5rem; font-weight: 700; margin: 0 0 8px 0;">Reportes de Estadísticas Generales</h2>
+              <p style="color: #6c757d; font-size: 0.95rem; margin: 0;">Visualiza estadísticas y métricas de los beneficiarios del sistema</p>
+            </div>
+            <button type="button" id="generateReportBtn" class="btn-primary" style="padding: 12px 24px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              Generar Reporte
+            </button>
+          </div>
+
+          <div id="statisticsDashboard">
+            <!-- Tarjetas de estadísticas -->
+            <div class="stats-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 32px;">
+              <!-- Total de beneficiarios -->
+              <div class="stat-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                  <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(0, 123, 255, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #007bff;">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                  </div>
+                </div>
+                <h3 style="color: #6c757d; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Total de Beneficiarios</h3>
+                <p id="statTotalBeneficiarios" style="color: #ffffff; font-size: 2rem; font-weight: 700; margin: 0;">-</p>
+              </div>
+
+              <!-- Beneficiarios alcanzados -->
+              <div class="stat-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                  <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(40, 167, 69, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #28a745;">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </div>
+                </div>
+                <h3 style="color: #6c757d; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Beneficiarios Alcanzados</h3>
+                <p id="statBeneficiariosAlcanzados" style="color: #ffffff; font-size: 2rem; font-weight: 700; margin: 0;">-</p>
+                <small style="color: #6c757d; font-size: 0.85rem; margin-top: 4px; display: block;">Con al menos 1 proyecto</small>
+              </div>
+
+              <!-- Beneficiarios con múltiples proyectos -->
+              <div class="stat-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                  <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(255, 193, 7, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ffc107;">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                      <path d="M2 17l10 5 10-5"></path>
+                      <path d="M2 12l10 5 10-5"></path>
+                    </svg>
+                  </div>
+                </div>
+                <h3 style="color: #6c757d; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Con Múltiples Proyectos</h3>
+                <p id="statMultiplesProyectos" style="color: #ffffff; font-size: 2rem; font-weight: 700; margin: 0;">-</p>
+                <small style="color: #6c757d; font-size: 0.85rem; margin-top: 4px; display: block;">Más de 1 proyecto</small>
+              </div>
+
+              <!-- Beneficiarios con un solo proyecto -->
+              <div class="stat-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                  <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(23, 162, 184, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #17a2b8;">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M12 6v6l4 2"></path>
+                    </svg>
+                  </div>
+                </div>
+                <h3 style="color: #6c757d; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Con Un Solo Proyecto</h3>
+                <p id="statUnSoloProyecto" style="color: #ffffff; font-size: 2rem; font-weight: 700; margin: 0;">-</p>
+                <small style="color: #6c757d; font-size: 0.85rem; margin-top: 4px; display: block;">Exactamente 1 proyecto</small>
+              </div>
+
+              <!-- Comunidades con beneficiarios -->
+              <div class="stat-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                  <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(108, 117, 125, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #6c757d;">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                      <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                  </div>
+                </div>
+                <h3 style="color: #6c757d; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Comunidades Alcanzadas</h3>
+                <p id="statComunidadesAlcanzadas" style="color: #ffffff; font-size: 2rem; font-weight: 700; margin: 0;">-</p>
+                <small style="color: #6c757d; font-size: 0.85rem; margin-top: 4px; display: block;">Con beneficiarios</small>
+              </div>
+            </div>
+
+            <!-- Gráficos y distribuciones -->
+            <div class="stats-charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; margin-bottom: 32px;">
+              <!-- Distribución por género -->
+              <div class="stat-chart-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0 0 20px 0;">Distribución por Género</h3>
+                <div id="genderDistributionChart" style="min-height: 250px; display: flex; align-items: center; justify-content: center; color: #6c757d;">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando datos...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Top 5 comunidades -->
+              <div class="stat-chart-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0 0 20px 0;">Top 5 Comunidades con Más Beneficiarios</h3>
+                <div id="topComunidadesChart" style="min-height: 250px; display: flex; align-items: center; justify-content: center; color: #6c757d;">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando datos...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Beneficiarios con Habilidades -->
+            <div class="stat-chart-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0;">Beneficiarios con Habilidades</h3>
+                <div style="background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 12px; padding: 8px 16px;">
+                  <span id="statBeneficiariosConHabilidades" style="color: #ffc107; font-size: 1.5rem; font-weight: 700;">-</span>
+                </div>
+              </div>
+              <div id="habilidadesList" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Cargando habilidades...</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -694,6 +857,165 @@
           </div>
         </div>
       </div>
+
+      <!-- Vista de Comparaciones -->
+      <div id="comparisonsReportsView" class="comparisons-reports-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromComparisonsReportsBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Comparativas de Beneficiarios</h2>
+          <p class="view-subtitle">Compara beneficiarios entre diferentes proyectos, fechas o comunidades del sistema</p>
+        </div>
+      </div>
+
+      <!-- Vista de Generar Comparativa -->
+      <div id="generateComparisonView" class="comparison-form-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromComparisonFormBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <h2 class="view-title">Generar Comparativa de Beneficiarios</h2>
+        </div>
+
+        <div class="form-container">
+          <form id="comparisonForm">
+
+            <!-- Grupos de comparación -->
+            <div id="comparisonGroupsContainer">
+              <div class="form-group" style="margin-bottom: 32px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                  <label class="form-label" style="margin-bottom: 0;">Grupos de Comparación</label>
+                  <button type="button" id="addComparisonGroupBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 0.9rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Agregar Grupo
+                  </button>
+                </div>
+                <small style="color: #6c757d; display: block; margin-bottom: 16px;">Define los grupos de beneficiarios que deseas comparar. Puedes comparar por fechas, proyectos o comunidades.</small>
+                  
+                  <!-- Grupo de comparación 1 -->
+                  <div class="comparison-group" data-group-index="0" style="margin-bottom: 24px; padding: 20px; background: rgba(255, 255, 255, 0.03); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                      <h4 style="color: #ffffff; font-size: 1.1rem; font-weight: 600; margin: 0;">Grupo 1</h4>
+                      <button type="button" class="remove-comparison-group-btn" data-group-index="0" style="background: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.3); color: #dc3545; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; display: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        Eliminar
+                      </button>
+                    </div>
+                    
+                    <!-- Selección de fechas y proyecto -->
+                    <div class="form-group" style="margin-bottom: 16px;">
+                      <label class="form-label">Filtros del Grupo</label>
+                      <div style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px;">
+                        <div>
+                          <label for="comparison_group_0_year" class="form-label" style="font-size: 0.85rem; margin-bottom: 4px;">Año *</label>
+                          <select id="comparison_group_0_year" class="form-select" required>
+                            <option value="">Seleccione un año</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label for="comparison_group_0_month" class="form-label" style="font-size: 0.85rem; margin-bottom: 4px;">Mes (opcional)</label>
+                          <select id="comparison_group_0_month" class="form-select">
+                            <option value="">Todos los meses</option>
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label for="comparison_group_0_project" class="form-label" style="font-size: 0.85rem; margin-bottom: 4px;">Proyecto (opcional)</label>
+                          <div id="comparison_group_0_project_container" style="position: relative;">
+                            <div class="beneficiaries-search-container" style="margin-bottom: 8px;">
+                              <div class="beneficiaries-search-wrapper">
+                                <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <circle cx="11" cy="11" r="8"></circle>
+                                  <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                <input type="text" id="comparison_group_0_project_search" class="beneficiaries-search-input" placeholder="Buscar proyecto..." autocomplete="off" style="font-size: 14px;">
+                                <button type="button" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                            <div id="comparison_group_0_project_checklist" style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; background: rgba(30, 39, 54, 0.98); backdrop-filter: blur(10px); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5); display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1000;">
+                              <div style="text-align: center; padding: 20px; color: #6c757d;">
+                                <p>Cargando proyectos...</p>
+                              </div>
+                            </div>
+                            <div id="comparison_group_0_selected_project" style="margin-top: 8px; padding: 8px; background: rgba(0, 123, 255, 0.1); border-radius: 8px; border: 1px solid rgba(0, 123, 255, 0.3); display: none;">
+                              <span style="color: #007bff; font-weight: 600; font-size: 0.85rem;">Ningún proyecto seleccionado</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <small style="color: #6c757d; display: block; margin-top: 8px;">* El año es obligatorio. Si no selecciona proyecto, se buscarán todos los beneficiarios de la fecha.</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            <!-- Botones de acción -->
+            <div class="form-actions">
+              <button type="button" id="cancelComparisonBtn" class="btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                Cancelar
+              </button>
+              <button type="button" id="generateComparisonBtn" class="btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 3v18h18"></path>
+                  <path d="M18 7l-5 5-4-4-3 3"></path>
+                </svg>
+                Generar Comparativa
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Resultados de Comparativa -->
+      <div id="comparisonResultsView" class="comparison-results-view" style="display: none;">
+        <div class="view-header">
+            <button class="btn-back" id="backFromComparisonResultsBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"></path>
+              </svg>
+              Volver
+            </button>
+            <h2 class="view-title">Resultados de la Comparativa</h2>
+          </div>
+
+        <div id="comparisonResultsContent">
+          <!-- Contenido se generará dinámicamente -->
+        </div>
+      </div>
+
     </div>
   </main>
 
@@ -760,7 +1082,41 @@
             </svg>
             Agregar Atributo a Beneficiario
           </button>
+          <button type="button" id="btnReinscribirProyecto" class="btn-secondary" style="width: 100%; padding: 14px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 0.95rem; background: rgba(0, 123, 255, 0.15); border-color: rgba(0, 123, 255, 0.3); color: #4dabf7; margin-top: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Reinscribir a un Proyecto
+          </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Reinscribir a Proyecto -->
+  <div id="reinscribirProyectoModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Reinscribir Beneficiario a Proyecto</h3>
+        <button class="modal-close" id="closeReinscribirProyectoModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <div id="reinscribirProyectoContent">
+          <div style="text-align: center; padding: 40px; color: #6c757d;">
+            <div class="spinner" style="border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #007bff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+            <p>Cargando proyectos asociados...</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button" id="cancelReinscribirProyectoBtn" class="btn-secondary">Cerrar</button>
       </div>
     </div>
   </div>

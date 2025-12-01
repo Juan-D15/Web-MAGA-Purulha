@@ -3479,3 +3479,7 @@ CREATE TABLE IF NOT EXISTS beneficiario_fotos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_beneficiario_fotos_beneficiario ON beneficiario_fotos(beneficiario_individual_id);
+
+
+ALTER TABLE actividad_beneficiarios 
+ADD COLUMN IF NOT EXISTS fecha_reinscripcion TIMESTAMPTZ NULL;
