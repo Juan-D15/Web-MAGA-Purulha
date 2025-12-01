@@ -126,6 +126,65 @@ except Exception as e:
     # No salir con error, continuar de todos modos
 " 2>&1
 
+# Verificar si fecha_reinscripcion ya existe en actividad_beneficiarios
+echo "Verificando columna fecha_reinscripcion..."
+python -c "
+import os
+import sys
+
+try:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    import django
+    django.setup()
+    
+    from django.db import connection
+    from django.db.migrations.recorder import MigrationRecorder
+    
+    # Verificar si la columna fecha_reinscripcion existe
+    with connection.cursor() as cursor:
+        cursor.execute('''
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'actividad_beneficiarios'
+                AND column_name = 'fecha_reinscripcion'
+            );
+        ''')
+        columna_existe = cursor.fetchone()[0]
+        
+        if columna_existe:
+            print('⚠️ Columna fecha_reinscripcion ya existe en actividad_beneficiarios', file=sys.stderr)
+            print('⚠️ Columna fecha_reinscripcion ya existe en actividad_beneficiarios')
+            
+            # Verificar si la migración 0011 está registrada
+            recorder = MigrationRecorder(connection)
+            migraciones_aplicadas = recorder.applied_migrations()
+            migracion_0011 = ('webmaga', '0011_agregar_fecha_reinscripcion')
+            
+            if migracion_0011 not in migraciones_aplicadas:
+                print('⚠️ Migración 0011 no está registrada, marcándola como aplicada (fake)...', file=sys.stderr)
+                print('⚠️ Migración 0011 no está registrada, marcándola como aplicada (fake)...')
+                try:
+                    recorder.record_applied('webmaga', '0011_agregar_fecha_reinscripcion')
+                    print('✅ Migración 0011 marcada como aplicada exitosamente', file=sys.stderr)
+                    print('✅ Migración 0011 marcada como aplicada exitosamente')
+                except Exception as e:
+                    print(f'⚠️ Error al marcar migración 0011: {e}', file=sys.stderr)
+                    print(f'⚠️ Error al marcar migración 0011: {e}')
+            else:
+                print('✅ Migración 0011 ya está registrada', file=sys.stderr)
+                print('✅ Migración 0011 ya está registrada')
+        else:
+            print('✅ Columna fecha_reinscripcion no existe, migraciones normales procederán', file=sys.stderr)
+            print('✅ Columna fecha_reinscripcion no existe, migraciones normales procederán')
+except Exception as e:
+    print(f'⚠️ Error en verificación de migración 0011: {e}', file=sys.stderr)
+    print(f'⚠️ Error en verificación de migración 0011: {e}')
+    import traceback
+    traceback.print_exc()
+    # No salir con error, continuar de todos modos
+" 2>&1
+
 echo "Ejecutando migraciones..."
 python manage.py migrate --noinput 2>&1
 MIGRATE_EXIT_CODE=$?
@@ -135,9 +194,10 @@ if [ $MIGRATE_EXIT_CODE -eq 0 ]; then
 else
     echo "⚠️ Error en migraciones (código: $MIGRATE_EXIT_CODE)"
     
-    # Si falló, intentar marcar la migración 0010 como fake directamente
-    echo "Intentando marcar migración 0010 como fake como fallback..."
-    python manage.py migrate webmaga 0010 --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar como fake"
+    # Si falló, intentar marcar las migraciones problemáticas como fake directamente
+    echo "Intentando marcar migraciones problemáticas como fake como fallback..."
+    python manage.py migrate webmaga 0010 --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar 0010 como fake"
+    python manage.py migrate webmaga 0011_agregar_fecha_reinscripcion --fake --noinput 2>&1 || echo "⚠️ No se pudo marcar 0011 como fake"
     
     # Intentar migraciones de nuevo
     echo "Reintentando migraciones..."
