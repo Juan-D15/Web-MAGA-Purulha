@@ -2773,3 +2773,709 @@ CREATE INDEX IF NOT EXISTS idx_actividad_personal_actividad_usuario_colab
     WHERE actividad_id IS NOT NULL;
 
 
+
+
+
+
+
+-- CAMBIOS PARA IMPLEMENTACIONES NUEVAS DESPUES DE ENTREGA A AUTORIDADES DEPARTAMENTALES DE MAGA
+
+
+-- =====================================================
+-- MODIFICACIONES: BENEFICIARIOS INDIVIDUALES
+-- =====================================================
+-- Agregar nuevos campos para nombres y apellidos desglosados
+-- y comunidad lingüística
+
+-- Paso 1: Agregar nuevas columnas a beneficiarios_individuales
+ALTER TABLE beneficiarios_individuales
+    ADD COLUMN IF NOT EXISTS primer_nombre VARCHAR(150),
+    ADD COLUMN IF NOT EXISTS segundo_nombre VARCHAR(150),
+    ADD COLUMN IF NOT EXISTS tercer_nombre VARCHAR(150),
+    ADD COLUMN IF NOT EXISTS primer_apellido VARCHAR(150),
+    ADD COLUMN IF NOT EXISTS segundo_apellido VARCHAR(150),
+    ADD COLUMN IF NOT EXISTS apellido_casada VARCHAR(150),
+    ADD COLUMN IF NOT EXISTS comunidad_linguistica VARCHAR(100);
+
+-- Paso 2: Migrar datos existentes (si hay datos)
+-- Mover el campo 'nombre' actual a 'primer_nombre' si existe
+UPDATE beneficiarios_individuales
+SET primer_nombre = nombre
+WHERE primer_nombre IS NULL AND nombre IS NOT NULL;
+
+-- Mover el campo 'apellido' actual a 'primer_apellido' si existe
+UPDATE beneficiarios_individuales
+SET primer_apellido = apellido
+WHERE primer_apellido IS NULL AND apellido IS NOT NULL;
+
+-- Paso 3: Modificar restricciones (hacer primer_nombre y primer_apellido obligatorios)
+-- Primero eliminamos la restricción NOT NULL de los campos antiguos si existen
+ALTER TABLE beneficiarios_individuales
+    ALTER COLUMN nombre DROP NOT NULL,
+    ALTER COLUMN apellido DROP NOT NULL;
+
+-- Establecer NOT NULL en los nuevos campos principales
+ALTER TABLE beneficiarios_individuales
+    ALTER COLUMN primer_nombre SET NOT NULL,
+    ALTER COLUMN primer_apellido SET NOT NULL;
+
+-- Paso 4: Crear índices para búsquedas optimizadas
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_primer_nombre 
+    ON beneficiarios_individuales(primer_nombre);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_primer_apellido 
+    ON beneficiarios_individuales(primer_apellido);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_nombre_completo 
+    ON beneficiarios_individuales(primer_nombre, primer_apellido, segundo_apellido);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_comunidad_linguistica 
+    ON beneficiarios_individuales(comunidad_linguistica) 
+    WHERE comunidad_linguistica IS NOT NULL;
+
+-- Paso 5: Actualizar índice existente de nombre para incluir nuevos campos
+DROP INDEX IF EXISTS idx_beneficiarios_ind_nombre;
+CREATE INDEX idx_beneficiarios_ind_nombre 
+    ON beneficiarios_individuales(primer_nombre, primer_apellido, segundo_apellido, apellido_casada);
+
+-- Comentarios descriptivos
+COMMENT ON COLUMN beneficiarios_individuales.primer_nombre IS 'Primer nombre del beneficiario individual';
+COMMENT ON COLUMN beneficiarios_individuales.segundo_nombre IS 'Segundo nombre del beneficiario individual (opcional)';
+COMMENT ON COLUMN beneficiarios_individuales.tercer_nombre IS 'Tercer nombre del beneficiario individual (opcional)';
+COMMENT ON COLUMN beneficiarios_individuales.primer_apellido IS 'Primer apellido del beneficiario individual';
+COMMENT ON COLUMN beneficiarios_individuales.segundo_apellido IS 'Segundo apellido del beneficiario individual (opcional)';
+COMMENT ON COLUMN beneficiarios_individuales.apellido_casada IS 'Apellido de casada del beneficiario individual (opcional)';
+COMMENT ON COLUMN beneficiarios_individuales.comunidad_linguistica IS 'Comunidad lingüística a la que pertenece el beneficiario (ej: Maya K''iche'', Garífuna, etc.)';
+
+-- =====================================================
+-- NUEVA ESTRUCTURA: ATRIBUTOS DE BENEFICIARIOS
+-- =====================================================
+
+-- TABLA: CATÁLOGO DE TIPOS DE ATRIBUTOS
+CREATE TABLE IF NOT EXISTS beneficiario_atributos_tipos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    codigo VARCHAR(50) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    activo BOOLEAN DEFAULT TRUE,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para tipos de atributos
+CREATE INDEX IF NOT EXISTS idx_atributos_tipos_codigo 
+    ON beneficiario_atributos_tipos(codigo);
+
+CREATE INDEX IF NOT EXISTS idx_atributos_tipos_activo 
+    ON beneficiario_atributos_tipos(activo) 
+    WHERE activo = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_atributos_tipos_nombre 
+    ON beneficiario_atributos_tipos(nombre);
+
+-- Comentarios
+COMMENT ON TABLE beneficiario_atributos_tipos IS 'Catálogo de tipos de atributos que se pueden asignar a beneficiarios individuales (ej: "Capacitado para", "Experto en", etc.)';
+COMMENT ON COLUMN beneficiario_atributos_tipos.codigo IS 'Código único del tipo de atributo (ej: "CAPACITADO_PARA", "EXPERTO_EN")';
+COMMENT ON COLUMN beneficiario_atributos_tipos.nombre IS 'Nombre descriptivo del tipo de atributo (ej: "Capacitado para", "Experto en")';
+
+-- TABLA: VALORES DE ATRIBUTOS (M2M con beneficiarios individuales)
+CREATE TABLE IF NOT EXISTS beneficiario_atributos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    beneficiario_individual_id UUID NOT NULL REFERENCES beneficiarios_individuales(id) ON DELETE CASCADE,
+    atributo_tipo_id UUID NOT NULL REFERENCES beneficiario_atributos_tipos(id) ON DELETE RESTRICT,
+    valor TEXT NOT NULL,
+    descripcion TEXT,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- Evitar duplicados: un beneficiario no puede tener el mismo atributo con el mismo valor
+    UNIQUE(beneficiario_individual_id, atributo_tipo_id, valor)
+);
+
+-- Índices para atributos de beneficiarios
+CREATE INDEX IF NOT EXISTS idx_beneficiario_atributos_beneficiario 
+    ON beneficiario_atributos(beneficiario_individual_id);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiario_atributos_tipo 
+    ON beneficiario_atributos(atributo_tipo_id);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiario_atributos_valor 
+    ON beneficiario_atributos(valor);
+
+-- Índice compuesto para búsquedas optimizadas por tipo y valor
+CREATE INDEX IF NOT EXISTS idx_beneficiario_atributos_tipo_valor 
+    ON beneficiario_atributos(atributo_tipo_id, valor);
+
+-- Índice compuesto para búsquedas por beneficiario y tipo
+CREATE INDEX IF NOT EXISTS idx_beneficiario_atributos_benef_tipo 
+    ON beneficiario_atributos(beneficiario_individual_id, atributo_tipo_id);
+
+-- Índice para búsqueda de texto completo en valor (para filtros avanzados)
+CREATE INDEX IF NOT EXISTS idx_beneficiario_atributos_valor_texto 
+    ON beneficiario_atributos USING gin(to_tsvector('spanish', valor));
+
+-- Comentarios
+COMMENT ON TABLE beneficiario_atributos IS 'Atributos asignados a beneficiarios individuales. Permite múltiples valores del mismo tipo de atributo.';
+COMMENT ON COLUMN beneficiario_atributos.valor IS 'Valor del atributo (ej: "Agricultura", "Construcción", "Carpintería")';
+COMMENT ON COLUMN beneficiario_atributos.descripcion IS 'Descripción adicional del atributo (opcional)';
+
+-- =====================================================
+-- TRIGGERS PARA ACTUALIZACIÓN AUTOMÁTICA
+-- =====================================================
+
+-- Trigger para actualizar timestamp en tipos de atributos
+CREATE TRIGGER trg_atributos_tipos_timestamp 
+    BEFORE UPDATE ON beneficiario_atributos_tipos
+    FOR EACH ROW 
+    EXECUTE FUNCTION actualizar_timestamp();
+
+-- Trigger para actualizar timestamp en atributos
+CREATE TRIGGER trg_beneficiario_atributos_timestamp 
+    BEFORE UPDATE ON beneficiario_atributos
+    FOR EACH ROW 
+    EXECUTE FUNCTION actualizar_timestamp();
+
+-- =====================================================
+-- VISTA: BENEFICIARIOS INDIVIDUALES COMPLETOS CON ATRIBUTOS
+-- =====================================================
+
+CREATE OR REPLACE VIEW vista_beneficiarios_individuales_completos AS
+SELECT 
+    bi.id,
+    bi.beneficiario_id,
+    bi.primer_nombre,
+    bi.segundo_nombre,
+    bi.tercer_nombre,
+    bi.primer_apellido,
+    bi.segundo_apellido,
+    bi.apellido_casada,
+    -- Nombre completo concatenado para búsquedas
+    CONCAT_WS(' ',
+        bi.primer_nombre,
+        bi.segundo_nombre,
+        bi.tercer_nombre,
+        bi.primer_apellido,
+        bi.segundo_apellido,
+        CASE WHEN bi.apellido_casada IS NOT NULL THEN CONCAT('(', bi.apellido_casada, ')') END
+    ) AS nombre_completo,
+    bi.dpi,
+    bi.fecha_nacimiento,
+    bi.genero,
+    bi.telefono,
+    bi.comunidad_linguistica,
+    b.comunidad_id,
+    b.activo,
+    b.version,
+    -- Agregar información de la comunidad
+    c.nombre AS comunidad_nombre,
+    c.codigo AS comunidad_codigo,
+    tc.nombre AS tipo_comunidad,
+    r.nombre AS region_nombre,
+    r.id AS region_id,
+    -- Contar atributos
+    COUNT(DISTINCT ba.id) AS total_atributos,
+    -- Lista de atributos como JSON
+    COALESCE(
+        json_agg(
+            DISTINCT jsonb_build_object(
+                'tipo_id', bat.id,
+                'tipo_codigo', bat.codigo,
+                'tipo_nombre', bat.nombre,
+                'valor', ba.valor,
+                'descripcion', ba.descripcion
+            )
+        ) FILTER (WHERE ba.id IS NOT NULL),
+        '[]'::json
+    ) AS atributos,
+    bi.creado_en,
+    bi.actualizado_en
+FROM beneficiarios_individuales bi
+INNER JOIN beneficiarios b ON bi.beneficiario_id = b.id
+LEFT JOIN comunidades c ON b.comunidad_id = c.id
+LEFT JOIN tipos_comunidad tc ON c.tipo_id = tc.id
+LEFT JOIN regiones r ON c.region_id = r.id
+LEFT JOIN beneficiario_atributos ba ON bi.id = ba.beneficiario_individual_id
+LEFT JOIN beneficiario_atributos_tipos bat ON ba.atributo_tipo_id = bat.id AND bat.activo = TRUE
+GROUP BY 
+    bi.id, bi.beneficiario_id, bi.primer_nombre, bi.segundo_nombre, bi.tercer_nombre,
+    bi.primer_apellido, bi.segundo_apellido, bi.apellido_casada, bi.dpi,
+    bi.fecha_nacimiento, bi.genero, bi.telefono, bi.comunidad_linguistica,
+    b.comunidad_id, b.activo, b.version, c.nombre, c.codigo, tc.nombre,
+    r.nombre, r.id, bi.creado_en, bi.actualizado_en;
+
+-- Comentario de la vista
+COMMENT ON VIEW vista_beneficiarios_individuales_completos IS 'Vista completa de beneficiarios individuales con todos sus datos, comunidad y atributos';
+
+-- =====================================================
+-- FUNCIONES AUXILIARES PARA BÚSQUEDAS
+-- =====================================================
+
+-- Función: Buscar beneficiarios por atributo
+CREATE OR REPLACE FUNCTION buscar_beneficiarios_por_atributo(
+    p_tipo_atributo_codigo VARCHAR(50) DEFAULT NULL,
+    p_valor_atributo TEXT DEFAULT NULL,
+    p_comunidad_id UUID DEFAULT NULL,
+    p_activo BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE (
+    beneficiario_individual_id UUID,
+    nombre_completo TEXT,
+    dpi VARCHAR(20),
+    comunidad_nombre VARCHAR(100),
+    atributos JSONB
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        bi.id,
+        CONCAT_WS(' ',
+            bi.primer_nombre,
+            bi.segundo_nombre,
+            bi.tercer_nombre,
+            bi.primer_apellido,
+            bi.segundo_apellido,
+            CASE WHEN bi.apellido_casada IS NOT NULL THEN CONCAT('(', bi.apellido_casada, ')') END
+        ) AS nombre_completo,
+        bi.dpi,
+        c.nombre AS comunidad_nombre,
+        COALESCE(
+            json_agg(
+                jsonb_build_object(
+                    'tipo', bat.nombre,
+                    'valor', ba.valor
+                )
+            ) FILTER (WHERE ba.id IS NOT NULL),
+            '[]'::json
+        ) AS atributos
+    FROM beneficiarios_individuales bi
+    INNER JOIN beneficiarios b ON bi.beneficiario_id = b.id
+    LEFT JOIN comunidades c ON b.comunidad_id = c.id
+    LEFT JOIN beneficiario_atributos ba ON bi.id = ba.beneficiario_individual_id
+    LEFT JOIN beneficiario_atributos_tipos bat ON ba.atributo_tipo_id = bat.id AND bat.activo = TRUE
+    WHERE 
+        (p_tipo_atributo_codigo IS NULL OR bat.codigo = p_tipo_atributo_codigo)
+        AND (p_valor_atributo IS NULL OR ba.valor ILIKE '%' || p_valor_atributo || '%')
+        AND (p_comunidad_id IS NULL OR b.comunidad_id = p_comunidad_id)
+        AND (p_activo IS NULL OR b.activo = p_activo)
+    GROUP BY bi.id, bi.primer_nombre, bi.segundo_nombre, bi.tercer_nombre,
+             bi.primer_apellido, bi.segundo_apellido, bi.apellido_casada,
+             bi.dpi, c.nombre
+    HAVING COUNT(ba.id) > 0 OR (p_tipo_atributo_codigo IS NULL AND p_valor_atributo IS NULL);
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- DATOS INICIALES: EJEMPLOS DE TIPOS DE ATRIBUTOS
+-- =====================================================
+
+-- Insertar algunos tipos de atributos comunes como ejemplo
+INSERT INTO beneficiario_atributos_tipos (codigo, nombre, descripcion) VALUES
+    ('CAPACITADO_PARA', 'Capacitado para', 'Habilidades o áreas en las que el beneficiario ha sido capacitado'),
+    ('EXPERTO_EN', 'Experto en', 'Áreas de especialización o experiencia del beneficiario'),
+    ('CERTIFICADO_EN', 'Certificado en', 'Certificaciones o acreditaciones que posee el beneficiario'),
+    ('HABILIDAD_ESPECIAL', 'Habilidad especial', 'Habilidades especiales o talentos particulares')
+ON CONFLICT (codigo) DO NOTHING;
+
+-- =====================================================
+-- NOTAS FINALES
+-- =====================================================
+-- 1. Los campos 'nombre' y 'apellido' antiguos se mantienen para compatibilidad
+--    pero se recomienda usar los nuevos campos desglosados
+-- 2. La tabla beneficiario_atributos permite múltiples valores del mismo tipo
+--    (ej: un beneficiario puede estar "Capacitado para" en múltiples áreas)
+-- 3. El índice GIN en 'valor' permite búsquedas de texto completo eficientes
+-- 4. La vista vista_beneficiarios_individuales_completos facilita consultas
+--    sin necesidad de hacer múltiples JOINs manualmente
+-- 5. La función buscar_beneficiarios_por_atributo facilita las búsquedas
+--    con filtros desde la aplicación web
+
+
+
+-- =====================================================
+-- OPTIMIZACIÓN: ÍNDICES PARA BÚSQUEDAS POR FECHA (CORREGIDO)
+-- =====================================================
+-- Versión corregida sin funciones no-IMMUTABLE en índices
+
+-- =====================================================
+-- TABLA: beneficiarios (Principal)
+-- =====================================================
+
+-- Índice para búsquedas por fecha de creación (año, mes, día)
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_creado_en 
+    ON beneficiarios(creado_en);
+
+-- Índice para búsquedas por fecha de actualización
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_actualizado_en 
+    ON beneficiarios(actualizado_en);
+
+-- Índice compuesto para búsquedas por rango de fechas con filtro activo
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_creado_en_activo 
+    ON beneficiarios(creado_en, activo) 
+    WHERE activo = TRUE;
+
+-- Índice para búsquedas por rango de fechas (útil para BETWEEN)
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_creado_en_desc 
+    ON beneficiarios(creado_en DESC) 
+    WHERE creado_en IS NOT NULL;
+
+-- Índice compuesto para búsquedas por tipo y fecha
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_tipo_creado_en 
+    ON beneficiarios(tipo_id, creado_en DESC) 
+    WHERE activo = TRUE;
+
+-- =====================================================
+-- TABLA: beneficiarios_individuales
+-- =====================================================
+
+-- Índice para búsquedas por fecha de creación
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_creado_en 
+    ON beneficiarios_individuales(creado_en);
+
+-- Índice para búsquedas por fecha de actualización
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_actualizado_en 
+    ON beneficiarios_individuales(actualizado_en);
+
+-- Índice compuesto con beneficiario_id para JOINs optimizados
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_benef_creado 
+    ON beneficiarios_individuales(beneficiario_id, creado_en);
+
+-- Índice para búsquedas por rango de fechas
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_ind_creado_en_desc 
+    ON beneficiarios_individuales(creado_en DESC);
+
+-- =====================================================
+-- TABLA: beneficiarios_familias
+-- =====================================================
+
+-- Índice para búsquedas por fecha de creación
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_fam_creado_en 
+    ON beneficiarios_familias(creado_en);
+
+-- Índice para búsquedas por fecha de actualización
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_fam_actualizado_en 
+    ON beneficiarios_familias(actualizado_en);
+
+-- Índice compuesto con beneficiario_id
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_fam_benef_creado 
+    ON beneficiarios_familias(beneficiario_id, creado_en);
+
+-- Índice para búsquedas por rango de fechas
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_fam_creado_en_desc 
+    ON beneficiarios_familias(creado_en DESC);
+
+-- =====================================================
+-- TABLA: beneficiarios_instituciones
+-- =====================================================
+
+-- Índice para búsquedas por fecha de creación
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_inst_creado_en 
+    ON beneficiarios_instituciones(creado_en);
+
+-- Índice para búsquedas por fecha de actualización
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_inst_actualizado_en 
+    ON beneficiarios_instituciones(actualizado_en);
+
+-- Índice compuesto con beneficiario_id
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_inst_benef_creado 
+    ON beneficiarios_instituciones(beneficiario_id, creado_en);
+
+-- Índice para búsquedas por rango de fechas
+CREATE INDEX IF NOT EXISTS idx_beneficiarios_inst_creado_en_desc 
+    ON beneficiarios_instituciones(creado_en DESC);
+
+-- =====================================================
+-- FUNCIÓN IMMUTABLE PARA EXTRAER AÑO (OPCIONAL)
+-- =====================================================
+-- Si necesitas un índice específico por año, puedes crear esta función IMMUTABLE
+
+CREATE OR REPLACE FUNCTION extract_year_immutable(timestamp_value TIMESTAMPTZ)
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN EXTRACT(YEAR FROM timestamp_value)::INTEGER;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Ahora puedes crear índices usando esta función (opcional)
+-- CREATE INDEX IF NOT EXISTS idx_beneficiarios_anio_creado 
+--     ON beneficiarios(extract_year_immutable(creado_en), creado_en);
+
+-- =====================================================
+-- FUNCIONES AUXILIARES PARA COMPARACIONES POR AÑO
+-- =====================================================
+
+-- Función: Obtener beneficiarios por año de creación
+CREATE OR REPLACE FUNCTION obtener_beneficiarios_por_anio(
+    p_anio INTEGER,
+    p_tipo_beneficiario VARCHAR(50) DEFAULT NULL,
+    p_activo BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE (
+    beneficiario_id UUID,
+    tipo_beneficiario VARCHAR(50),
+    nombre_completo TEXT,
+    comunidad_nombre VARCHAR(100),
+    creado_en TIMESTAMPTZ,
+    actualizado_en TIMESTAMPTZ,
+    anio_creacion INTEGER
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        b.id AS beneficiario_id,
+        tb.nombre AS tipo_beneficiario,
+        CASE 
+            WHEN tb.nombre = 'individual' THEN 
+                CONCAT_WS(' ',
+                    COALESCE(bi.primer_nombre, bi.nombre, ''),
+                    COALESCE(bi.segundo_nombre, ''),
+                    COALESCE(bi.tercer_nombre, ''),
+                    COALESCE(bi.primer_apellido, bi.apellido, ''),
+                    COALESCE(bi.segundo_apellido, ''),
+                    CASE WHEN bi.apellido_casada IS NOT NULL 
+                        THEN CONCAT('(', bi.apellido_casada, ')') 
+                        ELSE '' 
+                    END
+                )
+            WHEN tb.nombre = 'familia' THEN bf.nombre_familia
+            WHEN tb.nombre = 'institución' THEN bin.nombre_institucion
+            ELSE 'N/A'
+        END AS nombre_completo,
+        c.nombre AS comunidad_nombre,
+        b.creado_en,
+        b.actualizado_en,
+        EXTRACT(YEAR FROM b.creado_en)::INTEGER AS anio_creacion
+    FROM beneficiarios b
+    INNER JOIN tipos_beneficiario tb ON b.tipo_id = tb.id
+    LEFT JOIN beneficiarios_individuales bi ON b.id = bi.beneficiario_id AND tb.nombre = 'individual'
+    LEFT JOIN beneficiarios_familias bf ON b.id = bf.beneficiario_id AND tb.nombre = 'familia'
+    LEFT JOIN beneficiarios_instituciones bin ON b.id = bin.beneficiario_id AND tb.nombre = 'institución'
+    LEFT JOIN comunidades c ON b.comunidad_id = c.id
+    WHERE 
+        EXTRACT(YEAR FROM b.creado_en) = p_anio
+        AND (p_tipo_beneficiario IS NULL OR tb.nombre = p_tipo_beneficiario)
+        AND (p_activo IS NULL OR b.activo = p_activo)
+    ORDER BY b.creado_en DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función: Comparar beneficiarios entre dos años
+CREATE OR REPLACE FUNCTION comparar_beneficiarios_entre_anios(
+    p_anio_inicio INTEGER,
+    p_anio_fin INTEGER,
+    p_tipo_beneficiario VARCHAR(50) DEFAULT NULL,
+    p_activo BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE (
+    anio INTEGER,
+    total_beneficiarios BIGINT,
+    beneficiarios_individuales BIGINT,
+    beneficiarios_familias BIGINT,
+    beneficiarios_instituciones BIGINT,
+    primer_registro TIMESTAMPTZ,
+    ultimo_registro TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        EXTRACT(YEAR FROM b.creado_en)::INTEGER AS anio,
+        COUNT(*)::BIGINT AS total_beneficiarios,
+        COUNT(*) FILTER (WHERE tb.nombre = 'individual')::BIGINT AS beneficiarios_individuales,
+        COUNT(*) FILTER (WHERE tb.nombre = 'familia')::BIGINT AS beneficiarios_familias,
+        COUNT(*) FILTER (WHERE tb.nombre = 'institución')::BIGINT AS beneficiarios_instituciones,
+        MIN(b.creado_en) AS primer_registro,
+        MAX(b.creado_en) AS ultimo_registro
+    FROM beneficiarios b
+    INNER JOIN tipos_beneficiario tb ON b.tipo_id = tb.id
+    WHERE 
+        EXTRACT(YEAR FROM b.creado_en) BETWEEN p_anio_inicio AND p_anio_fin
+        AND (p_tipo_beneficiario IS NULL OR tb.nombre = p_tipo_beneficiario)
+        AND (p_activo IS NULL OR b.activo = p_activo)
+    GROUP BY EXTRACT(YEAR FROM b.creado_en)
+    ORDER BY anio;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función: Obtener beneficiarios por rango de fechas (más flexible)
+CREATE OR REPLACE FUNCTION obtener_beneficiarios_por_rango_fechas(
+    p_fecha_inicio TIMESTAMPTZ,
+    p_fecha_fin TIMESTAMPTZ,
+    p_tipo_beneficiario VARCHAR(50) DEFAULT NULL,
+    p_activo BOOLEAN DEFAULT TRUE
+)
+RETURNS TABLE (
+    beneficiario_id UUID,
+    tipo_beneficiario VARCHAR(50),
+    nombre_completo TEXT,
+    comunidad_nombre VARCHAR(100),
+    creado_en TIMESTAMPTZ,
+    actualizado_en TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        b.id AS beneficiario_id,
+        tb.nombre AS tipo_beneficiario,
+        CASE 
+            WHEN tb.nombre = 'individual' THEN 
+                CONCAT_WS(' ',
+                    COALESCE(bi.primer_nombre, bi.nombre, ''),
+                    COALESCE(bi.segundo_nombre, ''),
+                    COALESCE(bi.tercer_nombre, ''),
+                    COALESCE(bi.primer_apellido, bi.apellido, ''),
+                    COALESCE(bi.segundo_apellido, ''),
+                    CASE WHEN bi.apellido_casada IS NOT NULL 
+                        THEN CONCAT('(', bi.apellido_casada, ')') 
+                        ELSE '' 
+                    END
+                )
+            WHEN tb.nombre = 'familia' THEN bf.nombre_familia
+            WHEN tb.nombre = 'institución' THEN bin.nombre_institucion
+            ELSE 'N/A'
+        END AS nombre_completo,
+        c.nombre AS comunidad_nombre,
+        b.creado_en,
+        b.actualizado_en
+    FROM beneficiarios b
+    INNER JOIN tipos_beneficiario tb ON b.tipo_id = tb.id
+    LEFT JOIN beneficiarios_individuales bi ON b.id = bi.beneficiario_id AND tb.nombre = 'individual'
+    LEFT JOIN beneficiarios_familias bf ON b.id = bf.beneficiario_id AND tb.nombre = 'familia'
+    LEFT JOIN beneficiarios_instituciones bin ON b.id = bin.beneficiario_id AND tb.nombre = 'institución'
+    LEFT JOIN comunidades c ON b.comunidad_id = c.id
+    WHERE 
+        b.creado_en BETWEEN p_fecha_inicio AND p_fecha_fin
+        AND (p_tipo_beneficiario IS NULL OR tb.nombre = p_tipo_beneficiario)
+        AND (p_activo IS NULL OR b.activo = p_activo)
+    ORDER BY b.creado_en DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función: Obtener estadísticas de beneficiarios por mes y año
+CREATE OR REPLACE FUNCTION estadisticas_beneficiarios_por_mes_anio(
+    p_anio INTEGER DEFAULT NULL,
+    p_tipo_beneficiario VARCHAR(50) DEFAULT NULL
+)
+RETURNS TABLE (
+    anio INTEGER,
+    mes INTEGER,
+    mes_nombre TEXT,
+    total_beneficiarios BIGINT,
+    beneficiarios_nuevos BIGINT,
+    beneficiarios_modificados BIGINT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        EXTRACT(YEAR FROM b.creado_en)::INTEGER AS anio,
+        EXTRACT(MONTH FROM b.creado_en)::INTEGER AS mes,
+        TO_CHAR(b.creado_en, 'Month') AS mes_nombre,
+        COUNT(DISTINCT b.id)::BIGINT AS total_beneficiarios,
+        COUNT(DISTINCT b.id) FILTER (
+            WHERE DATE_TRUNC('month', b.creado_en) = DATE_TRUNC('month', CURRENT_TIMESTAMP)
+        )::BIGINT AS beneficiarios_nuevos,
+        COUNT(DISTINCT b.id) FILTER (
+            WHERE DATE_TRUNC('month', b.actualizado_en) = DATE_TRUNC('month', CURRENT_TIMESTAMP)
+            AND b.actualizado_en > b.creado_en
+        )::BIGINT AS beneficiarios_modificados
+    FROM beneficiarios b
+    INNER JOIN tipos_beneficiario tb ON b.tipo_id = tb.id
+    WHERE 
+        (p_anio IS NULL OR EXTRACT(YEAR FROM b.creado_en) = p_anio)
+        AND (p_tipo_beneficiario IS NULL OR tb.nombre = p_tipo_beneficiario)
+        AND b.activo = TRUE
+    GROUP BY 
+        EXTRACT(YEAR FROM b.creado_en),
+        EXTRACT(MONTH FROM b.creado_en),
+        TO_CHAR(b.creado_en, 'Month')
+    ORDER BY anio DESC, mes DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- VISTA: BENEFICIARIOS CON INFORMACIÓN DE FECHAS
+-- =====================================================
+
+CREATE OR REPLACE VIEW vista_beneficiarios_fechas AS
+SELECT 
+    b.id AS beneficiario_id,
+    tb.nombre AS tipo_beneficiario,
+    b.activo,
+    b.creado_en,
+    b.actualizado_en,
+    EXTRACT(YEAR FROM b.creado_en)::INTEGER AS anio_creacion,
+    EXTRACT(MONTH FROM b.creado_en)::INTEGER AS mes_creacion,
+    EXTRACT(DAY FROM b.creado_en)::INTEGER AS dia_creacion,
+    EXTRACT(YEAR FROM b.actualizado_en)::INTEGER AS anio_actualizacion,
+    EXTRACT(MONTH FROM b.actualizado_en)::INTEGER AS mes_actualizacion,
+    EXTRACT(DAY FROM b.actualizado_en)::INTEGER AS dia_actualizacion,
+    CASE 
+        WHEN b.actualizado_en > b.creado_en THEN TRUE 
+        ELSE FALSE 
+    END AS ha_sido_modificado,
+    EXTRACT(EPOCH FROM (b.actualizado_en - b.creado_en)) / 86400 AS dias_desde_creacion,
+    c.nombre AS comunidad_nombre,
+    c.codigo AS comunidad_codigo,
+    r.nombre AS region_nombre
+FROM beneficiarios b
+INNER JOIN tipos_beneficiario tb ON b.tipo_id = tb.id
+LEFT JOIN comunidades c ON b.comunidad_id = c.id
+LEFT JOIN regiones r ON c.region_id = r.id;
+
+-- Comentario de la vista
+COMMENT ON VIEW vista_beneficiarios_fechas IS 'Vista que facilita consultas y comparaciones de beneficiarios por fechas de creación y modificación';
+
+-- =====================================================
+-- EJEMPLOS DE USO
+-- =====================================================
+
+-- Ejemplo 1: Obtener todos los beneficiarios creados en 2024
+-- SELECT * FROM obtener_beneficiarios_por_anio(2024);
+
+-- Ejemplo 2: Comparar beneficiarios entre 2024 y 2025
+-- SELECT * FROM comparar_beneficiarios_entre_anios(2024, 2025);
+
+-- Ejemplo 3: Obtener beneficiarios por rango de fechas específico
+-- SELECT * FROM obtener_beneficiarios_por_rango_fechas(
+--     '2024-01-01 00:00:00'::TIMESTAMPTZ,
+--     '2024-12-31 23:59:59'::TIMESTAMPTZ
+-- );
+
+-- Ejemplo 4: Buscar beneficiarios individuales creados en 2024
+-- SELECT * FROM obtener_beneficiarios_por_anio(2024, 'individual', TRUE);
+
+-- Ejemplo 5: Usar la vista para consultas personalizadas
+-- SELECT * FROM vista_beneficiarios_fechas 
+-- WHERE anio_creacion = 2024 AND tipo_beneficiario = 'individual';
+
+-- Ejemplo 6: Comparar beneficiarios entre dos años específicos
+-- SELECT 
+--     anio,
+--     total_beneficiarios,
+--     beneficiarios_individuales
+-- FROM comparar_beneficiarios_entre_anios(2024, 2025, 'individual');
+
+-- =====================================================
+-- NOTAS FINALES
+-- =====================================================
+-- 1. Los índices creados optimizarán significativamente las búsquedas por fecha
+-- 2. Las funciones facilitan las comparaciones entre años sin escribir SQL complejo
+-- 3. La vista vista_beneficiarios_fechas permite consultas flexibles
+-- 4. Todos los campos de fecha usan TIMESTAMPTZ para mantener consistencia con zona horaria
+-- 5. Los triggers existentes ya actualizan automáticamente actualizado_en en modificaciones
+-- 6. Se eliminaron los índices con date_trunc() que causaban el error IMMUTABLE
+-- 7. Los índices simples en creado_en y actualizado_en son suficientes para optimizar
+--    las búsquedas por rango de fechas y PostgreSQL los usará eficientemente
+
+
+CREATE TABLE IF NOT EXISTS beneficiario_fotos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    beneficiario_individual_id UUID UNIQUE NOT NULL REFERENCES beneficiarios_individuales(id) ON DELETE CASCADE,
+    archivo_nombre VARCHAR(255) NOT NULL,
+    archivo_tipo VARCHAR(100),
+    archivo_tamanio BIGINT,
+    url_almacenamiento TEXT NOT NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_beneficiario_fotos_beneficiario ON beneficiario_fotos(beneficiario_individual_id);
