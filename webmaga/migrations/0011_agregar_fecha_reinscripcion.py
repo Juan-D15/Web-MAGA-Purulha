@@ -3,36 +3,78 @@
 from django.db import migrations, models
 
 
-def add_fecha_reinscripcion_if_not_exists(apps, schema_editor):
-    """Agrega la columna fecha_reinscripcion solo si no existe"""
+def add_all_columns_if_not_exists(apps, schema_editor):
+    """Agrega todas las columnas solo si no existen (idempotente)"""
     with schema_editor.connection.cursor() as cursor:
-        # Verificar si la columna existe
+        # Verificar columnas existentes en actividad_beneficiarios
         cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.columns 
-                WHERE table_schema = 'public' 
-                AND table_name = 'actividad_beneficiarios'
-                AND column_name = 'fecha_reinscripcion'
-            );
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'actividad_beneficiarios';
         """)
+        columnas_actividad = {row[0] for row in cursor.fetchall()}
         
-        columna_existe = cursor.fetchone()[0]
+        # Verificar columnas existentes en beneficiarios_individuales
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'beneficiarios_individuales';
+        """)
+        columnas_beneficiarios = {row[0] for row in cursor.fetchall()}
         
-        # Agregar columna solo si no existe
-        if not columna_existe:
+        # Agregar fecha_reinscripcion si no existe
+        if 'fecha_reinscripcion' not in columnas_actividad:
             cursor.execute("""
                 ALTER TABLE actividad_beneficiarios 
                 ADD COLUMN fecha_reinscripcion TIMESTAMPTZ NULL;
             """)
+        
+        # Agregar columnas de beneficiarios_individuales si no existen
+        columnas_a_agregar = {
+            'apellido_casada': 'VARCHAR(150)',
+            'comunidad_linguistica': 'VARCHAR(100)',
+            'primer_apellido': 'VARCHAR(150)',
+            'primer_nombre': 'VARCHAR(150)',
+            'segundo_apellido': 'VARCHAR(150)',
+            'segundo_nombre': 'VARCHAR(150)',
+            'tercer_nombre': 'VARCHAR(150)',
+        }
+        
+        for columna, tipo in columnas_a_agregar.items():
+            if columna not in columnas_beneficiarios:
+                cursor.execute(f"""
+                    ALTER TABLE beneficiarios_individuales 
+                    ADD COLUMN {columna} {tipo} NULL;
+                """)
 
 
-def remove_fecha_reinscripcion(apps, schema_editor):
-    """Elimina la columna fecha_reinscripcion si existe"""
+def remove_all_columns(apps, schema_editor):
+    """Elimina todas las columnas agregadas si existen"""
     with schema_editor.connection.cursor() as cursor:
+        # Eliminar fecha_reinscripcion
         cursor.execute("""
             ALTER TABLE actividad_beneficiarios 
             DROP COLUMN IF EXISTS fecha_reinscripcion;
         """)
+        
+        # Eliminar columnas de beneficiarios_individuales
+        columnas_a_eliminar = [
+            'apellido_casada',
+            'comunidad_linguistica',
+            'primer_apellido',
+            'primer_nombre',
+            'segundo_apellido',
+            'segundo_nombre',
+            'tercer_nombre',
+        ]
+        
+        for columna in columnas_a_eliminar:
+            cursor.execute(f"""
+                ALTER TABLE beneficiarios_individuales 
+                DROP COLUMN IF EXISTS {columna};
+            """)
 
 
 class Migration(migrations.Migration):
@@ -42,45 +84,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Usar RunPython para fecha_reinscripcion (idempotente)
+        # Usar RunPython para todas las columnas (idempotente)
         migrations.RunPython(
-            add_fecha_reinscripcion_if_not_exists,
-            remove_fecha_reinscripcion,
-        ),
-        migrations.AddField(
-            model_name='beneficiarioindividual',
-            name='apellido_casada',
-            field=models.CharField(blank=True, max_length=150, null=True),
-        ),
-        migrations.AddField(
-            model_name='beneficiarioindividual',
-            name='comunidad_linguistica',
-            field=models.CharField(blank=True, max_length=100, null=True),
-        ),
-        migrations.AddField(
-            model_name='beneficiarioindividual',
-            name='primer_apellido',
-            field=models.CharField(blank=True, max_length=150, null=True),
-        ),
-        migrations.AddField(
-            model_name='beneficiarioindividual',
-            name='primer_nombre',
-            field=models.CharField(blank=True, max_length=150, null=True),
-        ),
-        migrations.AddField(
-            model_name='beneficiarioindividual',
-            name='segundo_apellido',
-            field=models.CharField(blank=True, max_length=150, null=True),
-        ),
-        migrations.AddField(
-            model_name='beneficiarioindividual',
-            name='segundo_nombre',
-            field=models.CharField(blank=True, max_length=150, null=True),
-        ),
-        migrations.AddField(
-            model_name='beneficiarioindividual',
-            name='tercer_nombre',
-            field=models.CharField(blank=True, max_length=150, null=True),
+            add_all_columns_if_not_exists,
+            remove_all_columns,
         ),
         migrations.AlterField(
             model_name='beneficiarioindividual',
