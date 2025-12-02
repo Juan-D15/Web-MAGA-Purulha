@@ -959,19 +959,8 @@ function initializeBeneficiaryForm() {
                 if (formActions) {
                     formActions.style.display = 'flex';
                 }
-                // Limpiar beneficiarios pendientes
-                beneficiariosPendientesExcel = [];
-                actualizarContadorPendientes();
-                // Limpiar archivo Excel
-                const excelFileInput = document.getElementById('excelFileInput');
-                const excelFileInfo = document.getElementById('excelFileInfo');
-                const excelImportStatus = document.getElementById('excelImportStatus');
-                if (excelFileInput) excelFileInput.value = '';
-                if (excelFileInfo) excelFileInfo.style.display = 'none';
-                if (excelImportStatus) {
-                    excelImportStatus.style.display = 'none';
-                    excelImportStatus.innerHTML = '';
-                }
+                // Limpiar todo el Excel cuando se desactiva
+                limpiarExcelImport();
             }
         });
     } else {
@@ -1029,7 +1018,18 @@ function initializeBeneficiaryForm() {
             const file = e.target.files[0];
             if (file) {
                 importarBeneficiariosExcel(file);
+            } else {
+                // Si no se selecciona archivo, limpiar todo
+                limpiarExcelImport();
             }
+        });
+    }
+    
+    // Botón remover archivo Excel
+    const removeExcelFileBtn = document.getElementById('removeExcelFileBtn');
+    if (removeExcelFileBtn) {
+        removeExcelFileBtn.addEventListener('click', function() {
+            limpiarExcelImport();
         });
     }
     
@@ -1212,6 +1212,9 @@ function resetBeneficiaryForm() {
     if (projectFechaAgregacion) projectFechaAgregacion.value = '';
     const projectFechaAgregacionContainer = document.getElementById('projectFechaAgregacionContainer');
     if (projectFechaAgregacionContainer) projectFechaAgregacionContainer.style.display = 'none';
+    
+    // Limpiar Excel import
+    limpiarExcelImport();
     
     // Limpiar advertencia de DPI y estados
     resetDPIStatus();
@@ -2488,62 +2491,54 @@ async function guardarBeneficiariosExcel() {
     }
     
     try {
-        // Obtener proyectos seleccionados
+        // Obtener proyectos seleccionados de la sección existente del formulario
         const proyectoIds = Array.from(selectedProjects);
         
+        // Obtener fechas
+        const fechaSistemaInput = document.getElementById('excelFechaAgregacionSistemaManual');
+        const fechaProyectoInput = document.getElementById('projectFechaAgregacion');
+        let fechaSistema = fechaSistemaInput ? fechaSistemaInput.value : null;
+        let fechaProyecto = fechaProyectoInput ? fechaProyectoInput.value : null;
+        
+        // Aplicar lógica de fechas antes de enviar
+        // Si no hay ninguna fecha, el backend usará fecha actual para ambos
+        // Si solo hay fecha de sistema, el backend la usará para ambos
+        // Si solo hay fecha de proyecto, el backend la usará para ambos
+        // Si hay ambas, el backend respetará cada una
+        // Pero si hay proyectos y solo hay fecha de sistema, también usarla para proyecto
+        if (proyectoIds.length > 0 && fechaSistema && !fechaProyecto) {
+            fechaProyecto = fechaSistema;
+        }
+        // Si solo hay fecha de proyecto y no hay fecha de sistema, usar esa para sistema también
+        else if (fechaProyecto && !fechaSistema) {
+            fechaSistema = fechaProyecto;
+        }
+        if (proyectoIds.length === 0) {
+            fechaProyecto = null;
+        }
+        
         if (proyectoIds.length > 0) {
-            // Si hay proyectos seleccionados, usar guardar-pendientes para cada proyecto
-            // Esto guarda los beneficiarios Y los vincula directamente al evento
-            let proyectosExitosos = 0;
-            let proyectosConError = 0;
+            // Si hay proyectos seleccionados, usar guardar-general con todos los proyectos
+            const response = await fetch('/api/beneficiarios/guardar-general/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    beneficiarios_pendientes: beneficiariosPendientesExcel,
+                    proyecto_ids: proyectoIds,  // Array de IDs de proyectos
+                    fecha_agregacion_sistema: fechaSistema || null,  // Fecha de agregación al sistema general
+                    fecha_agregacion_proyecto: fechaProyecto || null  // Fecha de asociación a proyectos
+                })
+            });
             
-            for (const proyectoId of proyectoIds) {
-                try {
-                    saveBtn.innerHTML = `
-                        <div class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid #ffffff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px;"></div>
-                        Guardando en proyecto ${proyectosExitosos + 1}/${proyectoIds.length}...
-                    `;
-                    
-                    const response = await fetch('/api/beneficiarios/guardar-pendientes/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCookie('csrftoken')
-                        },
-                        body: JSON.stringify({
-                            actividad_id: proyectoId,
-                            beneficiarios_pendientes: beneficiariosPendientesExcel
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        proyectosExitosos++;
-                        console.log(`✅ Beneficiarios guardados y vinculados al proyecto ${proyectoId}`);
-                    } else {
-                        proyectosConError++;
-                        console.error(`❌ Error al guardar beneficiarios en proyecto ${proyectoId}:`, data.error);
-                    }
-                } catch (error) {
-                    proyectosConError++;
-                    console.error(`❌ Error al guardar beneficiarios en proyecto ${proyectoId}:`, error);
-                }
-            }
+            const data = await response.json();
             
-            // Mensaje final
-            let mensaje = '';
-            if (proyectosExitosos > 0) {
-                mensaje = `Se guardaron ${beneficiariosPendientesExcel.length} beneficiario(s) y se vincularon a ${proyectosExitosos} proyecto(s) exitosamente.`;
-            }
-            if (proyectosConError > 0) {
-                mensaje += ` ${proyectosConError} proyecto(s) tuvieron errores al vincular beneficiarios.`;
-            }
-            
-            if (proyectosExitosos > 0) {
-                mostrarMensaje('success', mensaje);
+            if (data.success) {
+                mostrarMensaje('success', data.message || `Se guardaron ${beneficiariosPendientesExcel.length} beneficiario(s) y se vincularon a ${proyectoIds.length} proyecto(s) exitosamente.`);
             } else {
-                mostrarMensaje('error', 'Error al guardar los beneficiarios en los proyectos seleccionados.');
+                mostrarMensaje('error', data.error || 'Error al guardar los beneficiarios');
             }
         } else {
             // Si no hay proyectos seleccionados, solo guardar en la base de datos general
@@ -2554,7 +2549,10 @@ async function guardarBeneficiariosExcel() {
                     'X-CSRFToken': getCookie('csrftoken')
                 },
                 body: JSON.stringify({
-                    beneficiarios_pendientes: beneficiariosPendientesExcel
+                    beneficiarios_pendientes: beneficiariosPendientesExcel,
+                    proyecto_ids: [],
+                    fecha_agregacion_sistema: fechaSistema || null,
+                    fecha_agregacion_proyecto: null
                 })
             });
             
@@ -2567,9 +2565,8 @@ async function guardarBeneficiariosExcel() {
             }
         }
         
-        // Limpiar beneficiarios pendientes
-        beneficiariosPendientesExcel = [];
-        actualizarContadorPendientes();
+        // Limpiar todo el Excel
+        limpiarExcelImport();
         
         // Limpiar formulario
         resetBeneficiaryForm();
@@ -2729,7 +2726,7 @@ async function importarBeneficiariosExcel(file) {
                 excelImportStatus.innerHTML = statusHTML;
             }
         } else {
-            // Mostrar error
+            // Mostrar error y limpiar si no hay beneficiarios pendientes
             if (excelImportStatus) {
                 excelImportStatus.innerHTML = `
                     <div style="padding: 12px; background: rgba(220, 53, 69, 0.1); border-radius: 8px; border: 1px solid rgba(220, 53, 69, 0.3);">
@@ -2743,6 +2740,10 @@ async function importarBeneficiariosExcel(file) {
                         </div>
                     </div>
                 `;
+            }
+            // Si no hay beneficiarios pendientes después del error, limpiar todo
+            if (beneficiariosPendientesExcel.length === 0) {
+                limpiarExcelImport();
             }
         }
     } catch (error) {
@@ -2762,6 +2763,8 @@ async function importarBeneficiariosExcel(file) {
             `;
         }
         mostrarMensaje('error', 'Error al importar el archivo Excel. Por favor, intente nuevamente.');
+        // Limpiar todo si hay error
+        limpiarExcelImport();
     }
 }
 
@@ -2775,6 +2778,33 @@ function actualizarContadorPendientes() {
     if (excelPendingActions) {
         excelPendingActions.style.display = beneficiariosPendientesExcel.length > 0 ? 'block' : 'none';
     }
+}
+
+// Función para limpiar completamente la importación de Excel
+function limpiarExcelImport() {
+    // Limpiar beneficiarios pendientes
+    beneficiariosPendientesExcel = [];
+    actualizarContadorPendientes();
+    
+    // Limpiar archivo Excel
+    const excelFileInput = document.getElementById('excelFileInput');
+    const excelFileInfo = document.getElementById('excelFileInfo');
+    const excelImportStatus = document.getElementById('excelImportStatus');
+    const excelPendingActions = document.getElementById('excelPendingActions');
+    
+    if (excelFileInput) excelFileInput.value = '';
+    if (excelFileInfo) excelFileInfo.style.display = 'none';
+    if (excelImportStatus) {
+        excelImportStatus.style.display = 'none';
+        excelImportStatus.innerHTML = '';
+    }
+    if (excelPendingActions) {
+        excelPendingActions.style.display = 'none';
+    }
+    
+    // Limpiar fecha de sistema
+    const fechaSistemaInput = document.getElementById('excelFechaAgregacionSistemaManual');
+    if (fechaSistemaInput) fechaSistemaInput.value = '';
 }
 
 // ======================================
@@ -2795,6 +2825,10 @@ function initializeImportExcelGeneral() {
     const excelPendingCountGeneral = document.getElementById('excelPendingCountGeneral');
     const ingresarBeneficiariosBDGeneralBtn = document.getElementById('ingresarBeneficiariosBDGeneralBtn');
     
+    // Variables para proyectos y fechas en Excel
+    let excelSelectedProyectosGeneral = new Set();
+    let excelProyectosDataGeneral = [];
+    
     // Función para actualizar contador de beneficiarios pendientes (general)
     function actualizarContadorPendientesGeneral() {
         const total = beneficiariosPendientesExcelGeneral.length;
@@ -2803,6 +2837,220 @@ function initializeImportExcelGeneral() {
         }
         if (excelPendingActionsGeneral) {
             excelPendingActionsGeneral.style.display = total > 0 ? 'block' : 'none';
+        }
+        // Inicializar proyectos cuando hay beneficiarios pendientes
+        if (total > 0 && excelPendingActionsGeneral && excelPendingActionsGeneral.style.display !== 'none') {
+            setTimeout(() => {
+                inicializarProyectosExcelGeneral();
+            }, 100);
+        }
+    }
+    
+    // Cargar proyectos disponibles para Excel
+    async function cargarProyectosParaExcelGeneral() {
+        try {
+            const response = await fetch('/api/proyectos/usuario/');
+            if (!response.ok) {
+                throw new Error('Error al cargar proyectos');
+            }
+            const data = await response.json();
+            
+            if (data.success && Array.isArray(data.proyectos)) {
+                excelProyectosDataGeneral = data.proyectos.map(proyecto => ({
+                    id: proyecto.id,
+                    nombre: proyecto.nombre
+                }));
+                actualizarChecklistProyectosExcelGeneral();
+            } else {
+                console.error('Formato de respuesta inesperado:', data);
+                excelProyectosDataGeneral = [];
+            }
+        } catch (error) {
+            console.error('Error cargando proyectos:', error);
+            excelProyectosDataGeneral = [];
+        }
+    }
+    
+    // Actualizar checklist de proyectos
+    function actualizarChecklistProyectosExcelGeneral() {
+        const checklist = document.getElementById('excelProyectosSelectChecklist');
+        if (!checklist) return;
+        
+        if (excelProyectosDataGeneral.length === 0) {
+            checklist.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;"><p>No hay proyectos disponibles</p></div>';
+            return;
+        }
+        
+        const fragment = document.createDocumentFragment();
+        excelProyectosDataGeneral.forEach(proyecto => {
+            const li = document.createElement('li');
+            li.style.cssText = 'padding: 10px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 8px;';
+            li.className = 'proyecto-excel-item';
+            li.dataset.proyectoId = proyecto.id;
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = excelSelectedProyectosGeneral.has(proyecto.id);
+            checkbox.style.marginRight = '8px';
+            
+            const label = document.createElement('label');
+            label.textContent = proyecto.nombre;
+            label.style.cssText = 'cursor: pointer; flex: 1; color: #ffffff;';
+            
+            li.appendChild(checkbox);
+            li.appendChild(label);
+            
+            li.addEventListener('click', function(e) {
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                }
+                toggleProyectoExcelGeneral(proyecto.id, checkbox.checked);
+            });
+            
+            fragment.appendChild(li);
+        });
+        
+        checklist.innerHTML = '';
+        checklist.appendChild(fragment);
+    }
+    
+    // Toggle proyecto seleccionado
+    function toggleProyectoExcelGeneral(proyectoId, seleccionado) {
+        if (seleccionado) {
+            excelSelectedProyectosGeneral.add(proyectoId);
+        } else {
+            excelSelectedProyectosGeneral.delete(proyectoId);
+        }
+        actualizarTagsProyectosExcelGeneral();
+        actualizarVisibilidadFechaProyecto();
+    }
+    
+    // Actualizar tags de proyectos seleccionados
+    function actualizarTagsProyectosExcelGeneral() {
+        const tagsContainer = document.getElementById('excelSelectedProyectosTags');
+        if (!tagsContainer) return;
+        
+        tagsContainer.innerHTML = '';
+        
+        if (excelSelectedProyectosGeneral.size === 0) {
+            tagsContainer.innerHTML = '<span class="selected-count" style="color: #007bff; font-weight: 600; font-size: 0.9rem;">0 proyectos seleccionados</span>';
+            return;
+        }
+        
+        excelSelectedProyectosGeneral.forEach(proyectoId => {
+            const proyecto = excelProyectosDataGeneral.find(p => p.id === proyectoId);
+            if (!proyecto) return;
+            
+            const tag = document.createElement('span');
+            tag.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(0, 123, 255, 0.2); border: 1px solid rgba(0, 123, 255, 0.4); border-radius: 6px; color: #4dabf7; font-size: 0.85rem; margin: 4px;';
+            tag.innerHTML = `
+                ${proyecto.nombre}
+                <button type="button" onclick="removeProyectoExcelGeneral('${proyectoId}')" style="background: none; border: none; color: #4dabf7; cursor: pointer; padding: 0; margin-left: 4px; display: flex; align-items: center;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            `;
+            tagsContainer.appendChild(tag);
+        });
+    }
+    
+    // Remover proyecto seleccionado
+    window.removeProyectoExcelGeneral = function(proyectoId) {
+        excelSelectedProyectosGeneral.delete(proyectoId);
+        actualizarTagsProyectosExcelGeneral();
+        actualizarChecklistProyectosExcelGeneral();
+        actualizarVisibilidadFechaProyecto();
+    };
+    
+    // Actualizar visibilidad del campo de fecha de proyecto
+    function actualizarVisibilidadFechaProyecto() {
+        const fechaContainer = document.getElementById('excelFechaProyectoContainer');
+        if (fechaContainer) {
+            fechaContainer.style.display = excelSelectedProyectosGeneral.size > 0 ? 'block' : 'none';
+        }
+    }
+    
+    // Sincronizar fechas según la lógica especificada
+    function sincronizarFechasExcelGeneral() {
+        const fechaSistemaInput = document.getElementById('excelFechaAgregacionSistema');
+        const fechaProyectoInput = document.getElementById('excelFechaAgregacionProyecto');
+        
+        if (!fechaSistemaInput) return;
+        
+        const fechaSistema = fechaSistemaInput.value;
+        const fechaProyecto = fechaProyectoInput ? fechaProyectoInput.value : null;
+        
+        // Si solo hay fecha de sistema, copiar a proyecto (si hay proyectos seleccionados y el campo existe)
+        if (fechaSistema && !fechaProyecto && excelSelectedProyectosGeneral.size > 0 && fechaProyectoInput) {
+            fechaProyectoInput.value = fechaSistema;
+        }
+        // Si solo hay fecha de proyecto, copiar a sistema
+        else if (fechaProyecto && !fechaSistema) {
+            fechaSistemaInput.value = fechaProyecto;
+        }
+        // Si hay ambas, respetar cada una (no hacer nada)
+    }
+    
+    // Inicializar funcionalidad de proyectos en Excel
+    function inicializarProyectosExcelGeneral() {
+        const checkbox = document.getElementById('excelAgregarProyectosCheckbox');
+        const proyectosSection = document.getElementById('excelProyectosSection');
+        const searchInput = document.getElementById('excelProyectosSelectSearch');
+        const checklist = document.getElementById('excelProyectosSelectChecklist');
+        const fechaSistemaInput = document.getElementById('excelFechaAgregacionSistema');
+        const fechaProyectoInput = document.getElementById('excelFechaAgregacionProyecto');
+        
+        // Cargar proyectos
+        cargarProyectosParaExcelGeneral();
+        
+        // Toggle sección de proyectos
+        if (checkbox && proyectosSection) {
+            checkbox.addEventListener('change', function() {
+                proyectosSection.style.display = this.checked ? 'block' : 'none';
+                if (!this.checked) {
+                    excelSelectedProyectosGeneral.clear();
+                    actualizarTagsProyectosExcelGeneral();
+                    actualizarChecklistProyectosExcelGeneral();
+                    actualizarVisibilidadFechaProyecto();
+                }
+            });
+        }
+        
+        // Event listeners para búsqueda
+        if (searchInput && checklist) {
+            searchInput.addEventListener('input', function() {
+                const term = this.value.toLowerCase();
+                const items = checklist.querySelectorAll('.proyecto-excel-item');
+                items.forEach(item => {
+                    const nombre = item.textContent.toLowerCase();
+                    item.style.display = nombre.includes(term) ? 'flex' : 'none';
+                });
+            });
+            
+            const clearBtn = document.getElementById('excelProyectosSelectSearchClear');
+            if (clearBtn) {
+                searchInput.addEventListener('input', function() {
+                    clearBtn.style.display = this.value ? 'flex' : 'none';
+                });
+                clearBtn.addEventListener('click', function() {
+                    searchInput.value = '';
+                    clearBtn.style.display = 'none';
+                    const items = checklist.querySelectorAll('.proyecto-excel-item');
+                    items.forEach(item => {
+                        item.style.display = 'flex';
+                    });
+                });
+            }
+        }
+        
+        // Sincronizar fechas cuando cambian
+        if (fechaSistemaInput) {
+            fechaSistemaInput.addEventListener('change', sincronizarFechasExcelGeneral);
+        }
+        if (fechaProyectoInput) {
+            fechaProyectoInput.addEventListener('change', sincronizarFechasExcelGeneral);
         }
     }
     
@@ -2832,6 +3080,17 @@ function initializeImportExcelGeneral() {
                 excelImportStatusGeneral.style.display = 'none';
                 excelImportStatusGeneral.innerHTML = '';
             }
+            // Limpiar proyectos y fechas
+            excelSelectedProyectosGeneral.clear();
+            const checkbox = document.getElementById('excelAgregarProyectosCheckbox');
+            const proyectosSection = document.getElementById('excelProyectosSection');
+            if (checkbox) checkbox.checked = false;
+            if (proyectosSection) proyectosSection.style.display = 'none';
+            const fechaSistemaInput = document.getElementById('excelFechaAgregacionSistema');
+            const fechaProyectoInput = document.getElementById('excelFechaAgregacionProyecto');
+            if (fechaSistemaInput) fechaSistemaInput.value = '';
+            if (fechaProyectoInput) fechaProyectoInput.value = '';
+            actualizarTagsProyectosExcelGeneral();
             beneficiariosPendientesExcelGeneral = [];
             actualizarContadorPendientesGeneral();
         }
@@ -3064,6 +3323,29 @@ function initializeImportExcelGeneral() {
             `;
             
             try {
+                // Obtener proyectos seleccionados
+                const proyectosSeleccionados = Array.from(excelSelectedProyectosGeneral || new Set());
+                
+                // Obtener fechas
+                const fechaSistemaInput = document.getElementById('excelFechaAgregacionSistema');
+                const fechaProyectoInput = document.getElementById('excelFechaAgregacionProyecto');
+                let fechaSistema = fechaSistemaInput ? fechaSistemaInput.value : null;
+                let fechaProyecto = fechaProyectoInput ? fechaProyectoInput.value : null;
+                
+                // Aplicar lógica de fechas antes de enviar
+                // Si no hay ninguna fecha, el backend usará fecha actual para ambos
+                // Si solo hay fecha de sistema, el backend la usará para ambos
+                // Si solo hay fecha de proyecto, el backend la usará para ambos
+                // Si hay ambas, el backend respetará cada una
+                // Pero si hay proyectos seleccionados y solo hay fecha de sistema, también usarla para proyecto
+                if (proyectosSeleccionados.length > 0 && fechaSistema && !fechaProyecto) {
+                    fechaProyecto = fechaSistema;
+                }
+                // Si no hay proyectos seleccionados, no enviar fecha de proyecto
+                if (proyectosSeleccionados.length === 0) {
+                    fechaProyecto = null;
+                }
+                
                 const response = await fetch('/api/beneficiarios/guardar-general/', {
                     method: 'POST',
                     headers: {
@@ -3071,7 +3353,10 @@ function initializeImportExcelGeneral() {
                         'X-CSRFToken': getCookie('csrftoken')
                     },
                     body: JSON.stringify({
-                        beneficiarios_pendientes: beneficiariosPendientesExcelGeneral
+                        beneficiarios_pendientes: beneficiariosPendientesExcelGeneral,
+                        proyecto_ids: proyectosSeleccionados.length > 0 ? proyectosSeleccionados : [],  // Array de IDs de proyectos
+                        fecha_agregacion_sistema: fechaSistema || null,  // Fecha de agregación al sistema general
+                        fecha_agregacion_proyecto: fechaProyecto || null  // Fecha de asociación a proyectos
                     })
                 });
                 
@@ -4743,8 +5028,15 @@ function createBeneficiaryCard(beneficiario) {
         if (detalles.genero) {
             infoItems.push({ label: 'Género', value: detalles.genero });
         }
-        if (detalles.fecha_nacimiento) {
-            infoItems.push({ label: 'Fecha Nacimiento', value: new Date(detalles.fecha_nacimiento).toLocaleDateString('es-GT') });
+        // Mostrar edad en lugar de fecha de nacimiento
+        if (detalles.edad) {
+            infoItems.push({ label: 'Edad', value: `${detalles.edad} años` });
+        } else if (detalles.fecha_nacimiento) {
+            // Si no hay edad pero hay fecha de nacimiento, calcularla
+            const edad = calcularEdadDesdeFecha(detalles.fecha_nacimiento);
+            if (edad !== null) {
+                infoItems.push({ label: 'Edad', value: `${edad} años` });
+            }
         }
     } else if (tipo === 'familia') {
         infoItems.push({ label: 'Jefe de Familia', value: detalles.jefe_familia || 'N/A' });
@@ -4948,7 +5240,6 @@ async function cargarProyectosAsociadosParaReinscripcion(beneficiarioId) {
         
         proyectos.forEach((proyecto, index) => {
             const fechaAgregacion = proyecto.fecha_agregacion ? new Date(proyecto.fecha_agregacion) : null;
-            const fechaReinscripcion = proyecto.fecha_reinscripcion ? new Date(proyecto.fecha_reinscripcion) : null;
             
             // Obtener años ya usados (solo el año de inscripción original, no el año actual)
             const añosUsados = new Set();
@@ -4957,13 +5248,18 @@ async function cargarProyectosAsociadosParaReinscripcion(beneficiarioId) {
             }
             // No agregamos el año actual ni años de reinscripción previos como restricción
             
+            // Obtener todos los años de reinscripción
+            const añosReinscripcion = proyecto.anos_reinscripcion && proyecto.anos_reinscripcion.length > 0 
+                ? proyecto.anos_reinscripcion 
+                : [];
+            
             html += `
                 <div class="proyecto-reinscripcion-item" style="padding: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
                     <div style="flex: 1;">
                         <h4 style="color: #ffffff; font-size: 1rem; font-weight: 600; margin: 0 0 8px 0;">${proyecto.nombre}</h4>
                         <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; color: #6c757d;">
                             ${fechaAgregacion ? `<span>Inscrito: ${fechaAgregacion.getFullYear()}</span>` : ''}
-                            ${fechaReinscripcion ? `<span>Reinscrito: ${fechaReinscripcion.getFullYear()}</span>` : ''}
+                            ${añosReinscripcion.length > 0 ? `<span>Reinscrito: ${añosReinscripcion.join(', ')}</span>` : ''}
                         </div>
                     </div>
                     <button type="button" class="btn-secondary btn-reinscribir-proyecto" 
@@ -4992,7 +5288,10 @@ async function cargarProyectosAsociadosParaReinscripcion(beneficiarioId) {
                 const proyectoId = this.dataset.proyectoId;
                 const proyectoNombre = this.dataset.proyectoNombre;
                 const añosUsados = JSON.parse(this.dataset.añosUsados || '[]');
-                mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados);
+                // Obtener el proyecto completo para pasar las fechas de reinscripción
+                const proyecto = proyectos.find(p => p.id === proyectoId);
+                const fechasReinscripcion = proyecto?.fechas_reinscripcion || [];
+                mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados, fechasReinscripcion);
             });
         });
         
@@ -5013,14 +5312,14 @@ async function cargarProyectosAsociadosParaReinscripcion(beneficiarioId) {
 }
 
 // Función para mostrar formulario de reinscripción
-function mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados) {
+function mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados, fechasReinscripcion = []) {
     const content = document.getElementById('reinscribirProyectoContent');
     if (!content) return;
     
     // Obtener año actual para establecer como valor por defecto
     const añoActual = new Date().getFullYear();
-    const mesActual = String(new Date().getMonth() + 1).padStart(2, '10');
-    const díaActual = String(new Date().getDate()).padStart(2, '01');
+    const mesActual = String(new Date().getMonth() + 1).padStart(2, '0');
+    const díaActual = String(new Date().getDate()).padStart(2, '0');
     
     // Usar el año actual como valor por defecto (ya no está restringido)
     const fechaPorDefecto = `${añoActual}-${mesActual}-${díaActual}`;
@@ -5054,6 +5353,7 @@ function mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados)
                 </small>
             </div>
             <div id="reinscripcionFechaError" style="display: none; padding: 12px; background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 8px; margin-top: 12px; color: #dc3545; font-size: 0.9rem;"></div>
+            <div id="reinscripcionFechaAdvertencia" style="display: none; padding: 12px; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; margin-top: 12px; color: #ffc107; font-size: 0.9rem;"></div>
             <div class="form-actions" style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
                 <button type="button" id="cancelarReinscripcionBtn" class="btn-secondary">Cancelar</button>
                 <button type="button" id="guardarReinscripcionBtn" class="btn-primary">Guardar Reinscripción</button>
@@ -5088,10 +5388,11 @@ function mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados)
     
     const fechaInput = document.getElementById('reinscripcionFecha');
     const errorDiv = document.getElementById('reinscripcionFechaError');
+    const advertenciaDiv = document.getElementById('reinscripcionFechaAdvertencia');
     
     if (fechaInput) {
         fechaInput.addEventListener('change', function() {
-            validarFechaReinscripcion(this.value, añosUsados, errorDiv);
+            validarFechaReinscripcion(this.value, añosUsados, errorDiv, advertenciaDiv, fechasReinscripcion);
         });
     }
     
@@ -5104,7 +5405,7 @@ function mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados)
                 return;
             }
             
-            if (!validarFechaReinscripcion(fecha, añosUsados, errorDiv)) {
+            if (!validarFechaReinscripcion(fecha, añosUsados, errorDiv, advertenciaDiv, fechasReinscripcion)) {
                 return;
             }
             
@@ -5114,10 +5415,13 @@ function mostrarFormularioReinscripcion(proyectoId, proyectoNombre, añosUsados)
 }
 
 // Función para validar fecha de reinscripción
-function validarFechaReinscripcion(fecha, añosUsados, errorDiv) {
+function validarFechaReinscripcion(fecha, añosUsados, errorDiv, advertenciaDiv, fechasReinscripcion = []) {
     if (!fecha) {
         if (errorDiv) {
             errorDiv.style.display = 'none';
+        }
+        if (advertenciaDiv) {
+            advertenciaDiv.style.display = 'none';
         }
         return false;
     }
@@ -5126,16 +5430,38 @@ function validarFechaReinscripcion(fecha, añosUsados, errorDiv) {
     const añoSeleccionado = fechaSeleccionada.getFullYear();
     
     let error = null;
+    let advertencia = null;
     
-    // Solo validar que no sea el año de inscripción original
+    // Validar que no sea el año de inscripción original
     if (añosUsados.includes(añoSeleccionado)) {
         error = `El año ${añoSeleccionado} es el año de inscripción original. No puedes reinscribir en el mismo año. Selecciona un año diferente.`;
+    } else {
+        // Verificar si ya existe una reinscripción en el mismo año (pero diferente día/mes)
+        const existeReinscripcionMismoAño = fechasReinscripcion.some(fechaStr => {
+            if (!fechaStr) return false;
+            const fechaExistente = new Date(fechaStr);
+            return fechaExistente.getFullYear() === añoSeleccionado;
+        });
+        
+        if (existeReinscripcionMismoAño) {
+            advertencia = 'Ya existe una reinscripción en este año. Se actualizará el día y mes de la fecha de reinscripción existente.';
+        }
     }
     
     if (error && errorDiv) {
         errorDiv.textContent = error;
         errorDiv.style.display = 'block';
+        if (advertenciaDiv) {
+            advertenciaDiv.style.display = 'none';
+        }
         return false;
+    }
+    
+    if (advertencia && advertenciaDiv) {
+        advertenciaDiv.textContent = advertencia;
+        advertenciaDiv.style.display = 'block';
+    } else if (advertenciaDiv) {
+        advertenciaDiv.style.display = 'none';
     }
     
     if (errorDiv) {
@@ -5687,7 +6013,10 @@ async function openBeneficiaryDetailsModal(beneficiarioId) {
                                         ${p.tipo ? `<div><strong>Tipo:</strong> ${p.tipo}</div>` : ''}
                                         ${p.fecha ? `<div><strong>Fecha del Proyecto:</strong> ${new Date(p.fecha).toLocaleDateString('es-GT')}</div>` : ''}
                                         ${p.comunidad ? `<div><strong>Comunidad:</strong> ${p.comunidad}</div>` : ''}
-                                        ${p.fecha_agregacion ? `<div><strong>Agregado al Proyecto:</strong> ${new Date(p.fecha_agregacion).toLocaleDateString('es-GT')}</div>` : ''}
+                                        ${p.fecha_agregacion ? `<div><strong>Inscrito:</strong> ${new Date(p.fecha_agregacion).toLocaleDateString('es-GT')}</div>` : ''}
+                                        ${p.tiene_reinscripciones && p.anos_reinscripcion && p.anos_reinscripcion.length > 0 
+                                            ? `<div><strong>Reinscrito:</strong> ${p.anos_reinscripcion.join(', ')}</div>` 
+                                            : ''}
                                     </div>
                                     ${p.descripcion ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); font-size: 0.85rem;">${p.descripcion}</div>` : ''}
                                 </div>
@@ -6246,10 +6575,67 @@ function updateRemoveButtonsVisibility() {
     });
 }
 
+// Guardar datos de todos los grupos existentes
+function saveComparisonGroupsData() {
+    const groupsData = {};
+    const groups = document.querySelectorAll('.comparison-group');
+    
+    groups.forEach(group => {
+        const groupIndex = parseInt(group.dataset.groupIndex);
+        const yearSelect = document.getElementById(`comparison_group_${groupIndex}_year`);
+        const monthSelect = document.getElementById(`comparison_group_${groupIndex}_month`);
+        const projectId = selectedProjectsByGroup[groupIndex] || null;
+        
+        groupsData[groupIndex] = {
+            year: yearSelect ? yearSelect.value : '',
+            month: monthSelect ? monthSelect.value : '',
+            projectId: projectId
+        };
+    });
+    
+    return groupsData;
+}
+
+// Restaurar datos de todos los grupos
+function restoreComparisonGroupsData(groupsData) {
+    Object.keys(groupsData).forEach(groupIndexStr => {
+        const groupIndex = parseInt(groupIndexStr);
+        const data = groupsData[groupIndex];
+        
+        // Restaurar año
+        const yearSelect = document.getElementById(`comparison_group_${groupIndex}_year`);
+        if (yearSelect && data.year) {
+            yearSelect.value = data.year;
+        }
+        
+        // Restaurar mes
+        const monthSelect = document.getElementById(`comparison_group_${groupIndex}_month`);
+        if (monthSelect && data.month) {
+            monthSelect.value = data.month;
+        }
+        
+        // Restaurar proyecto seleccionado
+        if (data.projectId) {
+            selectedProjectsByGroup[groupIndex] = data.projectId;
+            // Obtener el nombre del proyecto desde los datos cargados
+            const proyectos = comparisonProjectsDataByGroup[groupIndex] || [];
+            const proyecto = proyectos.find(p => p.id === data.projectId);
+            const projectName = proyecto ? proyecto.nombre : null;
+            // Actualizar la visualización del proyecto seleccionado
+            updateGroupSelectedProject(groupIndex, projectName);
+            // Actualizar el checklist para mostrar el proyecto seleccionado
+            updateGroupProjectsChecklist(groupIndex);
+        }
+    });
+}
+
 // Agregar nuevo grupo de comparación
 function addComparisonGroup() {
     const container = document.getElementById('comparisonGroupsContainer');
     if (!container) return;
+    
+    // Guardar datos de los grupos existentes antes de agregar uno nuevo
+    const savedGroupsData = saveComparisonGroupsData();
     
     const newGroupIndex = comparisonGroups.length;
     comparisonGroups.push(newGroupIndex);
@@ -6335,10 +6721,16 @@ function addComparisonGroup() {
     populateYearsForComparison();
     
     // Cargar proyectos para el nuevo grupo
-    loadProjectsForGroup(newGroupIndex);
-    
-    // Configurar buscador de proyectos para el nuevo grupo
-    setupGroupProjectSearch(newGroupIndex);
+    loadProjectsForGroup(newGroupIndex).then(() => {
+        // Configurar buscador de proyectos para el nuevo grupo
+        setupGroupProjectSearch(newGroupIndex);
+        
+        // Restaurar datos de los grupos existentes después de agregar el nuevo
+        // Esperar un poco para asegurar que el DOM esté listo
+        setTimeout(() => {
+            restoreComparisonGroupsData(savedGroupsData);
+        }, 100);
+    });
     
     // Configurar event listener para el botón de eliminar
     const newGroup = container.querySelector(`[data-group-index="${newGroupIndex}"]`);
@@ -6644,14 +7036,25 @@ async function handleGenerateComparison() {
                         const proyectoBeneficiario = ben.proyectos?.find(p => p.id === projectId);
                         if (!proyectoBeneficiario) return false;
                         
-                        // Obtener ambas fechas: creación original y reinscripción
+                        // Obtener fecha de creación original
                         const fechaAgregacion = proyectoBeneficiario.fecha_agregacion || proyectoBeneficiario.fecha;
-                        const fechaReinscripcion = proyectoBeneficiario.fecha_reinscripcion;
                         
-                        // Lista de fechas a verificar (puede haber múltiples reinscripciones en el futuro)
+                        // Lista de fechas a verificar: incluir fecha de agregación y TODAS las fechas de reinscripción de la nueva tabla
                         const fechasAVerificar = [];
                         if (fechaAgregacion) fechasAVerificar.push(new Date(fechaAgregacion));
-                        if (fechaReinscripcion) fechasAVerificar.push(new Date(fechaReinscripcion));
+                        
+                        // Usar fechas_reinscripcion de la nueva tabla (si está disponible)
+                        if (proyectoBeneficiario.fechas_reinscripcion && Array.isArray(proyectoBeneficiario.fechas_reinscripcion)) {
+                            // Agregar todas las fechas de reinscripción de la nueva tabla
+                            proyectoBeneficiario.fechas_reinscripcion.forEach(fechaStr => {
+                                if (fechaStr) {
+                                    fechasAVerificar.push(new Date(fechaStr));
+                                }
+                            });
+                        } else if (proyectoBeneficiario.fecha_reinscripcion) {
+                            // Fallback: usar fecha_reinscripcion si fechas_reinscripcion no está disponible
+                            fechasAVerificar.push(new Date(proyectoBeneficiario.fecha_reinscripcion));
+                        }
                         
                         // Si no hay ninguna fecha, no puede coincidir
                         if (fechasAVerificar.length === 0) return false;

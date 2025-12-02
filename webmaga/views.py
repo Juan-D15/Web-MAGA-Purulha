@@ -2654,17 +2654,59 @@ def api_listar_beneficiarios_completo(request):
             
             # Obtener proyectos/actividades vinculadas
             proyectos = []
+            from django.db import connection
+            from collections import defaultdict
+            
+            # Obtener todos los IDs de actividad_beneficiario para este beneficiario
+            actividad_benef_ids = [str(ab.id) for ab in ben.actividades_prefetch]
+            
+            # Consultar todas las fechas de reinscripción de una vez (optimización)
+            reinscripciones_por_actividad = defaultdict(list)  # Para años
+            fechas_reinscripcion_por_actividad = defaultdict(list)  # Para fechas completas
+            if actividad_benef_ids:
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT 
+                            actividad_beneficiario_id,
+                            fecha_reinscripcion,
+                            EXTRACT(YEAR FROM fecha_reinscripcion)::INTEGER as ano
+                        FROM beneficiario_reinscripciones
+                        WHERE actividad_beneficiario_id = ANY(%s::uuid[])
+                        ORDER BY actividad_beneficiario_id, fecha_reinscripcion DESC
+                    """, [actividad_benef_ids])
+                    
+                    for row in cursor.fetchall():
+                        actividad_benef_id, fecha_reinscripcion, ano = row
+                        reinscripciones_por_actividad[str(actividad_benef_id)].append(ano)
+                        # Guardar la fecha completa como string ISO
+                        if fecha_reinscripcion:
+                            fechas_reinscripcion_por_actividad[str(actividad_benef_id)].append(
+                                fecha_reinscripcion.isoformat() if hasattr(fecha_reinscripcion, 'isoformat') else str(fecha_reinscripcion)
+                            )
+            
             for ab in ben.actividades_prefetch:
                 # Usar fecha_reinscripcion si existe (más reciente), sino usar creado_en
                 fecha_asociacion = ab.fecha_reinscripcion if ab.fecha_reinscripcion else ab.creado_en
+                
+                # Obtener años de reinscripción desde el diccionario pre-cargado
+                anos_reinscripcion = list(set(reinscripciones_por_actividad.get(str(ab.id), [])))
+                anos_reinscripcion.sort(reverse=True)  # Ordenar descendente
+                tiene_reinscripciones = len(anos_reinscripcion) > 0
+                
+                # Obtener todas las fechas de reinscripción (para comparativas)
+                fechas_reinscripcion = fechas_reinscripcion_por_actividad.get(str(ab.id), [])
+                
                 proyectos.append({
                     'id': str(ab.actividad.id),
                     'nombre': ab.actividad.nombre,
                     'fecha': ab.actividad.fecha.isoformat() if ab.actividad.fecha else None,
                     'fecha_agregacion': ab.creado_en.isoformat() if ab.creado_en else None,  # Fecha original en que el beneficiario fue añadido al proyecto
-                    'fecha_reinscripcion': ab.fecha_reinscripcion.isoformat() if ab.fecha_reinscripcion else None,  # Fecha de reinscripción/actualización
+                    'fecha_reinscripcion': ab.fecha_reinscripcion.isoformat() if ab.fecha_reinscripcion else None,  # Fecha de reinscripción/actualización (última)
                     'fecha_asociacion': fecha_asociacion.isoformat() if fecha_asociacion else None,  # Fecha más reciente (reinscripción o creación)
-                    'tipo': ab.actividad.tipo.nombre if ab.actividad.tipo else None
+                    'tipo': ab.actividad.tipo.nombre if ab.actividad.tipo else None,
+                    'tiene_reinscripciones': tiene_reinscripciones,  # Indica si se ha reinscrito alguna vez
+                    'anos_reinscripcion': anos_reinscripcion,  # Lista de años en que se ha reinscrito
+                    'fechas_reinscripcion': fechas_reinscripcion  # Lista completa de fechas de reinscripción (para comparativas)
                 })
             
             # Obtener atributos si es beneficiario individual
@@ -3805,21 +3847,46 @@ def api_agregar_beneficiario_proyectos(request, beneficiario_id):
                                     SET fecha_reinscripcion = %s 
                                     WHERE id = %s
                                 """, [fecha_agregacion_dt, str(actividad_benef.id)])
+                                
+                                # Verificar si ya existe una reinscripción en el mismo año
+                                cursor.execute("""
+                                    SELECT id, fecha_reinscripcion
+                                    FROM beneficiario_reinscripciones 
+                                    WHERE actividad_beneficiario_id = %s 
+                                    AND EXTRACT(YEAR FROM fecha_reinscripcion) = EXTRACT(YEAR FROM %s)
+                                    LIMIT 1
+                                """, [str(actividad_benef.id), fecha_agregacion_dt])
+                                
+                                reinscripcion_existente = cursor.fetchone()
+                                
+                                if reinscripcion_existente:
+                                    # Si existe una reinscripción en el mismo año, actualizar la fecha (día y mes)
+                                    reinscripcion_id = reinscripcion_existente[0]
+                                    cursor.execute("""
+                                        UPDATE beneficiario_reinscripciones 
+                                        SET fecha_reinscripcion = %s,
+                                            creado_en = CURRENT_TIMESTAMP,
+                                            creado_por = %s
+                                        WHERE id = %s
+                                    """, [
+                                        fecha_agregacion_dt,
+                                        str(usuario_maga.id) if usuario_maga else None,
+                                        reinscripcion_id
+                                    ])
+                                else:
+                                    # Si no existe en el mismo año, crear nueva reinscripción
+                                    cursor.execute("""
+                                        INSERT INTO beneficiario_reinscripciones 
+                                        (id, actividad_beneficiario_id, fecha_reinscripcion, creado_en, creado_por)
+                                        VALUES (uuid_generate_v4(), %s, %s, CURRENT_TIMESTAMP, %s)
+                                    """, [
+                                        str(actividad_benef.id),
+                                        fecha_agregacion_dt,
+                                        str(usuario_maga.id) if usuario_maga else None
+                                    ])
                     
                     if creado:
                         agregados += 1
-                    else:
-                        # Si ya existía, se considera una actualización/reinscripción
-                        # Si no se proporcionó fecha, usar la fecha actual
-                        if not fecha_agregacion_dt:
-                            from django.utils import timezone
-                            from django.db import connection
-                            with connection.cursor() as cursor:
-                                cursor.execute("""
-                                    UPDATE actividad_beneficiarios 
-                                    SET fecha_reinscripcion = %s 
-                                    WHERE id = %s
-                                """, [timezone.now(), str(actividad_benef.id)])
                 else:
                     rechazados.append({
                         'id': str(actividad.id),
@@ -3874,10 +3941,49 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
         # Obtener proyectos/actividades vinculadas con más detalles
         proyectos = []
         if hasattr(beneficiario, 'actividades_prefetch'):
+            from django.db import connection
+            from collections import defaultdict
+            
+            # Obtener todos los IDs de actividad_beneficiario
+            actividad_benef_ids = [str(ab.id) for ab in beneficiario.actividades_prefetch]
+            
+            # Consultar todas las fechas de reinscripción de una vez (optimización)
+            reinscripciones_por_actividad = defaultdict(list)  # Para años
+            fechas_reinscripcion_por_actividad = defaultdict(list)  # Para fechas completas
+            if actividad_benef_ids:
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT 
+                            actividad_beneficiario_id,
+                            fecha_reinscripcion,
+                            EXTRACT(YEAR FROM fecha_reinscripcion)::INTEGER as ano
+                        FROM beneficiario_reinscripciones
+                        WHERE actividad_beneficiario_id = ANY(%s::uuid[])
+                        ORDER BY actividad_beneficiario_id, fecha_reinscripcion DESC
+                    """, [actividad_benef_ids])
+                    
+                    for row in cursor.fetchall():
+                        actividad_benef_id, fecha_reinscripcion, ano = row
+                        reinscripciones_por_actividad[str(actividad_benef_id)].append(ano)
+                        # Guardar la fecha completa como string ISO
+                        if fecha_reinscripcion:
+                            fechas_reinscripcion_por_actividad[str(actividad_benef_id)].append(
+                                fecha_reinscripcion.isoformat() if hasattr(fecha_reinscripcion, 'isoformat') else str(fecha_reinscripcion)
+                            )
+            
             for ab in beneficiario.actividades_prefetch:
                 actividad = ab.actividad
                 # Usar fecha_reinscripcion si existe (más reciente), sino usar creado_en
                 fecha_asociacion = ab.fecha_reinscripcion if ab.fecha_reinscripcion else ab.creado_en
+                
+                # Obtener años de reinscripción desde el diccionario pre-cargado
+                anos_reinscripcion = list(set(reinscripciones_por_actividad.get(str(ab.id), [])))
+                anos_reinscripcion.sort(reverse=True)  # Ordenar descendente
+                tiene_reinscripciones = len(anos_reinscripcion) > 0
+                
+                # Obtener todas las fechas de reinscripción (para comparativas)
+                fechas_reinscripcion = fechas_reinscripcion_por_actividad.get(str(ab.id), [])
+                
                 proyectos.append({
                     'id': str(actividad.id),
                     'nombre': actividad.nombre,
@@ -3887,9 +3993,12 @@ def api_beneficiario_detalle_completo(request, beneficiario_id):
                     'comunidad_id': str(actividad.comunidad.id) if actividad.comunidad else None,
                     'descripcion': actividad.descripcion or '',
                     'fecha_agregacion': ab.creado_en.isoformat() if ab.creado_en else None,  # Fecha original en que el beneficiario fue añadido al proyecto
-                    'fecha_reinscripcion': ab.fecha_reinscripcion.isoformat() if ab.fecha_reinscripcion else None,  # Fecha de reinscripción/actualización
+                    'fecha_reinscripcion': ab.fecha_reinscripcion.isoformat() if ab.fecha_reinscripcion else None,  # Fecha de reinscripción/actualización (última)
                     'fecha_asociacion': fecha_asociacion.isoformat() if fecha_asociacion else None,  # Fecha más reciente (reinscripción o creación)
-                    'creado_en': actividad.creado_en.isoformat() if actividad.creado_en else None
+                    'creado_en': actividad.creado_en.isoformat() if actividad.creado_en else None,
+                    'tiene_reinscripciones': tiene_reinscripciones,  # Indica si se ha reinscrito alguna vez
+                    'anos_reinscripcion': anos_reinscripcion,  # Lista de años en que se ha reinscrito
+                    'fechas_reinscripcion': fechas_reinscripcion  # Lista completa de fechas de reinscripción (para comparativas)
                 })
         
         # Obtener atributos si es beneficiario individual
@@ -4809,12 +4918,73 @@ def api_guardar_beneficiarios_general(request):
         
         data = _parse_request_data(request)
         beneficiarios_pendientes = data.get('beneficiarios_pendientes', [])
+        proyecto_ids = data.get('proyecto_ids', [])  # Array de IDs de proyectos
+        fecha_agregacion_sistema = data.get('fecha_agregacion_sistema')  # Fecha de agregación al sistema general
+        fecha_agregacion_proyecto = data.get('fecha_agregacion_proyecto')  # Fecha de asociación a proyectos
         
         if not beneficiarios_pendientes:
             return JsonResponse({
                 'success': False,
                 'error': 'No hay beneficiarios pendientes para guardar'
             }, status=400)
+        
+        # Procesar fechas según la lógica especificada
+        from django.utils.dateparse import parse_date
+        from django.utils import timezone
+        from datetime import datetime
+        
+        fecha_sistema_dt = None
+        if fecha_agregacion_sistema:
+            fecha_parsed = parse_date(fecha_agregacion_sistema)
+            if fecha_parsed:
+                fecha_sistema_dt = timezone.make_aware(
+                    datetime.combine(fecha_parsed, dt_time.min)
+                )
+        
+        fecha_proyecto_dt = None
+        if fecha_agregacion_proyecto:
+            fecha_parsed = parse_date(fecha_agregacion_proyecto)
+            if fecha_parsed:
+                fecha_proyecto_dt = timezone.make_aware(
+                    datetime.combine(fecha_parsed, dt_time.min)
+                )
+        
+        # Lógica de fechas según los requisitos
+        # Si no hay ninguna fecha, usar fecha actual para sistema
+        if not fecha_sistema_dt and not fecha_proyecto_dt:
+            fecha_actual = timezone.now()
+            fecha_sistema_dt = fecha_actual
+            # Solo establecer fecha_proyecto_dt si hay proyectos
+            if proyecto_ids:
+                fecha_proyecto_dt = fecha_actual
+        # Si solo hay fecha de sistema
+        elif fecha_sistema_dt and not fecha_proyecto_dt:
+            # Si hay proyectos, usar fecha de sistema para proyectos también
+            if proyecto_ids:
+                fecha_proyecto_dt = fecha_sistema_dt
+        # Si solo hay fecha de proyecto, usar esa para sistema también
+        elif fecha_proyecto_dt and not fecha_sistema_dt:
+            fecha_sistema_dt = fecha_proyecto_dt
+        # Si hay ambas, respetar cada una (ya están asignadas)
+        
+        # Validar proyectos si se proporcionaron
+        actividades = []
+        if proyecto_ids:
+            actividades = Actividad.objects.filter(
+                id__in=proyecto_ids,
+                eliminado_en__isnull=True
+            )
+            if actividades.count() != len(proyecto_ids):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Uno o más proyectos no encontrados'
+                }, status=400)
+        
+        # Verificar permisos para proyectos
+        is_admin = usuario_maga.rol == 'admin'
+        colaborador_usuario_id = None
+        if hasattr(usuario_maga, 'colaborador') and usuario_maga.colaborador:
+            colaborador_usuario_id = str(usuario_maga.colaborador.id)
         
         # Obtener tipo de beneficiario "individual"
         try:
@@ -4828,6 +4998,7 @@ def api_guardar_beneficiarios_general(request):
         resultados = {
             'creados': 0,
             'actualizados': 0,
+            'vinculados': 0,
             'errores': []
         }
         
@@ -4927,6 +5098,44 @@ def api_guardar_beneficiarios_general(request):
                             beneficiario_individual.save()
                             
                             resultados['actualizados'] += 1
+                            
+                            # Actualizar fecha de creación del beneficiario si se proporciona
+                            if fecha_sistema_dt:
+                                with connection.cursor() as cursor:
+                                    cursor.execute("""
+                                        UPDATE beneficiarios 
+                                        SET creado_en = %s 
+                                        WHERE id = %s
+                                    """, [fecha_sistema_dt, str(beneficiario.id)])
+                            
+                            # Vincular a TODAS las actividades seleccionadas
+                            for actividad in actividades:
+                                # Verificar permisos
+                                puede_agregar = False
+                                if is_admin:
+                                    puede_agregar = True
+                                elif colaborador_usuario_id:
+                                    puede_agregar = ActividadPersonal.objects.filter(
+                                        actividad=actividad,
+                                        colaborador_id=colaborador_usuario_id
+                                    ).exists()
+                                
+                                if puede_agregar:
+                                    actividad_benef, creado = ActividadBeneficiario.objects.get_or_create(
+                                        actividad=actividad,
+                                        beneficiario=beneficiario
+                                    )
+                                    if creado:
+                                        resultados['vinculados'] += 1
+                                    
+                                    # Actualizar fecha de agregación al proyecto
+                                    if fecha_proyecto_dt:
+                                        with connection.cursor() as cursor:
+                                            cursor.execute("""
+                                                UPDATE actividad_beneficiarios 
+                                                SET creado_en = %s 
+                                                WHERE id = %s
+                                            """, [fecha_proyecto_dt, str(actividad_benef.id)])
                                 
                         except Beneficiario.DoesNotExist:
                             resultados['errores'].append({
@@ -4941,6 +5150,15 @@ def api_guardar_beneficiarios_general(request):
                             comunidad=comunidad,
                             activo=True
                         )
+                        
+                        # Actualizar fecha de creación del beneficiario si se proporciona
+                        if fecha_sistema_dt:
+                            with connection.cursor() as cursor:
+                                cursor.execute("""
+                                    UPDATE beneficiarios 
+                                    SET creado_en = %s 
+                                    WHERE id = %s
+                                """, [fecha_sistema_dt, str(beneficiario.id)])
                         
                         BeneficiarioIndividual.objects.create(
                             beneficiario=beneficiario,
@@ -4962,6 +5180,34 @@ def api_guardar_beneficiarios_general(request):
                         
                         resultados['creados'] += 1
                         
+                        # Vincular a TODAS las actividades seleccionadas
+                        for actividad in actividades:
+                            # Verificar permisos
+                            puede_agregar = False
+                            if is_admin:
+                                puede_agregar = True
+                            elif colaborador_usuario_id:
+                                puede_agregar = ActividadPersonal.objects.filter(
+                                    actividad=actividad,
+                                    colaborador_id=colaborador_usuario_id
+                                ).exists()
+                            
+                            if puede_agregar:
+                                actividad_benef = ActividadBeneficiario.objects.create(
+                                    actividad=actividad,
+                                    beneficiario=beneficiario
+                                )
+                                resultados['vinculados'] += 1
+                                
+                                # Actualizar fecha de agregación al proyecto
+                                if fecha_proyecto_dt:
+                                    with connection.cursor() as cursor:
+                                        cursor.execute("""
+                                            UPDATE actividad_beneficiarios 
+                                            SET creado_en = %s 
+                                            WHERE id = %s
+                                        """, [fecha_proyecto_dt, str(actividad_benef.id)])
+                        
                 except Exception as e:
                     resultados['errores'].append({
                         'error': f'Error al procesar beneficiario: {str(e)}',
@@ -4970,6 +5216,8 @@ def api_guardar_beneficiarios_general(request):
                     continue
         
         mensaje = f'Proceso completado: {resultados["creados"]} creados, {resultados["actualizados"]} actualizados'
+        if resultados.get('vinculados', 0) > 0:
+            mensaje += f', {resultados["vinculados"]} vinculados a proyectos'
         if resultados['errores']:
             mensaje += f', {len(resultados["errores"])} errores'
         
@@ -5005,6 +5253,7 @@ def api_guardar_beneficiarios_pendientes(request):
         data = _parse_request_data(request)
         actividad_id = data.get('actividad_id')
         beneficiarios_pendientes = data.get('beneficiarios_pendientes', [])
+        fecha_agregacion_proyecto = data.get('fecha_agregacion')  # Fecha de inscripción al proyecto
         
         if not actividad_id:
             return JsonResponse({
@@ -5141,12 +5390,29 @@ def api_guardar_beneficiarios_pendientes(request):
                             resultados['actualizados'] += 1
                             
                             # Vincular al evento
-                            _, creado = ActividadBeneficiario.objects.get_or_create(
+                            actividad_benef, creado = ActividadBeneficiario.objects.get_or_create(
                                 actividad=actividad,
                                 beneficiario=beneficiario
                             )
                             if creado:
                                 resultados['vinculados'] += 1
+                            
+                            # Si se proporciona fecha de agregación al proyecto, actualizarla
+                            if fecha_agregacion_proyecto:
+                                from django.utils.dateparse import parse_date
+                                from django.utils import timezone
+                                from datetime import datetime
+                                fecha_parsed = parse_date(fecha_agregacion_proyecto)
+                                if fecha_parsed:
+                                    fecha_agregacion_dt = timezone.make_aware(
+                                        datetime.combine(fecha_parsed, dt_time.min)
+                                    )
+                                    with connection.cursor() as cursor:
+                                        cursor.execute("""
+                                            UPDATE actividad_beneficiarios 
+                                            SET creado_en = %s 
+                                            WHERE id = %s
+                                        """, [fecha_agregacion_dt, str(actividad_benef.id)])
                                 
                         except Beneficiario.DoesNotExist:
                             resultados['errores'].append({
@@ -5183,11 +5449,28 @@ def api_guardar_beneficiarios_pendientes(request):
                         resultados['creados'] += 1
                         
                         # Vincular al evento
-                        ActividadBeneficiario.objects.create(
+                        actividad_benef = ActividadBeneficiario.objects.create(
                             actividad=actividad,
                             beneficiario=beneficiario
                         )
                         resultados['vinculados'] += 1
+                        
+                        # Si se proporciona fecha de agregación al proyecto, actualizarla
+                        if fecha_agregacion_proyecto:
+                            from django.utils.dateparse import parse_date
+                            from django.utils import timezone
+                            from datetime import datetime
+                            fecha_parsed = parse_date(fecha_agregacion_proyecto)
+                            if fecha_parsed:
+                                fecha_agregacion_dt = timezone.make_aware(
+                                    datetime.combine(fecha_parsed, dt_time.min)
+                                )
+                                with connection.cursor() as cursor:
+                                    cursor.execute("""
+                                        UPDATE actividad_beneficiarios 
+                                        SET creado_en = %s 
+                                        WHERE id = %s
+                                    """, [fecha_agregacion_dt, str(actividad_benef.id)])
                         
                 except Exception as e:
                     resultados['errores'].append({

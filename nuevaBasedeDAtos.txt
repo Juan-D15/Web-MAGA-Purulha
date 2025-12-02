@@ -3483,3 +3483,11 @@ CREATE INDEX IF NOT EXISTS idx_beneficiario_fotos_beneficiario ON beneficiario_f
 
 ALTER TABLE actividad_beneficiarios 
 ADD COLUMN IF NOT EXISTS fecha_reinscripcion TIMESTAMPTZ NULL;
+
+CREATE TABLE beneficiario_reinscripciones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actividad_beneficiario_id UUID NOT NULL REFERENCES actividad_beneficiarios(id) ON DELETE CASCADE,
+    fecha_reinscripcion TIMESTAMPTZ NOT NULL,
+    creado_en TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL
+);

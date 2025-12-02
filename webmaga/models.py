@@ -639,6 +639,38 @@ class ActividadBeneficiario(models.Model):
         return f"{self.beneficiario} - {self.actividad.nombre}"
 
 
+class BeneficiarioReinscripcion(models.Model):
+    """Historial de reinscripciones de beneficiarios en proyectos/actividades"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actividad_beneficiario = models.ForeignKey(
+        ActividadBeneficiario,
+        on_delete=models.CASCADE,
+        related_name='reinscripciones',
+        db_column='actividad_beneficiario_id'
+    )
+    fecha_reinscripcion = models.DateTimeField(help_text="Fecha en que el beneficiario fue reinscrito")
+    creado_en = models.DateTimeField(auto_now_add=True)
+    creado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reinscripciones_creadas',
+        db_column='creado_por'
+    )
+    
+    class Meta:
+        db_table = 'beneficiario_reinscripciones'
+        verbose_name = 'Reinscripción de Beneficiario'
+        verbose_name_plural = 'Reinscripciones de Beneficiarios'
+        ordering = ['-fecha_reinscripcion']
+        managed = False  # La tabla ya existe en la BD
+    
+    def __str__(self):
+        return f"Reinscripción {self.fecha_reinscripcion.strftime('%Y-%m-%d')} - {self.actividad_beneficiario}"
+
+
 class ActividadComunidad(models.Model):
     """Relación entre actividades y comunidades asociadas"""
 
