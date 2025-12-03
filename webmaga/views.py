@@ -815,12 +815,29 @@ def api_actualizar_perfil_usuario(request):
     try:
         import json
         from django.db import transaction
+        from datetime import timedelta
         data = json.loads(request.body or '{}')
         
         username = data.get('username', '').strip()
         nombre = data.get('nombre', '').strip()
         email = data.get('email', '').strip()
         telefono = data.get('telefono', '').strip()
+        dpi = data.get('dpi', '').strip() if data.get('dpi') else ''
+        descripcion = data.get('descripcion', '').strip() if data.get('descripcion') else ''
+        
+        # Control de tiempo: solo permitir edición cada 15 minutos (excepto admin)
+        if not usuario_maga.es_admin:
+            # Obtener última actualización del usuario
+            ahora = timezone.now()
+            tiempo_limite = usuario_maga.actualizado_en + timedelta(minutes=15)
+            
+            # Si la última actualización fue hace menos de 15 minutos, rechazar
+            if ahora < tiempo_limite:
+                minutos_restantes = (tiempo_limite - ahora).total_seconds() / 60
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Debe esperar {int(minutos_restantes) + 1} minuto(s) antes de poder editar nuevamente. Por favor, intente más tarde.'
+                }, status=429)
         
         # Validaciones
         if not username:
@@ -833,6 +850,22 @@ def api_actualizar_perfil_usuario(request):
             return JsonResponse({
                 'success': False,
                 'error': 'El email es requerido'
+            }, status=400)
+        
+        # Validar formato de email
+        import re
+        email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_regex, email):
+            return JsonResponse({
+                'success': False,
+                'error': 'El formato del email no es válido'
+            }, status=400)
+        
+        # Validar nombre completo: solo letras y espacios
+        if nombre and not re.match(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$', nombre):
+            return JsonResponse({
+                'success': False,
+                'error': 'El nombre completo solo puede contener letras y espacios'
             }, status=400)
         
         # Validar email único (excepto el mismo usuario)
@@ -849,12 +882,13 @@ def api_actualizar_perfil_usuario(request):
                 'error': 'El nombre de usuario ya está en uso'
             }, status=400)
         
-        # Validar teléfono si se proporciona (8 dígitos)
-        if telefono and (not telefono.isdigit() or len(telefono) != 8):
-            return JsonResponse({
-                'success': False,
-                'error': 'El teléfono debe contener exactamente 8 dígitos'
-            }, status=400)
+        # Validar teléfono si se proporciona (8 dígitos, solo números)
+        if telefono:
+            if not telefono.isdigit() or len(telefono) != 8:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El teléfono debe contener exactamente 8 dígitos numéricos'
+                }, status=400)
         
         # Obtener colaborador vinculado si existe
         colaborador = None
@@ -869,6 +903,25 @@ def api_actualizar_perfil_usuario(request):
                     'error': 'El email ya está en uso por otro colaborador'
                 }, status=400)
         
+        # Validar DPI si se proporciona (13 dígitos, solo números, único)
+        if dpi:
+            if not dpi.isdigit() or len(dpi) != 13:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El DPI debe contener exactamente 13 dígitos numéricos'
+                }, status=400)
+            
+            # Validar DPI único en colaboradores (excepto el colaborador vinculado si existe)
+            dpi_query = Colaborador.objects.filter(dpi=dpi)
+            if colaborador:
+                dpi_query = dpi_query.exclude(id=colaborador.id)
+            
+            if dpi_query.exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': 'El DPI ya está en uso por otro colaborador'
+                }, status=400)
+        
         # Actualizar en una transacción para mantener consistencia
         with transaction.atomic():
             # Actualizar usuario
@@ -878,8 +931,7 @@ def api_actualizar_perfil_usuario(request):
             usuario_maga.telefono = telefono if telefono else None
             usuario_maga.save()
             
-            # Si tiene colaborador vinculado, sincronizar campos comunes (nombre, email, telefono)
-            # Estos campos siempre se sincronizan cuando se actualizan (incluso si se borran)
+            # Si tiene colaborador vinculado, sincronizar campos comunes (nombre, email, telefono, dpi, descripcion)
             if colaborador:
                 # Sincronizar nombre: siempre usar el valor enviado (puede ser vacío)
                 colaborador.nombre = nombre if nombre else None
@@ -887,6 +939,10 @@ def api_actualizar_perfil_usuario(request):
                 colaborador.correo = email
                 # Sincronizar teléfono: siempre usar el valor enviado (puede ser vacío)
                 colaborador.telefono = telefono if telefono else None
+                # Sincronizar DPI: usar el valor enviado (puede ser vacío)
+                colaborador.dpi = dpi if dpi else None
+                # Actualizar descripción: usar el valor enviado (puede ser vacío)
+                colaborador.descripcion = descripcion if descripcion else None
                 colaborador.save()
         
         return JsonResponse({
@@ -15039,4 +15095,239 @@ def api_login(request):
         return JsonResponse({
             'success': False,
             'error': 'Error interno del servidor'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_exportar_reporte_beneficiarios(request):
+    """API para exportar reporte de beneficiarios en PDF o Word"""
+    try:
+        from .report_generator import generate_pdf_report_beneficiarios, generate_word_report_beneficiarios
+        
+        # Obtener formato solicitado
+        formato = request.GET.get('formato', 'pdf').lower()
+        
+        if formato not in ['pdf', 'word']:
+            return JsonResponse({
+                'error': 'Formato no válido. Use "pdf" o "word"'
+            }, status=400)
+        
+        # Obtener opciones de qué incluir
+        include_estadisticas = request.GET.get('include_estadisticas', '1') == '1'
+        include_listado = request.GET.get('include_listado', '1') == '1'
+        
+        if not include_estadisticas and not include_listado:
+            return JsonResponse({
+                'error': 'Debe seleccionar al menos una sección para exportar'
+            }, status=400)
+        
+        # Obtener filtros
+        comunidades_ids = request.GET.get('comunidades', '').split(',') if request.GET.get('comunidades') else []
+        comunidades_ids = [c.strip() for c in comunidades_ids if c.strip()]
+        
+        proyectos_ids = request.GET.get('proyectos', '').split(',') if request.GET.get('proyectos') else []
+        proyectos_ids = [p.strip() for p in proyectos_ids if p.strip()]
+        
+        solo_con_habilidades = request.GET.get('solo_con_habilidades', '0') == '1'
+        sort_order = request.GET.get('sort_order', 'alfabetico')
+        search_query = request.GET.get('search_query', '').strip()
+        
+        # Obtener datos de estadísticas
+        estadisticas_data = None
+        if include_estadisticas:
+            stats_response = api_beneficiarios_estadisticas(request)
+            if stats_response.status_code == 200:
+                stats_content = json.loads(stats_response.content.decode('utf-8'))
+                if stats_content.get('success'):
+                    estadisticas_data = stats_content.get('estadisticas')
+        
+        # Obtener datos de beneficiarios
+        beneficiarios_data = None
+        if include_listado:
+            beneficiarios_response = api_listar_beneficiarios_completo(request)
+            if beneficiarios_response.status_code == 200:
+                beneficiarios_content = json.loads(beneficiarios_response.content.decode('utf-8'))
+                if beneficiarios_content.get('success'):
+                    beneficiarios_data = beneficiarios_content.get('beneficiarios', [])
+                else:
+                    # Si no tiene 'success', podría ser que devuelva directamente la lista
+                    if isinstance(beneficiarios_content, list):
+                        beneficiarios_data = beneficiarios_content
+                    
+                    # Aplicar filtros adicionales del frontend
+                    if comunidades_ids:
+                        beneficiarios_data = [b for b in beneficiarios_data if str(b.get('comunidad_id', '')) in comunidades_ids]
+                    
+                    if proyectos_ids:
+                        beneficiarios_data = [b for b in beneficiarios_data if any(str(p.get('id', '')) in proyectos_ids for p in b.get('proyectos', []))]
+                    
+                    if solo_con_habilidades:
+                        beneficiarios_data = [b for b in beneficiarios_data if b.get('atributos') and len(b.get('atributos', [])) > 0]
+                    
+                    if search_query:
+                        search_lower = search_query.lower()
+                        beneficiarios_data = [b for b in beneficiarios_data if 
+                                            search_lower in (b.get('nombre', '') or '').lower() or
+                                            search_lower in (b.get('detalles', {}).get('dpi', '') or '').lower() or
+                                            search_lower in (b.get('detalles', {}).get('telefono', '') or '').lower()]
+                    
+                    # Aplicar ordenamiento
+                    if sort_order == 'alfabetico':
+                        beneficiarios_data.sort(key=lambda x: (x.get('nombre', '') or '').lower())
+                    elif sort_order == 'comunidad':
+                        beneficiarios_data.sort(key=lambda x: (x.get('comunidad_nombre', '') or '').lower())
+                    elif sort_order == 'actividad':
+                        beneficiarios_data.sort(key=lambda x: len(x.get('proyectos', [])), reverse=True)
+                    elif sort_order == 'habilidades':
+                        beneficiarios_data.sort(key=lambda x: len(x.get('atributos', [])), reverse=True)
+        
+        # Preparar datos para el generador
+        report_data = {
+            'estadisticas': estadisticas_data,
+            'beneficiarios': beneficiarios_data,
+            'include_estadisticas': include_estadisticas,
+            'include_listado': include_listado
+        }
+        
+        # Generar el archivo según el formato
+        if formato == 'pdf':
+            file_buffer = generate_pdf_report_beneficiarios(report_data)
+            content_type = 'application/pdf'
+            file_extension = 'pdf'
+        else:  # word
+            file_buffer = generate_word_report_beneficiarios(report_data)
+            content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            file_extension = 'docx'
+        
+        if file_buffer is None:
+            return JsonResponse({
+                'error': 'Error: no se pudo generar el archivo del reporte'
+            }, status=500)
+        
+        # Crear respuesta HTTP con el archivo
+        file_size = None
+        try:
+            file_buffer.seek(0, os.SEEK_END)
+            file_size = file_buffer.tell()
+            file_buffer.seek(0)
+        except Exception:
+            file_size = None
+        
+        response_content = file_buffer.read()
+        response = HttpResponse(response_content, content_type=content_type)
+        filename = f"reporte_beneficiarios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+        
+        # Configurar headers
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Type'] = content_type
+        response['Content-Length'] = str(len(response_content))
+        response['X-Content-Type-Options'] = 'nosniff'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        logger.info(
+            "Reporte de beneficiarios exportado exitosamente: usuario=%s, formato=%s, incluye_estadisticas=%s, incluye_listado=%s, beneficiarios=%s, tamaño=%s bytes",
+            get_usuario_maga(request.user).username if request.user.is_authenticated else 'anon',
+            formato,
+            include_estadisticas,
+            include_listado,
+            len(beneficiarios_data) if beneficiarios_data else 0,
+            file_size if file_size else 'desconocido'
+        )
+        
+        return response
+        
+    except Exception as e:
+        import traceback
+        logger.exception("Error al exportar reporte de beneficiarios: %s", str(e))
+        traceback.print_exc()
+        return JsonResponse({
+            'error': f'Error al exportar el reporte: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_exportar_comparativa(request):
+    """API para exportar comparativa de beneficiarios en PDF o Word"""
+    try:
+        from .report_generator import generate_pdf_comparison, generate_word_comparison
+        import json
+        
+        # Obtener formato solicitado
+        formato = request.GET.get('formato', 'pdf').lower()
+        
+        if formato not in ['pdf', 'word']:
+            return JsonResponse({
+                'error': 'Formato no válido. Use "pdf" o "word"'
+            }, status=400)
+        
+        # Obtener datos de comparativa del body
+        try:
+            comparison_data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'error': 'Error al decodificar los datos de comparativa'
+            }, status=400)
+        
+        if not comparison_data:
+            return JsonResponse({
+                'error': 'No se proporcionaron datos de comparativa'
+            }, status=400)
+        
+        # Generar el archivo según el formato
+        if formato == 'pdf':
+            file_buffer = generate_pdf_comparison(comparison_data)
+            content_type = 'application/pdf'
+            file_extension = 'pdf'
+        else:  # word
+            file_buffer = generate_word_comparison(comparison_data)
+            content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            file_extension = 'docx'
+        
+        if file_buffer is None:
+            return JsonResponse({
+                'error': 'Error: no se pudo generar el archivo de la comparativa'
+            }, status=500)
+        
+        # Crear respuesta HTTP con el archivo
+        file_size = None
+        try:
+            file_buffer.seek(0, os.SEEK_END)
+            file_size = file_buffer.tell()
+            file_buffer.seek(0)
+        except Exception:
+            file_size = None
+        
+        response_content = file_buffer.read()
+        response = HttpResponse(response_content, content_type=content_type)
+        filename = f"comparativa_beneficiarios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+        
+        # Configurar headers
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Type'] = content_type
+        response['Content-Length'] = str(len(response_content))
+        response['X-Content-Type-Options'] = 'nosniff'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        logger.info(
+            "Comparativa de beneficiarios exportada exitosamente: usuario=%s, formato=%s, grupos=%s, tamaño=%s bytes",
+            get_usuario_maga(request.user).username if request.user.is_authenticated else 'anon',
+            formato,
+            len(comparison_data.get('groupsData', [])),
+            file_size if file_size else 'desconocido'
+        )
+        
+        return response
+        
+    except Exception as e:
+        import traceback
+        logger.exception("Error al exportar comparativa de beneficiarios: %s", str(e))
+        traceback.print_exc()
+        return JsonResponse({
+            'error': f'Error al exportar la comparativa: {str(e)}'
         }, status=500)

@@ -100,6 +100,8 @@ urlpatterns = [
     path('api/beneficiario/<uuid:beneficiario_id>/foto/', views.api_foto_beneficiario, name='api-foto-beneficiario'),
     path('api/beneficiario/<uuid:beneficiario_id>/foto/eliminar/', views.api_eliminar_foto_beneficiario, name='api-eliminar-foto-beneficiario'),
     path('api/beneficiarios/descargar-plantilla/', views.api_descargar_plantilla_beneficiarios, name='api-descargar-plantilla-beneficiarios'),
+    path('api/beneficiarios/exportar-reporte/', views.api_exportar_reporte_beneficiarios, name='api-exportar-reporte-beneficiarios'),
+    path('api/beneficiarios/exportar-comparativa/', views.api_exportar_comparativa, name='api-exportar-comparativa'),
     path('api/verificar-admin/', views.api_verificar_admin, name='api-verificar-admin'),
     
     # APIs de Gestión de Usuarios y Colaboradores

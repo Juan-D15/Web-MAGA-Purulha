@@ -20,6 +20,15 @@
         <h2 class="section-title">Mi Información</h2>
       </div>
       
+      <!-- Mensaje de modo edición -->
+      <div id="mensajeModoEdicion" class="mensaje-edicion" style="display: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+        <span>Estás editando tu información de usuario</span>
+      </div>
+      
       <div class="perfil-content">
         <!-- Foto de Perfil -->
         <div class="perfil-foto-section">
@@ -87,21 +96,30 @@
           </div>
           
           <!-- Botones de Acción -->
-          <div class="perfil-actions" style="margin-top: 24px; display: flex; gap: 12px;">
-            <button class="btn-primary" id="btnGuardarCambios" style="display: none;">
+          <div class="perfil-actions" style="margin-top: 24px; display: flex; gap: 12px; flex-direction: column;">
+            <div style="display: flex; gap: 12px;">
+              <button class="btn-primary" id="btnGuardarCambios" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Guardar Cambios
+              </button>
+              <button class="btn-secondary" id="btnCambiarPassword">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                Cambiar Contraseña
+              </button>
+            </div>
+            <button class="btn-secondary" id="btnEditarInformacion">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                <polyline points="7 3 7 8 15 8"></polyline>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
               </svg>
-              Guardar Cambios
-            </button>
-            <button class="btn-secondary" id="btnCambiarPassword">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              Cambiar Contraseña
+              Editar Información
             </button>
           </div>
 
@@ -118,14 +136,16 @@
               
               <div class="dato-item">
                 <label class="dato-label">DPI</label>
-                <div class="dato-value" id="datoColaboradorDpi">-</div>
-                <small class="dato-hint">Este campo no es editable</small>
+                <input type="text" id="datoColaboradorDpi" class="dato-input" placeholder="1234567890123" maxlength="13" style="display: none;">
+                <div class="dato-value" id="datoColaboradorDpiDisplay">-</div>
+                <small class="dato-hint" id="hintDpi" style="display: none;">Este campo es editable (13 dígitos, solo números)</small>
               </div>
               
               <div class="dato-item">
                 <label class="dato-label">Descripción</label>
-                <div class="dato-value" id="datoColaboradorDescripcion">-</div>
-                <small class="dato-hint">Este campo no es editable</small>
+                <textarea id="datoColaboradorDescripcion" class="dato-input" rows="3" placeholder="Descripción del colaborador" style="display: none; resize: vertical;"></textarea>
+                <div class="dato-value" id="datoColaboradorDescripcionDisplay">-</div>
+                <small class="dato-hint" id="hintDescripcion" style="display: none;">Este campo es editable</small>
               </div>
             </div>
           </div>

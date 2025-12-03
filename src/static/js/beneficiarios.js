@@ -81,7 +81,8 @@ function showView(viewName) {
         'listBeneficiariesView',
         'comparisonsReportsView',
         'generateComparisonView',
-        'comparisonResultsView'
+        'comparisonResultsView',
+        'generateReportView'
     ];
     
     // Ocultar todas las vistas primero
@@ -130,6 +131,9 @@ function showView(viewName) {
             setTimeout(() => initializeComparisonForm(), 100);
         } else if (viewName === 'comparisonResultsView') {
             console.log('Mostrando resultados de comparativa');
+        } else if (viewName === 'generateReportView') {
+            console.log('Mostrando vista de generar reporte');
+            setTimeout(() => initializeReportView(), 100);
         } else if (viewName === 'mainView') {
             // Cargar dashboard de estadísticas cuando se muestra la vista principal
             setTimeout(() => loadStatisticsDashboard(), 100);
@@ -802,8 +806,57 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.closest('#generateReportBtn')) {
             e.preventDefault();
             e.stopPropagation();
-            mostrarMensaje('info', 'La funcionalidad de generar reporte estará disponible próximamente');
+            showView('generateReportView');
+            initializeReportView();
             return;
+        }
+        
+        // Botones de exportar reporte - delegación mejorada
+        const pdfBtn = e.target.closest('#exportReportPDFBtn');
+        const wordBtn = e.target.closest('#exportReportWordBtn');
+        
+        if (pdfBtn || e.target.id === 'exportReportPDFBtn') {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón PDF detectado (delegación)');
+            if (typeof openExportModal === 'function') {
+                openExportModal('pdf');
+            } else {
+                console.error('❌ openExportModal no está definida');
+            }
+            return false;
+        }
+        
+        if (wordBtn || e.target.id === 'exportReportWordBtn') {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón Word detectado (delegación)');
+            if (typeof openExportModal === 'function') {
+                openExportModal('word');
+            } else {
+                console.error('❌ openExportModal no está definida');
+            }
+            return false;
+        }
+        
+        // Botones de exportar comparativa
+        const comparisonPdfBtn = e.target.closest('#exportComparisonPDFBtn');
+        const comparisonWordBtn = e.target.closest('#exportComparisonWordBtn');
+        
+        if (comparisonPdfBtn || e.target.id === 'exportComparisonPDFBtn') {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón PDF de comparativa detectado');
+            exportComparison('pdf');
+            return false;
+        }
+        
+        if (comparisonWordBtn || e.target.id === 'exportComparisonWordBtn') {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón Word de comparativa detectado');
+            exportComparison('word');
+            return false;
         }
     });
     
@@ -827,6 +880,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Inicializar modal de exportación de reportes desde el inicio
+    setTimeout(() => {
+        if (typeof setupExportModal === 'function') {
+            setupExportModal();
+            console.log('✅ Modal de exportación inicializado');
+        }
+    }, 500);
+    
     // Inicializar formulario de agregar beneficiario
     initializeBeneficiaryForm();
     
@@ -835,7 +896,1619 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Inicializar modal de importación Excel general
     initializeImportExcelGeneral();
+    
+    // Botón volver de reporte
+    const backFromReportBtn = document.getElementById('backFromReportBtn');
+    if (backFromReportBtn) {
+        backFromReportBtn.addEventListener('click', function() {
+            showView('mainView');
+        });
+    }
 });
+
+// ======================================
+// MÓDULO DE REPORTES
+// ======================================
+
+// Variables para el módulo de reportes
+let reportBeneficiariosData = [];
+let reportEventosData = [];
+let reportFiltrosAplicados = {
+    comunidades: [],
+    proyectos: [],
+    soloConHabilidades: false
+};
+let reportSortOrder = 'alfabetico';
+
+// Inicializar vista de reportes
+async function initializeReportView() {
+    console.log('Inicializando vista de reportes...');
+    
+    // Esperar a que la vista esté visible y los elementos existan
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    while (attempts < maxAttempts) {
+        const reportView = document.getElementById('generateReportView');
+        const tableBody = document.getElementById('reportBeneficiariosTableBody');
+        
+        if (reportView && reportView.style.display !== 'none' && tableBody) {
+            console.log('Vista de reportes visible, elementos encontrados');
+            break;
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    
+    // Verificar que los elementos existan (usar el ID correcto del HTML)
+    const tableBody = document.getElementById('reportBeneficiariesTableBody');
+    if (!tableBody) {
+        console.error('No se encontró reportBeneficiariesTableBody después de esperar');
+        // Intentar de todas formas cargar los datos
+    } else {
+        console.log('✅ Elemento reportBeneficiariesTableBody encontrado en initializeReportView');
+    }
+    
+    // Cargar estadísticas
+    await loadReportStatistics();
+    
+    // Cargar beneficiarios
+    await loadReportBeneficiarios();
+    
+    // Inicializar filtros
+    initializeReportFilters();
+    
+    // Inicializar buscador y ordenamiento
+    initializeReportSearchAndSort();
+    
+    // Configurar modal de exportación y botones - múltiples intentos para asegurar que funcionen
+    let exportButtonsSetupAttempts = 0;
+    const setupExportButtonsRetry = () => {
+        exportButtonsSetupAttempts++;
+        const exportPDFBtn = document.getElementById('exportReportPDFBtn');
+        const exportWordBtn = document.getElementById('exportReportWordBtn');
+        
+        console.log(`🔵 Intento ${exportButtonsSetupAttempts} de configurar botones de exportación`);
+        console.log('🔵 exportPDFBtn:', !!exportPDFBtn);
+        console.log('🔵 exportWordBtn:', !!exportWordBtn);
+        
+        if (exportPDFBtn && exportWordBtn) {
+            // Configurar modal primero
+            setupExportModal();
+            
+            // Agregar listeners directos - múltiples métodos para asegurar que funcionen
+            exportPDFBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('✅ Click en botón PDF detectado');
+                if (typeof openExportModal === 'function') {
+                    openExportModal('pdf');
+                } else {
+                    console.error('❌ openExportModal no está definida');
+                }
+                return false;
+            };
+            
+            exportWordBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('✅ Click en botón Word detectado');
+                if (typeof openExportModal === 'function') {
+                    openExportModal('word');
+                } else {
+                    console.error('❌ openExportModal no está definida');
+                }
+                return false;
+            };
+            
+            // También usar addEventListener como respaldo
+            exportPDFBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('✅ Click en botón PDF (addEventListener)');
+                if (typeof openExportModal === 'function') {
+                    openExportModal('pdf');
+                }
+            }, { once: false, capture: false });
+            
+            exportWordBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('✅ Click en botón Word (addEventListener)');
+                if (typeof openExportModal === 'function') {
+                    openExportModal('word');
+                }
+            }, { once: false, capture: false });
+            
+            console.log('✅ Botones de exportación configurados correctamente');
+        } else if (exportButtonsSetupAttempts < 10) {
+            // Reintentar si no se encontraron los botones
+            setTimeout(setupExportButtonsRetry, 300);
+        } else {
+            console.error('❌ No se pudieron encontrar los botones de exportación después de 10 intentos');
+        }
+    };
+    
+    setTimeout(setupExportButtonsRetry, 500);
+    
+    console.log('Vista de reportes inicializada');
+}
+
+// Cargar estadísticas para el reporte
+async function loadReportStatistics() {
+    try {
+        const response = await fetch('/api/beneficiarios/estadisticas/');
+        if (!response.ok) {
+            throw new Error('Error al cargar estadísticas');
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.estadisticas) {
+            throw new Error('Formato de respuesta inválido');
+        }
+        
+        const stats = data.estadisticas;
+        
+        // Actualizar tabla de estadísticas
+        const statTotalEl = document.getElementById('reportStatTotalBeneficiarios');
+        const statAlcanzadosEl = document.getElementById('reportStatBeneficiariosAlcanzados');
+        const statMultiplesEl = document.getElementById('reportStatMultiplesProyectos');
+        const statUnSoloEl = document.getElementById('reportStatUnSoloProyecto');
+        const statComunidadesEl = document.getElementById('reportStatComunidadesAlcanzadas');
+        
+        if (statTotalEl) statTotalEl.textContent = stats.total_beneficiarios || 0;
+        if (statAlcanzadosEl) statAlcanzadosEl.textContent = stats.beneficiarios_alcanzados || 0;
+        if (statMultiplesEl) statMultiplesEl.textContent = stats.beneficiarios_multiples_proyectos || 0;
+        if (statUnSoloEl) statUnSoloEl.textContent = stats.beneficiarios_un_solo_proyecto || 0;
+        if (statComunidadesEl) statComunidadesEl.textContent = stats.comunidades_alcanzadas || 0;
+        
+        // Actualizar beneficiarios con habilidades
+        const statHabilidadesEl = document.getElementById('reportStatBeneficiariosConHabilidades');
+        if (statHabilidadesEl) {
+            statHabilidadesEl.textContent = stats.beneficiarios_con_habilidades || 0;
+        }
+        
+        // Renderizar listado de habilidades
+        if (stats.habilidades && Array.isArray(stats.habilidades) && stats.habilidades.length > 0) {
+            renderReportHabilidadesList(stats.habilidades);
+        } else {
+            const habilidadesListEl = document.getElementById('reportHabilidadesList');
+            if (habilidadesListEl) {
+                habilidadesListEl.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">No hay habilidades registradas</p>';
+            }
+        }
+        
+        // Actualizar gráfico de distribución por género
+        if (stats.distribucion_genero) {
+            renderReportGenderDistributionChart(stats.distribucion_genero);
+        }
+        
+        // Actualizar top 10 comunidades (usar top_comunidades pero limitar a 10)
+        if (stats.top_comunidades && Array.isArray(stats.top_comunidades)) {
+            const top10 = stats.top_comunidades.slice(0, 10);
+            renderReportTopComunidadesChart(top10);
+        }
+        
+    } catch (error) {
+        console.error('Error cargando estadísticas del reporte:', error);
+    }
+}
+
+// Renderizar gráfico de distribución por género para reporte
+function renderReportGenderDistributionChart(distribucion) {
+    const container = document.getElementById('reportGenderDistributionChart');
+    if (!container) return;
+    
+    const total = distribucion.masculino + distribucion.femenino + distribucion.otro;
+    if (total === 0) {
+        container.innerHTML = '<p style="color: #6c757d;">No hay datos disponibles</p>';
+        return;
+    }
+    
+    const porcentajeMasculino = ((distribucion.masculino / total) * 100).toFixed(1);
+    const porcentajeFemenino = ((distribucion.femenino / total) * 100).toFixed(1);
+    const porcentajeOtro = ((distribucion.otro / total) * 100).toFixed(1);
+    
+    container.innerHTML = `
+        <div style="width: 100%; max-width: 100%; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; gap: 16px; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                    <div style="width: 16px; height: 16px; border-radius: 4px; background: #007bff; flex-shrink: 0;"></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                            <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem;">Masculino</span>
+                            <span style="color: #6c757d; font-size: 0.85rem; white-space: nowrap;">${distribucion.masculino} (${porcentajeMasculino}%)</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                            <div style="width: ${porcentajeMasculino}%; height: 100%; background: #007bff; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                    <div style="width: 16px; height: 16px; border-radius: 4px; background: #28a745; flex-shrink: 0;"></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                            <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem;">Femenino</span>
+                            <span style="color: #6c757d; font-size: 0.85rem; white-space: nowrap;">${distribucion.femenino} (${porcentajeFemenino}%)</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                            <div style="width: ${porcentajeFemenino}%; height: 100%; background: #28a745; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                    <div style="width: 16px; height: 16px; border-radius: 4px; background: #ffc107; flex-shrink: 0;"></div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                            <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem;">Otro</span>
+                            <span style="color: #6c757d; font-size: 0.85rem; white-space: nowrap;">${distribucion.otro} (${porcentajeOtro}%)</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                            <div style="width: ${porcentajeOtro}%; height: 100%; background: #ffc107; transition: width 0.5s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Renderizar top 10 comunidades para reporte
+function renderReportTopComunidadesChart(topComunidades) {
+    const container = document.getElementById('reportTopComunidadesChart');
+    if (!container) return;
+    
+    if (!topComunidades || topComunidades.length === 0) {
+        container.innerHTML = '<p style="color: #6c757d;">No hay datos disponibles</p>';
+        return;
+    }
+    
+    const maxTotal = Math.max(...topComunidades.map(c => c.total));
+    
+    container.innerHTML = `
+        <div style="width: 100%; max-width: 100%; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+                ${topComunidades.map((comunidad, index) => {
+                    const porcentaje = ((comunidad.total / maxTotal) * 100).toFixed(1);
+                    return `
+                        <div style="display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(0, 123, 255, 0.2); display: flex; align-items: center; justify-content: center; color: #007bff; font-weight: 700; font-size: 0.9rem; flex-shrink: 0;">
+                                ${index + 1}
+                            </div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; gap: 8px; flex-wrap: wrap;">
+                                    <span style="color: #ffffff; font-weight: 600; font-size: 0.9rem; word-break: break-word;">${comunidad.nombre}</span>
+                                    <span style="color: #007bff; font-weight: 700; font-size: 1rem; white-space: nowrap; flex-shrink: 0;">${comunidad.total}</span>
+                                </div>
+                                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; box-sizing: border-box;">
+                                    <div style="width: ${porcentaje}%; height: 100%; background: linear-gradient(90deg, #007bff, #0056b3); transition: width 0.5s ease;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// Renderizar listado de habilidades para reporte
+function renderReportHabilidadesList(habilidades) {
+    const container = document.getElementById('reportHabilidadesList');
+    if (!container) return;
+    
+    if (!habilidades || habilidades.length === 0) {
+        container.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">No hay habilidades registradas</p>';
+        return;
+    }
+    
+    // Agrupar habilidades por tipo
+    const habilidadesPorTipo = {};
+    habilidades.forEach(habilidad => {
+        const tipo = habilidad.tipo || 'Sin tipo';
+        if (!habilidadesPorTipo[tipo]) {
+            habilidadesPorTipo[tipo] = [];
+        }
+        habilidadesPorTipo[tipo].push({
+            valor: habilidad.valor,
+            total: habilidad.total
+        });
+    });
+    
+    // Ordenar por total descendente dentro de cada tipo
+    Object.keys(habilidadesPorTipo).forEach(tipo => {
+        habilidadesPorTipo[tipo].sort((a, b) => b.total - a.total);
+    });
+    
+    let html = '<div style="display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 100%; box-sizing: border-box;">';
+    
+    Object.keys(habilidadesPorTipo).sort().forEach(tipo => {
+        const habilidadesTipo = habilidadesPorTipo[tipo];
+        const totalTipo = habilidadesTipo.reduce((sum, h) => sum + h.total, 0);
+        
+        html += `
+            <div style="padding: 16px; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px;">
+                <h4 style="color: #ffc107; font-size: 1rem; font-weight: 700; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                        <path d="M2 17l10 5 10-5"></path>
+                        <path d="M2 12l10 5 10-5"></path>
+                    </svg>
+                    ${tipo} <span style="color: #b8c5d1; font-weight: 400; font-size: 0.85rem;">(${totalTipo} beneficiario${totalTipo !== 1 ? 's' : ''})</span>
+                </h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${habilidadesTipo.map(h => `
+                        <span style="padding: 6px 12px; background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.4); border-radius: 6px; color: #ffc107; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;">
+                            ${h.valor} <span style="color: #b8c5d1; font-weight: 600;">(${h.total})</span>
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Cargar beneficiarios para el reporte
+async function loadReportBeneficiarios() {
+    console.log('Cargando beneficiarios para el reporte...');
+    
+    // Esperar a que el elemento exista (verificar ambos IDs posibles)
+    let attempts = 0;
+    let tableBody = null;
+    while (attempts < 30 && !tableBody) {
+        tableBody = document.getElementById('reportBeneficiariesTableBody') || 
+                     document.getElementById('reportBeneficiariosTableBody');
+        if (!tableBody) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+    }
+    
+    if (!tableBody) {
+        console.error('No se encontró reportBeneficiariesTableBody después de esperar');
+        return;
+    }
+    
+    console.log('✅ Elemento tableBody encontrado:', tableBody);
+    
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="10" style="padding: 40px; text-align: center; color: #6c757d;">
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando beneficiarios...</p>
+                </div>
+            </td>
+        </tr>
+    `;
+    
+    try {
+        const response = await fetch('/api/beneficiarios/completo/');
+        if (!response.ok) {
+            throw new Error('Error al cargar beneficiarios');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && Array.isArray(data.beneficiarios)) {
+            reportBeneficiariosData = data.beneficiarios || [];
+            console.log(`✅ Cargados ${reportBeneficiariosData.length} beneficiarios para el reporte`);
+            
+            // Cargar eventos para el filtro
+            await loadReportEventos();
+            
+            // Aplicar filtros y ordenamiento
+            applyReportFiltersAndSort();
+        } else {
+            console.error('Formato de respuesta inválido:', data);
+            throw new Error('Formato de respuesta inválido');
+        }
+    } catch (error) {
+        console.error('Error cargando beneficiarios del reporte:', error);
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="10" style="padding: 40px; text-align: center; color: #dc3545;">
+                    Error al cargar beneficiarios: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Cargar eventos para el filtro del reporte
+async function loadReportEventos() {
+    try {
+        console.log('Cargando eventos para el filtro del reporte...');
+        const response = await fetch('/api/events-list/');
+        if (!response.ok) {
+            throw new Error('Error al cargar eventos');
+        }
+        const data = await response.json();
+        console.log('Respuesta de eventos:', data);
+        if (Array.isArray(data)) {
+            reportEventosData = data.map(evento => ({
+                id: evento.id,
+                nombre: evento.name || evento.nombre || 'Sin nombre'
+            }));
+            console.log('Eventos procesados:', reportEventosData.length);
+            // Esperar un poco para asegurar que el DOM esté listo
+            setTimeout(() => {
+                populateReportProyectosFilter();
+            }, 200);
+        } else {
+            console.error('Formato de respuesta inválido para eventos:', data);
+            reportEventosData = [];
+        }
+    } catch (error) {
+        console.error('Error cargando eventos del reporte:', error);
+        reportEventosData = [];
+    }
+}
+
+// Poblar filtro de proyectos del reporte
+function populateReportProyectosFilter() {
+    console.log('Poblando filtro de proyectos del reporte...');
+    const container = document.getElementById('filterProyectosReporte');
+    if (!container) {
+        console.error('No se encontró filterProyectosReporte');
+        return;
+    }
+    
+    console.log('Proyectos disponibles:', reportEventosData.length);
+    
+    if (reportEventosData.length === 0) {
+        container.innerHTML = '<p style="color: #6c757d; padding: 20px; text-align: center;">No hay proyectos disponibles</p>';
+        return;
+    }
+    
+    container.innerHTML = reportEventosData.map(proyecto => `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+            <input type="checkbox" value="${proyecto.id}" class="report-proyecto-checkbox" style="width: 18px; height: 18px; cursor: pointer;">
+            <span style="color: #ffffff; font-size: 14px;">${proyecto.nombre}</span>
+        </label>
+    `).join('');
+    
+    // Agregar event listeners
+    container.querySelectorAll('.report-proyecto-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateReportProyectosTags();
+        });
+    });
+    
+    console.log('✅ Filtro de proyectos poblado correctamente');
+}
+
+// Actualizar tags de proyectos seleccionados en reporte
+function updateReportProyectosTags() {
+    const container = document.getElementById('reportSelectedProyectosTags');
+    if (!container) return;
+    
+    const checkboxes = document.querySelectorAll('.report-proyecto-checkbox:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    container.innerHTML = '';
+    
+    if (selectedIds.length === 0) {
+        container.innerHTML = '<span style="color: #6c757d; font-size: 0.85rem;">Ningún proyecto seleccionado</span>';
+        return;
+    }
+    
+    selectedIds.forEach(proyectoId => {
+        const proyecto = reportEventosData.find(p => p.id === proyectoId);
+        if (!proyecto) return;
+        
+        const tag = document.createElement('span');
+        tag.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(0, 123, 255, 0.2); border: 1px solid rgba(0, 123, 255, 0.4); border-radius: 6px; color: #4dabf7; font-size: 0.85rem; margin: 4px;';
+        tag.innerHTML = `
+            ${proyecto.nombre}
+            <button type="button" onclick="removeReportProyecto('${proyectoId}')" style="background: none; border: none; color: #4dabf7; cursor: pointer; padding: 0; margin-left: 4px; display: flex; align-items: center;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        `;
+        container.appendChild(tag);
+    });
+}
+
+// Remover proyecto del filtro del reporte
+window.removeReportProyecto = function(proyectoId) {
+    const checkbox = document.querySelector(`.report-proyecto-checkbox[value="${proyectoId}"]`);
+    if (checkbox) {
+        checkbox.checked = false;
+        updateReportProyectosTags();
+    }
+};
+
+// Toggle checklist de proyectos del reporte
+window.toggleChecklistReporte = function(tipo) {
+    console.log('Toggle checklist reporte:', tipo);
+    if (tipo === 'proyectosReporte') {
+        const container = document.getElementById('proyectosReporteContainer');
+        const icon = document.getElementById('toggleIconProyectosReporte');
+        console.log('Container:', container, 'Icon:', icon);
+        if (container && icon) {
+            const isVisible = container.style.display !== 'none';
+            container.style.display = isVisible ? 'none' : 'block';
+            icon.textContent = isVisible ? '▶' : '▼';
+            console.log('Toggle realizado. Visible:', !isVisible);
+        } else {
+            console.error('No se encontraron elementos para toggle');
+        }
+    }
+};
+
+// Inicializar filtros del reporte
+function initializeReportFilters() {
+    console.log('Inicializando filtros del reporte...');
+    
+    // Esperar un poco para asegurar que los elementos existan
+    setTimeout(() => {
+        // Toggle panel de filtros
+        const toggleBtn = document.getElementById('toggleReportFiltersBtn');
+        const filtersPanel = document.getElementById('reportFiltersPanel');
+        const toggleText = document.getElementById('toggleReportFiltersText');
+        
+        console.log('Toggle btn:', toggleBtn, 'Filters panel:', filtersPanel, 'Toggle text:', toggleText);
+        
+        if (toggleBtn && filtersPanel && toggleText) {
+            toggleBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Toggle filtros clickeado');
+                const isVisible = filtersPanel.style.display !== 'none';
+                filtersPanel.style.display = isVisible ? 'none' : 'block';
+                toggleText.textContent = isVisible ? 'Mostrar Filtros' : 'Ocultar Filtros';
+            };
+        } else {
+            console.error('No se encontraron elementos de toggle de filtros');
+        }
+        
+        // Buscador de comunidad (reutilizar lógica existente)
+        initializeReportComunidadSearch();
+        
+        // Buscador de proyectos
+        const searchProyecto = document.getElementById('reportSearchProyecto');
+        if (searchProyecto) {
+            searchProyecto.addEventListener('input', function() {
+                filterReportProyectosChecklist(this.value);
+            });
+        }
+        
+        // Checkbox de habilidades
+        const soloHabilidades = document.getElementById('reportFilterSoloConHabilidades');
+        if (soloHabilidades) {
+            soloHabilidades.addEventListener('change', function() {
+                reportFiltrosAplicados.soloConHabilidades = this.checked;
+            });
+        }
+        
+        // Botones de filtros
+        const resetBtn = document.getElementById('reportResetFiltersBtn');
+        const applyBtn = document.getElementById('reportApplyFiltersBtn');
+        
+        console.log('Reset btn:', resetBtn, 'Apply btn:', applyBtn);
+        
+        if (resetBtn) {
+            resetBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Reset filtros clickeado');
+                resetReportFilters();
+            };
+        } else {
+            console.error('No se encontró reportResetFiltersBtn');
+        }
+        
+        if (applyBtn) {
+            applyBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Aplicar filtros clickeado');
+                applyReportFilters();
+            };
+        } else {
+            console.error('No se encontró reportApplyFiltersBtn');
+        }
+        
+        console.log('Filtros del reporte inicializados');
+    }, 300);
+}
+    
+
+// Estado del catálogo para reporte
+let reportCatalogState = {
+    filtered: [],
+    activeIndex: -1
+};
+
+// Inicializar buscador de comunidad del reporte (reutilizar lógica existente)
+function initializeReportComunidadSearch() {
+    const catalogInput = document.getElementById('reportSearchComunidad');
+    const catalogSuggestions = document.getElementById('reportSearchComunidadSuggestions');
+    const catalogClear = document.getElementById('reportSearchComunidadClear');
+    
+    if (!catalogInput || !catalogSuggestions) return;
+    
+    // Asegurar que el catálogo esté construido
+    if (benefCatalogItems.length === 0) {
+        asegurarDatosRegionesComunidades();
+    }
+    
+    // Event listener para búsqueda
+    catalogInput.addEventListener('input', function() {
+        mostrarSugerenciasCatalogoReporte(this.value);
+        if (catalogClear) {
+            catalogClear.style.display = this.value.trim() ? 'flex' : 'none';
+        }
+    });
+    
+    // Event listener para teclado
+    catalogInput.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown') {
+            moverSeleccionCatalogoReporte(1);
+            e.preventDefault();
+        } else if (e.key === 'ArrowUp') {
+            moverSeleccionCatalogoReporte(-1);
+            e.preventDefault();
+        } else if (e.key === 'Enter') {
+            if (reportCatalogState.activeIndex >= 0 && reportCatalogState.filtered[reportCatalogState.activeIndex]) {
+                e.preventDefault();
+                seleccionarSugerenciaCatalogoReporte(reportCatalogState.filtered[reportCatalogState.activeIndex]);
+            } else {
+                ocultarSugerenciasCatalogoReporte();
+            }
+        } else if (e.key === 'Escape') {
+            ocultarSugerenciasCatalogoReporte();
+        }
+    });
+    
+    // Event listener para blur
+    catalogInput.addEventListener('blur', function() {
+        setTimeout(() => ocultarSugerenciasCatalogoReporte(), 120);
+        if (catalogClear) {
+            catalogClear.style.display = this.value.trim() ? 'flex' : 'none';
+        }
+    });
+    
+    // Event listener para botón limpiar
+    if (catalogClear) {
+        catalogClear.addEventListener('click', function() {
+            catalogInput.value = '';
+            catalogClear.style.display = 'none';
+            ocultarSugerenciasCatalogoReporte();
+        });
+    }
+}
+
+function mostrarSugerenciasCatalogoReporte(term) {
+    const catalogSuggestions = document.getElementById('reportSearchComunidadSuggestions');
+    if (!catalogSuggestions) return;
+    
+    const consulta = (term || '').trim().toLowerCase();
+    catalogSuggestions.innerHTML = '';
+    reportCatalogState.filtered = [];
+    reportCatalogState.activeIndex = -1;
+    
+    if (consulta.length < 2) {
+        catalogSuggestions.classList.remove('show');
+        return;
+    }
+    
+    reportCatalogState.filtered = benefCatalogItems
+        .filter(item => item.searchIndex.includes(consulta))
+        .slice(0, 10);
+    
+    if (reportCatalogState.filtered.length === 0) {
+        catalogSuggestions.classList.remove('show');
+        return;
+    }
+    
+    const fragment = document.createDocumentFragment();
+    reportCatalogState.filtered.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.className = 'input-suggestion-item';
+        li.textContent = item.label;
+        li.dataset.type = item.type;
+        li.dataset.id = item.id;
+        if (item.regionId) {
+            li.dataset.regionId = item.regionId;
+        }
+        li.dataset.index = index;
+        li.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            seleccionarSugerenciaCatalogoReporte(item);
+        });
+        fragment.appendChild(li);
+    });
+    
+    catalogSuggestions.appendChild(fragment);
+    catalogSuggestions.classList.add('show');
+    reportCatalogState.activeIndex = 0;
+    const items = Array.from(catalogSuggestions.querySelectorAll('.input-suggestion-item'));
+    if (items[0]) {
+        items[0].classList.add('active');
+    }
+}
+
+function moverSeleccionCatalogoReporte(direction) {
+    const catalogSuggestions = document.getElementById('reportSearchComunidadSuggestions');
+    if (!catalogSuggestions || reportCatalogState.filtered.length === 0) return;
+    
+    const items = Array.from(catalogSuggestions.querySelectorAll('.input-suggestion-item'));
+    if (items.length === 0) return;
+    
+    const currentIndex = reportCatalogState.activeIndex;
+    let newIndex = currentIndex + direction;
+    
+    if (newIndex < 0) {
+        newIndex = items.length - 1;
+    } else if (newIndex >= items.length) {
+        newIndex = 0;
+    }
+    
+    if (items[currentIndex]) {
+        items[currentIndex].classList.remove('active');
+    }
+    
+    reportCatalogState.activeIndex = newIndex;
+    if (items[newIndex]) {
+        items[newIndex].classList.add('active');
+        items[newIndex].scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function seleccionarSugerenciaCatalogoReporte(item) {
+    if (!item) return;
+    
+    const catalogInput = document.getElementById('reportSearchComunidad');
+    
+    if (item.type === 'community') {
+        // Agregar la comunidad al filtro si no está ya agregada
+        if (!reportFiltrosAplicados.comunidades.includes(item.id)) {
+            reportFiltrosAplicados.comunidades.push(item.id);
+            updateReportComunidadTags();
+            applyReportFiltersAndSort();
+        }
+        
+        // Limpiar el input
+        if (catalogInput) {
+            catalogInput.value = '';
+        }
+        const catalogClear = document.getElementById('reportSearchComunidadClear');
+        if (catalogClear) {
+            catalogClear.style.display = 'none';
+        }
+    } else if (item.type === 'region') {
+        // Si es una región, agregar todas las comunidades de esa región
+        const comunidadesRegion = allComunidades.filter(c => c.region_id === item.id);
+        comunidadesRegion.forEach(com => {
+            if (!reportFiltrosAplicados.comunidades.includes(com.id)) {
+                reportFiltrosAplicados.comunidades.push(com.id);
+            }
+        });
+        updateReportComunidadTags();
+        applyReportFiltersAndSort();
+        
+        // Limpiar el input
+        if (catalogInput) {
+            catalogInput.value = '';
+        }
+        const catalogClear = document.getElementById('reportSearchComunidadClear');
+        if (catalogClear) {
+            catalogClear.style.display = 'none';
+        }
+    }
+    
+    ocultarSugerenciasCatalogoReporte();
+}
+
+function ocultarSugerenciasCatalogoReporte() {
+    const catalogSuggestions = document.getElementById('reportSearchComunidadSuggestions');
+    if (catalogSuggestions) {
+        catalogSuggestions.classList.remove('show');
+        catalogSuggestions.innerHTML = '';
+    }
+    reportCatalogState.filtered = [];
+    reportCatalogState.activeIndex = -1;
+}
+
+// Actualizar tags de comunidades seleccionadas en reporte
+function updateReportComunidadTags() {
+    const container = document.getElementById('reportSelectedComunidadesTags');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (reportFiltrosAplicados.comunidades.length === 0) {
+        return;
+    }
+    
+    reportFiltrosAplicados.comunidades.forEach(comunidadId => {
+        const comunidad = allComunidades.find(c => c.id === comunidadId);
+        if (!comunidad) return;
+        
+        const tag = document.createElement('span');
+        tag.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(0, 123, 255, 0.2); border: 1px solid rgba(0, 123, 255, 0.4); border-radius: 6px; color: #4dabf7; font-size: 0.85rem; margin: 4px;';
+        tag.innerHTML = `
+            ${comunidad.nombre}
+            <button type="button" onclick="removeReportComunidad('${comunidadId}')" style="background: none; border: none; color: #4dabf7; cursor: pointer; padding: 0; margin-left: 4px; display: flex; align-items: center;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        `;
+        container.appendChild(tag);
+    });
+}
+
+// Remover comunidad del filtro del reporte
+window.removeReportComunidad = function(comunidadId) {
+    reportFiltrosAplicados.comunidades = reportFiltrosAplicados.comunidades.filter(id => id !== comunidadId);
+    updateReportComunidadTags();
+    applyReportFiltersAndSort();
+};
+
+// Filtrar checklist de proyectos del reporte
+// Filtrar lista de proyectos en el reporte
+function filterReportProyectosChecklist(query) {
+    console.log('Filtrando proyectos con query:', query);
+    const container = document.getElementById('filterProyectosReporte');
+    if (!container) return;
+    
+    const checkboxes = container.querySelectorAll('label');
+    const normalizedQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    checkboxes.forEach(label => {
+        const text = label.textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        label.style.display = text.includes(normalizedQuery) ? 'flex' : 'none';
+    });
+}
+
+// Resetear filtros del reporte
+function resetReportFilters() {
+    // Limpiar comunidades
+    reportFiltrosAplicados.comunidades = [];
+    const comunidadInput = document.getElementById('reportSearchComunidad');
+    if (comunidadInput) comunidadInput.value = '';
+    updateReportComunidadTags();
+    
+    // Limpiar proyectos
+    reportFiltrosAplicados.proyectos = [];
+    document.querySelectorAll('.report-proyecto-checkbox').forEach(cb => cb.checked = false);
+    updateReportProyectosTags();
+    const proyectoSearch = document.getElementById('reportSearchProyecto');
+    if (proyectoSearch) proyectoSearch.value = '';
+    
+    // Limpiar habilidades
+    reportFiltrosAplicados.soloConHabilidades = false;
+    const soloHabilidades = document.getElementById('reportFilterSoloConHabilidades');
+    if (soloHabilidades) soloHabilidades.checked = false;
+    
+    // Aplicar filtros
+    applyReportFiltersAndSort();
+}
+
+// Aplicar filtros del reporte
+function applyReportFilters() {
+    // Obtener proyectos seleccionados
+    const checkboxes = document.querySelectorAll('.report-proyecto-checkbox:checked');
+    reportFiltrosAplicados.proyectos = Array.from(checkboxes).map(cb => cb.value);
+    
+    // Obtener checkbox de habilidades
+    const soloHabilidades = document.getElementById('reportFilterSoloConHabilidades');
+    if (soloHabilidades) {
+        reportFiltrosAplicados.soloConHabilidades = soloHabilidades.checked;
+    }
+    
+    // Aplicar filtros y ordenamiento
+    applyReportFiltersAndSort();
+}
+
+// Aplicar filtros y ordenamiento del reporte
+function applyReportFiltersAndSort() {
+    console.log('Aplicando filtros y ordenamiento del reporte...');
+    console.log('Datos disponibles:', reportBeneficiariosData.length);
+    console.log('Filtros aplicados:', reportFiltrosAplicados);
+    
+    let filtered = [...reportBeneficiariosData];
+    
+    // Filtrar por comunidades
+    if (reportFiltrosAplicados.comunidades.length > 0) {
+        filtered = filtered.filter(b => {
+            const comunidadId = b.comunidad_id;
+            return comunidadId && reportFiltrosAplicados.comunidades.includes(comunidadId);
+        });
+    }
+    
+    // Filtrar por proyectos
+    if (reportFiltrosAplicados.proyectos.length > 0) {
+        filtered = filtered.filter(b => {
+            const proyectos = b.proyectos || [];
+            return proyectos.some(p => reportFiltrosAplicados.proyectos.includes(p.id));
+        });
+    }
+    
+    // Filtrar por habilidades
+    if (reportFiltrosAplicados.soloConHabilidades) {
+        filtered = filtered.filter(b => {
+            const atributos = b.atributos || [];
+            return atributos.length > 0;
+        });
+    }
+    
+    // Aplicar búsqueda de texto
+    const searchInput = document.getElementById('reportBeneficiariesSearch');
+    if (searchInput && searchInput.value.trim()) {
+        const query = searchInput.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        filtered = filtered.filter(b => {
+            const nombre = (b.nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const dpi = (b.dpi || '').toLowerCase();
+            const telefono = (b.telefono || '').toLowerCase();
+            const detalles = b.detalles || {};
+            const detallesStr = JSON.stringify(detalles).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return nombre.includes(query) || dpi.includes(query) || telefono.includes(query) || detallesStr.includes(query);
+        });
+    }
+    
+    // Aplicar ordenamiento
+    filtered = sortReportBeneficiarios(filtered, reportSortOrder);
+    
+    console.log('Beneficiarios filtrados:', filtered.length);
+    
+    // Renderizar tabla
+    renderReportBeneficiariosTable(filtered);
+    
+    // Actualizar contador
+    const countEl = document.getElementById('reportBeneficiariesCount');
+    if (countEl) {
+        countEl.textContent = `${filtered.length} beneficiario${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`;
+    } else {
+        console.error('No se encontró reportBeneficiariesCount');
+    }
+}
+
+// Ordenar beneficiarios del reporte
+function sortReportBeneficiarios(beneficiarios, order) {
+    const sorted = [...beneficiarios];
+    
+    switch (order) {
+        case 'alfabetico':
+            sorted.sort((a, b) => {
+                const nombreA = (a.nombre || a.display_name || '').toLowerCase();
+                const nombreB = (b.nombre || b.display_name || '').toLowerCase();
+                return nombreA.localeCompare(nombreB);
+            });
+            break;
+        case 'comunidad':
+            sorted.sort((a, b) => {
+                const comunidadA = (a.comunidad_nombre || '').toLowerCase();
+                const comunidadB = (b.comunidad_nombre || '').toLowerCase();
+                if (comunidadA !== comunidadB) {
+                    return comunidadA.localeCompare(comunidadB);
+                }
+                const nombreA = (a.nombre || a.display_name || '').toLowerCase();
+                const nombreB = (b.nombre || b.display_name || '').toLowerCase();
+                return nombreA.localeCompare(nombreB);
+            });
+            break;
+        case 'actividad':
+            sorted.sort((a, b) => {
+                const proyectosA = a.proyectos || [];
+                const proyectosB = b.proyectos || [];
+                if (proyectosA.length === 0 && proyectosB.length === 0) return 0;
+                if (proyectosA.length === 0) return 1;
+                if (proyectosB.length === 0) return -1;
+                const nombreA = proyectosA[0]?.nombre || '';
+                const nombreB = proyectosB[0]?.nombre || '';
+                return nombreA.localeCompare(nombreB);
+            });
+            break;
+        case 'habilidades':
+            sorted.sort((a, b) => {
+                const atributosA = a.atributos || [];
+                const atributosB = b.atributos || [];
+                if (atributosA.length === 0 && atributosB.length === 0) return 0;
+                if (atributosA.length === 0) return 1;
+                if (atributosB.length === 0) return -1;
+                const nombreA = (a.nombre || a.display_name || '').toLowerCase();
+                const nombreB = (b.nombre || b.display_name || '').toLowerCase();
+                return nombreA.localeCompare(nombreB);
+            });
+            break;
+    }
+    
+    return sorted;
+}
+
+// Renderizar tabla de beneficiarios del reporte
+function renderReportBeneficiariosTable(beneficiarios) {
+    console.log('Renderizando tabla de beneficiarios del reporte:', beneficiarios.length);
+    const tableBody = document.getElementById('reportBeneficiariesTableBody') || 
+                      document.getElementById('reportBeneficiariosTableBody');
+    if (!tableBody) {
+        console.error('No se encontró reportBeneficiariesTableBody al renderizar');
+        return;
+    }
+    
+    if (beneficiarios.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="10" style="padding: 40px; text-align: center; color: #6c757d;">
+                    No se encontraron beneficiarios con los filtros aplicados
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    try {
+        tableBody.innerHTML = beneficiarios.map(b => {
+            try {
+                const tipo = (b.tipo || '').toLowerCase();
+                const detalles = b.detalles || {};
+                let nombre = b.nombre || b.display_name || 'Sin nombre';
+                
+                // Construir nombre completo según tipo
+                let nombreCompleto = nombre;
+                let nombreParte = '';
+                let apellidoParte = '';
+                
+                if (tipo === 'individual') {
+                    nombreParte = detalles.nombre || b.nombre || '';
+                    apellidoParte = detalles.apellido || '';
+                    if (nombreParte && apellidoParte) {
+                        nombreCompleto = `${nombreParte} ${apellidoParte}`.trim();
+                    } else if (nombreParte) {
+                        nombreCompleto = nombreParte;
+                    } else if (apellidoParte) {
+                        nombreCompleto = apellidoParte;
+                    }
+                } else if (tipo === 'familia') {
+                    nombreCompleto = detalles.nombre_familia || nombre;
+                    nombreParte = detalles.nombre_familia || nombre;
+                } else if (tipo === 'institución') {
+                    nombreCompleto = detalles.nombre_institucion || nombre;
+                    nombreParte = detalles.nombre_institucion || nombre;
+                } else {
+                    nombreParte = nombreCompleto;
+                }
+                
+                // Obtener edad
+                let edad = detalles.edad || null;
+                if (!edad && detalles.fecha_nacimiento) {
+                    edad = calcularEdadDesdeFecha(detalles.fecha_nacimiento);
+                }
+                const edadDisplay = edad !== null ? `${edad} años` : 'N/A';
+                
+                // Obtener proyectos
+                const proyectos = b.proyectos || [];
+                const proyectosDisplay = proyectos.length > 0 
+                    ? proyectos.map(p => (p.nombre || p || 'Sin nombre').toString()).join(', ')
+                    : 'Sin proyectos';
+                
+                // Obtener habilidades
+                const atributos = b.atributos || [];
+                const habilidadesDisplay = atributos.length > 0
+                    ? atributos.map(a => `${(a.tipo || 'Sin tipo').toString()}: ${(a.valor || 'Sin valor').toString()}`).join('; ')
+                    : 'Sin habilidades';
+                
+                // Escapar HTML para prevenir XSS
+                const escapeHtml = (text) => {
+                    const div = document.createElement('div');
+                    div.textContent = text;
+                    return div.innerHTML;
+                };
+                
+                // Para responsive: mostrar nombre y apellidos en líneas separadas
+                const nombreResponsive = tipo === 'individual' && nombreParte && apellidoParte
+                    ? `<div style="line-height: 1.4;"><div style="font-weight: 500;">${escapeHtml(nombreParte)}</div><div style="color: #b8c5d1; font-size: 0.9em;">${escapeHtml(apellidoParte)}</div></div>`
+                    : escapeHtml(nombreCompleto);
+                
+                return `
+                    <tr class="report-beneficiary-row" style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                        <td class="report-col-nombre" style="padding: 8px; color: #ffffff; white-space: nowrap;">
+                            <span class="report-nombre-desktop">${escapeHtml(nombreCompleto)}</span>
+                            <span class="report-nombre-mobile">${nombreResponsive}</span>
+                        </td>
+                        <td class="report-col-tipo report-col-hide-mobile" style="padding: 8px; color: #b8c5d1; white-space: nowrap; text-transform: capitalize;">${escapeHtml(tipo || 'N/A')}</td>
+                        <td class="report-col-dpi" style="padding: 8px; color: #b8c5d1; white-space: nowrap;">${escapeHtml((detalles.dpi || b.dpi || 'N/A').toString())}</td>
+                        <td class="report-col-edad report-col-hide-mobile" style="padding: 8px; color: #b8c5d1; white-space: nowrap;">${escapeHtml(edadDisplay)}</td>
+                        <td class="report-col-genero report-col-hide-mobile" style="padding: 8px; color: #b8c5d1; white-space: nowrap; text-transform: capitalize;">${escapeHtml((detalles.genero || 'N/A').toString())}</td>
+                        <td class="report-col-telefono report-col-hide-mobile" style="padding: 8px; color: #b8c5d1; white-space: nowrap;">${escapeHtml((detalles.telefono || b.telefono || 'N/A').toString())}</td>
+                        <td class="report-col-comunidad" style="padding: 8px; color: #b8c5d1; white-space: nowrap;">${escapeHtml((b.comunidad_nombre || 'N/A').toString())}</td>
+                        <td class="report-col-region report-col-hide-mobile" style="padding: 8px; color: #b8c5d1; white-space: nowrap;">${escapeHtml((b.region_nombre || 'N/A').toString())}</td>
+                        <td class="report-col-proyectos report-col-hide-mobile" style="padding: 8px; color: #b8c5d1; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(proyectosDisplay)}">${escapeHtml(proyectosDisplay)}</td>
+                        <td class="report-col-habilidades report-col-hide-mobile" style="padding: 8px; color: #b8c5d1; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(habilidadesDisplay)}">${escapeHtml(habilidadesDisplay)}</td>
+                    </tr>
+                `;
+            } catch (error) {
+                console.error('Error renderizando beneficiario:', error, b);
+                return `
+                    <tr>
+                        <td colspan="10" style="padding: 8px; color: #dc3545;">Error renderizando beneficiario</td>
+                    </tr>
+                `;
+            }
+        }).join('');
+        console.log('Tabla renderizada exitosamente');
+    } catch (error) {
+        console.error('Error renderizando tabla:', error);
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="10" style="padding: 40px; text-align: center; color: #dc3545;">
+                    Error al renderizar la tabla: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Inicializar buscador y ordenamiento del reporte
+function initializeReportSearchAndSort() {
+    // Buscador
+    const searchInput = document.getElementById('reportBeneficiariesSearch');
+    const searchClear = document.getElementById('reportBeneficiariesSearchClear');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            if (this.value.trim()) {
+                if (searchClear) searchClear.style.display = 'flex';
+            } else {
+                if (searchClear) searchClear.style.display = 'none';
+            }
+            applyReportFiltersAndSort();
+        });
+    }
+    
+    if (searchClear) {
+        searchClear.addEventListener('click', function() {
+            if (searchInput) searchInput.value = '';
+            this.style.display = 'none';
+            applyReportFiltersAndSort();
+        });
+    }
+    
+    // Ordenamiento
+    const sortSelect = document.getElementById('reportSortBeneficiaries');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            reportSortOrder = this.value;
+            applyReportFiltersAndSort();
+        });
+    }
+    
+    // Botones de exportar - se configurarán cuando se muestre la vista (en showView)
+}
+
+// ======================================
+// FUNCIONES DE EXPORTACIÓN DE REPORTE
+// ======================================
+
+let currentExportFormat = null;
+let isExporting = false; // Flag para evitar múltiples exportaciones simultáneas
+let currentComparisonData = null; // Almacenar datos de comparativa para exportación
+let isExportingComparison = false; // Flag para evitar múltiples exportaciones de comparativa simultáneas
+
+function setupExportButtons() {
+    const exportPDFBtn = document.getElementById('exportReportPDFBtn');
+    const exportWordBtn = document.getElementById('exportReportWordBtn');
+    
+    console.log('🔵 Configurando botones de exportar...');
+    console.log('🔵 exportPDFBtn encontrado:', !!exportPDFBtn);
+    console.log('🔵 exportWordBtn encontrado:', !!exportWordBtn);
+    
+    if (exportPDFBtn) {
+        exportPDFBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón PDF');
+            if (typeof openExportModal === 'function') {
+                openExportModal('pdf');
+            } else {
+                console.error('❌ openExportModal no está definida');
+            }
+            return false;
+        };
+        console.log('✅ Listener configurado para botón PDF');
+    } else {
+        console.error('❌ No se encontró exportPDFBtn - reintentando...');
+        // Reintentar después de un delay
+        setTimeout(() => setupExportButtons(), 300);
+    }
+    
+    if (exportWordBtn) {
+        exportWordBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón Word');
+            if (typeof openExportModal === 'function') {
+                openExportModal('word');
+            } else {
+                console.error('❌ openExportModal no está definida');
+            }
+            return false;
+        };
+        console.log('✅ Listener configurado para botón Word');
+    } else {
+        console.error('❌ No se encontró exportWordBtn - reintentando...');
+        // Reintentar después de un delay
+        setTimeout(() => setupExportButtons(), 300);
+    }
+}
+
+function setupExportButtonsDirect() {
+    const exportPDFBtn = document.getElementById('exportReportPDFBtn');
+    const exportWordBtn = document.getElementById('exportReportWordBtn');
+    
+    console.log('🔵 Configurando botones de exportar (directos)...');
+    
+    if (exportPDFBtn) {
+        // Remover listeners anteriores si existen
+        exportPDFBtn.replaceWith(exportPDFBtn.cloneNode(true));
+        const newPdfBtn = document.getElementById('exportReportPDFBtn');
+        
+        newPdfBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón PDF (directo)');
+            if (typeof openExportModal === 'function') {
+                openExportModal('pdf');
+            } else {
+                console.error('❌ openExportModal no está definida');
+            }
+        });
+        console.log('✅ Listener directo configurado para botón PDF');
+    }
+    
+    if (exportWordBtn) {
+        // Remover listeners anteriores si existen
+        exportWordBtn.replaceWith(exportWordBtn.cloneNode(true));
+        const newWordBtn = document.getElementById('exportReportWordBtn');
+        
+        newWordBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('✅ Click en botón Word (directo)');
+            if (typeof openExportModal === 'function') {
+                openExportModal('word');
+            } else {
+                console.error('❌ openExportModal no está definida');
+            }
+        });
+        console.log('✅ Listener directo configurado para botón Word');
+    }
+}
+
+function setupExportModal() {
+    const modal = document.getElementById('exportReportModal');
+    const closeBtn = document.getElementById('closeExportReportModal');
+    const cancelBtn = document.getElementById('cancelExportBtn');
+    const confirmPdfBtn = document.getElementById('confirmExportPdfBtn');
+    const confirmWordBtn = document.getElementById('confirmExportWordBtn');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeExportModal);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeExportModal);
+    }
+    
+    if (confirmPdfBtn) {
+        confirmPdfBtn.addEventListener('click', function() {
+            exportReport('pdf');
+        });
+    }
+    
+    if (confirmWordBtn) {
+        confirmWordBtn.addEventListener('click', function() {
+            exportReport('word');
+        });
+    }
+    
+    // Cerrar modal al hacer click fuera
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeExportModal();
+            }
+        });
+    }
+}
+
+function openExportModal(format) {
+    console.log('🔵 openExportModal llamada con formato:', format);
+    currentExportFormat = format;
+    const modal = document.getElementById('exportReportModal');
+    
+    console.log('🔵 Modal encontrado:', !!modal);
+    if (!modal) {
+        console.error('❌ No se encontró el modal exportReportModal');
+        return;
+    }
+    
+    // Mostrar solo el botón correspondiente al formato
+    const confirmPdfBtn = document.getElementById('confirmExportPdfBtn');
+    const confirmWordBtn = document.getElementById('confirmExportWordBtn');
+    
+    console.log('🔵 confirmPdfBtn encontrado:', !!confirmPdfBtn);
+    console.log('🔵 confirmWordBtn encontrado:', !!confirmWordBtn);
+    
+    if (format === 'pdf') {
+        if (confirmPdfBtn) {
+            confirmPdfBtn.style.display = 'inline-flex';
+            console.log('✅ Botón PDF configurado para mostrar');
+        }
+        if (confirmWordBtn) {
+            confirmWordBtn.style.display = 'none';
+            console.log('✅ Botón Word ocultado');
+        }
+    } else {
+        if (confirmPdfBtn) {
+            confirmPdfBtn.style.display = 'none';
+            console.log('✅ Botón PDF ocultado');
+        }
+        if (confirmWordBtn) {
+            confirmWordBtn.style.display = 'inline-flex';
+            console.log('✅ Botón Word configurado para mostrar');
+        }
+    }
+    
+    // Resetear checkboxes a checked por defecto
+    const includeEstadisticas = document.getElementById('exportIncludeEstadisticas');
+    const includeListado = document.getElementById('exportIncludeListado');
+    console.log('🔵 Checkbox estadísticas encontrado:', !!includeEstadisticas);
+    console.log('🔵 Checkbox listado encontrado:', !!includeListado);
+    
+    if (includeEstadisticas) {
+        includeEstadisticas.checked = true;
+        console.log('✅ Checkbox estadísticas marcado');
+    }
+    if (includeListado) {
+        includeListado.checked = true;
+        console.log('✅ Checkbox listado marcado');
+    }
+    
+    // Mostrar el modal siguiendo el mismo patrón que otros modales en la página
+    modal.style.display = 'flex';
+    console.log('✅ Modal mostrado (display: flex)');
+    
+    // Agregar clase 'show' después de un pequeño delay (para animación)
+    setTimeout(() => {
+        modal.classList.add('show');
+        console.log('✅ Clase "show" agregada al modal');
+    }, 10);
+}
+
+function closeExportModal() {
+    const modal = document.getElementById('exportReportModal');
+    if (modal) {
+        // Quitar clase 'show' primero (para animación de cierre)
+        modal.classList.remove('show');
+        // Ocultar después de la animación
+        setTimeout(() => {
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }, 300);
+    }
+    currentExportFormat = null;
+}
+
+async function exportReport(format) {
+    // Prevenir múltiples llamadas simultáneas
+    if (isExporting) {
+        console.log('⚠️ Ya se está generando un reporte, esperando...');
+        return;
+    }
+    
+    try {
+        isExporting = true; // Marcar como en proceso
+        
+        const includeEstadisticas = document.getElementById('exportIncludeEstadisticas');
+        const includeListado = document.getElementById('exportIncludeListado');
+        
+        // Verificar que al menos una opción esté seleccionada
+        if (!includeEstadisticas.checked && !includeListado.checked) {
+            mostrarMensaje('warning', 'Debe seleccionar al menos una sección para exportar');
+            isExporting = false;
+            return;
+        }
+        
+        // Obtener filtros actuales
+        const filters = {
+            include_estadisticas: includeEstadisticas.checked,
+            include_listado: includeListado.checked,
+            comunidades: Array.from(reportFiltrosAplicados.comunidades || []),
+            proyectos: Array.from(reportFiltrosAplicados.proyectos || []),
+            solo_con_habilidades: reportFiltrosAplicados.soloConHabilidades || false,
+            sort_order: reportSortOrder || 'alfabetico',
+            search_query: document.getElementById('reportBeneficiariesSearch')?.value || ''
+        };
+        
+        // Construir parámetros
+        const params = new URLSearchParams();
+        params.append('formato', format);
+        params.append('include_estadisticas', filters.include_estadisticas ? '1' : '0');
+        params.append('include_listado', filters.include_listado ? '1' : '0');
+        params.append('solo_con_habilidades', filters.solo_con_habilidades ? '1' : '0');
+        params.append('sort_order', filters.sort_order);
+        
+        if (filters.comunidades.length > 0) {
+            params.append('comunidades', filters.comunidades.join(','));
+        }
+        if (filters.proyectos.length > 0) {
+            params.append('proyectos', filters.proyectos.join(','));
+        }
+        if (filters.search_query) {
+            params.append('search_query', filters.search_query);
+        }
+        
+        // Cerrar modal
+        closeExportModal();
+        
+        // Mostrar indicador de carga
+        mostrarMensaje('info', 'Generando reporte... Por favor espere.');
+        
+        // Realizar petición
+        const response = await fetch(`/api/beneficiarios/exportar-reporte/?${params.toString()}`, {
+            method: 'GET',
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Error al exportar el reporte' }));
+            throw new Error(errorData.error || 'Error al exportar el reporte');
+        }
+        
+        // Obtener el blob del archivo
+        const blob = await response.blob();
+        
+        // Crear URL temporal y descargar
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Obtener nombre del archivo del header Content-Disposition o generar uno
+        const contentDisposition = response.headers.get('Content-Disposition');
+        const extension = format === 'pdf' ? 'pdf' : 'docx';
+        let filename = `reporte_beneficiarios_${new Date().toISOString().split('T')[0]}.${extension}`;
+        
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].replace(/['"]/g, '');
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        mostrarMensaje('success', 'Reporte exportado exitosamente');
+        
+    } catch (error) {
+        console.error('Error al exportar reporte:', error);
+        mostrarMensaje('error', `Error al exportar el reporte: ${error.message}`);
+    } finally {
+        isExporting = false; // Liberar el flag
+    }
+}
+
+// ======================================
+// EXPORTACIÓN DE COMPARATIVAS
+// ======================================
+
+async function exportComparison(format) {
+    // Prevenir múltiples llamadas simultáneas
+    if (isExportingComparison) {
+        console.log('⚠️ Ya se está generando un reporte de comparativa, esperando...');
+        return;
+    }
+    
+    // Verificar que haya datos de comparativa
+    if (!currentComparisonData) {
+        mostrarMensaje('error', 'No hay datos de comparativa para exportar. Por favor, genere una comparativa primero.');
+        return;
+    }
+    
+    try {
+        isExportingComparison = true; // Marcar como en proceso
+        
+        mostrarMensaje('info', 'Generando reporte de comparativa... Por favor espere.');
+        
+        // Preparar datos para enviar
+        const comparisonData = {
+            groupsData: currentComparisonData.groupsData.map(group => ({
+                year: group.year,
+                month: group.month,
+                projectId: group.projectId,
+                proyectoNombre: group.proyectoNombre,
+                beneficiarios: group.beneficiarios.map(ben => ({
+                    uniqueId: ben.uniqueId,
+                    nombre: ben.nombre || ben.detalles?.display_name || 'N/A',
+                    dpi: ben.dpi || ben.detalles?.dpi || ben.detalles?.dpi_jefe_familia || ben.detalles?.dpi_representante || 'N/A',
+                    comunidad_nombre: ben.comunidad_nombre || 'N/A'
+                }))
+            })),
+            repetentes: currentComparisonData.comparisonResults.repetentes.map(ben => ({
+                uniqueId: ben.uniqueId,
+                nombre: ben.nombre || ben.detalles?.display_name || 'N/A',
+                dpi: ben.dpi || ben.detalles?.dpi || ben.detalles?.dpi_jefe_familia || ben.detalles?.dpi_representante || 'N/A',
+                comunidad_nombre: ben.comunidad_nombre || 'N/A'
+            })),
+            ausentes: currentComparisonData.comparisonResults.ausentes.map(grupoAusentes => 
+                grupoAusentes.map(ben => ({
+                    uniqueId: ben.uniqueId,
+                    nombre: ben.nombre || ben.detalles?.display_name || 'N/A',
+                    dpi: ben.dpi || ben.detalles?.dpi || ben.detalles?.dpi_jefe_familia || ben.detalles?.dpi_representante || 'N/A',
+                    comunidad_nombre: ben.comunidad_nombre || 'N/A'
+                }))
+            )
+        };
+        
+        // Realizar petición POST con los datos
+        const exportUrl = `/api/beneficiarios/exportar-comparativa/?formato=${format}`;
+        console.log('🔵 URL de exportación de comparativa:', exportUrl);
+        
+        const response = await fetch(exportUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(comparisonData)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Error al exportar la comparativa' }));
+            throw new Error(errorData.error || 'Error al exportar la comparativa');
+        }
+        
+        // Obtener el blob del archivo
+        const blob = await response.blob();
+        
+        // Crear URL temporal y descargar
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        
+        // Obtener nombre del archivo del header Content-Disposition o generar uno
+        const contentDisposition = response.headers.get('Content-Disposition');
+        const extension = format === 'pdf' ? 'pdf' : 'docx';
+        let filename = `comparativa_beneficiarios_${new Date().toISOString().split('T')[0]}.${extension}`;
+        
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].replace(/['"]/g, '');
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+        
+        mostrarMensaje('success', 'Comparativa exportada exitosamente');
+        
+    } catch (error) {
+        console.error('Error al exportar comparativa:', error);
+        mostrarMensaje('error', `Error al exportar la comparativa: ${error.message}`);
+    } finally {
+        isExportingComparison = false; // Liberar el flag
+    }
+}
 
 // ======================================
 // FORMULARIO DE AGREGAR BENEFICIARIO
@@ -2520,24 +4193,24 @@ async function guardarBeneficiariosExcel() {
         if (proyectoIds.length > 0) {
             // Si hay proyectos seleccionados, usar guardar-general con todos los proyectos
             const response = await fetch('/api/beneficiarios/guardar-general/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify({
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify({
                     beneficiarios_pendientes: beneficiariosPendientesExcel,
                     proyecto_ids: proyectoIds,  // Array de IDs de proyectos
                     fecha_agregacion_sistema: fechaSistema || null,  // Fecha de agregación al sistema general
                     fecha_agregacion_proyecto: fechaProyecto || null  // Fecha de asociación a proyectos
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
                 mostrarMensaje('success', data.message || `Se guardaron ${beneficiariosPendientesExcel.length} beneficiario(s) y se vincularon a ${proyectoIds.length} proyecto(s) exitosamente.`);
-            } else {
+                    } else {
                 mostrarMensaje('error', data.error || 'Error al guardar los beneficiarios');
             }
         } else {
@@ -6722,8 +8395,8 @@ function addComparisonGroup() {
     
     // Cargar proyectos para el nuevo grupo
     loadProjectsForGroup(newGroupIndex).then(() => {
-        // Configurar buscador de proyectos para el nuevo grupo
-        setupGroupProjectSearch(newGroupIndex);
+    // Configurar buscador de proyectos para el nuevo grupo
+    setupGroupProjectSearch(newGroupIndex);
         
         // Restaurar datos de los grupos existentes después de agregar el nuevo
         // Esperar un poco para asegurar que el DOM esté listo
@@ -7121,6 +8794,12 @@ async function handleGenerateComparison() {
 
         // Calcular beneficiarios repetentes y ausentes
         const comparisonResults = calculateComparisonResults(groupsData);
+
+        // Guardar datos para exportación
+        currentComparisonData = {
+            groupsData: groupsData,
+            comparisonResults: comparisonResults
+        };
 
         // Mostrar resultados
         displayComparisonResults(comparisonResults, groupsData);

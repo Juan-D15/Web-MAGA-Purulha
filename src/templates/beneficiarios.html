@@ -1026,11 +1026,301 @@
               </svg>
               Volver
             </button>
-            <h2 class="view-title">Resultados de la Comparativa</h2>
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; width: 100%;">
+              <h2 class="view-title" style="margin: 0;">Resultados de la Comparativa</h2>
+              <div style="display: flex; gap: 12px;">
+                <button type="button" id="exportComparisonPDFBtn" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Exportar PDF
+                </button>
+                <button type="button" id="exportComparisonWordBtn" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                  Exportar Word
+                </button>
+              </div>
+            </div>
           </div>
 
         <div id="comparisonResultsContent">
           <!-- Contenido se generará dinámicamente -->
+        </div>
+      </div>
+
+      <!-- Vista de Generar Reporte -->
+      <div id="generateReportView" class="report-view" style="display: none;">
+        <div class="view-header">
+          <button class="btn-back" id="backFromReportBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"></path>
+            </svg>
+            Volver
+          </button>
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+            <div>
+              <h2 class="view-title">Generar Reporte de Beneficiarios</h2>
+              <p class="view-subtitle">Exporta estadísticas y listado completo de beneficiarios en PDF o Word</p>
+            </div>
+            <div style="display: flex; gap: 12px;">
+              <button type="button" id="exportReportPDFBtn" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Exportar PDF
+              </button>
+              <button type="button" id="exportReportWordBtn" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                Exportar Word
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="report-content">
+          <!-- Primera Parte: Estadísticas Generales -->
+          <div id="reportStatisticsSection" class="report-section">
+            <h3 style="color: #ffffff; font-size: 1.5rem; font-weight: 700; margin: 0 0 24px 0; padding-bottom: 16px; border-bottom: 2px solid rgba(255, 255, 255, 0.1);">
+              Estadísticas Generales
+            </h3>
+            
+            <!-- Tabla compacta de estadísticas -->
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; overflow: hidden; margin-bottom: 32px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                <thead>
+                  <tr style="background: rgba(0, 123, 255, 0.1); border-bottom: 2px solid rgba(0, 123, 255, 0.3);">
+                    <th style="padding: 12px 16px; text-align: left; color: #ffffff; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.1);">Métrica</th>
+                    <th style="padding: 12px 16px; text-align: right; color: #ffffff; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.1);">Valor</th>
+                    <th style="padding: 12px 16px; text-align: left; color: #ffffff; font-weight: 600;">Descripción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 10px 16px; color: #ffffff; font-weight: 500; border-right: 1px solid rgba(255,255,255,0.1);">Total de Beneficiarios</td>
+                    <td style="padding: 10px 16px; text-align: right; color: #007bff; font-weight: 700; font-size: 1.1rem; border-right: 1px solid rgba(255,255,255,0.1);" id="reportStatTotalBeneficiarios">-</td>
+                    <td style="padding: 10px 16px; color: #b8c5d1; font-size: 0.85rem;">Total de beneficiarios registrados en el sistema</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 10px 16px; color: #ffffff; font-weight: 500; border-right: 1px solid rgba(255,255,255,0.1);">Beneficiarios Alcanzados</td>
+                    <td style="padding: 10px 16px; text-align: right; color: #28a745; font-weight: 700; font-size: 1.1rem; border-right: 1px solid rgba(255,255,255,0.1);" id="reportStatBeneficiariosAlcanzados">-</td>
+                    <td style="padding: 10px 16px; color: #b8c5d1; font-size: 0.85rem;">Beneficiarios con al menos 1 proyecto asociado</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 10px 16px; color: #ffffff; font-weight: 500; border-right: 1px solid rgba(255,255,255,0.1);">Con Múltiples Proyectos</td>
+                    <td style="padding: 10px 16px; text-align: right; color: #ffc107; font-weight: 700; font-size: 1.1rem; border-right: 1px solid rgba(255,255,255,0.1);" id="reportStatMultiplesProyectos">-</td>
+                    <td style="padding: 10px 16px; color: #b8c5d1; font-size: 0.85rem;">Beneficiarios asociados a más de 1 proyecto</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 10px 16px; color: #ffffff; font-weight: 500; border-right: 1px solid rgba(255,255,255,0.1);">Con Un Solo Proyecto</td>
+                    <td style="padding: 10px 16px; text-align: right; color: #17a2b8; font-weight: 700; font-size: 1.1rem; border-right: 1px solid rgba(255,255,255,0.1);" id="reportStatUnSoloProyecto">-</td>
+                    <td style="padding: 10px 16px; color: #b8c5d1; font-size: 0.85rem;">Beneficiarios asociados exactamente a 1 proyecto</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 10px 16px; color: #ffffff; font-weight: 500; border-right: 1px solid rgba(255,255,255,0.1);">Comunidades Alcanzadas</td>
+                    <td style="padding: 10px 16px; text-align: right; color: #6c757d; font-weight: 700; font-size: 1.1rem; border-right: 1px solid rgba(255,255,255,0.1);" id="reportStatComunidadesAlcanzadas">-</td>
+                    <td style="padding: 10px 16px; color: #b8c5d1; font-size: 0.85rem;">Comunidades con al menos 1 beneficiario</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px 16px; color: #ffffff; font-weight: 500; border-right: 1px solid rgba(255,255,255,0.1);">Beneficiarios con Habilidades</td>
+                    <td style="padding: 10px 16px; text-align: right; color: #ffc107; font-weight: 700; font-size: 1.1rem; border-right: 1px solid rgba(255,255,255,0.1);" id="reportStatBeneficiariosConHabilidades">-</td>
+                    <td style="padding: 10px 16px; color: #b8c5d1; font-size: 0.85rem;">Beneficiarios con habilidades, méritos o capacidades especiales registradas</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Gráficos y distribuciones -->
+            <div class="stats-charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; margin-bottom: 32px;">
+              <!-- Distribución por género -->
+              <div class="stat-chart-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0 0 20px 0;">Distribución por Género</h3>
+                <div id="reportGenderDistributionChart" style="min-height: 250px; display: flex; align-items: center; justify-content: center; color: #6c757d;">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando datos...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Top 10 comunidades -->
+              <div class="stat-chart-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px);">
+                <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0 0 20px 0;">Top 10 Comunidades con Más Beneficiarios</h3>
+                <div id="reportTopComunidadesChart" style="min-height: 250px; display: flex; align-items: center; justify-content: center; color: #6c757d;">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Cargando datos...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Distribución de Habilidades -->
+            <div class="stat-chart-card" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; backdrop-filter: blur(10px); margin-bottom: 32px;">
+              <h3 style="color: #ffffff; font-size: 1.2rem; font-weight: 700; margin: 0 0 20px 0;">Distribución de Habilidades</h3>
+              <div id="reportHabilidadesList" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Cargando habilidades...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Segunda Parte: Tabla General de Beneficiarios -->
+          <div id="reportTableSection" class="report-section" style="margin-top: 48px; padding-top: 48px; border-top: 2px solid rgba(255, 255, 255, 0.1);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+              <h3 style="color: #ffffff; font-size: 1.5rem; font-weight: 700; margin: 0;">
+                Listado General de Beneficiarios
+              </h3>
+              <button type="button" id="toggleReportFiltersBtn" class="btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 0.9rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                <span id="toggleReportFiltersText">Mostrar Filtros</span>
+              </button>
+            </div>
+
+            <!-- Panel de Filtros -->
+            <div id="reportFiltersPanel" class="filters-panel" style="display: none; margin-bottom: 24px;">
+              <div class="filters-content">
+                <div class="filters-grid">
+                  <!-- Filtro de Comunidad -->
+                  <div class="filter-group filter-group-full">
+                    <label class="filter-label">Buscar Comunidad</label>
+                    <div id="reportSelectedComunidadesTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                    <div class="beneficiaries-search-container" style="margin-bottom: 0;">
+                      <div class="beneficiaries-search-wrapper">
+                        <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <input type="text" id="reportSearchComunidad" class="beneficiaries-search-input" placeholder="Ej: Barrio Las Moras o Región 1" autocomplete="off">
+                        <button type="button" id="reportSearchComunidadClear" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
+                        <ul id="reportSearchComunidadSuggestions" class="input-suggestions"></ul>
+                      </div>
+                    </div>
+                    <small style="color: #6c757d; display: block; margin-top: 8px;">Escribe para buscar y seleccionar una comunidad o región.</small>
+                  </div>
+                  
+                  <!-- Filtro de Proyecto -->
+                  <div class="filter-group filter-group-full">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                      <label class="filter-label" style="margin-bottom: 0;">Filtrar por Proyecto</label>
+                      <span class="toggle-icon" id="toggleIconProyectosReporte" style="cursor: pointer;" onclick="toggleChecklistReporte('proyectosReporte')">▶</span>
+                    </div>
+                    <div id="reportSelectedProyectosTags" class="selected-tags-container" style="margin-bottom: 12px; min-height: 0;"></div>
+                    <div class="search-input-container" style="margin-bottom: 12px;">
+                      <input type="text" class="filter-input filter-search" id="reportSearchProyecto" placeholder="Buscar proyecto...">
+                    </div>
+                    <div id="proyectosReporteContainer" style="display: none;">
+                      <div class="filter-checkboxes" id="filterProyectosReporte" style="max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                  </div>
+                  
+                  <!-- Checkbox de habilidades -->
+                  <div class="filter-group filter-group-full">
+                    <label class="filter-label">Opciones Especiales</label>
+                    <div class="filter-checkboxes">
+                      <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-radius: 4px; transition: background 0.2s;">
+                        <input type="checkbox" id="reportFilterSoloConHabilidades" style="width: 18px; height: 18px; cursor: pointer;">
+                        <span style="color: #ffffff; font-size: 14px;">Mostrar solo beneficiarios con habilidades</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div class="filters-actions">
+                  <button class="btn-secondary" id="reportResetFiltersBtn">Limpiar Filtros</button>
+                  <button class="btn-primary" id="reportApplyFiltersBtn">Aplicar Filtros</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Buscador y Ordenamiento -->
+            <div class="list-controls" style="margin-bottom: 20px;">
+              <div class="search-control">
+                <div class="beneficiaries-search-container">
+                  <div class="beneficiaries-search-wrapper">
+                    <svg class="beneficiaries-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" id="reportBeneficiariesSearch" class="beneficiaries-search-input" placeholder="Buscar por nombre, DPI o teléfono...">
+                    <button type="button" id="reportBeneficiariesSearchClear" class="beneficiaries-search-clear-btn" style="display: none;" title="Limpiar búsqueda">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="sort-control">
+                <label for="reportSortBeneficiaries" class="form-label">Ordenar por:</label>
+                <select id="reportSortBeneficiaries" class="form-select">
+                  <option value="alfabetico">Alfabético</option>
+                  <option value="comunidad">Por Comunidad</option>
+                  <option value="actividad">Por Actividad</option>
+                  <option value="habilidades">Por Habilidades</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Resultados -->
+            <div class="results-content">
+              <div class="results-header-info">
+                <span id="reportBeneficiariesCount" class="results-count">0 beneficiarios encontrados</span>
+              </div>
+              <div class="results-container" style="overflow-x: auto;">
+                <table id="reportBeneficiariesTable" class="report-beneficiaries-table" style="width: 100%; border-collapse: collapse; font-size: 0.75rem; background: rgba(255, 255, 255, 0.03); border-radius: 8px; overflow: hidden;">
+                  <thead>
+                    <tr style="background: rgba(0, 123, 255, 0.1); border-bottom: 2px solid rgba(0, 123, 255, 0.3);">
+                      <th class="report-col-nombre" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Nombre</th>
+                      <th class="report-col-tipo report-col-hide-mobile" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Tipo</th>
+                      <th class="report-col-dpi" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">DPI</th>
+                      <th class="report-col-edad report-col-hide-mobile" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Edad</th>
+                      <th class="report-col-genero report-col-hide-mobile" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Género</th>
+                      <th class="report-col-telefono report-col-hide-mobile" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Teléfono</th>
+                      <th class="report-col-comunidad" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Comunidad</th>
+                      <th class="report-col-region report-col-hide-mobile" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Región</th>
+                      <th class="report-col-proyectos report-col-hide-mobile" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Proyectos</th>
+                      <th class="report-col-habilidades report-col-hide-mobile" style="padding: 10px 8px; text-align: left; color: #ffffff; font-weight: 600; white-space: nowrap;">Habilidades</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportBeneficiariesTableBody">
+                    <tr>
+                      <td colspan="10" style="padding: 40px; text-align: center; color: #6c757d;">
+                        <div class="loading-state">
+                          <div class="spinner"></div>
+                          <p>Cargando beneficiarios...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1059,6 +1349,63 @@
       </div>
       <div class="modal-footer">
         <button type="button" id="closeBeneficiaryDetailsBtn" class="btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Opciones de Exportación de Reporte -->
+  <div id="exportReportModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Opciones de Exportación</h3>
+        <button class="modal-close" id="closeExportReportModal" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <p style="color: #b8c5d1; margin-bottom: 20px;">Seleccione qué secciones incluir en el reporte:</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <label style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+            <input type="checkbox" id="exportIncludeEstadisticas" checked style="width: 20px; height: 20px; cursor: pointer;">
+            <div style="flex: 1;">
+              <div style="color: #ffffff; font-weight: 600; margin-bottom: 4px;">Estadísticas Generales</div>
+              <div style="color: #b8c5d1; font-size: 0.9rem;">Incluir todas las estadísticas generales del dashboard</div>
+            </div>
+          </label>
+          
+          <label style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+            <input type="checkbox" id="exportIncludeListado" checked style="width: 20px; height: 20px; cursor: pointer;">
+            <div style="flex: 1;">
+              <div style="color: #ffffff; font-weight: 600; margin-bottom: 4px;">Listado de Beneficiarios</div>
+              <div style="color: #b8c5d1; font-size: 0.9rem;">Incluir listado completo de beneficiarios con todos los datos</div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 20px 24px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; gap: 12px; justify-content: flex-end;">
+        <button type="button" id="cancelExportBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="confirmExportPdfBtn" class="btn-primary" style="background: #dc3545; border-color: #dc3545;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          Exportar PDF
+        </button>
+        <button type="button" id="confirmExportWordBtn" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          Exportar Word
+        </button>
       </div>
     </div>
   </div>

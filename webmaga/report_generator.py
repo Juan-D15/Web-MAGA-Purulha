@@ -14,7 +14,7 @@ from django.http import HttpResponse
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from io import BytesIO
@@ -3062,3 +3062,793 @@ def generate_html_reporte_general(data):
     
     return '\n'.join(html_parts)
 
+
+# ======================================
+# FUNCIONES PARA REPORTE DE BENEFICIARIOS
+# ======================================
+
+def generate_word_report_beneficiarios(report_data):
+    """Genera un reporte de beneficiarios en formato Word"""
+    try:
+        # Cargar plantilla Word si existe
+        template_path = get_template_path('PlantillaWord.docx')
+        if os.path.exists(template_path):
+            try:
+                doc = Document(template_path)
+                # Limpiar contenido existente pero mantener estilos y formato
+                for paragraph in list(doc.paragraphs):
+                    p = paragraph._element
+                    p.getparent().remove(p)
+            except Exception as e:
+                print(f"Error al cargar plantilla Word: {str(e)}")
+                doc = Document()
+        else:
+            doc = Document()
+        
+        # Agregar título
+        title = doc.add_heading('Reporte de Beneficiarios', 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # Agregar fecha de generación
+        date_para = doc.add_paragraph()
+        date_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        date_run = date_para.add_run(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
+        date_run.font.size = Pt(9)
+        date_run.font.color.rgb = RGBColor(102, 102, 102)
+        doc.add_paragraph()  # Espacio
+        
+        # Generar contenido según lo que se incluye
+        generate_word_content_beneficiarios(doc, report_data)
+        
+        # Agregar pie de página
+        add_footer_word(doc)
+        
+        # Guardar en BytesIO
+        output = BytesIO()
+        doc.save(output)
+        output.seek(0)
+        
+        return output
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise Exception(f"Error al generar reporte Word de beneficiarios: {str(e)}")
+
+
+def generate_pdf_report_beneficiarios(report_data):
+    """Genera un reporte de beneficiarios en formato PDF - Convierte el Word generado a PDF"""
+    try:
+        # PRIORIDAD: Generar Word primero y luego convertirlo a PDF
+        print("📄 Generando documento Word de beneficiarios...")
+        word_buffer = generate_word_report_beneficiarios(report_data)
+        word_buffer.seek(0)
+        
+        # Guardar el contenido del buffer en memoria para poder leerlo múltiples veces
+        word_content = word_buffer.read()
+        word_buffer.seek(0)
+        
+        # MÉTODO 1: Intentar conversión con LibreOffice (Linux/Mac)
+        try:
+            import subprocess
+            import tempfile
+            import shutil
+            
+            # Verificar si libreoffice está disponible
+            libreoffice_cmd = None
+            for cmd in ['libreoffice', 'soffice']:
+                if shutil.which(cmd):
+                    libreoffice_cmd = cmd
+                    break
+            
+            if libreoffice_cmd:
+                print("🔄 Convirtiendo Word a PDF con LibreOffice...")
+                
+                # Crear directorio temporal
+                temp_dir = tempfile.mkdtemp()
+                temp_word_path = os.path.join(temp_dir, 'reporte_beneficiarios.docx')
+                
+                # Guardar Word en archivo temporal usando el contenido guardado
+                with open(temp_word_path, 'wb') as f:
+                    f.write(word_content)
+                
+                # Convertir con LibreOffice en modo headless
+                subprocess.run([
+                    libreoffice_cmd,
+                    '--headless',
+                    '--convert-to', 'pdf',
+                    '--outdir', temp_dir,
+                    temp_word_path
+                ], check=True, capture_output=True, timeout=60)
+                
+                # Leer el PDF generado
+                pdf_path = os.path.join(temp_dir, 'reporte_beneficiarios.pdf')
+                if os.path.exists(pdf_path):
+                    pdf_file = BytesIO()
+                    with open(pdf_path, 'rb') as f:
+                        pdf_file.write(f.read())
+                    
+                    # Limpiar directorio temporal
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                    
+                    pdf_file.seek(0)
+                    print("✅ PDF generado exitosamente desde Word (LibreOffice)")
+                    return pdf_file
+        except Exception as e:
+            print(f"⚠️ LibreOffice no disponible o falló: {e}")
+            pass
+        
+        # MÉTODO 2: Intentar conversión con docx2pdf (Windows)
+        try:
+            import sys
+            if sys.platform == 'win32':
+                from docx2pdf import convert
+                import tempfile
+                
+                print("🔄 Convirtiendo Word a PDF con docx2pdf (Windows)...")
+                
+                # Crear archivos temporales usando el contenido guardado
+                with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_word:
+                    temp_word.write(word_content)
+                    temp_word_path = temp_word.name
+                
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+                    temp_pdf_path = temp_pdf.name
+                
+                # Convertir Word a PDF
+                convert(temp_word_path, temp_pdf_path)
+                
+                # Leer el PDF generado
+                pdf_file = BytesIO()
+                with open(temp_pdf_path, 'rb') as f:
+                    pdf_file.write(f.read())
+                
+                # Limpiar archivos temporales
+                try:
+                    os.unlink(temp_word_path)
+                    os.unlink(temp_pdf_path)
+                except:
+                    pass
+                
+                pdf_file.seek(0)
+                print("✅ PDF generado exitosamente desde Word (docx2pdf)")
+                return pdf_file
+        except Exception as e:
+            print(f"⚠️ docx2pdf no disponible o falló: {e}")
+            pass
+        
+        # Si falla la conversión, devolver el Word como fallback
+        print("⚠️ No se pudo convertir a PDF, devolviendo documento Word")
+        # Crear un nuevo buffer con el contenido guardado
+        fallback_buffer = BytesIO()
+        fallback_buffer.write(word_content)
+        fallback_buffer.seek(0)
+        return fallback_buffer
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise Exception(f"Error al generar reporte PDF de beneficiarios: {str(e)}")
+
+
+def generate_word_content_beneficiarios(doc, report_data):
+    """Genera el contenido específico del reporte de beneficiarios en Word"""
+    include_estadisticas = report_data.get('include_estadisticas', True)
+    include_listado = report_data.get('include_listado', True)
+    
+    # Parte 1: Estadísticas Generales
+    if include_estadisticas:
+        estadisticas = report_data.get('estadisticas')
+        if estadisticas:
+            generate_word_estadisticas_beneficiarios(doc, estadisticas)
+            if include_listado:
+                doc.add_page_break()
+        elif include_estadisticas and not include_listado:
+            doc.add_paragraph('No se encontraron estadísticas para incluir en el reporte.')
+    
+    # Parte 2: Listado de Beneficiarios
+    if include_listado:
+        beneficiarios = report_data.get('beneficiarios', [])
+        if beneficiarios:
+            generate_word_listado_beneficiarios(doc, beneficiarios)
+        elif include_listado and not include_estadisticas:
+            doc.add_paragraph('No se encontraron beneficiarios para incluir en el reporte.')
+
+
+def generate_word_estadisticas_beneficiarios(doc, estadisticas):
+    """Genera el contenido de estadísticas generales de beneficiarios en Word"""
+    if not estadisticas:
+        doc.add_paragraph('No se encontraron estadísticas para este reporte.')
+        return
+    
+    doc.add_heading('Estadísticas Generales', level=2)
+    
+    # Tabla compacta con estadísticas principales
+    table = doc.add_table(rows=1, cols=2)
+    format_table_word(table)
+    from docx.shared import Inches
+    table.columns[0].width = Inches(3.5)
+    table.columns[1].width = Inches(3.5)
+    
+    # Encabezado
+    header_cells = table.rows[0].cells
+    header_cells[0].text = "Indicador"
+    header_cells[1].text = "Valor"
+    header_cells[0].paragraphs[0].runs[0].bold = True
+    header_cells[1].paragraphs[0].runs[0].bold = True
+    
+    # Agregar filas de estadísticas
+    estadisticas_items = [
+        ("Total de Beneficiarios", estadisticas.get('total_beneficiarios', 0)),
+        ("Beneficiarios Alcanzados", estadisticas.get('beneficiarios_alcanzados', 0)),
+        ("Con Múltiples Proyectos", estadisticas.get('beneficiarios_multiples_proyectos', 0)),
+        ("Con Un Solo Proyecto", estadisticas.get('beneficiarios_un_solo_proyecto', 0)),
+        ("Comunidades Alcanzadas", estadisticas.get('comunidades_alcanzadas', 0)),
+    ]
+    
+    for label, value in estadisticas_items:
+        row = table.add_row()
+        row.cells[0].text = label
+        row.cells[1].text = str(value)
+    
+    doc.add_paragraph()  # Espacio
+    
+    # Distribución por género
+    if estadisticas.get('distribucion_genero'):
+        distribucion = estadisticas['distribucion_genero']
+        doc.add_heading('Distribución por Género', level=3)
+        genero_table = doc.add_table(rows=1, cols=2)
+        format_table_word(genero_table)
+        genero_table.columns[0].width = Inches(3.5)
+        genero_table.columns[1].width = Inches(3.5)
+        
+        genero_header = genero_table.rows[0].cells
+        genero_header[0].text = "Género"
+        genero_header[1].text = "Cantidad"
+        genero_header[0].paragraphs[0].runs[0].bold = True
+        genero_header[1].paragraphs[0].runs[0].bold = True
+        
+        genero_items = [
+            ("Masculino", distribucion.get('masculino', 0)),
+            ("Femenino", distribucion.get('femenino', 0)),
+            ("Otro", distribucion.get('otro', 0)),
+        ]
+        
+        for label, value in genero_items:
+            row = genero_table.add_row()
+            row.cells[0].text = label
+            row.cells[1].text = str(value)
+        
+        doc.add_paragraph()  # Espacio
+    
+    # Top 10 comunidades
+    if estadisticas.get('top_comunidades') and len(estadisticas['top_comunidades']) > 0:
+        doc.add_heading('Top 10 Comunidades con Más Beneficiarios', level=3)
+        top_table = doc.add_table(rows=1, cols=2)
+        format_table_word(top_table)
+        top_table.columns[0].width = Inches(4.5)
+        top_table.columns[1].width = Inches(2.5)
+        
+        top_header = top_table.rows[0].cells
+        top_header[0].text = "Comunidad"
+        top_header[1].text = "Total Beneficiarios"
+        top_header[0].paragraphs[0].runs[0].bold = True
+        top_header[1].paragraphs[0].runs[0].bold = True
+        
+        for comunidad in estadisticas['top_comunidades'][:10]:
+            row = top_table.add_row()
+            row.cells[0].text = str(comunidad.get('nombre', '-'))
+            row.cells[1].text = str(comunidad.get('total', 0))
+        
+        doc.add_paragraph()  # Espacio
+    
+    # Beneficiarios con habilidades
+    if estadisticas.get('beneficiarios_con_habilidades', 0) > 0:
+        doc.add_heading('Beneficiarios con Habilidades', level=3)
+        info_para = doc.add_paragraph()
+        info_para.add_run(f"Total: ").bold = True
+        info_para.add_run(str(estadisticas['beneficiarios_con_habilidades']))
+        
+        if estadisticas.get('habilidades') and len(estadisticas['habilidades']) > 0:
+            doc.add_paragraph()  # Espacio
+            habilidades_table = doc.add_table(rows=1, cols=3)
+            format_table_word(habilidades_table)
+            habilidades_table.columns[0].width = Inches(2.5)
+            habilidades_table.columns[1].width = Inches(2.5)
+            habilidades_table.columns[2].width = Inches(2.5)
+            
+            hab_header = habilidades_table.rows[0].cells
+            hab_header[0].text = "Tipo"
+            hab_header[1].text = "Valor"
+            hab_header[2].text = "Total"
+            hab_header[0].paragraphs[0].runs[0].bold = True
+            hab_header[1].paragraphs[0].runs[0].bold = True
+            hab_header[2].paragraphs[0].runs[0].bold = True
+            
+            for habilidad in estadisticas['habilidades']:
+                row = habilidades_table.add_row()
+                row.cells[0].text = str(habilidad.get('tipo', '-'))
+                row.cells[1].text = str(habilidad.get('valor', '-'))
+                row.cells[2].text = str(habilidad.get('total', 0))
+
+
+def generate_word_listado_beneficiarios(doc, beneficiarios):
+    """Genera el listado completo de beneficiarios en Word"""
+    if not beneficiarios or len(beneficiarios) == 0:
+        doc.add_paragraph('No se encontraron beneficiarios para este reporte.')
+        return
+    
+    doc.add_heading('Listado General de Beneficiarios', level=2)
+    
+    # Tabla con 8 columnas (sin Región ni Habilidades)
+    from docx.shared import Inches, Pt
+    table = doc.add_table(rows=1, cols=8)
+    format_table_word(table)
+    
+    # Configurar anchos de columna para permitir wrap de texto
+    # Anchos: Nombre, Tipo, DPI, Edad, Género, Teléfono, Comunidad, Proyectos
+    column_widths = [
+        Inches(1.8),  # Nombre - permite wrap
+        Inches(0.8),  # Tipo - corto
+        Inches(1.2),  # DPI - completo
+        Inches(0.7),  # Edad - corto
+        Inches(0.8),  # Género - corto
+        Inches(1.0),  # Teléfono - completo
+        Inches(1.5),  # Comunidad - permite wrap
+        Inches(2.2),  # Proyectos - permite wrap
+    ]
+    
+    for i, width in enumerate(column_widths):
+        table.columns[i].width = width
+    
+    # Encabezados (sin Región ni Habilidades)
+    headers = ['Nombre', 'Tipo', 'DPI', 'Edad', 'Género', 'Teléfono', 'Comunidad', 'Proyectos']
+    header_cells = table.rows[0].cells
+    for i, header in enumerate(headers):
+        header_cells[i].text = header
+        header_cells[i].paragraphs[0].runs[0].bold = True
+        # Configurar wrap de texto para encabezados también
+        header_cells[i].paragraphs[0].runs[0].font.size = Pt(10)
+    
+    # Agregar beneficiarios
+    for beneficiario in beneficiarios:
+        detalles = beneficiario.get('detalles', {})
+        
+        # Obtener edad
+        edad = detalles.get('edad') or '-'
+        if edad == '-' and detalles.get('fecha_nacimiento'):
+            try:
+                from datetime import datetime
+                fecha_nac = datetime.fromisoformat(detalles['fecha_nacimiento'].replace('Z', '+00:00'))
+                hoy = datetime.now()
+                edad_calculada = hoy.year - fecha_nac.year - ((hoy.month, hoy.day) < (fecha_nac.month, fecha_nac.day))
+                edad = f"{edad_calculada}" if edad_calculada > 0 else '-'
+            except:
+                edad = '-'
+        
+        # Obtener proyectos - mostrar todos, separados por coma
+        proyectos_list = beneficiario.get('proyectos', [])
+        if proyectos_list:
+            # Mostrar todos los proyectos, separados por coma
+            proyectos_nombres = [p.get('nombre', '') for p in proyectos_list if p.get('nombre')]
+            # Separar cada proyecto por coma para mejor visualización
+            proyectos_str = ', '.join(proyectos_nombres)
+        else:
+            proyectos_str = '-'
+        
+        row_cells = table.add_row().cells
+        
+        # Nombre - permite wrap
+        nombre = str(beneficiario.get('nombre', '-'))
+        row_cells[0].text = nombre
+        row_cells[0].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # Tipo - completo
+        tipo = str(beneficiario.get('tipo_display', beneficiario.get('tipo', '-'))).title()
+        row_cells[1].text = tipo
+        row_cells[1].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # DPI - completo
+        dpi = str(detalles.get('dpi', '-'))
+        row_cells[2].text = dpi
+        row_cells[2].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # Edad - completo
+        row_cells[3].text = str(edad) if edad != '-' else '-'
+        row_cells[3].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # Género - completo
+        genero = detalles.get('genero', '-')
+        genero_str = str(genero).title() if genero and genero != '-' else '-'
+        row_cells[4].text = genero_str
+        row_cells[4].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # Teléfono - completo
+        telefono = str(detalles.get('telefono', '-'))
+        row_cells[5].text = telefono
+        row_cells[5].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # Comunidad - permite wrap
+        comunidad = str(beneficiario.get('comunidad_nombre', '-'))
+        row_cells[6].text = comunidad
+        row_cells[6].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # Proyectos - permite wrap
+        row_cells[7].text = proyectos_str
+        row_cells[7].vertical_alignment = WD_ALIGN_VERTICAL.TOP
+        
+        # Configurar wrap de texto y formato para todas las celdas
+        for cell in row_cells:
+            # Configurar que el texto pueda dividirse en palabras
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.widow_control = True
+                paragraph.paragraph_format.keep_together = False
+                # Permitir que el texto se divida entre líneas
+                for run in paragraph.runs:
+                    run.font.size = Pt(9)  # Tamaño de fuente más pequeño para mejor ajuste
+
+
+# ======================================
+# FUNCIONES PARA EXPORTAR COMPARATIVAS
+# ======================================
+
+def generate_word_comparison(comparison_data):
+    """Genera un reporte de comparativa de beneficiarios en formato Word"""
+    try:
+        # Cargar plantilla Word si existe
+        template_path = get_template_path('PlantillaWord.docx')
+        if os.path.exists(template_path):
+            try:
+                doc = Document(template_path)
+                # Limpiar contenido existente pero mantener estilos y formato
+                for paragraph in list(doc.paragraphs):
+                    p = paragraph._element
+                    p.getparent().remove(p)
+            except Exception as e:
+                print(f"Error al cargar plantilla Word: {str(e)}")
+                doc = Document()
+        else:
+            doc = Document()
+        
+        # El título se agregará en generate_word_comparison_content con información detallada
+        # Por ahora solo agregamos un espacio
+        
+        # Agregar fecha de generación
+        date_para = doc.add_paragraph()
+        date_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        date_run = date_para.add_run(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
+        date_run.font.size = Pt(9)
+        date_run.font.color.rgb = RGBColor(102, 102, 102)
+        doc.add_paragraph()  # Espacio
+        
+        # Generar contenido de comparativa
+        generate_word_comparison_content(doc, comparison_data)
+        
+        # Agregar pie de página
+        add_footer_word(doc)
+        
+        # Guardar en BytesIO
+        output = BytesIO()
+        doc.save(output)
+        output.seek(0)
+        
+        return output
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise Exception(f"Error al generar reporte Word de comparativa: {str(e)}")
+
+
+def generate_pdf_comparison(comparison_data):
+    """Genera un reporte de comparativa en formato PDF - Convierte el Word generado a PDF"""
+    try:
+        # PRIORIDAD: Generar Word primero y luego convertirlo a PDF
+        print("📄 Generando documento Word de comparativa...")
+        word_buffer = generate_word_comparison(comparison_data)
+        
+        # Guardar el contenido del buffer en memoria para poder leerlo múltiples veces
+        word_buffer.seek(0)
+        word_content = word_buffer.read()
+        word_buffer.close()  # Cerrar el buffer original
+        
+        # MÉTODO 1: Intentar conversión con LibreOffice (Linux/Mac)
+        try:
+            import subprocess
+            import tempfile
+            import shutil
+            
+            # Verificar si libreoffice está disponible
+            libreoffice_cmd = None
+            for cmd in ['libreoffice', 'soffice']:
+                if shutil.which(cmd):
+                    libreoffice_cmd = cmd
+                    break
+            
+            if libreoffice_cmd:
+                print("🔄 Convirtiendo Word a PDF con LibreOffice...")
+                
+                # Crear directorio temporal
+                temp_dir = tempfile.mkdtemp()
+                temp_word_path = os.path.join(temp_dir, 'comparativa_beneficiarios.docx')
+                
+                # Guardar Word en archivo temporal usando el contenido guardado
+                with open(temp_word_path, 'wb') as f:
+                    f.write(word_content)
+                
+                # Convertir con LibreOffice en modo headless
+                subprocess.run([
+                    libreoffice_cmd,
+                    '--headless',
+                    '--convert-to', 'pdf',
+                    '--outdir', temp_dir,
+                    temp_word_path
+                ], check=True, capture_output=True, timeout=60)
+                
+                # Leer el PDF generado
+                pdf_path = os.path.join(temp_dir, 'comparativa_beneficiarios.pdf')
+                if os.path.exists(pdf_path):
+                    pdf_file = BytesIO()
+                    with open(pdf_path, 'rb') as f:
+                        pdf_file.write(f.read())
+                    
+                    # Limpiar directorio temporal
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except:
+                        pass
+                    
+                    pdf_file.seek(0)
+                    print("✅ PDF generado exitosamente desde Word (LibreOffice)")
+                    return pdf_file
+        except Exception as e:
+            print(f"⚠️ LibreOffice no disponible o falló: {e}")
+            pass
+        
+        # MÉTODO 2: Intentar conversión con docx2pdf (Windows)
+        try:
+            import sys
+            if sys.platform == 'win32':
+                from docx2pdf import convert
+                import tempfile
+                
+                print("🔄 Convirtiendo Word a PDF con docx2pdf (Windows)...")
+                
+                # Crear archivos temporales usando el contenido guardado
+                with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_word:
+                    temp_word.write(word_content)
+                    temp_word_path = temp_word.name
+                
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+                    temp_pdf_path = temp_pdf.name
+                
+                # Convertir Word a PDF
+                convert(temp_word_path, temp_pdf_path)
+                
+                # Leer el PDF generado
+                pdf_file = BytesIO()
+                with open(temp_pdf_path, 'rb') as f:
+                    pdf_file.write(f.read())
+                
+                # Limpiar archivos temporales
+                try:
+                    os.unlink(temp_word_path)
+                    os.unlink(temp_pdf_path)
+                except:
+                    pass
+                
+                pdf_file.seek(0)
+                print("✅ PDF generado exitosamente desde Word (docx2pdf)")
+                return pdf_file
+        except Exception as e:
+            print(f"⚠️ docx2pdf no disponible o falló: {e}")
+            pass
+        
+        # Si falla la conversión, lanzar excepción en lugar de devolver Word
+        print("❌ No se pudo convertir a PDF")
+        raise Exception("No se pudo convertir el documento Word a PDF. Asegúrese de tener LibreOffice instalado y accesible en el PATH (Linux/Mac) o docx2pdf configurado correctamente (Windows).")
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise Exception(f"Error al generar reporte PDF de comparativa: {str(e)}")
+
+
+def generate_word_comparison_content(doc, comparison_data):
+    """Genera el contenido específico de la comparativa en Word"""
+    groups_data = comparison_data.get('groupsData', [])
+    repetentes = comparison_data.get('repetentes', [])
+    ausentes = comparison_data.get('ausentes', [])
+    
+    if not groups_data:
+        doc.add_paragraph('No se encontraron datos de comparativa para este reporte.')
+        return
+    
+    # Crear título descriptivo con información de los grupos
+    meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    
+    # Título principal
+    title_main = doc.add_paragraph('Comparación de Beneficiarios')
+    title_main.runs[0].bold = True
+    title_main.runs[0].font.size = Pt(18)
+    title_main.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph()  # Espacio
+    
+    # Construir información de grupos para el subtítulo
+    titulo_parts = []
+    for index, group in enumerate(groups_data):
+        proyecto_nombre = group.get('proyectoNombre', '')
+        if not proyecto_nombre or proyecto_nombre.strip() == '':
+            grupo_texto = 'base de datos general'
+        else:
+            grupo_texto = f'proyecto "{proyecto_nombre}"'
+        
+        if group.get('year'):
+            grupo_texto += f' del año {group["year"]}'
+            if group.get('month'):
+                grupo_texto += f' ({meses[int(group["month"]) - 1]})'
+        titulo_parts.append(grupo_texto)
+    
+    # Subtítulo con información detallada
+    if len(titulo_parts) == 2:
+        subtitulo_texto = f'Comparación entre beneficiarios repitentes y ausentes entre {titulo_parts[0]} y {titulo_parts[1]}'
+    else:
+        subtitulo_texto = 'Comparación entre beneficiarios repitentes y ausentes'
+        for i, parte in enumerate(titulo_parts):
+            if i == 0:
+                subtitulo_texto += f' entre {parte}'
+            elif i < len(titulo_parts) - 1:
+                subtitulo_texto += f', {parte}'
+            else:
+                subtitulo_texto += f' y {parte}'
+    
+    # Agregar subtítulo
+    subtitle_para = doc.add_paragraph(subtitulo_texto)
+    subtitle_para.runs[0].bold = True
+    subtitle_para.runs[0].font.size = Pt(14)
+    subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph()  # Espacio
+    
+    # Mostrar totales de cada grupo (sin listado completo)
+    resumen_heading = doc.add_paragraph('Resumen de Grupos de Comparación')
+    resumen_heading.runs[0].bold = True
+    resumen_heading.runs[0].font.size = Pt(13)
+    doc.add_paragraph()  # Espacio
+    
+    for index, group in enumerate(groups_data):
+        proyecto_nombre = group.get('proyectoNombre', '')
+        if not proyecto_nombre or proyecto_nombre.strip() == '':
+            grupo_label = f'Grupo {index + 1}: Base de Datos General'
+        else:
+            grupo_label = f'Grupo {index + 1}: {proyecto_nombre}'
+        
+        if group.get('year'):
+            grupo_label += f' - Año {group["year"]}'
+            if group.get('month'):
+                grupo_label += f' ({meses[int(group["month"]) - 1]})'
+        
+        total_beneficiarios = len(group.get('beneficiarios', []))
+        resumen_texto = f"{grupo_label}: Este grupo contiene un total de {total_beneficiarios} beneficiarios registrados en el sistema."
+        
+        resumen_para = doc.add_paragraph(resumen_texto)
+        resumen_para.runs[0].font.size = Pt(12)
+        resumen_para.runs[0].bold = False
+    doc.add_paragraph()  # Espacio
+    
+    # Sección 1: Beneficiarios Repitentes
+    if repetentes:
+        doc.add_page_break()
+        doc.add_heading('Beneficiarios Repitentes', level=2)
+        doc.add_paragraph('Beneficiarios que aparecen en todos los grupos')
+        doc.add_paragraph(f"Total: {len(repetentes)}")
+        doc.add_paragraph()  # Espacio
+        
+        # Crear tabla de repetentes
+        table = doc.add_table(rows=1, cols=3)
+        format_table_word(table)
+        table.columns[0].width = Inches(3.0)
+        table.columns[1].width = Inches(1.5)
+        table.columns[2].width = Inches(2.5)
+        
+        # Encabezados
+        headers = ['Nombre', 'DPI', 'Comunidad']
+        header_cells = table.rows[0].cells
+        for i, header in enumerate(headers):
+            header_cells[i].text = header
+            header_cells[i].paragraphs[0].runs[0].bold = True
+        
+        # Agregar repetentes
+        for ben in repetentes:
+            row_cells = table.add_row().cells
+            row_cells[0].text = str(ben.get('nombre', '-'))
+            row_cells[1].text = str(ben.get('dpi', '-'))
+            row_cells[2].text = str(ben.get('comunidad_nombre', '-'))
+    
+    # Sección 2: Beneficiarios Ausentes (en dos columnas)
+    if ausentes and any(grupo for grupo in ausentes if grupo):
+        doc.add_page_break()
+        doc.add_heading('Beneficiarios Ausentes', level=2)
+        doc.add_paragraph('Beneficiarios que aparecen solo en un grupo específico')
+        doc.add_paragraph()  # Espacio
+        
+        # Crear una tabla de dos columnas para mostrar los ausentes lado a lado
+        # Determinar el número máximo de filas necesarias
+        max_rows = max([len(grupo) for grupo in ausentes if grupo] + [0])
+        
+        # Crear tabla principal con 2 columnas (una por grupo)
+        # Cada columna tendrá: encabezado del grupo + tabla de beneficiarios
+        main_table = doc.add_table(rows=1, cols=2)
+        main_table.columns[0].width = Inches(3.5)
+        main_table.columns[1].width = Inches(3.5)
+        
+        # Llenar cada columna con su grupo correspondiente
+        for col_index in range(2):
+            if col_index < len(ausentes):
+                grupo_ausentes = ausentes[col_index]
+                group = groups_data[col_index] if col_index < len(groups_data) else {}
+                
+                # Crear etiqueta del grupo
+                label = f'Grupo {col_index + 1}'
+                if group.get('proyectoNombre'):
+                    label += f": {group['proyectoNombre']}"
+                if group.get('year'):
+                    label += f" - Año {group['year']}"
+                    if group.get('month'):
+                        label += f" ({meses[int(group['month']) - 1]})"
+                label += ' (Solo en este grupo)'
+                
+                # Agregar contenido a la celda de la columna
+                cell = main_table.rows[0].cells[col_index]
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.TOP
+                
+                # Título del grupo
+                title_para = cell.paragraphs[0]
+                title_run = title_para.add_run(label)
+                title_run.bold = True
+                title_run.font.size = Pt(11)
+                
+                # Total
+                total_para = cell.add_paragraph()
+                total_run = total_para.add_run(f"Total: {len(grupo_ausentes) if grupo_ausentes else 0}")
+                total_run.font.size = Pt(10)
+                
+                # Espacio
+                cell.add_paragraph()
+                
+                # Crear tabla de beneficiarios dentro de la celda
+                if grupo_ausentes:
+                    inner_table = cell.add_table(rows=1, cols=3)
+                    inner_table.columns[0].width = Inches(1.2)
+                    inner_table.columns[1].width = Inches(0.8)
+                    inner_table.columns[2].width = Inches(1.2)
+                    
+                    # Encabezados de la tabla interna
+                    inner_headers = ['Nombre', 'DPI', 'Comunidad']
+                    inner_header_cells = inner_table.rows[0].cells
+                    for i, header in enumerate(inner_headers):
+                        inner_header_cells[i].text = header
+                        inner_header_cells[i].paragraphs[0].runs[0].bold = True
+                        inner_header_cells[i].paragraphs[0].runs[0].font.size = Pt(9)
+                    
+                    # Agregar beneficiarios
+                    for ben in grupo_ausentes:
+                        inner_row = inner_table.add_row().cells
+                        inner_row[0].text = str(ben.get('nombre', '-'))
+                        inner_row[1].text = str(ben.get('dpi', '-'))
+                        inner_row[2].text = str(ben.get('comunidad_nombre', '-'))
+                        for cell_inner in inner_row:
+                            for para in cell_inner.paragraphs:
+                                for run in para.runs:
+                                    run.font.size = Pt(8)
+                else:
+                    no_data_para = cell.add_paragraph()
+                    no_data_run = no_data_para.add_run('No hay beneficiarios ausentes en este grupo')
+                    no_data_run.font.size = Pt(9)
+                    no_data_run.italic = True
+            else:
+                # Si no hay segundo grupo, dejar celda vacía
+                cell = main_table.rows[0].cells[col_index]
+                cell.text = ''

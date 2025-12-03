@@ -42,6 +42,72 @@
   animation: slideInFromRight 0.4s ease-out;
 }
 
+/* ======================================
+   ESTILOS RESPONSIVE PARA TABLA DE REPORTES
+   ====================================== */
+
+/* Ocultar columnas en móvil */
+@media (max-width: 768px) {
+  .report-beneficiaries-table .report-col-hide-mobile {
+    display: none !important;
+  }
+  
+  /* Mostrar solo nombre, DPI y comunidad en móvil */
+  .report-beneficiaries-table .report-col-nombre,
+  .report-beneficiaries-table .report-col-dpi,
+  .report-beneficiaries-table .report-col-comunidad {
+    display: table-cell !important;
+  }
+  
+  /* Ocultar nombre desktop, mostrar nombre mobile */
+  .report-nombre-desktop {
+    display: none !important;
+  }
+  
+  .report-nombre-mobile {
+    display: block !important;
+  }
+  
+  /* Ajustar ancho de columnas en móvil */
+  .report-beneficiaries-table {
+    font-size: 0.85rem !important;
+  }
+  
+  .report-beneficiaries-table th,
+  .report-beneficiaries-table td {
+    padding: 10px 6px !important;
+  }
+  
+  .report-col-nombre {
+    min-width: 120px;
+    max-width: 150px;
+  }
+  
+  .report-col-dpi {
+    min-width: 100px;
+    max-width: 120px;
+  }
+  
+  .report-col-comunidad {
+    min-width: 120px;
+  }
+}
+
+/* Desktop: mostrar todas las columnas */
+@media (min-width: 769px) {
+  .report-nombre-mobile {
+    display: none !important;
+  }
+  
+  .report-nombre-desktop {
+    display: inline !important;
+  }
+  
+  .report-beneficiaries-table .report-col-hide-mobile {
+    display: table-cell !important;
+  }
+}
+
 @keyframes slideInFromRight {
   from {
     opacity: 0;
@@ -1628,5 +1694,107 @@
     width: 100%;
     max-width: 100%;
   }
+}
+
+/* ======================================
+   ESTILOS PARA MODALES
+   ====================================== */
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 16, 28, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  overflow: auto;
+  padding: 32px 16px;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.modal.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.modal-content {
+  background: var(--background-secondary);
+  border-radius: 16px;
+  padding: 0;
+  max-width: 560px;
+  width: 100%;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  box-shadow: var(--shadow-heavy);
+  border: 1px solid var(--border-color);
+}
+
+.modal.show .modal-content {
+  transform: scale(1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--background-secondary);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-secondary);
+}
+
+.modal-close:hover {
+  background: var(--background-tertiary);
+  transform: rotate(90deg);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 24px;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 20px 24px;
+  border-top: 1px solid var(--border-color);
 }
 

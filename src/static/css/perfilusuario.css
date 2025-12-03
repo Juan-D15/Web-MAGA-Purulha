@@ -54,6 +54,38 @@
   margin-bottom: 24px;
 }
 
+/* Mensaje de modo edición */
+.mensaje-edicion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.15) 0%, rgba(23, 162, 184, 0.15) 100%);
+  border: 1px solid rgba(0, 123, 255, 0.3);
+  border-radius: var(--border-radius);
+  margin-bottom: 24px;
+  color: var(--primary-color);
+  font-weight: 600;
+  font-size: 0.95rem;
+  animation: slideDown 0.3s ease;
+}
+
+.mensaje-edicion svg {
+  flex-shrink: 0;
+  color: var(--primary-color);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .perfil-content {
   background: var(--background-secondary);
   border: 1px solid var(--border-color);

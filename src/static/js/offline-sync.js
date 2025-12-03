@@ -441,8 +441,23 @@
         // === BENEFICIARIOS (opcional) ===
         '/api/beneficiarios/',
         '/api/beneficiario/',
+        
+        // === EXPORTACIONES (NO deben guardarse offline) ===
+        // Estas rutas están en allowedPaths pero deberían hacer bypass
       ];
-
+      
+      // Rutas que siempre deben hacer bypass (no guardar offline)
+      const bypassPaths = [
+        '/api/beneficiarios/exportar-reporte/',
+        '/api/beneficiarios/exportar-comparativa/',
+        '/api/reportes/exportar/',
+      ];
+      
+      // Si es una ruta de exportación, hacer bypass
+      if (bypassPaths.some(path => requestUrl.pathname.includes(path))) {
+        return true; // Bypass - no guardar offline
+      }
+      
       // ⚠️ IMPORTANTE: Solo interceptar si la ruta está en allowedPaths
       // Y si es una operación de modificación (POST, PUT, DELETE, PATCH)
       const isAllowed = allowedPaths.some(path => requestUrl.pathname.includes(path));
@@ -662,7 +677,22 @@
       
       // Si la respuesta no es JSON pero se espera JSON, convertir
       const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json') && url.pathname.startsWith('/api/')) {
+      // Convertir url string a objeto URL para acceder a pathname si es necesario
+      let urlPathname = '';
+      try {
+        if (typeof url === 'string') {
+          const urlObj = new URL(url, window.location.origin);
+          urlPathname = urlObj.pathname;
+        } else if (url && url.pathname) {
+          urlPathname = url.pathname;
+        } else {
+          urlPathname = url || '';
+        }
+      } catch (e) {
+        urlPathname = typeof url === 'string' ? url : '';
+      }
+      
+      if (!contentType.includes('application/json') && urlPathname && urlPathname.startsWith('/api/')) {
         // Si es una respuesta de error y no es JSON, devolver JSON válido
         if (!response.ok) {
           return new Response(
